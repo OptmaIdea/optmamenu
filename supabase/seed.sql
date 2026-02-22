@@ -1,0 +1,1 @@
+-- Empty seed file to prevent Supabase CLI errors

@@ -1,0 +1,119 @@
+import { Routes, Route, Outlet/* , Navigate */ } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+import CreateStore from '@/pages/CreateStore';
+
+// Lazy load layouts
+const PublicLayout = lazy(() => import('@/components/layouts/PublicLayout'));
+const PrivateLayout = lazy(() => import('@/components/layouts/PrivateLayout'));
+
+// Lazy load public routes
+const Landing = lazy(() => import('@/pages/initial/home/Landing'));
+const Login = lazy(() => import('@/pages/initial/auth/Login'));
+const Signup = lazy(() => import('@/pages/initial/auth/SignUp'));
+const Terms = lazy(() => import('@/pages/initial/legal/Terms'));
+const PrivacyPolicy = lazy(() => import('@/pages/initial/legal/PrivacyPolicy'));
+
+// Lazy load store routes
+const Catalog = lazy(() => import('@/pages/store/Catalog'));
+const Checkout = lazy(() => import('@/pages/store/Checkout'));
+const StoreLayout = lazy(() => import('@/components/layouts/StoreLayout').then(m => ({ default: m.StoreLayout })));
+
+// Lazy load private routes
+const Dashboard = lazy(() => import('@/pages/private/admin/dashboard/Dashboard'));
+const Activity = lazy(() => import('@/pages/private/admin/dashboard/Activity'));
+const Alerts = lazy(() => import('@/pages/private/admin/dashboard/Alerts'));
+const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
+const Settings = lazy(() => import('@/pages/private/admin/settings/storeSettings/StoreSettings'));
+const Products = lazy(() => import('@/pages/private/admin/products/Products'));
+const Users = lazy(() => import('@/pages/private/admin/settings/users/Users'));
+const Categories = lazy(() => import('@/pages/private/admin/products/Categories'));
+const Legal = lazy(() => import('@/pages/private/admin/support/Legal'));
+const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));
+const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/Appearance'));
+const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
+const Inventory = lazy(() => import('@/pages/private/admin/products/Inventory'));
+const StockMovements = lazy(() => import('@/pages/private/admin/products/inventory/StockMovements'));
+const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
+const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
+const Security = lazy(() => import('@/pages/private/admin/settings/security/Security'));
+const Customers = lazy(() => import('@/pages/private/admin/commercial/customers/Customers'));
+const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
+const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
+const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+  </div>
+);
+
+export default function AppRoutes() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <Routes>
+        {/* Public Routes - All wrapped in PublicLayout */}
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/politica-privacidade" element={<PrivacyPolicy />} />
+        </Route>
+
+        {/* Store Routes - Also public */}
+        <Route element={<StoreLayout><Outlet /></StoreLayout>}>
+          <Route path="/s/:storeSlug" element={<Catalog />} />
+          <Route path="/checkout" element={<Checkout />} />
+        </Route>
+
+        {/* Protected Routes - All wrapped in PrivateLayout */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/onboarding/create-store" element={<CreateStore />} />
+          <Route element={<PrivateLayout />}>
+            <Route path="/admin" element={<Dashboard />} />
+            <Route path="/admin/activity" element={<Activity />} />
+            <Route path="/admin/alerts" element={<Alerts />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/settings" element={<Settings />} />
+            <Route path="/admin/orders" element={<Orders />} />
+            <Route path="/admin/customers" element={<Customers />} />
+            <Route path="/admin/products" element={<Products />} />
+            <Route path="/admin/categories" element={<Categories />} />
+            <Route path="/admin/users" element={<Users />} />
+            <Route path="/admin/legal" element={<Legal />} />
+            <Route path="/admin/faq" element={<FAQ />} />
+            <Route path="/admin/config" element={<Appearance />} />
+            <Route path="/admin/inventory" element={<Inventory />} />
+            <Route path="/admin/stock-movements" element={<StockMovements />} />
+            <Route path="/admin/hours" element={<Hours />} />
+            <Route path="/admin/messages" element={<MessageSettings />} />
+            <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
+            <Route path="/admin/messages-admin" element={<AdminMessages />} />
+            <Route path="/admin/security" element={<Security />} />
+            <Route path="/admin/docs" element={<Documentation />} />
+          </Route>
+        </Route>
+
+        {/* 404 Route */}
+        <Route path="*" element={
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="text-center">
+              <h1 className="text-6xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
+              <p className="text-xl text-gray-600 dark:text-gray-300 mb-6">
+                Página não encontrada
+              </p>
+              <button
+                onClick={() => window.history.back()}
+                className="bg-[#21A896] text-white px-6 py-2 rounded-lg hover:bg-[#1A867A] transition-colors"
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        } />
+      </Routes>
+    </Suspense>
+  );
+}

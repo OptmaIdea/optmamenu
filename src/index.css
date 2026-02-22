@@ -1,0 +1,204 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  html {
+    @apply bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100;
+    font-family: 'Candara', 'Segoe UI', Arial, sans-serif;
+  }
+}
+
+/* Cores da marca */
+:root {
+  --color-brand-green: #21A896;
+  --color-brand-orange: #F26541;
+  --color-brand-light: #FBA93C;
+  --color-brand-dark: #1A867A;
+
+  /* Gradiente para landing */
+  --landing-gradient: linear-gradient(135deg, #21A896 0%, #1A867A 100%);
+}
+
+/* Font stack para Candara */
+.font-candara {
+  font-family: 'Candara', 'Segoe UI', 'Arial', sans-serif;
+  font-weight: 400;
+}
+
+.font-candara-bold {
+  font-family: 'Candara', 'Segoe UI', 'Arial', sans-serif;
+  font-weight: 700;
+}
+
+/* Botão com efeito de profundidade */
+.button-primary,
+.button-primary:hover {
+  background: linear-gradient(to bottom, #F26541, #E05A36);
+  box-shadow: 0 4px 12px rgba(242, 101, 65, 0.3);
+  transition: all 0.3s ease;
+  border-radius: 50px;
+}
+
+.button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(242, 101, 65, 0.4);
+}
+
+/* Cards com animação suave */
+.card {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Smooth spin animation */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 1s linear infinite;
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom scrollbar para termos */
+.terms-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.terms-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.terms-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #e5e7eb;
+  border-radius: 4px;
+}
+
+html.dark .terms-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #374151;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.2s ease-out;
+}
+
+/* Adicione estas animações e estilos extras ao seu index.css */
+
+/* Animações */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Custom scrollbar para toda a aplicação */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(33, 168, 150, 0.2);
+  border-radius: 20px;
+  transition: all 0.3s;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(33, 168, 150, 0.4);
+}
+
+/* Dark mode scrollbar */
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(33, 168, 150, 0.3);
+}
+
+html.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(33, 168, 150, 0.5);
+}
+
+/* Grid responsivo automático */
+.auto-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+/* Glassmorphism para cards especiais */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+html.dark .glass-card {
+  background: rgba(17, 24, 39, 0.7);
+  border: 1px solid rgba(55, 65, 81, 0.3);
+}
+
+.sticky {
+  isolation: isolate;
+}

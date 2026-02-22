@@ -1,0 +1,1762 @@
+================================================================================
+                    DOCUMENTAÇÃO DE AUTENTICAÇÃO - OPTMAMENU
+                    Projeto: OptmaMenu
+                    Data de exportação: 21/02/2026
+================================================================================
+
+================================================================================
+SUMÁRIO
+================================================================================
+
+1. VISÃO GERAL DO SISTEMA DE AUTENTICAÇÃO
+2. ARQUIVOS DE STORE (ZUSTAND)
+   - src/store/useAuthStore.ts
+   - src/store/useCustomerAuth.ts
+
+3. SERVIÇOS DE AUTENTICAÇÃO
+   - src/services/customerAuth.ts
+
+4. COMPONENTES DE LOGIN/CADASTRO
+   - src/pages/initial/auth/Login.tsx
+   - src/pages/initial/auth/SignUp.tsx
+
+5. COMPONENTES DE PROTEÇÃO DE ROTAS
+   - src/components/ProtectedRoute.tsx
+
+6. LAYOUT PRIVADO
+   - src/components/layouts/PrivateLayout.tsx
+
+7. CONFIGURAÇÃO PRINCIPAL DO APP
+   - src/App.tsx
+
+8. ONBOARDING/CRIAÇÃO DE LOJA
+   - src/pages/CreateStore.tsx
+
+9. CONFIGURAÇÃO DE AUTENTICAÇÃO NO SUPABASE
+   - supabase/config.toml
+   - supabase/migrations/20260202120000_initial_schema.sql
+
+================================================================================
+1. VISÃO GERAL DO SISTEMA DE AUTENTICAÇÃO
+================================================================================
+
+O OptmaMenu possui DOIS sistemas de autenticação distintos:
+
+A) AUTENTICAÇÃO DE ADMINISTRADORES/LOJISTAS:
+   - Usa Supabase Auth (auth.users)
+   - Baseada em e-mail e senha
+   - Gerenciada via useAuthStore
+   - Protege rotas /admin/*
+
+B) AUTENTICAÇÃO DE CLIENTES/CONSUMIDORES:
+   - Sistema próprio na tabela customers
+   - Baseada em telefone + OTP (código SMS/WhatsApp)
+   - Opcionalmente com senha (bcrypt)
+   - Gerenciada via useCustomerAuth + AuthService
+   - Para acesso ao cardápio online
+
+================================================================================
+2. ARQUIVOS DE STORE (ZUSTAND)
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/store/useAuthStore.ts
+--------------------------------------------------------------------------------
+
+import { create } from 'zustand';
+import type { User, Session } from '@supabase/supabase-js';
+import type { Profile } from '@/types';
+
+interface AuthState {
+    user: User | null;
+    session: Session | null;
+    profile: Profile | null;
+    loading: boolean;
+    setSession: (session: Session | null) => void;
+    setUser: (user: User | null) => void;
+    setProfile: (profile: Profile | null) => void;
+    setLoading: (loading: boolean) => void;
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+    user: null,
+    session: null,
+    profile: null,
+    loading: true,
+    setSession: (session) => set({ session, user: session?.user ?? null }),
+    setUser: (user) => set({ user }),
+    setProfile: (profile) => set({ profile }),
+    setLoading: (loading) => set({ loading }),
+}));
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/store/useCustomerAuth.ts
+--------------------------------------------------------------------------------
+
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { Customer } from '@/types';
+
+
+// Re-export Customer type for backward compatibility
+export type { Customer };
+
+interface CustomerAuthState {
+    customer: Customer | null;
+    token: string | null; // For future real Auth integration
+    isAuthenticated: boolean;
+
+    // Actions
+    login: (customer: Customer) => void;
+    logout: () => void;
+    updatePoints: (newPoints: number) => void;
+}
+
+export const useCustomerAuth = create<CustomerAuthState>()(
+    persist(
+        (set) => ({
+            customer: null,
+            token: null,
+            isAuthenticated: false,
+
+            login: (customer) => set({ customer, isAuthenticated: true }),
+
+            logout: () => set({ customer: null, isAuthenticated: false }),
+
+            updatePoints: (newPoints) => set((state) => ({
+                customer: state.customer ? { ...state.customer, loyalty_points: newPoints } : null
+            }))
+        }),
+        {
+            name: 'optma-customer-auth', // LocalStorage key
+            partialize: (state) => ({ customer: state.customer, isAuthenticated: state.isAuthenticated }), // Persist only necessary data
+        }
+    )
+);
+
+================================================================================
+3. SERVIÇOS DE AUTENTICAÇÃO
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/services/customerAuth.ts
+--------------------------------------------------------------------------------
+
+import { supabase } from '@/lib/supabase';
+import { useCustomerAuth } from '@/store/useCustomerAuth';
+import bcrypt from 'bcryptjs';
+import { NotificationService } from '@/services/notificationService';
+
+export const AuthService = {
+
+    // 0. Check User Status
+    async checkStatus(phone: string, storeId: string) {
+
+        const digits = phone.replace(/\D/g, '');
+        const { data, error } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('phone', digits)
+            .eq('store_id', storeId)
+            .maybeSingle();
+
+        if (error) {
+
+            throw error;
+        }
+
+
+        return {
+            exists: !!data,
+            hasPassword: !!data?.password_hash,
+            customer: data
+        };
+    },
+
+    async sendOtp(phone: string, storeId: string) {
+
+        const digits = phone.replace(/\D/g, '');
+        const { data, error } = await supabase.rpc('send_customer_otp', {
+            p_phone: digits,
+            p_store_id: storeId
+        });
+
+        if (error) {
+
+            throw error;
+        }
+
+        return data;
+    },
+
+    async verifyOtp(phone: string, otp: string, storeId: string) {
+
+        const digits = phone.replace(/\D/g, '');
+        const { data, error } = await supabase.rpc('verify_customer_otp', {
+            p_phone: digits,
+            p_otp: otp,
+            p_store_id: storeId
+        });
+
+        if (error) {
+
+            throw error;
+        }
+
+
+        if (data.isValid) {
+            if (data.customer) {
+                useCustomerAuth.getState().login(data.customer);
+            }
+            return {
+                valid: true,
+                isNewUser: data.isNewUser,
+                customer: data.customer
+            };
+        }
+
+        throw new Error('Código inválido ou expirado.');
+    },
+
+    // 3. Complete Registration (for new users - detailed profile comes later)
+    async registerUser(data: { phone: string, storeId: string, storeName: string, nickname: string, password?: string, marketingConsent: boolean, email?: string, contactPreference?: 'whatsapp' | 'sms', birthDate?: string, loyaltyOptIn?: boolean }) {
+
+        try {
+            let passwordHash = null;
+            if (data.password) {
+                passwordHash = await bcrypt.hash(data.password, 10);
+            }
+
+            const insertData = {
+                phone: data.phone,
+                store_id: data.storeId,
+                nickname: data.nickname,
+                email: data.email || null,
+                birth_date: data.birthDate || null,
+                password_hash: passwordHash,
+                marketing_consent: data.marketingConsent,
+                contact_preference: data.contactPreference || 'whatsapp',
+                loyalty_opt_in: data.loyaltyOptIn ?? false, // Default to false per new multi-step flow
+                status: 'active'
+            };
+
+            const { data: newCustomer, error } = await supabase
+                .from('customers')
+                .insert(insertData)
+                .select()
+                .maybeSingle();
+
+            if (error) {
+                throw error;
+            }
+
+            // WELCOME MESSAGE
+            try {
+                await NotificationService.sendWelcome(newCustomer.id, data.storeId, data.storeName);
+            } catch (notifError) {
+                console.error('Failed to send welcome notification:', notifError);
+                // Continue execution, do not fail registration
+            }
+
+            useCustomerAuth.getState().login(newCustomer);
+            return newCustomer;
+        } catch (error: any) {
+            throw new Error(error.message || 'Erro ao criar conta.');
+        }
+    },
+
+    // 4. Update Profile (Full Registration)
+    async updateProfile(customerId: string, data: { fullName?: string, cpf?: string, email?: string, birthDate?: string }) {
+        const { data: updated, error } = await supabase
+            .from('customers')
+            .update({
+                full_name: data.fullName,
+                cpf: data.cpf,
+                email: data.email,
+                birth_date: data.birthDate
+            })
+            .eq('id', customerId)
+            .select()
+            .maybeSingle();
+
+        if (error) throw new Error('Erro ao atualizar perfil.');
+
+        // Update local session
+        useCustomerAuth.getState().login(updated);
+        return updated;
+    },
+
+    // 5. Login with Password
+    async loginWithPassword(phone: string, password: string, storeId: string) {
+        const cleanPhone = phone.replace(/\D/g, '');
+
+        const { data: customer, error } = await supabase
+            .from('customers')
+            .select('*')
+            .eq('phone', cleanPhone)
+            .eq('store_id', storeId)
+            .maybeSingle();
+
+        if (error || !customer) {
+            throw new Error('Usuário não encontrado ou senha incorreta.');
+        }
+
+        if (!customer.password_hash) {
+            throw new Error('Você ainda não tem senha. Entre com código OTP e crie uma.');
+        }
+
+        const isValid = await bcrypt.compare(password, customer.password_hash);
+        if (!isValid) {
+            throw new Error('Senha incorreta.');
+        }
+
+        useCustomerAuth.getState().login(customer);
+        return customer;
+    },
+
+    // 6. Reset Password (called after OTP verification)
+    async resetPassword(phone: string, storeId: string, newPassword: string) {
+        const cleanPhone = phone.replace(/\D/g, '');
+        const hash = await bcrypt.hash(newPassword, 10);
+
+        const { error } = await supabase
+            .from('customers')
+            .update({ password_hash: hash })
+            .eq('phone', cleanPhone)
+            .eq('store_id', storeId);
+
+        if (error) throw new Error('Erro ao redefinir senha.');
+        return true;
+    }
+};
+
+================================================================================
+4. COMPONENTES DE LOGIN/CADASTRO
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/pages/initial/auth/Login.tsx
+--------------------------------------------------------------------------------
+
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+
+export default function Login() {
+  const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) throw error;
+      navigate('/admin');
+    } catch (error: any) {
+      setError(error.message || 'Erro ao fazer login');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 pb-24"> {/* ← ADICIONADO pb-24 */}
+      <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-black text-gray-800 dark:text-white font-candara-bold">
+            Acesse sua conta
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-candara">
+            Faça login para acessar seu painel
+          </p>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
+              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600 dark:text-red-400 font-candara">{error}</p>
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                E-mail
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="seu@email.com"
+                  required
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                Senha
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]" />
+                <span className="text-sm text-gray-600 dark:text-gray-400 font-candara">Lembrar-me</span>
+              </label>
+              <Link
+                to="/forgot-password"
+                className="text-sm font-bold text-[#21A896] hover:text-[#1a867a] transition-colors font-candara"
+              >
+                Esqueceu a senha?
+              </Link>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <>
+                  Entrar
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+              Ainda não tem uma conta?{' '}
+              <Link
+                to="/signup"
+                className="font-bold text-[#21A896] hover:text-[#1a867a] transition-colors"
+              >
+                Cadastre-se
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/pages/initial/auth/SignUp.tsx
+--------------------------------------------------------------------------------
+
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { Mail, Lock, User, Phone, Store, ArrowRight, AlertCircle, CheckCircle } from 'lucide-react';
+
+export default function Signup() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    confirmPassword: '',
+    storeName: '',
+    storeSlug: '',
+    acceptTerms: false
+  });
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+      ...(name === 'storeName' && {
+        storeSlug: value.toLowerCase()
+          .replace(/[^a-z0-9]/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '')
+      })
+    }));
+  };
+
+  const validateStep1 = () => {
+    if (!formData.name) return 'Nome é obrigatório';
+    if (!formData.email) return 'E-mail é obrigatório';
+    if (!formData.phone) return 'Telefone é obrigatório';
+    if (!formData.password) return 'Senha é obrigatória';
+    if (formData.password.length < 6) return 'Senha deve ter no mínimo 6 caracteres';
+    if (formData.password !== formData.confirmPassword) return 'Senhas não conferem';
+    return '';
+  };
+
+  /*   const validateStep2 = () => {
+      if (!formData.storeName) return 'Nome da loja é obrigatório';
+      if (!formData.storeSlug) return 'URL da loja é obrigatória';
+      if (!formData.acceptTerms) return 'Você precisa aceitar os termos de uso';
+      return '';
+    }; */
+
+  const handleNextStep = () => {
+    const error = validateStep1();
+    if (error) {
+      setError(error);
+      return;
+    }
+    setError('');
+    setStep(2);
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    try {
+      const { /* data: authData,  */error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.name,
+            phone_number: formData.phone,
+          },
+          // Redireciona para o onboarding após confirmação
+          emailRedirectTo: `${window.location.origin}/onboarding/create-store`,
+        },
+      });
+
+      if (authError) throw authError;
+
+      setSuccess('Cadastro realizado! Verifique seu e-mail para confirmar sua conta.');
+      setTimeout(() => {
+        navigate('/'); // ou para uma página de "verifique seu e-mail"
+      }, 3000);
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 py-8">
+      <div className="max-w-2xl w-full">
+        <div className="text-center mb-8">
+          <h2 className="mt-6 text-3xl font-black text-gray-800 dark:text-white font-candara-bold">
+            Criar sua conta
+          </h2>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-candara">
+            Comece a gerenciar seu delivery em minutos
+          </p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="mb-8 flex items-center justify-center">
+          <div className="flex items-center">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 1
+              ? 'bg-[#21A896] text-white'
+              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+              }`}>
+              1
+            </div>
+            <div className={`w-16 h-1 mx-2 ${step >= 2
+              ? 'bg-[#21A896]'
+              : 'bg-gray-200 dark:bg-gray-700'
+              }`} />
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 2
+              ? 'bg-[#21A896] text-white'
+              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+              }`}>
+              2
+            </div>
+          </div>
+        </div>
+
+        {/* Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
+              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600 dark:text-red-400 font-candara">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-start gap-3">
+              <CheckCircle size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-green-600 dark:text-green-400 font-candara">{success}</p>
+            </div>
+          )}
+
+          {step === 1 && (
+            <form className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  Nome completo
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Seu nome"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  E-mail
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="seu@email.com"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  WhatsApp
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="(11) 99999-9999"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  Confirmar senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNextStep}
+                className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-6"
+              >
+                Continuar
+                <ArrowRight size={18} />
+              </button>
+            </form>
+          )}
+
+          {step === 2 && (
+            <form onSubmit={handleSignup} className="space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  Nome da sua loja
+                </label>
+                <div className="relative">
+                  <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    name="storeName"
+                    value={formData.storeName}
+                    onChange={handleChange}
+                    placeholder="Ex: Restaurante Sabor"
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  URL da sua loja
+                </label>
+                <div className="flex items-center">
+                  <span className="px-3 py-3 bg-gray-100 dark:bg-gray-700 border border-r-0 border-gray-200 dark:border-gray-600 rounded-l-xl text-gray-500 dark:text-gray-400 text-sm">
+                    /s/
+                  </span>
+                  <input
+                    type="text"
+                    name="storeSlug"
+                    value={formData.storeSlug}
+                    onChange={handleChange}
+                    placeholder="restaurante-sabor"
+                    className="flex-1 pl-3 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-r-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Seus clientes acessarão: seuapp.com/s/{formData.storeSlug || 'sua-loja'}
+                </p>
+              </div>
+
+              <div className="pt-4">
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    name="acceptTerms"
+                    checked={formData.acceptTerms}
+                    onChange={handleChange}
+                    className="mt-1 w-4 h-4 rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+                    Li e aceito os{' '}
+                    <Link to="/terms" className="text-[#21A896] hover:underline font-bold" target="_blank">
+                      Termos de Uso
+                    </Link>{' '}
+                    e a{' '}
+                    <Link to="/politica-privacidade" className="text-[#21A896] hover:underline font-bold" target="_blank">
+                      Política de Privacidade
+                    </Link>
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="flex-1 py-3 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-xl transition-colors"
+                >
+                  Voltar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    'Criar conta'
+                  )}
+                </button>
+              </div>
+            </form>
+          )}
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+              Já tem uma conta?{' '}
+              <Link
+                to="/login"
+                className="font-bold text-[#21A896] hover:text-[#1a867a] transition-colors"
+              >
+                Fazer login
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+================================================================================
+5. COMPONENTES DE PROTEÇÃO DE ROTAS
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/components/ProtectedRoute.tsx
+--------------------------------------------------------------------------------
+
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useEffect, useState } from 'react';
+
+export function ProtectedRoute() {
+    const { session, loading } = useAuthStore();
+    const location = useLocation();
+    const [isChecking, setIsChecking] = useState(true);
+
+    useEffect(() => {
+        // Pequeno delay para evitar flicker
+        const timer = setTimeout(() => {
+            setIsChecking(false);
+        }, 300);
+
+        return () => clearTimeout(timer);
+    }, []);
+
+    if (loading || isChecking) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                <div className="flex flex-col items-center">
+                    <div className="relative">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+                        <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-2 border-[#21A896] opacity-20"></div>
+                    </div>
+                    <p className="mt-4 text-gray-600 dark:text-gray-300 font-candara">
+                        Verificando sua autenticação...
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!session) {
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    return <Outlet />;
+}
+
+================================================================================
+6. LAYOUT PRIVADO
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/components/layouts/PrivateLayout.tsx
+--------------------------------------------------------------------------------
+
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState, useMemo } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useOrderMonitor } from '@/hooks/useOrderMonitor';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import {
+    LayoutDashboard,
+    Package,
+    ShoppingBag,
+    LogOut,
+    Users,
+    FileText,
+    HelpCircle,
+    Layers,
+    Menu,
+    ChevronLeft,
+    Moon,
+    Sun,
+    BarChart2,
+    AlertCircle,
+    Heart,
+    History,
+    MessageCircle,
+    UserCircle,
+    Smartphone,
+    Clock,
+    CreditCard,
+    BookOpen,
+    ExternalLink,
+    Lock,
+    MessageSquare
+} from 'lucide-react';
+
+export default function PrivateLayout() {
+    const { pathname } = useLocation();
+    const navigate = useNavigate();
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [isDark, setIsDark] = useState(false);
+    const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
+    const [storeId, setStoreId] = useState<string | null>(null);
+    const [storeSlug, setStoreSlug] = useState<string | null>(null);
+    const [loadingStore, setLoadingStore] = useState(true);
+
+    useEffect(() => {
+        const initialize = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) {
+                // Se não houver usuário, redirecionar para login (já deve ser protegido pela rota)
+                navigate('/login');
+                return;
+            }
+
+            const { data: store, error } = await supabase
+                .from('stores')
+                .select('id, slug, config')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            if (error) {
+                console.error('Erro ao verificar loja:', error);
+            }
+
+            if (!store) {
+                navigate('/onboarding/create-store', { replace: true });
+                return;
+            }
+
+            setStoreId(store.id);
+            setStoreSlug(store.slug);
+            setUserData({
+                name: user.user_metadata?.full_name || 'Usuário',
+                phone: user.user_metadata?.phone_number || '',
+                email: user.email || '',
+                avatar: store.config?.visual_icon_url || user.user_metadata?.avatar_url
+            });
+            setLoadingStore(false);
+        };
+
+        initialize();
+
+        // Dark Mode Check
+        if (document.documentElement.classList.contains('dark')) {
+            setIsDark(true);
+        }
+
+        // Favicon Logic - Force reload to avoid cache issues on tablets
+        const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
+        if (link) {
+            link.href = '/assets/OptmaMenuLogo.ico';
+            // Force reload by removing and re-adding
+            const newLink = link.cloneNode() as HTMLLinkElement;
+            newLink.href = '/assets/OptmaMenuLogo.ico?' + Date.now();
+            link.parentNode?.replaceChild(newLink, link);
+        }
+    }, [navigate]);
+
+    useOrderMonitor(storeId || undefined);
+
+    // Close mobile menu on route change
+    useEffect(() => {
+        setIsMobileOpen(false);
+    }, [pathname]);
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        navigate('/');
+    };
+
+    const toggleDarkMode = () => {
+        document.documentElement.classList.toggle('dark');
+        setIsDark(!isDark);
+        localStorage.setItem('theme', !isDark ? 'dark' : 'light');
+    };
+
+    const navigationItems = useMemo(() => ({
+        dashboard: [
+            { path: '/admin', icon: LayoutDashboard, label: 'Painel' },
+            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes' },
+            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas' },
+            { path: '/admin/reports', icon: FileText, label: 'Relatórios' },
+        ],
+        commercial: [
+            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
+            { path: '/admin/customers', icon: Users, label: 'Clientes' },
+            { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
+            { path: '/admin/marketing', icon: BarChart2, label: 'Promoções' },
+            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
+        ],
+        products: [
+            { path: '/admin/products', icon: Package, label: 'Produtos' },
+            { path: '/admin/categories', icon: Layers, label: 'Categorias' },
+            { path: '/admin/inventory', icon: FileText, label: 'Estoque' },
+            { path: '/admin/stock-movements', icon: History, label: 'Movimentações' },
+        ],
+        settings: [
+            { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },
+            { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
+            { path: '/admin/users', icon: Users, label: 'Usuários' },
+            { path: '/admin/hours', icon: Clock, label: 'Horários' },
+            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
+            { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
+            { path: '/admin/security', icon: Lock, label: 'Senhas e Acesso' },
+        ],
+        support: [
+            { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },
+            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ' },
+            { path: '/admin/docs', icon: BookOpen, label: 'Documentação' },
+        ]
+    }), []);
+
+    if (loadingStore) {
+        return <LoadingSpinner />;
+    }
+
+    return (
+        <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 font-sans">
+            {/* Mobile Overlay */}
+            {isMobileOpen && (
+                <div
+                    className="fixed inset-0 z-30 bg-black/50 md:hidden backdrop-blur-sm"
+                    onClick={() => setIsMobileOpen(false)}
+                />
+            )}
+
+            {/* Sidebar */}
+            <aside
+                className={`fixed md:static inset-y-0 left-0 z-40 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300
+                    ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'}
+                    ${isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0 w-72'}
+                    flex flex-col shadow-xl md:shadow-none
+                `}
+            >
+                {/* Header / Brand */}
+                <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                    {!isSidebarCollapsed && (
+                        <div>
+                            <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition">
+                                <img
+                                    src="/assets/OptmaMenuLogo.webp"
+                                    alt="OptmaMenu"
+                                    className="h-8 w-auto"
+                                />
+                            </Link>
+                            <div className="flex items-center gap-2 mt-2">
+                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest font-candara">Admin</span>
+                                {storeSlug && (
+                                    <a
+                                        href={`/s/${storeSlug}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-[#21A896] hover:underline flex items-center gap-1 font-bold font-candara"
+                                        title="Visualizar Loja"
+                                    >
+                                        <ExternalLink size={10} />
+                                        Ver Loja
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    <button
+                        onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                        className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                    >
+                        {isSidebarCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+                    </button>
+                </div>
+
+                {/* Navigation */}
+                <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar">
+                    {Object.entries(navigationItems).map(([section, items]) => (
+                        <div key={section} className="space-y-1">
+                            {!isSidebarCollapsed && (
+                                <div className="px-4 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider font-candara">
+                                    {section === 'dashboard' && 'Dashboard'}
+                                    {section === 'commercial' && 'Comercial'}
+                                    {section === 'products' && 'Produtos'}
+                                    {section === 'settings' && 'Configurações'}
+                                    {section === 'support' && 'Suporte'}
+                                </div>
+                            )}
+                            {items.map(item => {
+                                const IconComponent = item.icon;
+                                const isActive = pathname === item.path;
+
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        title={isSidebarCollapsed ? item.label : ''}
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${isActive
+                                            ? 'bg-[#21A896]/10 dark:bg-[#21A896]/20 text-[#21A896] dark:text-[#21A896]'
+                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                            }`}
+                                    >
+                                        <IconComponent
+                                            size={22}
+                                            className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
+                                        />
+                                        {!isSidebarCollapsed && (
+                                            <span className="font-candara">{item.label}</span>
+                                        )}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    ))}
+                </nav>
+
+                {/* Footer Section: User & Actions */}
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                    {/* User Profile */}
+                    {!isSidebarCollapsed && userData && (
+                        <div className="flex items-center gap-3 mb-4 p-2 rounded-lg bg-white dark:bg-gray-700 shadow-sm border border-gray-100 dark:border-gray-600">
+                            {userData.avatar ? (
+                                <img src={userData.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] dark:text-[#21A896] font-bold text-lg">
+                                    {userData.name.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                            <div className="flex-1 overflow-hidden">
+                                <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
+                                    {userData.name}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate font-candara">
+                                    {userData.email}
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                    {isSidebarCollapsed && userData && (
+                        <div className="flex justify-center mb-4">
+                            {userData.avatar ? (
+                                <img src={userData.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200" title={userData.name} />
+                            ) : (
+                                <div className="w-10 h-10 rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] dark:text-[#21A896] font-bold text-lg" title={userData.name}>
+                                    {userData.name.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1 gap-2' : 'grid-cols-2 gap-2'}`}>
+                        <button
+                            onClick={toggleDarkMode}
+                            title="Alternar Tema"
+                            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors font-candara"
+                        >
+                            {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                            {!isSidebarCollapsed && <span className="text-xs font-bold">Tema</span>}
+                        </button>
+
+                        <button
+                            onClick={handleLogout}
+                            title="Sair"
+                            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-transparent font-candara"
+                        >
+                            <LogOut size={18} />
+                            {!isSidebarCollapsed && <span className="text-xs font-bold">Sair</span>}
+                        </button>
+                    </div>
+
+                    {/* Copyright */}
+                    {!isSidebarCollapsed && (
+                        <div className="mt-4 text-center">
+                            <p className="text-[10px] text-gray-400 font-candara">
+                                © {new Date().getFullYear()} OptmaIdea
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </aside>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col overflow-hidden h-screen bg-gray-50 dark:bg-gray-900">
+                {/* Mobile Header */}
+                <header className="md:hidden bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center z-20 shadow-sm">
+                    <button
+                        onClick={() => setIsMobileOpen(true)}
+                        className="text-gray-600 dark:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        aria-label="Abrir menu"
+                    >
+                        <Menu size={24} />
+                    </button>
+                    <span className="font-black text-lg text-[#21A896] dark:text-[#21A896] italic font-candara-bold">
+                        OptmaMenu
+                    </span>
+                    {userData && (
+                        <div className="flex items-center gap-2">
+                            {userData.avatar ? (
+                                <img
+                                    src={userData.avatar}
+                                    alt="Avatar"
+                                    className="w-8 h-8 rounded-full"
+                                />
+                            ) : (
+                                <div className="w-8 h-8 rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] font-bold text-sm">
+                                    {userData.name.charAt(0).toUpperCase()}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </header>
+
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
+}
+
+================================================================================
+7. CONFIGURAÇÃO PRINCIPAL DO APP
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/App.tsx
+--------------------------------------------------------------------------------
+
+import { useEffect } from 'react';
+import { BrowserRouter } from 'react-router-dom';
+import { useAuthStore } from '@/store/useAuthStore';
+import { supabase } from '@/lib/supabase';
+import AppRoutes from '@/AppRoutes';
+import CookieConsent from '@/components/common/CookieConsent';
+import { Toaster } from 'sonner';
+
+function App() {
+  const { setSession, setLoading, setProfile } = useAuthStore();
+
+  useEffect(() => {
+    // Check active session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        // Fetch profile
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setProfile(data);
+          });
+      }
+      setLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .maybeSingle()
+          .then(({ data }) => {
+            if (data) setProfile(data);
+          });
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [setSession, setLoading, setProfile]);
+
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+      <CookieConsent />
+      <Toaster position="top-right" richColors />
+    </BrowserRouter>
+  );
+}
+
+export default App;
+
+================================================================================
+8. ONBOARDING/CRIAÇÃO DE LOJA
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: src/pages/CreateStore.tsx
+--------------------------------------------------------------------------------
+
+import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
+import { Building, Loader, User, Briefcase, Phone } from 'lucide-react';
+
+export default function CreateStore() {
+    const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const [docType, setDocType] = useState<'PF' | 'PJ'>('PF');
+
+    // Campos comuns
+    const [storeName, setStoreName] = useState('');
+    const [slug, setSlug] = useState('');
+    const [phone, setPhone] = useState('');
+
+    // PF
+    const [fullName, setFullName] = useState('');
+    const [cpf, setCpf] = useState('');
+
+    // PJ
+    const [legalName, setLegalName] = useState('');
+    const [fantasyName, setFantasyName] = useState('');
+    const [cnpj, setCnpj] = useState('');
+
+    // Consentimentos
+    const [acceptTerms, setAcceptTerms] = useState(false);
+    const [acceptCommunications, setAcceptCommunications] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) throw new Error('Usuário não autenticado');
+
+            // Validações básicas
+            if (!storeName) throw new Error('Nome da loja é obrigatório');
+            if (!slug) throw new Error('Link da loja é obrigatório');
+            if (docType === 'PF' && !fullName) throw new Error('Nome completo é obrigatório');
+            if (docType === 'PJ' && !legalName) throw new Error('Razão social é obrigatória');
+
+            // Montar objeto de consents
+            const consents = {
+                terms_accepted: acceptTerms,
+                communications_accepted: acceptCommunications,
+                accepted_at: new Date().toISOString(),
+            };
+
+            // Dados da loja
+            const storeData: any = {
+                user_id: user.id,
+                name: storeName,
+                slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+                phone_number: phone || null,
+                doc_type: docType,
+                consents,
+            };
+
+            if (docType === 'PF') {
+                storeData.legal_name = fullName;
+                storeData.document = cpf || null;
+            } else {
+                storeData.legal_name = legalName;
+                storeData.fantasy_name = fantasyName || null;
+                storeData.document = cnpj || null;
+            }
+
+            const { error } = await supabase.from('stores').insert(storeData);
+            if (error) throw error;
+
+            toast.success('Loja criada com sucesso!');
+            navigate('/admin');
+        } catch (error: any) {
+            toast.error(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
+            <div className="max-w-md w-full">
+                <div className="text-center mb-8">
+                    <img src="/assets/OptmaMenuLogo.webp" alt="OptmaMenu" className="h-12 mx-auto mb-4" />
+                    <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Bem-vindo!</h1>
+                    <p className="text-gray-500 dark:text-gray-400 mt-2">Antes de começar, configure sua loja.</p>
+                </div>
+
+                <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700">
+                    <div className="space-y-4">
+                        {/* Tipo de pessoa */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                Você é:
+                            </label>
+                            <div className="flex gap-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setDocType('PF')}
+                                    className={`flex-1 py-3 px-4 rounded-lg border-2 font-bold flex items-center justify-center gap-2 transition ${docType === 'PF'
+                                        ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
+                                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                                        }`}
+                                >
+                                    <User size={18} />
+                                    Pessoa Física
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setDocType('PJ')}
+                                    className={`flex-1 py-3 px-4 rounded-lg border-2 font-bold flex items-center justify-center gap-2 transition ${docType === 'PJ'
+                                        ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
+                                        : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400'
+                                        }`}
+                                >
+                                    <Briefcase size={18} />
+                                    Pessoa Jurídica
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Campos PF */}
+                        {docType === 'PF' && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Nome Completo <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={fullName}
+                                        onChange={(e) => setFullName(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        placeholder="Ex: João da Silva"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        CPF (opcional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={cpf}
+                                        onChange={(e) => setCpf(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        placeholder="000.000.000-00"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {/* Campos PJ */}
+                        {docType === 'PJ' && (
+                            <>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Razão Social <span className="text-red-500">*</span>
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={legalName}
+                                        onChange={(e) => setLegalName(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        placeholder="Ex: Empresa Ltda"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Nome Fantasia (opcional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={fantasyName}
+                                        onChange={(e) => setFantasyName(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        placeholder="Ex: Nome Fantasia"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        CNPJ (opcional)
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={cnpj}
+                                        onChange={(e) => setCnpj(e.target.value)}
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        placeholder="00.000.000/0001-00"
+                                    />
+                                </div>
+                            </>
+                        )}
+
+                        {/* Telefone/WhatsApp (comum) */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                                <Phone size={16} /> Telefone / WhatsApp (opcional)
+                            </label>
+                            <input
+                                type="tel"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                placeholder="(11) 99999-9999"
+                            />
+                        </div>
+
+                        {/* Nome da Loja (Marca) */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                Nome da sua loja <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={storeName}
+                                onChange={(e) => setStoreName(e.target.value)}
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                placeholder="Ex: Gelinhares"
+                                required
+                            />
+                        </div>
+
+                        {/* Slug */}
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                Link da sua loja <span className="text-red-500">*</span>
+                            </label>
+                            <div className="flex">
+                                <span className="inline-flex items-center px-3 bg-gray-100 dark:bg-gray-600 border border-r-0 border-gray-300 dark:border-gray-600 rounded-l-xl text-gray-500 dark:text-gray-400 text-sm">
+                                    /s/
+                                </span>
+                                <input
+                                    type="text"
+                                    value={slug}
+                                    onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+                                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none lowercase"
+                                    placeholder="sua-loja"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        {/* Consentimentos */}
+                        <div className="space-y-2 pt-2">
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={acceptTerms}
+                                    onChange={(e) => setAcceptTerms(e.target.checked)}
+                                    className="mt-1 w-4 h-4 text-[#21A896] rounded border-gray-300 focus:ring-[#21A896]"
+                                />
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                    Li e aceito os <Link to="/terms" target="_blank" className="text-[#21A896] hover:underline font-bold">Termos de Uso</Link> e a <Link to="/politica-privacidade" target="_blank" className="text-[#21A896] hover:underline font-bold">Política de Privacidade</Link>.
+                                </span>
+                            </label>
+                            <label className="flex items-start gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={acceptCommunications}
+                                    onChange={(e) => setAcceptCommunications(e.target.checked)}
+                                    className="mt-1 w-4 h-4 text-[#21A896] rounded border-gray-300 focus:ring-[#21A896]"
+                                />
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                    Aceito receber comunicações sobre pedidos e novidades via WhatsApp e e-mail.
+                                </span>
+                            </label>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {loading ? <Loader className="animate-spin" size={18} /> : <Building size={18} />}
+                            {loading ? 'Criando...' : 'Criar Loja'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+================================================================================
+9. CONFIGURAÇÃO DE AUTENTICAÇÃO NO SUPABASE
+================================================================================
+
+--------------------------------------------------------------------------------
+ARQUIVO: supabase/config.toml (seções de auth)
+--------------------------------------------------------------------------------
+
+[auth]
+enabled = true
+# The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
+# in emails.
+site_url = "http://127.0.0.1:3000"
+# A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
+additional_redirect_urls = ["https://127.0.0.1:3000"]
+# How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
+jwt_expiry = 3600
+# JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
+# jwt_issuer = ""
+# Path to JWT signing key. DO NOT commit your signing keys file to git.
+# signing_keys_path = "./signing_keys.json"
+# If disabled, the refresh token will never expire.
+enable_refresh_token_rotation = true
+# Allows refresh tokens to be reused after expiry, up to the specified interval in seconds.
+# Requires enable_refresh_token_rotation = true.
+refresh_token_reuse_interval = 10
+# Allow/disallow new user signups to your project.
+enable_signup = true
+# Allow/disallow anonymous sign-ins to your project.
+enable_anonymous_sign_ins = false
+# Allow/disallow testing manual linking of accounts
+enable_manual_linking = false
+# Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
+minimum_password_length = 6
+# Passwords that do not meet the following requirements will be rejected as weak. Supported values
+# are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_symbols`
+password_requirements = ""
+
+[auth.rate_limit]
+# Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
+email_sent = 2
+# Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
+sms_sent = 30
+# Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
+anonymous_users = 30
+# Number of sessions that can be refreshed in a 5 minute interval per IP address.
+token_refresh = 150
+# Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
+sign_in_sign_ups = 30
+# Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
+token_verifications = 30
+# Number of Web3 logins that can be made in a 5 minute interval per IP address.
+web3 = 30
+
+[auth.email]
+# Allow/disallow new user signups via email to your project.
+enable_signup = true
+# If enabled, a user will be required to confirm any email change on both the old, and new email
+# addresses. If disabled, only the new email is required to confirm.
+double_confirm_changes = true
+# If enabled, users need to confirm their email address before signing in.
+enable_confirmations = false
+# If enabled, users will need to reauthenticate or have logged in recently to change their password.
+secure_password_change = false
+# Controls the minimum amount of time that must pass before sending another signup confirmation or password reset email.
+max_frequency = "1s"
+# Number of characters used in the email OTP.
+otp_length = 6
+# Number of seconds before the email OTP expires (defaults to 1 hour).
+otp_expiry = 3600
+
+[auth.sms]
+# Allow/disallow new user signups via SMS to your project.
+enable_signup = false
+# If enabled, users need to confirm their phone number before signing in.
+enable_confirmations = false
+# Template for sending OTP to users
+template = "Your code is {{ .Code }}"
+# Controls the minimum amount of time that must pass before sending another sms otp.
+max_frequency = "5s"
+
+[auth.mfa]
+# Control how many MFA factors can be enrolled at once per user.
+max_enrolled_factors = 10
+
+[auth.mfa.totp]
+enroll_enabled = false
+verify_enabled = false
+
+--------------------------------------------------------------------------------
+ARQUIVO: supabase/migrations/20260202120000_initial_schema.sql (tabela profiles)
+--------------------------------------------------------------------------------
+
+-- Enable UUID extension
+create extension if not exists "uuid-ossp";
+
+-- PROFILES (Users)
+create table profiles (
+  id uuid references auth.users on delete cascade primary key,
+  phone text unique,
+  name text,
+  address text,
+  district text, -- Bairro
+  city text default 'São João Nepomuceno',
+  birthData date,
+  cpf text,
+  points integer default 0,
+  accepted_policy boolean default false,
+  accepted_promo boolean default false,
+  is_admin boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Handle new user signup
+create or replace function public.handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, phone, name)
+  values (new.id, new.phone, new.raw_user_meta_data->>'full_name');
+  return new;
+end;
+$$ language plpgsql security definer;
+
+================================================================================
+10. FLUXO DE AUTENTICAÇÃO - RESUMO
+================================================================================
+
+A) FLUXO DO ADMINISTRADOR/LOJISTA:
+   1. Usuário acessa /signup
+   2. Preenche dados pessoais + dados da loja
+   3. supabase.auth.signUp() cria usuário em auth.users
+   4. Trigger handle_new_user() cria registro em profiles
+   5. Usuário confirma e-mail
+   6. Redirecionado para /onboarding/create-store
+   7. Cria loja na tabela stores
+   8. Acessa /admin (protegido por ProtectedRoute)
+
+B) FLUXO DO CLIENTE/CONSUMIDOR:
+   1. Cliente acessa cardápio (/s/{slug})
+   2. Faz checkout como convidado ou login
+   3. Login via OTP (send_customer_otp + verify_customer_otp)
+   4. Ou login com senha (bcrypt)
+   5. AuthService.loginWithPassword() ou verifyOtp()
+   6. Estado persistido em useCustomerAuth (localStorage)
+
+================================================================================
+FIM DA DOCUMENTAÇÃO
+================================================================================
+Total de arquivos documentados: 10
+Pastas incluídas:
+  - src/store/
+  - src/services/
+  - src/pages/initial/auth/
+  - src/components/
+  - src/components/layouts/
+  - src/pages/
+  - supabase/
+  - supabase/migrations/
+
+Gerado em: 21/02/2026
+================================================================================
