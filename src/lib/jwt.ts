@@ -1,6 +1,5 @@
 // src/lib/jwt.ts
-
-export const CUSTOMER_TOKEN_KEY = 'auth_token';
+const CUSTOMER_TOKEN_KEY = 'auth_token';
 
 export function getCustomerToken(): string | null {
     try {
@@ -14,7 +13,7 @@ export function setCustomerToken(token: string): void {
     try {
         localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
     } catch {
-        // ignore
+        // ignore (ex: storage bloqueado)
     }
 }
 

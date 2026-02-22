@@ -4,17 +4,11 @@ import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { setCustomerToken, clearCustomerToken } from '@/lib/jwt';
 import type { Customer } from '@/types';
 
-// Tipagem mínima do RPC (evita o erro do generic constraint)
 type VerifyOtpRpcResponse = {
     isValid: boolean;
     isNewUser?: boolean;
+    customer?: Partial<Customer> | null; // vem do RPC (pode vir parcial)
     locked?: boolean;
-    customer?: {
-        id: string;
-        store_id: string;
-        phone?: string;
-        nickname?: string;
-    } | null;
 };
 
 type IssueJwtResponse = {
@@ -26,10 +20,9 @@ export const AuthService = {
     async checkStatus(phone: string, storeId: string) {
         const digits = phone.replace(/\D/g, '');
 
-        // Evite select('*') se você não precisa de tudo
         const { data, error } = await supabase
             .from('customers')
-            .select('id, store_id, phone, nickname, password_hash')
+            .select('*')
             .eq('phone', digits)
             .eq('store_id', storeId)
             .maybeSingle();
@@ -58,7 +51,7 @@ export const AuthService = {
     async verifyOtp(phone: string, otp: string, storeId: string) {
         const digits = phone.replace(/\D/g, '');
 
-        const { data: raw, error } = await supabase.rpc('verify_customer_otp', {
+        const { data, error } = await supabase.rpc('verify_customer_otp', {
             p_phone: digits,
             p_otp: otp,
             p_store_id: storeId,
@@ -66,57 +59,50 @@ export const AuthService = {
 
         if (error) throw error;
 
-        const data = raw as VerifyOtpRpcResponse | null;
+        const payload = data as VerifyOtpRpcResponse | null;
 
-        if (!data?.isValid) {
-            if (data?.locked) throw new Error('Muitas tentativas. Tente novamente mais tarde.');
+        if (!payload?.isValid) {
             throw new Error('Código inválido ou expirado.');
         }
 
-        // Se não veio customer, você pode tratar como "novo usuário"
-        if (!data.customer?.id || !data.customer?.store_id) {
-            return {
-                valid: true,
-                isNewUser: true,
-                customer: null,
-            };
+        // Se já existe customer, vamos emitir JWT via Edge Function
+        const c = payload.customer;
+
+        if (c?.id && c?.store_id) {
+            const { data: jwtData, error: jwtErr } = await supabase.functions.invoke<IssueJwtResponse>(
+                'issue_customer_jwt',
+                {
+                    body: {
+                        customer_id: c.id,
+                        store_id: c.store_id,
+                        // opcional:
+                        // expires_in_seconds: 60 * 60 * 24 * 7,
+                    },
+                }
+            );
+
+            if (jwtErr) throw jwtErr;
+            if (!jwtData?.token) throw new Error('Falha ao emitir token do cliente');
+
+            setCustomerToken(jwtData.token);
+
+            // ⚠️ Tipagem: seu Customer exige campos obrigatórios.
+            // Garanta que o RPC esteja retornando tudo, OU faça um fetch completo aqui.
+            // Eu recomendo fetch completo para evitar “Customer incompleto”.
+            const { data: fullCustomer, error: custErr } = await supabase
+                .from('customers')
+                .select('*')
+                .eq('id', c.id)
+                .maybeSingle();
+
+            if (custErr) throw custErr;
+            if (fullCustomer) useCustomerAuth.getState().login(fullCustomer as Customer);
         }
-
-        // 1) Pede JWT para a Edge Function (Supabase Functions)
-        const { data: jwtData, error: jwtError } = await supabase.functions.invoke('issue_customer_jwt', {
-            body: {
-                customer_id: data.customer.id,
-                store_id: data.customer.store_id,
-                // expires_in_seconds: 60 * 60 * 24 * 7, // opcional
-            },
-        });
-
-        if (jwtError) throw jwtError;
-
-        const issued = jwtData as IssueJwtResponse;
-        if (!issued?.token) throw new Error('Falha ao emitir token do cliente.');
-
-        // 2) Salva token local
-        setCustomerToken(issued.token);
-
-        // 3) Busca o Customer COMPLETO (agora com RLS usando o token)
-        // Ajuste os campos conforme seu type Customer em '@/types'
-        const { data: fullCustomer, error: custErr } = await supabase
-            .from('customers')
-            .select('*')
-            .eq('id', data.customer.id)
-            .maybeSingle();
-
-        if (custErr) throw custErr;
-        if (!fullCustomer) throw new Error('Cliente não encontrado após autenticação.');
-
-        // 4) Login com tipo correto
-        useCustomerAuth.getState().login(fullCustomer as Customer);
 
         return {
             valid: true,
-            isNewUser: !!data.isNewUser,
-            customer: fullCustomer as Customer,
+            isNewUser: payload.isNewUser ?? false,
+            customer: payload.customer ?? null,
         };
     },
 
