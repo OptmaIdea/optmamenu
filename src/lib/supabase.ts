@@ -9,20 +9,13 @@ const supabaseAnonKey =
     import.meta.env.VITE_SUPABASE_ANON_KEY || 'SEU_ANON_KEY_AQUI';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        // você NÃO está usando Supabase Auth para customer
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-    },
     global: {
-        fetch: async (url, options: RequestInit = {}) => {
+        fetch: async (url, options = {}) => {
             const token = getCustomerToken();
 
             const headers = new Headers(options.headers || {});
             headers.set('apikey', supabaseAnonKey);
 
-            // Bearer do customer (para o PostgREST/RLS via JWT custom)
             if (token) headers.set('Authorization', `Bearer ${token}`);
             else headers.delete('Authorization');
 

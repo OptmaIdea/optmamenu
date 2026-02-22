@@ -1,5 +1,6 @@
 // src/lib/jwt.ts
-const CUSTOMER_TOKEN_KEY = 'auth_token';
+
+export const CUSTOMER_TOKEN_KEY = 'auth_token';
 
 export function getCustomerToken(): string | null {
     try {
