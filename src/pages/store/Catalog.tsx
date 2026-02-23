@@ -58,7 +58,6 @@ export default function Catalog() {
     const [loginPhone, setLoginPhone] = useState('');
     const [loginOtp, setLoginOtp] = useState('');
     const [loginPassword, setLoginPassword] = useState('');
-    const [loginConfirmPassword, setLoginConfirmPassword] = useState('');
     const [loginNickname, setLoginNickname] = useState('');
     const [loginBirthDate, setLoginBirthDate] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
@@ -263,7 +262,6 @@ export default function Catalog() {
         setLoginPhone('');
         setLoginOtp('');
         setLoginPassword('');
-        setLoginConfirmPassword('');
         setLoginNickname('');
         setLoginBirthDate('');
         setLoginError('');
@@ -324,8 +322,6 @@ export default function Catalog() {
         setLoginError('');
         try {
             if (!store?.id) throw new Error('ID da loja faltando');
-            if (loginPassword.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
-            if (loginPassword.toLowerCase() !== loginConfirmPassword.toLowerCase()) throw new Error('As senhas não coincidem.');
             const status = await AuthService.checkStatus(loginPhone, store.id);
             if (status.exists) { setLoginError('Telefone já cadastrado.'); return; }
             await AuthService.sendOtp(loginPhone, store.id);
@@ -346,7 +342,6 @@ export default function Catalog() {
                     storeId: store.id,
                     storeName: store.name,
                     nickname: loginNickname,
-                    password: loginPassword.toLowerCase(),
                     marketingConsent: true,
                     contactPreference: 'whatsapp',
                     birthDate: loginBirthDate,
@@ -513,8 +508,6 @@ export default function Catalog() {
                                 <input type="text" placeholder="Nome" value={loginNickname} onChange={(e) => setLoginNickname(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl" required />
                                 <input type="tel" placeholder="Telefone" value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl" required />
                                 <input type="date" placeholder="Nascimento" value={loginBirthDate} onChange={(e) => setLoginBirthDate(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl" required />
-                                <input type="password" placeholder="Senha (6 dígitos)" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl" required maxLength={6} />
-                                <input type="password" placeholder="Repetir Senha" value={loginConfirmPassword} onChange={(e) => setLoginConfirmPassword(e.target.value)} className="w-full p-3 bg-gray-50 rounded-xl" required maxLength={6} />
                                 <button type="submit" disabled={loginLoading} className="w-full bg-green-500 text-white py-3 rounded-xl font-bold">Continuar</button>
                             </form>
                         )}

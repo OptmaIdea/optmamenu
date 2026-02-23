@@ -51,28 +51,29 @@ export default function PrivateLayout() {
                 return;
             }
 
-            const { data: store, error } = await supabase
-                .from('stores')
-                .select('id, slug, config')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // Usa RPC para evitar stack depth limit exceeded causado por RLS policies recursivas
+            const { data: store, error } = await supabase.rpc('get_user_store_by_id', {
+                p_user_id: user.id,
+            });
 
             if (error) {
                 console.error('Erro ao verificar loja:', error);
             }
 
-            if (!store) {
+            const storeData = store?.[0] || null;
+
+            if (!storeData) {
                 navigate('/onboarding/create-store', { replace: true });
                 return;
             }
 
-            setStoreId(store.id);
-            setStoreSlug(store.slug);
+            setStoreId(storeData.id);
+            setStoreSlug(storeData.slug);
             setUserData({
                 name: user.user_metadata?.full_name || 'Usuário',
                 phone: user.user_metadata?.phone_number || '',
                 email: user.email || '',
-                avatar: store.config?.visual_icon_url || user.user_metadata?.avatar_url
+                avatar: storeData.config?.visual_icon_url || user.user_metadata?.avatar_url
             });
             setLoadingStore(false);
         };

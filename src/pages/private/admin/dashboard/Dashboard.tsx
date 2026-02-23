@@ -6,7 +6,6 @@ import {
   Package,
   ShoppingBag,
   TrendingUp,
-  //AlertCircle,
   DollarSign,
   Users,
   MessageCircle,
@@ -21,6 +20,12 @@ import AlertBanner from '@/components/common/AlertBanner';
 import RecentActivity from '@/components/common/RecentActivity';
 import ProgressCard from '@/components/common/ProgressCard';
 
+type StoreRow = {
+  id: string;
+  slug?: string | null;
+  config?: any;
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     ordersToday: 0,
@@ -31,27 +36,47 @@ export default function Dashboard() {
     newCustomers: 0,
     pendingMessages: 0
   });
+
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
   const [zeroStockProducts, setZeroStockProducts] = useState<any[]>([]);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [fatalError, setFatalError] = useState<string | null>(null);
 
   const fetchDashboardData = useCallback(async () => {
     try {
+      setFatalError(null);
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
-      // Buscar store_id
-      const { data: store, error: storeError } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) {
+        console.error('Erro ao obter usuário:', userError);
+        setFatalError('Erro ao obter usuário autenticado.');
+        return;
+      }
+      if (!user) {
+        setFatalError('Usuário não autenticado.');
+        return;
+      }
 
-      if (storeError || !store) {
-        console.error('Store not found:', storeError);
+      // ✅ Buscar store via RPC (evita recursion/stack depth por RLS em stores)
+      const { data: storeData, error: storeError } = await supabase.rpc('get_user_store_by_id', {
+        p_user_id: user.id,
+      });
+
+      if (storeError) {
+        console.error('Erro ao buscar store (RPC):', storeError);
+        setFatalError(storeError.message || 'Erro ao buscar loja.');
+        return;
+      }
+
+      const store: StoreRow | null = Array.isArray(storeData)
+        ? (storeData[0] as StoreRow | undefined) ?? null
+        : (storeData as StoreRow | null);
+
+      if (!store?.id) {
+        setFatalError('Loja não encontrada para este usuário.');
         return;
       }
 
@@ -64,7 +89,7 @@ export default function Dashboard() {
       const todayISO = today.toISOString();
       const tomorrowISO = tomorrow.toISOString();
 
-      // 1. PEDIDOS DE HOJE - SEM JOIN
+      // 1) PEDIDOS DE HOJE
       const { data: orders, error: ordersError } = await supabase
         .from('orders')
         .select('total')
@@ -77,9 +102,10 @@ export default function Dashboard() {
       }
 
       const ordersToday = orders?.length || 0;
-      const salesToday = orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
+      const salesToday =
+        orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
 
-      // 2. PRODUTOS ATIVOS
+      // 2) PRODUTOS ATIVOS
       const { data: products, error: productsError } = await supabase
         .from('products')
         .select('id, name, stock_quantity, min_stock, active')
@@ -90,7 +116,7 @@ export default function Dashboard() {
         console.error('Error fetching products:', productsError);
       }
 
-      // 3. PEDIDOS RECENTES - SEM JOIN (buscar dados do cliente separadamente se necessário)
+      // 3) PEDIDOS RECENTES
       const { data: recentOrders, error: recentError } = await supabase
         .from('orders')
         .select('id, total, created_at, status, customer_name, customer_phone')
@@ -102,14 +128,14 @@ export default function Dashboard() {
         console.error('Error fetching recent orders:', recentError);
       }
 
-      // 4. MENSAGENS - REMOVIDO TEMPORARIAMENTE (coluna read não existe)
-      // Vamos criar dados mock para não quebrar a UI
+      // 4) MENSAGENS (mock por enquanto)
       const mockMessages = 2;
 
-      // Processar produtos
       if (products) {
-        const zero = products.filter(p => p.stock_quantity === 0);
-        const low = products.filter(p => p.stock_quantity > 0 && p.stock_quantity <= (p.min_stock || 5));
+        const zero = products.filter((p) => p.stock_quantity === 0);
+        const low = products.filter(
+          (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.min_stock || 5)
+        );
 
         setStats({
           ordersToday,
@@ -118,28 +144,34 @@ export default function Dashboard() {
           lowStockCount: low.length,
           zeroStockCount: zero.length,
           newCustomers: 3, // Mock
-          pendingMessages: mockMessages
+          pendingMessages: mockMessages,
         });
 
         setLowStockProducts(low.slice(0, 5));
         setZeroStockProducts(zero.slice(0, 5));
+      } else {
+        setStats((s) => ({
+          ...s,
+          ordersToday,
+          salesToday,
+          pendingMessages: mockMessages,
+        }));
       }
 
-      // Processar atividades recentes
       if (recentOrders) {
-        const activities = recentOrders.map(order => ({
+        const activities = recentOrders.map((order) => ({
           id: order.id,
           type: 'order' as const,
           user: {
-            name: order.customer_name || 'Cliente'
+            name: order.customer_name || 'Cliente',
           },
           action: 'fez um pedido de',
           target: order.total.toLocaleString('pt-BR', {
             style: 'currency',
-            currency: 'BRL'
+            currency: 'BRL',
           }),
           timestamp: new Date(order.created_at),
-          status: order.status
+          status: order.status,
         }));
         setRecentActivities(activities);
       }
@@ -147,6 +179,7 @@ export default function Dashboard() {
       setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading dashboard:', error);
+      setFatalError('Erro inesperado ao carregar dashboard.');
     } finally {
       setLoading(false);
     }
@@ -154,16 +187,44 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 300000);
+    // ✅ se der erro fatal, não fica martelando no console
+    const interval = setInterval(() => {
+      if (!fatalError) fetchDashboardData();
+    }, 300000);
+
     return () => clearInterval(interval);
-  }, [fetchDashboardData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchDashboardData, fatalError]);
 
   if (loading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#21A896] mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300 font-candara">Carregando dashboard...</p>
+          <p className="text-gray-600 dark:text-gray-300 font-candara">
+            Carregando dashboard...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (fatalError) {
+    return (
+      <div className="min-h-[50vh] flex items-center justify-center p-6">
+        <div className="max-w-xl w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-6">
+          <h2 className="text-lg font-black text-gray-800 dark:text-white mb-2">
+            Não foi possível carregar o dashboard
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            {fatalError}
+          </p>
+          <button
+            onClick={fetchDashboardData}
+            className="px-4 py-2 rounded-xl font-bold bg-[#21A896] text-white hover:brightness-110"
+          >
+            Tentar novamente
+          </button>
         </div>
       </div>
     );
@@ -176,7 +237,6 @@ export default function Dashboard() {
       lastUpdated={lastUpdated}
       onRefresh={fetchDashboardData}
     >
-      {/* Alertas de Estoque */}
       {(stats.zeroStockCount > 0 || stats.lowStockCount > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {stats.zeroStockCount > 0 && (
@@ -185,8 +245,8 @@ export default function Dashboard() {
               title={`${stats.zeroStockCount} produto(s) com estoque zerado`}
               message="Estes produtos não aparecem mais no cardápio."
               action={{
-                label: "Ver produtos",
-                onClick: () => window.location.href = '/admin/products?filter=zero'
+                label: 'Ver produtos',
+                onClick: () => (window.location.href = '/admin/products?filter=zero'),
               }}
             />
           )}
@@ -196,15 +256,14 @@ export default function Dashboard() {
               title={`${stats.lowStockCount} produto(s) com estoque baixo`}
               message="Estes produtos estão abaixo do mínimo recomendado."
               action={{
-                label: "Reabastecer",
-                onClick: () => window.location.href = '/admin/inventory'
+                label: 'Reabastecer',
+                onClick: () => (window.location.href = '/admin/inventory'),
               }}
             />
           )}
         </div>
       )}
 
-      {/* KPIs Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <StatsCard
           title="Pedidos Hoje"
@@ -212,14 +271,14 @@ export default function Dashboard() {
           icon={<ShoppingBag size={24} />}
           trend={{ value: 15, positive: true, label: 'vs ontem' }}
           color="green"
-          onClick={() => window.location.href = '/admin/orders'}
+          onClick={() => (window.location.href = '/admin/orders')}
         />
 
         <StatsCard
           title="Faturamento"
           value={stats.salesToday.toLocaleString('pt-BR', {
             style: 'currency',
-            currency: 'BRL'
+            currency: 'BRL',
           })}
           icon={<DollarSign size={24} />}
           trend={{ value: 23, positive: true, label: 'vs ontem' }}
@@ -242,18 +301,16 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Grid Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* Coluna Esquerda */}
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Estoque Zerado */}
             <DataCard
               title="Estoque Zerado"
-              badge={stats.zeroStockCount > 0 ? {
-                text: `${stats.zeroStockCount} itens`,
-                color: 'red'
-              } : undefined}
+              badge={
+                stats.zeroStockCount > 0
+                  ? { text: `${stats.zeroStockCount} itens`, color: 'red' }
+                  : undefined
+              }
             >
               {stats.zeroStockCount === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -266,8 +323,11 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {zeroStockProducts.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                  {zeroStockProducts.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-8 bg-red-400 rounded-full"></div>
                         <span className="font-medium text-gray-700 dark:text-gray-300 font-candara">
@@ -286,13 +346,13 @@ export default function Dashboard() {
               )}
             </DataCard>
 
-            {/* Estoque Baixo */}
             <DataCard
               title="Estoque Baixo"
-              badge={stats.lowStockCount > 0 ? {
-                text: `${stats.lowStockCount} itens`,
-                color: 'orange'
-              } : undefined}
+              badge={
+                stats.lowStockCount > 0
+                  ? { text: `${stats.lowStockCount} itens`, color: 'orange' }
+                  : undefined
+              }
             >
               {stats.lowStockCount === 0 ? (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -305,8 +365,11 @@ export default function Dashboard() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {lowStockProducts.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg">
+                  {lowStockProducts.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-2 h-8 bg-yellow-400 rounded-full"></div>
                         <div>
@@ -341,14 +404,9 @@ export default function Dashboard() {
           />
         </div>
 
-        {/* Coluna Direita */}
         <div className="space-y-6">
-          <RecentActivity
-            activities={recentActivities}
-            viewAllLink="/admin/activity"
-          />
+          <RecentActivity activities={recentActivities} viewAllLink="/admin/activity" />
 
-          {/* Mensagens - Mock por enquanto */}
           <DataCard title="Mensagens">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full">

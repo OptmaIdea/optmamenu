@@ -1,25 +1,65 @@
-// src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
-import { getCustomerToken } from '@/lib/jwt';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl =
+    import.meta.env.VITE_SUPABASE_URL ||
+    'https://lgkkfmqzaorrutuoqeax.supabase.co';
 
-if (!supabaseUrl) throw new Error('VITE_SUPABASE_URL não configurado');
-if (!supabaseAnonKey) throw new Error('VITE_SUPABASE_ANON_KEY não configurado');
+const supabaseAnonKey =
+    import.meta.env.VITE_SUPABASE_ANON_KEY ||
+    'SEU_ANON_KEY_AQUI';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const CUSTOMER_TOKEN_KEY = 'auth_token';
+
+function getCustomerToken(): string | null {
+    try {
+        return localStorage.getItem(CUSTOMER_TOKEN_KEY);
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Client do ADMIN/Backoffice:
+ * - NÃO injeta JWT custom
+ * - mantém supabase.auth funcionando (getUser, signIn, etc.)
+ */
+export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey);
+
+/**
+ * Client do CUSTOMER:
+ * - injeta Authorization Bearer <jwt_customer>
+ * - MAS só para rotas de dados/functions (não quebra /auth/v1)
+ */
+export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
     global: {
         fetch: async (url, options: RequestInit = {}) => {
             const token = getCustomerToken();
+            const u = typeof url === 'string' ? url : url.toString();
+
+            // Só injeta token em endpoints que fazem sentido para o JWT de customer
+            const shouldAttachCustomerJwt =
+                u.includes('/rest/v1/') ||
+                u.includes('/rpc/') ||
+                u.includes('/storage/v1/') ||
+                u.includes('/functions/v1/');
 
             const headers = new Headers(options.headers || {});
             headers.set('apikey', supabaseAnonKey);
 
-            if (token) headers.set('Authorization', `Bearer ${token}`);
-            else headers.delete('Authorization');
+            // Importante: não mexe na rota /auth/v1
+            if (shouldAttachCustomerJwt) {
+                if (token) headers.set('Authorization', `Bearer ${token}`);
+                else headers.delete('Authorization');
+            }
 
             return fetch(url, { ...options, headers });
         },
     },
 });
+
+/**
+ * Mantém compatibilidade com imports antigos:
+ * - Quem usa `supabase.auth.*` deve usar `supabaseAdmin`.
+ * - Quem usa customer+RLS deve usar `supabaseCustomer`.
+ */
+export const supabase = supabaseAdmin;
