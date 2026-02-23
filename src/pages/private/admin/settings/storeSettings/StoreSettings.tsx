@@ -94,26 +94,43 @@ export default function StoreSettings() {
                 email: user.email || 'N/A'
             });
 
-            // Fetch Store
-            const { data } = await supabase
-                .from('stores')
-                .select('*')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // Fetch TODOS os dados da loja via RPC (agora retorna todos os campos)
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
 
-            if (data) {
+            if (storeError) {
+                console.error('RPC Error:', storeError);
+                throw new Error(`Erro ao buscar loja: ${storeError.message || 'Erro desconhecido'}`);
+            }
+
+            if (!storeData) {
+                console.warn('Nenhuma loja encontrada para este usuário');
+                setMessage('Nenhuma loja encontrada. Você precisa criar uma loja primeiro.');
+                setLoading(false);
+                return;
+            }
+
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
+
+            if (store) {
                 setStore(prev => ({
                     ...prev,
-                    ...data,
-                    address: { ...prev.address, ...(data.address || {}) },
-                    contacts: { ...prev.contacts, ...(data.contacts || {}) },
-                    consents: { ...prev.consents, ...(data.consents || {}) },
-                    sms_gateway_token: data.sms_gateway_token || '',
-                    config: { ...prev.config, ...(data.config || {}) }
+                    ...store,
+                    id: store.id,
+                    address: { ...prev.address, ...(store.address || {}) },
+                    contacts: { ...prev.contacts, ...(store.contacts || {}) },
+                    consents: { ...prev.consents, ...(store.consents || {}) },
+                    sms_gateway_token: store.sms_gateway_token || '',
+                    config: { ...prev.config, ...(store.config || {}) }
                 }));
+
+                console.log('✅ Loja carregada com sucesso:', store.name);
             }
-        } catch (error) {
-            console.error('Error fetching store:', error);
+        } catch (error: any) {
+            console.error('❌ Error fetching store:', error);
+            setMessage(`Erro ao carregar os dados da loja: ${error.message || 'Erro desconhecido'}`);
         } finally {
             setLoading(false);
         }
@@ -251,9 +268,8 @@ export default function StoreSettings() {
                 logo_url: store.logo_url,
                 sms_gateway_token: store.sms_gateway_token,
                 config: { ...store.config },
-                stock_password_hash: hashedPassword, // ✅ hash salvo (ou mantido)
+                stock_password_hash: hashedPassword,
 
-                // Legal
                 privacy_policy_text: store.privacy_policy_text,
                 terms_of_use_text: store.terms_of_use_text,
                 cookie_policy_text: store.cookie_policy_text,
@@ -261,23 +277,29 @@ export default function StoreSettings() {
                 dpo_contact: store.dpo_contact
             };
 
-            const { error } = store.id
-                ? await supabase.from('stores').update(payload).eq('id', store.id)
-                : await supabase.from('stores').insert([payload]);
+            // ✅ AQUI: troca o .from('stores') por RPC UPSERT
+            const { data, error } = await supabase.rpc('upsert_user_store', {
+                p_payload: payload
+            });
 
             if (error) throw error;
 
             setMessage('Dados salvos com sucesso!');
-
-            // ✅ Limpar campo de senha após salvar
             setStockPassword('');
 
-            if (!store.id) fetchInitialData();
+            // opcional: se a RPC retornar o id, você pode sincronizar
+            // Ex: se sua função retornar o registro da store
+            if (data?.id) {
+                setStore(prev => ({ ...prev, id: data.id }));
+            } else {
+                // fallback: recarrega
+                await fetchInitialData();
+            }
         } catch (error: any) {
-            if (error.code === '23505' && error.message.includes('slug')) {
+            if (error.code === '23505' && (error.message || '').includes('slug')) {
                 setMessage('Erro: Este Link da Loja (slug) já está em uso. Escolha outro.');
             } else {
-                setMessage('Erro ao salvar: ' + error.message);
+                setMessage('Erro ao salvar: ' + (error.message || 'Erro desconhecido'));
             }
         }
     };

@@ -16,18 +16,17 @@ export const useCategories = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: store, error: storeError } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (storeError || !store) {
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeError || !storeData) {
                 console.error('Store not found:', storeError);
                 return;
             }
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
-            const { data, error } = await supabase
+            const { data: categoriesData, error: categoriesError } = await supabase
                 .from('categories')
                 .select(`
                     *,
@@ -36,9 +35,9 @@ export const useCategories = () => {
                 .eq('store_id', store.id)
                 .order('sort_order', { ascending: true });
 
-            if (error) throw error;
+            if (categoriesError) throw categoriesError;
 
-            const parsedData: Category[] = data?.map(cat => ({
+            const parsedData: Category[] = categoriesData?.map(cat => ({
                 ...cat,
                 price_rules: typeof cat.price_rules === 'string' ? JSON.parse(cat.price_rules) : cat.price_rules,
                 products_count: cat.products?.[0]?.count || 0

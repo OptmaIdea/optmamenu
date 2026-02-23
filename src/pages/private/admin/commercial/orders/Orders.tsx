@@ -129,12 +129,13 @@ export default function Orders() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // First get the store for this user
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id, name, sms_gateway_token, config')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // First get the store for this user via RPC (agora retorna todos os campos)
+            const { data: storeRpcData, error: storeRpcError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeRpcError) throw storeRpcError;
+            const store = Array.isArray(storeRpcData) ? storeRpcData[0] : storeRpcData;
 
             if (!store) {
                 setLoading(false);
@@ -162,9 +163,9 @@ export default function Orders() {
                 query = query.eq('status', filterStatus);
             }
 
-            const { data, error } = await query;
-            if (error) throw error;
-            setOrders(data || []);
+            const { data: ordersData, error: ordersError } = await query;
+            if (ordersError) throw ordersError;
+            setOrders(ordersData || []);
 
         } catch (error) {
             console.error('Error fetching orders:', error);

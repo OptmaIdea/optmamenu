@@ -5,8 +5,7 @@ const supabaseUrl =
     'https://lgkkfmqzaorrutuoqeax.supabase.co';
 
 const supabaseAnonKey =
-    import.meta.env.VITE_SUPABASE_ANON_KEY ||
-    'SEU_ANON_KEY_AQUI';
+    import.meta.env.VITE_SUPABASE_ANON_KEY || 'SEU_ANON_KEY_AQUI';
 
 const CUSTOMER_TOKEN_KEY = 'auth_token';
 
@@ -19,24 +18,37 @@ function getCustomerToken(): string | null {
 }
 
 /**
- * Client do ADMIN/Backoffice:
- * - NÃO injeta JWT custom
- * - mantém supabase.auth funcionando (getUser, signIn, etc.)
+ * ADMIN/Backoffice:
+ * - Auth habilitado (getUser, signIn, etc.)
  */
-export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey);
+export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        // mantém padrão (storageKey default do Supabase)
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+    },
+});
 
 /**
- * Client do CUSTOMER:
- * - injeta Authorization Bearer <jwt_customer>
- * - MAS só para rotas de dados/functions (não quebra /auth/v1)
+ * CUSTOMER:
+ * - NÃO usa supabase.auth
+ * - Injeta Authorization Bearer <jwt_customer> em REST/RPC/Storage/Functions
+ * - DESLIGA o GoTrueClient pra não conflitar com o admin
  */
 export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        // importante: evita colisão com o storageKey do admin
+        storageKey: 'sb-customer-jwt-disabled-auth',
+    },
     global: {
         fetch: async (url, options: RequestInit = {}) => {
             const token = getCustomerToken();
             const u = typeof url === 'string' ? url : url.toString();
 
-            // Só injeta token em endpoints que fazem sentido para o JWT de customer
             const shouldAttachCustomerJwt =
                 u.includes('/rest/v1/') ||
                 u.includes('/rpc/') ||
@@ -46,7 +58,7 @@ export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
             const headers = new Headers(options.headers || {});
             headers.set('apikey', supabaseAnonKey);
 
-            // Importante: não mexe na rota /auth/v1
+            // Nunca mexe no /auth/v1 (e no customer a gente nem usa auth)
             if (shouldAttachCustomerJwt) {
                 if (token) headers.set('Authorization', `Bearer ${token}`);
                 else headers.delete('Authorization');
@@ -58,8 +70,7 @@ export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 /**
- * Mantém compatibilidade com imports antigos:
- * - Quem usa `supabase.auth.*` deve usar `supabaseAdmin`.
- * - Quem usa customer+RLS deve usar `supabaseCustomer`.
+ * Compatibilidade com imports antigos:
+ * - private/admin deve usar supabase (alias do admin)
  */
 export const supabase = supabaseAdmin;

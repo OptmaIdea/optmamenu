@@ -63,26 +63,46 @@ export default function Security() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data } = await supabase
-                .from('stores')
-                .select('id, doc_type, document, stock_password_hash, token_expiry_seconds, max_token_attempts, config')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // 1️⃣ Buscar a store do usuário
+            const { data: storeDataRaw, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
 
-            if (data) {
-                setStore(data);
-                // Preenche com máscara se existir hash
-                setPinData(data.stock_password_hash ? '******' : '');
-                setTokenExpiry(data.token_expiry_seconds ?? 15);
-                setMaxAttempts(data.max_token_attempts ?? 3);
+            if (storeError) throw storeError;
+            if (!storeDataRaw) return;
+
+            const userStore = Array.isArray(storeDataRaw)
+                ? storeDataRaw[0]
+                : storeDataRaw;
+
+            if (!userStore?.id) return;
+
+            // 2️⃣ Buscar config administrativa completa
+            const { data: adminDataRaw, error: adminError } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: userStore.id }
+            );
+
+            if (adminError) throw adminError;
+
+            const adminStore = Array.isArray(adminDataRaw)
+                ? adminDataRaw[0]
+                : adminDataRaw;
+
+            if (adminStore) {
+                setStore(adminStore);
+                setPinData(adminStore.stock_password_hash ? '******' : '');
+                setTokenExpiry(adminStore.token_expiry_seconds ?? 15);
+                setMaxAttempts(adminStore.max_token_attempts ?? 3);
             }
+
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
             setLoading(false);
         }
     };
-
     // --- LOGS ---
     const fetchLogs = async () => {
         setLoadingLogs(true);

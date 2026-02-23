@@ -2231,10 +2231,10 @@ serve(async (req) => {
   );
 
   // Coleta métricas de todas as stores
-  const { data: stores } = await supabase
-    .from('stores')
-    .select('id');
-
+  const { data: stores } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: storeId }
+            );
   for (const store of stores) {
     // Contar pedidos do dia
     const { count: pedidosCount } = await supabase

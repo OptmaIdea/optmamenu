@@ -316,11 +316,10 @@ export default function BirthdayWidget() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: store } = await supabase
-        .from('stores')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
+      const { data: store } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: storeId }
+            );
 
       if (!store) return;
 

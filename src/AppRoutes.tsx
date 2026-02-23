@@ -41,6 +41,9 @@ const Customers = lazy(() => import('@/pages/private/admin/commercial/customers/
 const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
 const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
+const Marketing = lazy(() => import('@/pages/private/admin/marketing/Marketing'));
+const Payments = lazy(() => import('@/pages/private/admin/payments/Payments'));
+const Delivery = lazy(() => import('@/pages/private/admin/delivery/Delivery'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -91,6 +94,9 @@ export default function AppRoutes() {
             <Route path="/admin/messages" element={<MessageSettings />} />
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
             <Route path="/admin/messages-admin" element={<AdminMessages />} />
+            <Route path="/admin/marketing" element={<Marketing />} />
+            <Route path="/admin/payments" element={<Payments />} />
+            <Route path="/admin/delivery" element={<Delivery />} />
             <Route path="/admin/security" element={<Security />} />
             <Route path="/admin/docs" element={<Documentation />} />
           </Route>

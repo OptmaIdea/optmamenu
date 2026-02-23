@@ -136,14 +136,17 @@ export default function ActiveCustomers({ storeId, programId }: { storeId: strin
             return;
         }
 
-        // Verify stock password
-        const { data: storeData, error: storeError } = await supabase
-            .from('stores')
-            .select('stock_password')
-            .eq('id', storeId)
-            .maybeSingle();
-
-        if (storeError || !storeData || storeData.stock_password !== password) {
+        // Verify stock password via RPC
+        const { data: storeData, error: storeError } = await supabase.rpc(
+            'get_store_config_admin',
+            { p_store_id: storeId }
+        );
+        if (storeError) {
+            toast.error('Erro ao verificar senha');
+            return;
+        }
+        const store = Array.isArray(storeData) ? storeData[0] : storeData;
+        if (!store || store.stock_password_hash !== password) {
             toast.error('Senha incorreta');
             return;
         }

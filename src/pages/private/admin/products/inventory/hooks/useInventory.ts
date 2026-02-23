@@ -14,19 +14,18 @@ export const useInventory = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (!store) {
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeError || !storeData) {
                 setProducts([]);
                 return;
             }
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
             // Buscar produtos diretamente da tabela products, excluindo descontinuados
-            const { data, error } = await supabase
+            const { data: productsData, error: productsError } = await supabase
                 .from('products')
                 .select(`
                     id,
@@ -48,10 +47,10 @@ export const useInventory = () => {
                 .eq('active', true)
                 .order('name');
 
-            if (error) throw error;
+            if (productsError) throw productsError;
 
             // Transformar dados para o formato ProductStock
-            const transformedData: ProductStock[] = (data || []).map(p => ({
+            const transformedData: ProductStock[] = (productsData || []).map(p => ({
                 id: p.id,
                 store_id: p.store_id,
                 category_id: p.category_id,

@@ -14,11 +14,12 @@ export const useProductCategories = () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            const { data: storeData, error } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (error || !storeData) return;
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
             if (store) {
                 setStoreId(store.id);
                 const { data } = await supabase
@@ -42,20 +43,21 @@ export const useProductCategories = () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeError || !storeData) throw new Error('Loja não encontrada');
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
             if (!store) throw new Error('Loja não encontrada');
-            const { data, error } = await supabase
+            const { data: newCategory, error: insertError } = await supabase
                 .from('categories')
                 .insert([{ name, store_id: store.id }])
                 .select()
                 .maybeSingle();
-            if (error) throw error;
-            setCategories(prev => [...prev, data]);
-            setCategoryId(data.id);
+            if (insertError) throw insertError;
+            setCategories(prev => [...prev, newCategory]);
+            setCategoryId(newCategory.id);
             setIsCreatingCategory(false);
             setNewCategoryName('');
         } catch (error) {

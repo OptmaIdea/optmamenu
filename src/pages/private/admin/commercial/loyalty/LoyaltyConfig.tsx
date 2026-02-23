@@ -35,8 +35,13 @@ export default function LoyaltyConfig() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Get store ID
-            const { data: store } = await supabase.from('stores').select('id').eq('user_id', user.id).maybeSingle();
+            // Get store ID via RPC
+            const { data: storeData, error } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (error || !storeData) return;
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
             if (!store) return;
 
             setStoreId(store.id);

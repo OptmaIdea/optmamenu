@@ -92,29 +92,28 @@ export default function Catalog() {
             if (!storeSlug) return;
             setLoadingStore(true);
             try {
-                const { data, error } = await supabase
-                    .from('stores')
-                    .select('id, name, slug, contacts, config')
-                    .eq('slug', storeSlug)
-                    .maybeSingle();
-
+                const { data, error } = await supabase.rpc(
+                    'get_store_by_slug',
+                    { p_slug: storeSlug }
+                );
                 if (error) {
                     console.error('Error fetching store:', error);
                 } else if (data) {
+                    const storeData = Array.isArray(data) ? data[0] : data;
                     const [hoursRes, exceptionsRes, loyaltyRes] = await Promise.all([
-                        supabase.from('store_hours').select('*').eq('store_id', data.id),
-                        supabase.from('store_schedules_exceptions').select('*').eq('store_id', data.id),
-                        supabase.from('fidelity_programs').select('is_active').eq('store_id', data.id).maybeSingle()
+                        supabase.from('store_hours').select('*').eq('store_id', storeData.id),
+                        supabase.from('store_schedules_exceptions').select('*').eq('store_id', storeData.id),
+                        supabase.from('fidelity_programs').select('is_active').eq('store_id', storeData.id).maybeSingle()
                     ]);
 
                     if (hoursRes.data) setStoreHours(hoursRes.data);
                     if (exceptionsRes.data) setStoreExceptions(exceptionsRes.data);
 
-                    if (data.config) {
-                        data.config.loyalty_active = loyaltyRes.data?.is_active ?? false;
+                    if (storeData.config) {
+                        storeData.config.loyalty_active = loyaltyRes.data?.is_active ?? false;
                     }
-                    setStore(data);
-                    fetchCatalogData(data.id);
+                    setStore(storeData);
+                    fetchCatalogData(storeData.id);
                 }
             } catch (err) {
                 console.error('Exception fetching store:', err);

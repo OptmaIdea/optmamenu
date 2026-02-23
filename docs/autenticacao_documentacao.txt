@@ -933,11 +933,10 @@ export default function PrivateLayout() {
                 return;
             }
 
-            const { data: store, error } = await supabase
-                .from('stores')
-                .select('id, slug, config')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            const { data: store, error } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: storeId }
+            );
 
             if (error) {
                 console.error('Erro ao verificar loja:', error);
@@ -1380,7 +1379,10 @@ export default function CreateStore() {
                 storeData.document = cnpj || null;
             }
 
-            const { error } = await supabase.from('stores').insert(storeData);
+            const { error } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: storeId }
+            );.insert(storeData);
             if (error) throw error;
 
             toast.success('Loja criada com sucesso!');

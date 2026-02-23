@@ -15,18 +15,17 @@ export const useProducts = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: store, error: storeError } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
-
-            if (storeError || !store) {
-                console.error('Store not found:', storeError);
+            const { data: storeData, error } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (error || !storeData) {
+                console.error('Store not found:', error);
                 return;
             }
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
-            const { data, error } = await supabase
+            const { data: products, error: productsError } = await supabase
                 .from('products')
                 .select(`
           *,
@@ -35,9 +34,9 @@ export const useProducts = () => {
                 .eq('store_id', store.id)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (productsError) throw productsError;
 
-            const parsedData: Product[] = data?.map(p => {
+            const parsedData: Product[] = products?.map(p => {
                 let parsedImages = p.images;
                 if (typeof p.images === 'string') {
                     try {

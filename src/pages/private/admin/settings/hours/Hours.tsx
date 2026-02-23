@@ -33,12 +33,13 @@ export default function Hours() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Get store
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id, config')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // Get store via RPC - first get user's store ID
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeError) throw storeError;
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
             if (store) {
                 setStoreId(store.id);
@@ -102,7 +103,12 @@ export default function Hours() {
 
             // 2. Update Store Config logic
             // First we need the current config to not overwrite other fields
-            const { data: currentStore } = await supabase.from('stores').select('config').eq('id', storeId).maybeSingle();
+            const { data, error } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: storeId }
+            );
+            if (error) throw error;
+            const currentStore = Array.isArray(data) ? data[0] : data;
             const newConfig = { ...currentStore?.config, ...storeConfig };
 
             const { error: configError } = await supabase
@@ -145,21 +151,26 @@ export default function Hours() {
     };
 
     const handleDeleteException = async (id: string) => {
+        if (!storeId) return;
+
         try {
             const { error } = await supabase
                 .from('store_schedules_exceptions')
                 .delete()
-                .eq('id', id);
+                .eq('id', id)
+                .eq('store_id', storeId); // segurança extra
 
             if (error) throw error;
-            setExceptions(exceptions.filter(e => e.id !== id));
+
+            setExceptions(prev => prev.filter(e => e.id !== id));
             toast.success('Exceção removida.');
-        } catch (error) {
-            toast.error('Erro ao remover.');
+        } catch (error: any) {
+            console.error('Error deleting exception:', error);
+            toast.error('Erro ao remover: ' + (error?.message || 'Erro desconhecido'));
         }
     };
 
-    if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-brand-green" /></div>;
+    if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-[#21A896]" /></div>;
 
     return (
         <div className="max-w-6xl mx-auto p-6 md:p-8 animate-fade-in">
@@ -167,7 +178,7 @@ export default function Hours() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
                 <div>
                     <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
-                        <Clock className="text-brand-green" size={32} />
+                        <Clock className="text-[#21A896]" size={32} />
                         Horários de Funcionamento
                     </h1>
                     <p className="text-gray-500 dark:text-gray-400 mt-1">Configure sua grade semanal e dias especiais (feriados).</p>
@@ -184,7 +195,7 @@ export default function Hours() {
                         <button
                             onClick={handleSaveHours}
                             disabled={saving}
-                            className="bg-brand-green text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-green-600 transition disabled:opacity-50"
+                            className="bg-[#21A896] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50"
                         >
                             {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
                             Salvar
@@ -235,7 +246,7 @@ export default function Hours() {
                                             newHours[index].is_closed = !e.target.checked;
                                             setHours(newHours);
                                         }}
-                                        className="accent-brand-green w-5 h-5"
+                                        className="accent-[#21A896] w-5 h-5"
                                     />
                                     <span className="text-xs font-bold text-gray-500">Aberto</span>
                                 </label>
@@ -307,7 +318,7 @@ export default function Hours() {
                                 <button
                                     onClick={handleAddException}
                                     disabled={!newException.exception_date}
-                                    className="ml-auto bg-brand-green text-white p-2 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                    className="ml-auto bg-[#21A896] text-white p-2 rounded-lg hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] disabled:opacity-50"
                                 >
                                     <Plus size={20} />
                                 </button>
@@ -330,7 +341,7 @@ export default function Hours() {
                                         {ex.is_closed ? (
                                             <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Fechado</span>
                                         ) : (
-                                            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                                            <span className="bg-[#21A896]/10 text-[#21A896] text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                                                 {ex.open_time?.slice(0, 5)} - {ex.close_time?.slice(0, 5)}
                                             </span>
                                         )}
@@ -368,7 +379,7 @@ export default function Hours() {
                                     toast.success('Todos os pedidos pendentes foram cancelados.');
                                 }
                             }}
-                            className="text-xs font-bold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 px-3 py-2 rounded-lg transition flex items-center gap-2"
+                            className="text-xs font-bold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-800 px-3 py-2 rounded-lg transition flex items-center gap-2"
                         >
                             <Trash2 size={14} /> Fechar Loja & Cancelar Pendentes
                         </button>
@@ -384,14 +395,14 @@ export default function Hours() {
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1 flex justify-between">
                                         Pré-Abertura (Aceitar pedidos antes)
-                                        <span className="text-blue-500">{storeConfig?.pre_opening_minutes || 0} min</span>
+                                        <span className="text-[#21A896]">{storeConfig?.pre_opening_minutes || 0} min</span>
                                     </label>
                                     <input
                                         type="range"
                                         min="0"
                                         max="60"
                                         step="5"
-                                        className="w-full accent-blue-500"
+                                        className="w-full accent-[#21A896]"
                                         value={storeConfig?.pre_opening_minutes || 0}
                                         onChange={e => setStoreConfig({ ...storeConfig, pre_opening_minutes: parseInt(e.target.value) })}
                                     />
@@ -426,13 +437,13 @@ export default function Hours() {
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1 flex justify-between">
                                         Tolerância de Reserva (Expira em)
-                                        <span className="text-brand-green">{storeConfig?.tolerance_minutes || 5} min</span>
+                                        <span className="text-[#21A896]">{storeConfig?.tolerance_minutes || 5} min</span>
                                     </label>
                                     <input
                                         type="range"
                                         min="1"
                                         max="30"
-                                        className="w-full accent-brand-green"
+                                        className="w-full accent-[#21A896]"
                                         value={storeConfig?.tolerance_minutes || 5}
                                         onChange={e => setStoreConfig({ ...storeConfig, tolerance_minutes: parseInt(e.target.value) })}
                                     />
@@ -442,13 +453,13 @@ export default function Hours() {
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1 flex justify-between">
                                         Tempo de Prorrogação (Extra)
-                                        <span className="text-blue-500">{storeConfig?.extension_minutes || 3} min</span>
+                                        <span className="text-[#21A896]">{storeConfig?.extension_minutes || 3} min</span>
                                     </label>
                                     <input
                                         type="range"
                                         min="1"
                                         max="15"
-                                        className="w-full accent-blue-500"
+                                        className="w-full accent-[#21A896]"
                                         value={storeConfig?.extension_minutes || 3}
                                         onChange={e => setStoreConfig({ ...storeConfig, extension_minutes: parseInt(e.target.value) })}
                                     />
@@ -478,7 +489,7 @@ export default function Hours() {
                         <button
                             onClick={handleSaveHours}
                             disabled={saving}
-                            className="bg-brand-green text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-600 transition disabled:opacity-50 shadow-lg shadow-green-200"
+                            className="bg-[#21A896] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50 shadow-lg shadow-[#21A896]/20 dark:shadow-none"
                         >
                             {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
                             Salvar Alterações

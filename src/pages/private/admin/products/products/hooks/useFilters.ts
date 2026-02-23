@@ -35,11 +35,12 @@ export const useFilters = (products: Product[]) => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            const { data: storeData, error } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (error || !storeData) return;
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
             if (store) {
                 const { data } = await supabase
                     .from('categories')

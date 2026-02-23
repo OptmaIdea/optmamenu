@@ -28,7 +28,8 @@ import {
     BookOpen,
     ExternalLink,
     Lock,
-    MessageSquare
+    MessageSquare,
+    Truck
 } from 'lucide-react';
 
 export default function PrivateLayout() {
@@ -141,6 +142,7 @@ export default function PrivateLayout() {
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
             { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
+            { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
             { path: '/admin/security', icon: Lock, label: 'Senhas e Acesso' },
         ],
         support: [

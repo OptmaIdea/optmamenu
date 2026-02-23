@@ -155,6 +155,7 @@ export default function Signup() {
                   <input
                     type="text"
                     name="name"
+                    autoComplete="name"
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="Seu nome"
@@ -172,6 +173,7 @@ export default function Signup() {
                   <input
                     type="email"
                     name="email"
+                    autoComplete="email"
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="seu@email.com"
@@ -189,6 +191,7 @@ export default function Signup() {
                   <input
                     type="tel"
                     name="phone"
+                    autoComplete="tel"
                     value={formData.phone}
                     onChange={handleChange}
                     placeholder="(11) 99999-9999"
@@ -206,6 +209,7 @@ export default function Signup() {
                   <input
                     type="password"
                     name="password"
+                    autoComplete="new-password"
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="••••••••"
@@ -223,6 +227,7 @@ export default function Signup() {
                   <input
                     type="password"
                     name="confirmPassword"
+                    autoComplete="new-password"
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="••••••••"

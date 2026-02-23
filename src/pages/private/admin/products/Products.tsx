@@ -108,11 +108,12 @@ export default function ProductsPage() {
         const fetchCategories = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: store } = await supabase
-                .from('stores')
-                .select('id')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            const { data: storeData, error } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (error || !storeData) return;
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
             if (store) {
                 const { data } = await supabase
                     .from('categories')
@@ -127,16 +128,26 @@ export default function ProductsPage() {
     useEffect(() => {
         const fetchStoreAndUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                setUserEmail(user.email || 'Admin');
-                // Buscar nome da loja
-                const { data: store } = await supabase
-                    .from('stores')
-                    .select('name')
-                    .eq('user_id', user.id)
-                    .maybeSingle();
-                if (store) setStoreName(store.name);
-            }
+            if (!user) return;
+
+            setUserEmail(user.email || 'Admin');
+
+            // Primeiro busca a loja do usuário via RPC
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeError || !storeData) return;
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
+
+            // Agora usa o store.id correto para buscar a config
+            const { data, error } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: store.id }
+            );
+            if (error) return;
+            const storeConfig = Array.isArray(data) ? data[0] : data;
+            if (storeConfig) setStoreName(storeConfig.name);
         };
         fetchStoreAndUser();
     }, []);

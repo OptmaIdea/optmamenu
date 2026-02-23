@@ -42,10 +42,19 @@ export default function AdminMessages() {
 
     const fetchStore = async () => {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).maybeSingle();
-            setStore(data);
+        if (!user) return;
+        
+        // Primeiro busca a loja do usuário via RPC
+        const { data: storeData, error: storeError } = await supabase.rpc(
+            'get_user_store_by_id',
+            { p_user_id: user.id }
+        );
+        if (storeError || !storeData) {
+            console.error('Error fetching store:', storeError);
+            return;
         }
+        const store = Array.isArray(storeData) ? storeData[0] : storeData;
+        setStore(store);
     };
 
     const fetchHistory = async () => {

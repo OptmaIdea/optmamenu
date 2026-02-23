@@ -1,6 +1,26 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Save, Loader, Smartphone, Palette, Type, Image as ImageIcon, CheckCircle, AlertCircle, Upload, Globe, ExternalLink, Copy, Phone, Mail, Instagram, Facebook, LayoutTemplate, MessageCircle, Star } from 'lucide-react';
+import {
+    Save,
+    Loader,
+    Smartphone,
+    Palette,
+    Type,
+    Image as ImageIcon,
+    CheckCircle,
+    AlertCircle,
+    Upload,
+    Globe,
+    ExternalLink,
+    Copy,
+    Phone,
+    Mail,
+    Instagram,
+    Facebook,
+    LayoutTemplate,
+    MessageCircle,
+    Star
+} from 'lucide-react';
 import type { StoreConfig } from '@/types';
 import StorePreview from '@/components/admin/StorePreview';
 
@@ -59,14 +79,14 @@ export default function Config() {
     const [storeId, setStoreId] = useState<string | null>(null);
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [uploadingAbout, setUploadingAbout] = useState(false);
-    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+    const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     const [config, setConfig] = useState<StoreConfig>({
         timer_duration_minutes: 10,
         extension_minutes: 10,
         visual_title: '',
         visual_icon_url: '',
-        visual_color_primary: '#00D65F', // Default Brand Green
+        visual_color_primary: '#00D65F',
         visual_color_secondary: '#f9fafb',
         visual_color_text: '#1f2937',
         visual_color_highlight: '#fbbf24',
@@ -78,7 +98,15 @@ export default function Config() {
         contact_email: '',
         contact_whatsapp_support: '',
         contact_address: '',
-        social_links: { instagram: '', facebook: '', website: '' },
+        contact_map_link: '', // ✅ você usa no JSX
+        social_links: {
+            instagram: '',
+            facebook: '',
+            website: '',
+            twitter: '',
+            tiktok: '',
+            google_reviews: ''
+        },
         footer_text: '',
         footer_show_contact: true
     });
@@ -92,21 +120,40 @@ export default function Config() {
     const fetchConfig = async () => {
         try {
             setLoading(true);
+
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: store, error } = await supabase
-                .from('stores')
-                .select('id, slug, config')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // ✅ 1) Primeiro pega a loja do usuário
+            const { data: storeData, error: storeError } = await supabase.rpc('get_user_store_by_id', {
+                p_user_id: user.id
+            });
+            if (storeError) throw storeError;
 
+            const userStore = Array.isArray(storeData) ? storeData[0] : storeData;
+            if (!userStore?.id) return;
+
+            // ✅ 2) Agora sim busca config/admin usando STORE_ID
+            const { data, error } = await supabase.rpc('get_store_config_admin', {
+                p_store_id: userStore.id
+            });
             if (error) throw error;
+
+            const store = Array.isArray(data) ? data[0] : data;
+
             if (store) {
                 setStoreId(store.id);
                 setStoreSlug(store.slug);
+
                 if (store.config) {
-                    setConfig(prev => ({ ...prev, ...store.config }));
+                    setConfig(prev => ({
+                        ...prev,
+                        ...store.config,
+                        social_links: {
+                            ...prev.social_links,
+                            ...(store.config.social_links || {})
+                        }
+                    }));
                 }
             }
         } catch (error) {
@@ -123,9 +170,10 @@ export default function Config() {
         setMessage(null);
 
         try {
+            // ✅ UPDATE direto pode ficar (escrita)
             const { error } = await supabase
                 .from('stores')
-                .update({ config: config })
+                .update({ config })
                 .eq('id', storeId);
 
             if (error) throw error;
@@ -147,15 +195,10 @@ export default function Config() {
 
         try {
             setSaving(true);
-            const { error: uploadError } = await supabase.storage
-                .from('logos')
-                .upload(filePath, file);
-
+            const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file);
             if (uploadError) throw uploadError;
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('logos')
-                .getPublicUrl(filePath);
+            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
 
             setConfig(prev => ({ ...prev, visual_icon_url: publicUrl }));
             setMessage({ type: 'success', text: 'Ícone carregado! Clique em salvar.' });
@@ -175,15 +218,10 @@ export default function Config() {
 
         try {
             setSaving(true);
-            const { error: uploadError } = await supabase.storage
-                .from('logos') // Using same bucket for simplicity
-                .upload(filePath, file);
-
+            const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file);
             if (uploadError) throw uploadError;
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('logos')
-                .getPublicUrl(filePath);
+            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
 
             setConfig(prev => ({ ...prev, visual_banner_url: publicUrl }));
             setMessage({ type: 'success', text: 'Banner carregado! Clique em salvar.' });
@@ -204,15 +242,14 @@ export default function Config() {
         try {
             setSaving(true);
             setUploadingAbout(true);
+
             const { error: uploadError } = await supabase.storage
                 .from('logos')
                 .upload(filePath, file, { upsert: true });
 
             if (uploadError) throw uploadError;
 
-            const { data: { publicUrl } } = supabase.storage
-                .from('logos')
-                .getPublicUrl(filePath);
+            const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
 
             setConfig(prev => ({ ...prev, about_image_url: publicUrl }));
             setMessage({ type: 'success', text: 'Imagem "Quem Somos" carregada!' });
@@ -222,12 +259,11 @@ export default function Config() {
         } finally {
             setSaving(false);
             setUploadingAbout(false);
-            e.target.value = ''; // Reset input
+            e.target.value = '';
         }
     };
 
     if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-brand-green" /></div>;
-
 
     return (
         <div className="max-w-6xl mx-auto p-6 md:p-8">
@@ -280,58 +316,11 @@ export default function Config() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-
                 {/* Configuration Column */}
                 <div className="lg:col-span-7 space-y-8">
-
                     {/* VISUAL & APP TAB */}
                     {activeTab === 'visual' && (
                         <div className="space-y-8 animate-fade-in">
-                            {/* Timers
-                            <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700 relative overflow-hidden">
-                                <div className="absolute top-0 right-0 p-4 opacity-5">
-                                    <Clock size={120} />
-                                </div>
-                                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                                    <Clock className="text-orange-500" size={20} /> Controle de Tempo
-                                </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="bg-orange-50 dark:bg-gray-700/30 p-6 rounded-2xl border border-orange-100 dark:border-gray-600">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <label className="text-sm font-bold text-gray-600 dark:text-gray-300">Reserva (Min)</label>
-                                            <span className="bg-white dark:bg-gray-600 text-orange-600 dark:text-orange-400 text-xs font-bold px-2 py-1 rounded">Padrão</span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                max="60"
-                                                value={config.timer_duration_minutes}
-                                                onChange={(e) => setConfig({ ...config, timer_duration_minutes: Number(e.target.value) })}
-                                                className="w-full p-2 bg-white dark:bg-gray-800 text-3xl font-black text-gray-800 dark:text-white rounded-lg border border-transparent focus:border-orange-300 focus:ring-4 focus:ring-orange-100 outline-none text-center"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-blue-50 dark:bg-gray-700/30 p-6 rounded-2xl border border-blue-100 dark:border-gray-600">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <label className="text-sm font-bold text-gray-600 dark:text-gray-300">Prorrogação (Min)</label>
-                                            <span className="bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 text-xs font-bold px-2 py-1 rounded">Extra</span>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                max="60"
-                                                value={config.extension_minutes}
-                                                onChange={(e) => setConfig({ ...config, extension_minutes: Number(e.target.value) })}
-                                                className="w-full p-2 bg-white dark:bg-gray-800 text-3xl font-black text-gray-800 dark:text-white rounded-lg border border-transparent focus:border-blue-300 focus:ring-4 focus:ring-blue-100 outline-none text-center"
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </section> */}
-
                             {/* Basic Info */}
                             <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
                                 <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
@@ -376,7 +365,12 @@ export default function Config() {
                                     <h2 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
                                         <Palette className="text-brand-green" size={20} /> Paleta de Cores
                                     </h2>
-                                    <a href="https://coolors.co/generate" target="_blank" rel="noreferrer" className="text-xs font-bold text-gray-400 hover:text-brand-green flex items-center gap-1 transition">
+                                    <a
+                                        href="https://coolors.co/generate"
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-xs font-bold text-gray-400 hover:text-brand-green flex items-center gap-1 transition"
+                                    >
                                         Gerador <ExternalLink size={10} />
                                     </a>
                                 </div>
@@ -488,10 +482,7 @@ export default function Config() {
                                             maxLength={500}
                                             onChange={(e) => {
                                                 const text = e.target.value;
-                                                setConfig({
-                                                    ...config,
-                                                    about_text: text.slice(0, 500)
-                                                });
+                                                setConfig({ ...config, about_text: text.slice(0, 500) });
                                             }}
                                             placeholder="Conte um pouco da sua história..."
                                             rows={5}
@@ -640,7 +631,6 @@ export default function Config() {
                 <div className="lg:col-span-5">
                     <div className="sticky top-8">
                         <div className="flex flex-col items-center">
-
                             {storeSlug && (
                                 <div className="mb-8 w-full bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
                                     <label className="text-xs font-bold text-gray-400 uppercase mb-2 block text-center">Seu Link de Vendas</label>
@@ -685,7 +675,6 @@ export default function Config() {
                         </div>
                     </div>
                 </div>
-
             </div>
         </div>
     );

@@ -14,14 +14,22 @@ export const useStorePassword = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Usuário não autenticado');
 
-            const { data: store, error } = await supabase
-                .from('stores')
-                .select('stock_password_hash')
-                .eq('user_id', user.id)
-                .maybeSingle();
+            // Primeiro busca a loja do usuário via RPC
+            const { data: storeData, error: storeError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeError || !storeData) throw new Error('Loja não encontrada');
+            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
-            if (error) throw error;
-            return store?.stock_password_hash || null;
+            // Agora usa o store.id correto para buscar a config
+            const { data: configData, error: configError } = await supabase.rpc(
+                'get_store_config_admin',
+                { p_store_id: store.id }
+            );
+            if (configError) throw configError;
+            const config = Array.isArray(configData) ? configData[0] : configData;
+            return config?.stock_password_hash || null;
         } catch (err) {
             console.error('Erro ao buscar hash da senha:', err);
             return null;

@@ -49,27 +49,21 @@ export default function CreateStore() {
                 accepted_at: new Date().toISOString(),
             };
 
-            // Dados da loja
-            const storeData: any = {
-                user_id: user.id,
-                name: storeName,
-                slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
-                phone_number: phone || null,
-                doc_type: docType,
-                consents,
-            };
+            // Chamar RPC para criar loja
+            const { data, error } = await supabase.rpc('create_store', {
+                p_user_id: user.id,
+                p_name: storeName,
+                p_slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+                p_phone_number: phone || null,
+                p_doc_type: docType,
+                p_legal_name: docType === 'PF' ? fullName : legalName,
+                p_document: docType === 'PF' ? cpf || null : cnpj || null,
+                p_fantasy_name: docType === 'PJ' ? fantasyName || null : null,
+                p_consents: consents
+            });
 
-            if (docType === 'PF') {
-                storeData.legal_name = fullName;
-                storeData.document = cpf || null;
-            } else {
-                storeData.legal_name = legalName;
-                storeData.fantasy_name = fantasyName || null;
-                storeData.document = cnpj || null;
-            }
-
-            const { error } = await supabase.from('stores').insert(storeData);
             if (error) throw error;
+            if (!data || data.length === 0) throw new Error('Erro ao criar loja');
 
             toast.success('Loja criada com sucesso!');
             navigate('/admin');
