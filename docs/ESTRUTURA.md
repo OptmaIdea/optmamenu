@@ -4,19 +4,56 @@
 
 Este documento descreve a organização de diretórios e arquivos do projeto OptmaMenu.
 
+**Última Atualização:** Fevereiro 2026
+**Versão:** 2.0
+
+## Status das Funcionalidades (Fevereiro 2026)
+
+### ✅ Implementado e Producao
+
+- ✅ **Autenticação** (Admin e Cliente)
+- ✅ **Produtos** (CRUD completo)
+- ✅ **Categorias** (com precificação por volume)
+- ✅ **Estoque** (controle e movimentações)
+- ✅ **Pedidos** (fluxo completo)
+- ✅ **PDV** (venda balcão)
+- ✅ **Clientes** (cadastro e histórico)
+- ✅ **Fidelidade** (pontos, rewards, tiers)
+- ✅ **Configurações** (loja, horários, aparência)
+- ✅ **Segurança** (PIN, logs, auditoria)
+- ✅ **RPC Architecture** (22 arquivos migrados)
+
+### 🟡 Em Desenvolvimento
+
+- 🟡 **Marketing** (33% - Página "Em Breve" ativa)
+- 🟡 **Pagamentos** (25% - Página "Em Breve" ativa)
+- 🟡 **Entregas** (15% - Página "Em Breve" ativa)
+- 🟡 **Usuários (RBAC)** (Placeholder)
+- 🟡 **Relatórios Avançados** (Em planejamento)
+
+### 🔵 Planejamento
+
+- 🔵 **Multi-Loja Avançado** (Transferências)
+- 🔵 **API de Integrações** (Webhooks)
+- 🔵 **App Mobile** (React Native)
+- 🔵 **Modo Offline**
+
 ## Estrutura de Diretórios
 
 ```
 optmamenusys/
 ├── docs/                           # Documentação do projeto
 │   ├── ARCHITECTURE.md            # Arquitetura do sistema
+│   ├── ATUALIZACOES_IMPLEMENTADAS.md  # 🆕 Atualizações técnicas
 │   ├── ESTRUTURA.md               # Este arquivo
 │   ├── GUIA_MARKETING_MENSAGENS_ANIVERSARIANTES.md
 │   ├── GUIA_MOVIMENTACAO_CATEGORIAS.md
 │   ├── GUIA_USUARIOS_CLIENTES_FIDELIDADE.md
 │   ├── IMPLEMENTATION_PLAN.md     # Plano de implementação
-│   ├── PLANO_DE_NEGOCIOS.md
-│   └── RESUMO_EXECUTIVO.md
+│   ├── PLANO_DE_NEGOCIOS.md       # Plano original (v1.0)
+│   ├── PLANO_DE_NEGOCIOS_ATUALIZACAO_2026_02.md  # 🆕 Atualização (v1.1)
+│   ├── RESUMO_EXECUTIVO.md
+│   └── SQL_EXTRAS_EM_SUPABASE_COM_EXITO.md
 │
 ├── public/                         # Arquivos públicos estáticos
 │   ├── assets/                    # Logotipos e imagens
@@ -98,6 +135,46 @@ optmamenusys/
 │   │   │       ├── PrivacyPolicy.tsx
 │   │   │       └── Terms.tsx
 │   │   ├── private/
+│   │   │   └── admin/              # Área administrativa
+│   │   │       ├── commercial/     # Gestão comercial
+│   │   │       │   ├── customers/  # Clientes
+│   │   │       │   ├── loyalty/    # Fidelidade
+│   │   │       │   ├── messages/   # Mensagens
+│   │   │       │   └── orders/     # Pedidos
+│   │   │       ├── dashboard/      # Dashboard e relatórios
+│   │   │       │   ├── Activity.tsx
+│   │   │       │   ├── Alerts.tsx
+│   │   │       │   ├── Reports.tsx
+│   │   │       │   └── push/
+│   │   │       ├── marketing/      # 🆕 Marketing (Em breve)
+│   │   │       │   ├── Marketing.tsx
+│   │   │       │   └── index.ts
+│   │   │       ├── payments/       # 🆕 Pagamentos (Em breve)
+│   │   │       │   ├── Payments.tsx
+│   │   │       │   └── index.ts
+│   │   │       ├── delivery/       # 🆕 Entregas (Em breve)
+│   │   │       │   ├── Delivery.tsx
+│   │   │       │   └── index.ts
+│   │   │       ├── products/       # Produtos e estoque
+│   │   │       │   ├── category/   # Módulo de categorias
+│   │   │       │   ├── inventory/  # Módulo de estoque
+│   │   │       │   ├── products/   # Módulo de produtos
+│   │   │       │   ├── Categories.tsx
+│   │   │       │   ├── Inventory.tsx
+│   │   │       │   ├── Products.tsx
+│   │   │       │   └── StockMovements.tsx
+│   │   │       ├── settings/       # Configurações da loja
+│   │   │       │   ├── appearance/ # Aparência
+│   │   │       │   ├── hours/      # Horários
+│   │   │       │   ├── messages/   # Mensagens
+│   │   │       │   ├── profile/    # Perfil
+│   │   │       │   ├── security/   # Segurança
+│   │   │       │   ├── storeSettings/ # Dados da loja
+│   │   │       │   └── users/      # 🆕 Usuários (Em breve)
+│   │   │       └── support/        # Suporte e documentação
+│   │   │           ├── Documentation.tsx
+│   │   │           ├── FAQ.tsx
+│   │   │           └── Legal.tsx
 │   │   │   └── admin/              # Páginas administrativas
 │   │   │       ├── commercial/     # Funcionalidades comerciais
 │   │   │       │   ├── customers/
