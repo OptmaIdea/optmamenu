@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { useLowStock } from '@/pages/private/admin/products/inventory/hooks/useLowStock';
 import {
     LayoutDashboard,
     Package,
@@ -40,6 +41,7 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(false);
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
+    const { criticalCount, zeroCount } = useLowStock(storeId || undefined);
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
 
@@ -241,10 +243,31 @@ export default function PrivateLayout() {
                                             size={22}
                                             className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
                                         />
-                                        {!isSidebarCollapsed && (
-                                            <span className="font-candara">{item.label}</span>
+                                        {isSidebarCollapsed && item.path === '/admin/inventory' && criticalCount > 0 && (
+                                            <span
+                                                className={`absolute right-3 w-2.5 h-2.5 rounded-full
+                                                    ${zeroCount > 0 ? 'bg-red-500' : 'bg-yellow-400'}
+                                                `}
+                                            />
                                         )}
-                                    </Link>
+                                        {!isSidebarCollapsed && (
+                                            <div className="flex items-center justify-between w-full">
+                                                <span className="font-candara">{item.label}</span>
+
+                                                {item.path === '/admin/inventory' && criticalCount > 0 && (
+                                                    <span
+                                                        className={`ml-2 inline-flex items-center justify-center min-w-[22px] h-5 px-2 rounded-full text-[11px] font-black
+                                                            ${zeroCount > 0
+                                                                ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
+                                                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200'
+                                                            }`}
+                                                        title={zeroCount > 0 ? 'Produtos com estoque zerado ou baixo' : 'Produtos com estoque baixo'}
+                                                    >
+                                                        {criticalCount}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        )}                                    </Link>
                                 );
                             })}
                         </div>

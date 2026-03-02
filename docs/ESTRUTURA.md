@@ -5,7 +5,7 @@
 Este documento descreve a organização de diretórios e arquivos do projeto OptmaMenu.
 
 **Última Atualização:** Março 2026
-**Versão:** 2.1
+**Versão:** 2.2
 
 ## Status das Funcionalidades (Março 2026)
 
@@ -250,6 +250,7 @@ optmamenusys/
 │   │   │       │   │   ├── hooks/
 │   │   │       │   │   │   ├── useInventory.ts
 │   │   │       │   │   │   ├── useInventoryFilters.ts
+│   │   │       │   │   │   ├── useLowStock.ts           # 🆕 Hook para alertas de estoque baixo
 │   │   │       │   │   │   ├── useStockAdjustment.ts
 │   │   │       │   │   │   └── useStockMovement.ts
 │   │   │       │   │   ├── types/

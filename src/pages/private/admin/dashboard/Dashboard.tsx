@@ -1,4 +1,3 @@
-// src/pages/private/admin/dashboard/Dashboard.tsx
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -7,9 +6,8 @@ import {
   ShoppingBag,
   TrendingUp,
   DollarSign,
-  Users,
   MessageCircle,
-  CheckCircle
+  CheckCircle,
 } from 'lucide-react';
 
 // Componentes
@@ -26,21 +24,38 @@ type StoreRow = {
   config?: any;
 };
 
+type ProductRow = {
+  id: string;
+  name: string;
+  stock_quantity: number | null;
+  min_stock: number | null;
+  max_stock: number | null;
+  active: boolean | null;
+  discontinued?: boolean | null;
+  is_discontinued?: boolean | null;
+};
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     ordersToday: 0,
     salesToday: 0,
     activeProducts: 0,
+
+    // Estoque
+    criticalStockCount: 0, // = zero + low
     lowStockCount: 0,
     zeroStockCount: 0,
+    excessStockCount: 0,
+
+    // Outros
     newCustomers: 0,
-    pendingMessages: 0
+    pendingMessages: 0,
   });
 
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
-  const [zeroStockProducts, setZeroStockProducts] = useState<any[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<ProductRow[]>([]);
+  const [zeroStockProducts, setZeroStockProducts] = useState<ProductRow[]>([]);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [fatalError, setFatalError] = useState<string | null>(null);
 
@@ -49,7 +64,11 @@ export default function Dashboard() {
       setFatalError(null);
       setLoading(true);
 
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
       if (userError) {
         console.error('Erro ao obter usuário:', userError);
         setFatalError('Erro ao obter usuário autenticado.');
@@ -72,7 +91,7 @@ export default function Dashboard() {
       }
 
       const store: StoreRow | null = Array.isArray(storeData)
-        ? (storeData[0] as StoreRow | undefined) ?? null
+        ? ((storeData[0] as StoreRow | undefined) ?? null)
         : (storeData as StoreRow | null);
 
       if (!store?.id) {
@@ -97,24 +116,23 @@ export default function Dashboard() {
         .gte('created_at', todayISO)
         .lt('created_at', tomorrowISO);
 
-      if (ordersError) {
-        console.error('Error fetching orders:', ordersError);
-      }
+      if (ordersError) console.error('Error fetching orders:', ordersError);
 
       const ordersToday = orders?.length || 0;
-      const salesToday =
-        orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
+      const salesToday = orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
 
-      // 2) PRODUTOS ATIVOS
-      const { data: products, error: productsError } = await supabase
+      // 2) PRODUTOS ATIVOS (EXCLUINDO DESCONTINUADOS)
+      const { data: productsRaw, error: productsError } = await supabase
         .from('products')
-        .select('id, name, stock_quantity, min_stock, active')
+        .select('id, name, stock_quantity, min_stock, max_stock, active, discontinued, is_discontinued')
         .eq('store_id', store.id)
-        .eq('active', true);
+        .eq('active', true)
+        .eq('discontinued', false)
+        .eq('is_discontinued', false);
 
-      if (productsError) {
-        console.error('Error fetching products:', productsError);
-      }
+      if (productsError) console.error('Error fetching products:', productsError);
+
+      const products = (productsRaw || []) as ProductRow[];
 
       // 3) PEDIDOS RECENTES
       const { data: recentOrders, error: recentError } = await supabase
@@ -124,39 +142,48 @@ export default function Dashboard() {
         .order('created_at', { ascending: false })
         .limit(5);
 
-      if (recentError) {
-        console.error('Error fetching recent orders:', recentError);
-      }
+      if (recentError) console.error('Error fetching recent orders:', recentError);
 
       // 4) MENSAGENS (mock por enquanto)
       const mockMessages = 2;
 
-      if (products) {
-        const zero = products.filter((p) => p.stock_quantity === 0);
-        const low = products.filter(
-          (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.min_stock || 5)
-        );
+      // --- CÁLCULOS DE ESTOQUE (com defaults do schema)
+      const minDefault = 5;
+      const maxDefault = 20;
 
-        setStats({
-          ordersToday,
-          salesToday,
-          activeProducts: products.length,
-          lowStockCount: low.length,
-          zeroStockCount: zero.length,
-          newCustomers: 3, // Mock
-          pendingMessages: mockMessages,
-        });
+      const normalized = products.map((p) => ({
+        ...p,
+        stock_quantity: p.stock_quantity ?? 0,
+        min_stock: p.min_stock ?? minDefault,
+        max_stock: p.max_stock ?? maxDefault,
+      }));
 
-        setLowStockProducts(low.slice(0, 5));
-        setZeroStockProducts(zero.slice(0, 5));
-      } else {
-        setStats((s) => ({
-          ...s,
-          ordersToday,
-          salesToday,
-          pendingMessages: mockMessages,
-        }));
-      }
+      const zero = normalized.filter((p) => p.stock_quantity === 0);
+      const low = normalized.filter(
+        (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.min_stock ?? minDefault)
+      );
+      const excess = normalized.filter(
+        (p) => p.stock_quantity > (p.max_stock ?? maxDefault)
+      );
+
+      const critical = zero.length + low.length;
+
+      setStats({
+        ordersToday,
+        salesToday,
+        activeProducts: normalized.length,
+
+        criticalStockCount: critical,
+        lowStockCount: low.length,
+        zeroStockCount: zero.length,
+        excessStockCount: excess.length,
+
+        newCustomers: 3, // Mock
+        pendingMessages: mockMessages,
+      });
+
+      setLowStockProducts(low.slice(0, 5));
+      setZeroStockProducts(zero.slice(0, 5));
 
       if (recentOrders) {
         const activities = recentOrders.map((order) => ({
@@ -187,7 +214,6 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    // ✅ se der erro fatal, não fica martelando no console
     const interval = setInterval(() => {
       if (!fatalError) fetchDashboardData();
     }, 300000);
@@ -250,6 +276,7 @@ export default function Dashboard() {
               }}
             />
           )}
+
           {stats.lowStockCount > 0 && (
             <AlertBanner
               type="warning"
@@ -265,6 +292,14 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+        <StatsCard
+          title="Estoque Crítico"
+          value={stats.criticalStockCount}
+          icon={<Package size={24} />}
+          color="purple"
+          onClick={() => (window.location.href = '/admin/products?filter=critical')}
+        />
+
         <StatsCard
           title="Pedidos Hoje"
           value={stats.ordersToday}
@@ -290,14 +325,6 @@ export default function Dashboard() {
           value={stats.activeProducts}
           icon={<Package size={24} />}
           color="blue"
-        />
-
-        <StatsCard
-          title="Clientes Hoje"
-          value={stats.newCustomers}
-          icon={<Users size={24} />}
-          trend={{ value: 8, positive: true }}
-          color="purple"
         />
       </div>
 
@@ -376,8 +403,8 @@ export default function Dashboard() {
                           <span className="font-medium text-gray-700 dark:text-gray-300 font-candara">
                             {p.name}
                           </span>
-                          <span className="text-xs text-gray-400">
-                            {p.stock_quantity} / {p.min_stock || 5}
+                          <span className="text-xs text-gray-400 block">
+                            {p.stock_quantity} / {p.min_stock ?? 5}
                           </span>
                         </div>
                       </div>

@@ -19,7 +19,7 @@ export interface ProductStock {
 
 export type AdjustmentType = 'entry' | 'exit';
 
-export type StockMovementType = 
+export type StockMovementType =
     | 'entry'           // Entrada manual (onEntry)
     | 'exit'            // Saída/perda manual (onExit)
     | 'reservation'     // Reserva por pedido
@@ -51,6 +51,7 @@ export interface StockMovement {
 
 export interface StockMovementFilters {
     productId?: string;
+    productIds?: string[];
     type?: StockMovementType;
     startDate?: string;
     endDate?: string;

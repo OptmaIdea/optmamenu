@@ -124,6 +124,7 @@ export default function StockMovementsPage() {
 
         setFilters({
             productId: selectedProduct?.id || undefined,
+            productIds: undefined,
             type: undefined,
             startDate: startDate.toISOString().split('T')[0],
             endDate: endDate.toISOString().split('T')[0],
@@ -141,9 +142,14 @@ export default function StockMovementsPage() {
     };
 
     const applyProductFilter = () => {
-        if (selectedProductIds.length > 0) {
-            setFilters(prev => ({ ...prev, productId: undefined }));
-        }
+        setFilters(prev => ({
+            ...prev,
+            // se selecionou múltiplos, usa productIds e limpa productId
+            productIds: selectedProductIds.length > 0 ? selectedProductIds : undefined,
+            productId: selectedProductIds.length > 0 ? undefined : prev.productId,
+        }));
+
+        setCurrentPage(1);
         setShowFilters(false);
     };
 
@@ -199,8 +205,8 @@ export default function StockMovementsPage() {
                     <button
                         onClick={() => setShowFilters(!showFilters)}
                         className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${showFilters
-                                ? 'bg-[#21A896] text-white'
-                                : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            ? 'bg-[#21A896] text-white'
+                            : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                             }`}
                     >
                         <Filter size={18} />
@@ -379,8 +385,8 @@ export default function StockMovementsPage() {
                                                 </span>
                                             </td>
                                             <td className={`p-4 print:p-2 text-right font-bold ${movement.type === 'entry' || movement.type === 'cancellation'
-                                                    ? 'text-green-600'
-                                                    : 'text-red-600'
+                                                ? 'text-green-600'
+                                                : 'text-red-600'
                                                 }`}>
                                                 {formatQuantity(movement.quantity, movement.type)}
                                             </td>

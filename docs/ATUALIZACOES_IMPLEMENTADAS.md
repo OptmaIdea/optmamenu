@@ -1,7 +1,7 @@
 # 🔄 Atualizações Implementadas - OptmaMenu SaaS
 
-**Data:** Fevereiro 2026
-**Versão:** 2.0
+**Data:** Março 2026
+**Versão:** 2.2
 **Status:** ✅ Implementado
 
 ---
@@ -423,6 +423,78 @@ docs/
 7. **Transferência interna (setores)**
 8. **Devolução pós-recebimento**
 9. **Relatórios consolidados multi-loja**
+
+---
+
+## ✅ 2. HOOK USELOWSTOCK - ALERTAS DE ESTOQUE
+
+### O Que Foi Implementado
+
+**Propósito:** Monitoramento automático de estoque baixo, zerado e excesso de produtos.
+
+**Funcionalidades:**
+- ✅ Contagem de produtos ativos (excluindo descontinuados)
+- ✅ Produtos com estoque zerado (`stock_quantity === 0`)
+- ✅ Produtos com estoque baixo (`0 < stock_quantity <= min_stock`)
+- ✅ Produtos com excesso de estoque (`stock_quantity > max_stock`)
+- ✅ Contagem crítica (zerado + baixo)
+- ✅ Auto-refresh configurável (default: 5 minutos)
+- ✅ Filtro por `storeId`
+
+### Regras de Negócio
+
+| Tipo | Condição | Padrão |
+|------|----------|--------|
+| **Zero** | `stock_quantity === 0` | - |
+| **Baixo** | `0 < stock_quantity <= min_stock` | `min_stock = 5` |
+| **Excesso** | `stock_quantity > max_stock` | `max_stock = 20` |
+| **Crítico** | `zero + baixo` | - |
+
+### Arquivo Criado
+
+✅ **Inventory Hooks**
+- `useLowStock.ts` 🆕
+
+### Uso no Código
+
+```typescript
+import { useLowStock } from '@/pages/private/admin/products/inventory/hooks/useLowStock';
+
+function DashboardAlerts() {
+    const {
+        loading,
+        error,
+        activeCount,
+        zeroCount,
+        lowCount,
+        excessCount,
+        criticalCount,
+        refreshedAt,
+        refresh
+    } = useLowStock(storeId);
+
+    if (loading) return <Spinner />;
+    if (error) return <Alert>{error}</Alert>;
+
+    return (
+        <div>
+            <p>Produtos ativos: {activeCount}</p>
+            <p>Estoque zerado: {zeroCount}</p>
+            <p>Estoque baixo: {lowCount}</p>
+            <p>Excesso: {excessCount}</p>
+            <p>Crítico: {criticalCount}</p>
+            <small>Atualizado em: {refreshedAt?.toLocaleString()}</small>
+        </div>
+    );
+}
+```
+
+### Benefícios
+
+1. **Dashboard de Alertas:** Exibição em tempo real de problemas de estoque
+2. **Performance:** Consulta única com contagem no cliente
+3. **Automático:** Refresh periódico sem intervenção do usuário
+4. **Precisão:** Exclui produtos descontinuados das contagens
 
 ---
 
