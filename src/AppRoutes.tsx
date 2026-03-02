@@ -26,7 +26,7 @@ const Alerts = lazy(() => import('@/pages/private/admin/dashboard/Alerts'));
 const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 const Settings = lazy(() => import('@/pages/private/admin/settings/storeSettings/StoreSettings'));
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
-const Users = lazy(() => import('@/pages/private/admin/settings/users/Users'));
+const Users = lazy(() => import('@/pages/private/admin/users/Users'));
 const Categories = lazy(() => import('@/pages/private/admin/products/Categories'));
 const Legal = lazy(() => import('@/pages/private/admin/support/Legal'));
 const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));

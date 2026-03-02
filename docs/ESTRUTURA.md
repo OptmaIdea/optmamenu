@@ -4,10 +4,10 @@
 
 Este documento descreve a organização de diretórios e arquivos do projeto OptmaMenu.
 
-**Última Atualização:** Fevereiro 2026
-**Versão:** 2.0
+**Última Atualização:** Março 2026
+**Versão:** 2.1
 
-## Status das Funcionalidades (Fevereiro 2026)
+## Status das Funcionalidades (Março 2026)
 
 ### ✅ Implementado e Producao
 
@@ -22,13 +22,13 @@ Este documento descreve a organização de diretórios e arquivos do projeto Opt
 - ✅ **Configurações** (loja, horários, aparência)
 - ✅ **Segurança** (PIN, logs, auditoria)
 - ✅ **RPC Architecture** (22 arquivos migrados)
+- ✅ **Usuários (RBAC)** (Gerenciamento completo de usuários e permissões)
 
 ### 🟡 Em Desenvolvimento
 
 - 🟡 **Marketing** (33% - Página "Em Breve" ativa)
 - 🟡 **Pagamentos** (25% - Página "Em Breve" ativa)
 - 🟡 **Entregas** (15% - Página "Em Breve" ativa)
-- 🟡 **Usuários (RBAC)** (Placeholder)
 - 🟡 **Relatórios Avançados** (Em planejamento)
 
 ### 🔵 Planejamento
@@ -108,6 +108,13 @@ optmamenusys/
 │   │   │   └── StoreLayout.tsx
 │   │   ├── mobile/                 # Componentes mobile
 │   │   │   └── NotificationReceiver.tsx
+│   │   ├── users/                  # 🆕 Componentes de usuários (RBAC)
+│   │   │   ├── UserCard.tsx
+│   │   │   ├── UserDetailModal.tsx
+│   │   │   ├── UserFormModal.tsx
+│   │   │   ├── UserRoleBadge.tsx
+│   │   │   ├── UserStatusBadge.tsx
+│   │   │   └── index.ts
 │   │   ├── LoyaltyPoints.tsx
 │   │   ├── ProtectedRoute.tsx
 │   │   └── index.ts                # Barrel export
@@ -170,7 +177,10 @@ optmamenusys/
 │   │   │       │   ├── profile/    # Perfil
 │   │   │       │   ├── security/   # Segurança
 │   │   │       │   ├── storeSettings/ # Dados da loja
-│   │   │       │   └── users/      # 🆕 Usuários (Em breve)
+│   │   │       │   └── users/      # 👥 Usuários (Em breve) - ⚠️ MOVIDO PARA /admin/users
+│   │   │       ├── users/          # 🆕 Gestão de Usuários (RBAC)
+│   │   │       │   ├── Users.tsx
+│   │   │       │   └── index.ts
 │   │   │       └── support/        # Suporte e documentação
 │   │   │           ├── Documentation.tsx
 │   │   │           ├── FAQ.tsx
@@ -324,8 +334,8 @@ optmamenusys/
 │   │   │       │   │       ├── ContactsTab.tsx
 │   │   │       │   │       ├── CorporateTab.tsx
 │   │   │       │   │       └── LegalTab.tsx
-│   │   │       │   ├── users/
-│   │   │       │   │   ├── Users.tsx
+│   │   │       │   ├── users/      # ⚠️ Legacy - vazio, movido para /admin/users
+│   │   │       │   │   ├── Users.tsx  # Placeholder
 │   │   │       │   │   └── index.ts
 │   │   │       │   └── index.ts
 │   │   │       └── support/        # Suporte e documentação
@@ -354,10 +364,11 @@ optmamenusys/
 │   │   ├── index.ts
 │   │   ├── useAuthStore.ts
 │   │   ├── useCartStore.ts
-│   │   └── useCustomerAuth.ts
+│   │   ├── useCustomerAuth.ts
+│   │   └── useUsersStore.ts        # 🆕 Store de usuários (RBAC)
 │   │
 │   ├── types/                      # Definições TypeScript
-│   │   ├── admin.ts
+│   │   ├── admin.ts                # 🆕 Tipos de usuários e RBAC
 │   │   ├── index.ts
 │   │   ├── loyalty.ts
 │   │   ├── order.ts
@@ -488,9 +499,13 @@ Dentro de `pages/private/admin/`, os arquivos são organizados por domínio de n
 admin/
 ├── commercial/      # Gestão comercial (pedidos, clientes, fidelidade, mensagens)
 ├── dashboard/       # Dashboard, relatórios, atividades, notificações push
+├── marketing/       # Marketing e promoções
+├── payments/        # Gestão de pagamentos
+├── delivery/        # Gestão de entregas
 ├── products/        # Gestão de produtos, categorias e inventário
-├── settings/        # Configurações da loja, perfil, segurança, usuários
-└── support/         # Suporte, documentação, FAQ, termos legais
+├── settings/        # Configurações da loja, perfil, segurança
+├── support/         # Suporte, documentação, FAQ, termos legais
+└── users/          # 🆕 Gestão de usuários e permissões (RBAC)
 ```
 
 ### Módulos de Features
@@ -583,3 +598,101 @@ src/__tests__/
 3. **Internacionalização**: Adicionar `i18n/` para suporte a múltiplos idiomas
 4. **E2E Testing**: Adicionar testes end-to-end com Playwright ou Cypress
 5. **API Mock**: Adicionar mocks para desenvolvimento offline
+6. **Multi-Loja (Staff)**: Tabela `store_staff` para múltiplos usuários por loja com permissões granulares
+7. **Auditoria Completa**: Tabela `audit_logs` para rastrear todas as ações dos usuários
+
+## Estrutura de Usuários e Permissões (RBAC)
+
+### Visão Geral
+
+O sistema de usuários utiliza uma arquitetura em camadas:
+
+```
+auth.users (Supabase Auth)
+    │
+    ├─1:1─> public.profiles (dados + is_admin global)
+    │
+    └─1:N─> public.stores (donos da loja)
+```
+
+### Tabelas Envolvidas
+
+| Tabela | Finalidade |
+|--------|-----------|
+| `auth.users` | Autenticação (email/senha) - nativa do Supabase |
+| `public.profiles` | Dados complementares + `is_admin` + `is_active` |
+| `public.stores` | Vínculo do dono com sua loja |
+| `public.store_staff`* | 🆕 Funcionários por loja com permissões (planejado) |
+
+*\* Tabela planejada para implementação futura*
+
+### Níveis de Acesso (Roles)
+
+```typescript
+type UserRole = 'super_admin' | 'admin' | 'manager' | 'staff' | 'viewer';
+```
+
+| Role | Descrição | Permissões |
+|------|-----------|------------|
+| `super_admin` | Administrador global do sistema | Acesso total a todas as lojas |
+| `admin` | Dono da loja | Acesso total à sua loja |
+| `manager` | Gerente | Quase total, exceto configurações críticas |
+| `staff` | Equipe | Operacional (pedidos, produtos, clientes) |
+| `viewer` | Visualizador | Apenas leitura |
+
+### Estrutura de Dados
+
+```typescript
+interface UserAdmin {
+    id: string;
+    email: string | null;
+    phone: string | null;
+    full_name: string | null;
+    cpf: string | null;
+    role: UserRole;
+    status: UserStatus;  // 'active' | 'inactive' | 'suspended' | 'pending'
+    is_admin: boolean;
+    is_active: boolean;
+    created_at: string;
+    internal_notes?: string | null;
+    stores?: StoreUser[];  // Lojas vinculadas
+}
+```
+
+### Fluxo de Autenticação
+
+1. **Login**: Usuário autentica via `supabase.auth.signInWithPassword()`
+2. **Profile**: Busca dados complementares em `public.profiles`
+3. **Lojas**: Identifica lojas vinculadas via `stores.user_id`
+4. **Permissões**: Verifica `is_admin` e `role` para liberar acesso
+
+### Componentes de Usuários
+
+```
+src/components/users/
+├── UserCard.tsx              # Card de usuário com ações
+├── UserDetailModal.tsx       # Modal de detalhes
+├── UserFormModal.tsx         # Formulário criar/editar
+├── UserRoleBadge.tsx         # Badge de permissão
+├── UserStatusBadge.tsx       # Badge de status
+└── index.ts
+```
+
+### Página de Gestão
+
+```
+src/pages/private/admin/users/
+├── Users.tsx                 # Listagem com filtros e stats
+└── index.ts
+```
+
+### Funcionalidades Implementadas
+
+- ✅ Listagem de usuários com busca (nome, telefone, CPF)
+- ✅ Filtros por status e permissão
+- ✅ Stats (total, ativos, inativos, admins)
+- ✅ Criar novo usuário (com email/senha)
+- ✅ Editar dados do usuário
+- ✅ Ativar/desativar usuário
+- ✅ Visualização detalhada
+- ✅ Badges de role e status
