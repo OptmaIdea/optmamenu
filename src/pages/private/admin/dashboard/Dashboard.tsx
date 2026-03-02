@@ -17,22 +17,12 @@ import DataCard from '@/components/common/DataCard';
 import AlertBanner from '@/components/common/AlertBanner';
 import RecentActivity from '@/components/common/RecentActivity';
 import ProgressCard from '@/components/common/ProgressCard';
+import { useStockAlerts, type StockAlertProduct } from '@/hooks/stock/useStockAlerts';
 
 type StoreRow = {
   id: string;
   slug?: string | null;
   config?: any;
-};
-
-type ProductRow = {
-  id: string;
-  name: string;
-  stock_quantity: number | null;
-  min_stock: number | null;
-  max_stock: number | null;
-  active: boolean | null;
-  discontinued?: boolean | null;
-  is_discontinued?: boolean | null;
 };
 
 export default function Dashboard() {
@@ -54,8 +44,23 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [lowStockProducts, setLowStockProducts] = useState<ProductRow[]>([]);
-  const [zeroStockProducts, setZeroStockProducts] = useState<ProductRow[]>([]);
+  const [storeId, setStoreId] = useState<string | null>(null);
+
+  const stockAlerts = useStockAlerts(storeId || undefined, { autoRefreshMs: 5 * 60 * 1000 });
+
+  useEffect(() => {
+    if (stockAlerts.loading) return;
+    setStats((prev) => ({
+      ...prev,
+      activeProducts: stockAlerts.summary.activeCount,
+      criticalStockCount: stockAlerts.summary.criticalCount,
+      lowStockCount: stockAlerts.summary.lowCount,
+      zeroStockCount: stockAlerts.summary.zeroCount,
+      excessStockCount: stockAlerts.summary.excessCount,
+    }));
+  }, [stockAlerts.loading, stockAlerts.summary.activeCount, stockAlerts.summary.criticalCount, stockAlerts.summary.lowCount, stockAlerts.summary.zeroCount, stockAlerts.summary.excessCount]);
+  const zeroStockProducts: StockAlertProduct[] = stockAlerts.lists.zero;
+  const lowStockProducts: StockAlertProduct[] = stockAlerts.lists.low;
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [fatalError, setFatalError] = useState<string | null>(null);
 
@@ -99,6 +104,8 @@ export default function Dashboard() {
         return;
       }
 
+      setStoreId(store.id);
+
       // Data de hoje
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -121,18 +128,7 @@ export default function Dashboard() {
       const ordersToday = orders?.length || 0;
       const salesToday = orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
 
-      // 2) PRODUTOS ATIVOS (EXCLUINDO DESCONTINUADOS)
-      const { data: productsRaw, error: productsError } = await supabase
-        .from('products')
-        .select('id, name, stock_quantity, min_stock, max_stock, active, discontinued, is_discontinued')
-        .eq('store_id', store.id)
-        .eq('active', true)
-        .eq('discontinued', false)
-        .eq('is_discontinued', false);
-
-      if (productsError) console.error('Error fetching products:', productsError);
-
-      const products = (productsRaw || []) as ProductRow[];
+      // 2) ESTOQUE: calculado via hook useStockAlerts (evita duplicação de query aqui)
 
       // 3) PEDIDOS RECENTES
       const { data: recentOrders, error: recentError } = await supabase
@@ -147,43 +143,13 @@ export default function Dashboard() {
       // 4) MENSAGENS (mock por enquanto)
       const mockMessages = 2;
 
-      // --- CÁLCULOS DE ESTOQUE (com defaults do schema)
-      const minDefault = 5;
-      const maxDefault = 20;
-
-      const normalized = products.map((p) => ({
-        ...p,
-        stock_quantity: p.stock_quantity ?? 0,
-        min_stock: p.min_stock ?? minDefault,
-        max_stock: p.max_stock ?? maxDefault,
-      }));
-
-      const zero = normalized.filter((p) => p.stock_quantity === 0);
-      const low = normalized.filter(
-        (p) => p.stock_quantity > 0 && p.stock_quantity <= (p.min_stock ?? minDefault)
-      );
-      const excess = normalized.filter(
-        (p) => p.stock_quantity > (p.max_stock ?? maxDefault)
-      );
-
-      const critical = zero.length + low.length;
-
-      setStats({
+      setStats((prev) => ({
+        ...prev,
         ordersToday,
         salesToday,
-        activeProducts: normalized.length,
-
-        criticalStockCount: critical,
-        lowStockCount: low.length,
-        zeroStockCount: zero.length,
-        excessStockCount: excess.length,
-
         newCustomers: 3, // Mock
         pendingMessages: mockMessages,
-      });
-
-      setLowStockProducts(low.slice(0, 5));
-      setZeroStockProducts(zero.slice(0, 5));
+      }));
 
       if (recentOrders) {
         const activities = recentOrders.map((order) => ({
