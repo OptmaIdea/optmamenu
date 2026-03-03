@@ -53,13 +53,14 @@ export default function StockAdjustmentModal({
 
     const handleConfirm = async () => {
         const qty = parseInt(quantity);
-        const supplier = type === 'entry' && supplierId
-            ? activeSuppliers.find(s => s.id === supplierId)
-            : undefined;
 
-        const reasonWithSupplier = supplier ? `${reason} (Fornecedor: ${supplier.name})` : reason;
-
-        const result = await performAdjustment(product.id, qty, reasonWithSupplier, type);
+        const result = await performAdjustment(
+            product.id,
+            qty,
+            reason,
+            type,
+            type === 'entry' ? (supplierId || undefined) : undefined
+        );
         if (result.success) {
             // Se for saída e o estoque zerou, descontinuar o produto
             if (type === 'exit') {

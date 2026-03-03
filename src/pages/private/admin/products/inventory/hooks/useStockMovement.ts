@@ -9,6 +9,7 @@ interface RegisterMovementParams {
     type: StockMovementType;
     reason?: string;
     orderId?: string;
+    supplierId?: string;
 }
 
 interface FetchMovementsResult {
@@ -112,6 +113,26 @@ const callApplyStockMovementDelta = async (args: {
     return { data: null, error: lastError };
 };
 
+const extractMovementId = (data: any): string | null => {
+    if (!data) return null;
+    if (typeof data === 'string') return data;
+
+    if (Array.isArray(data) && data.length > 0) {
+        const first = data[0];
+        if (typeof first === 'string') return first;
+        if (first && typeof first.id === 'string') return first.id;
+        if (first && typeof first.movement_id === 'string') return first.movement_id;
+        return null;
+    }
+
+    if (typeof data === 'object') {
+        if (typeof (data as any).id === 'string') return (data as any).id;
+        if (typeof (data as any).movement_id === 'string') return (data as any).movement_id;
+    }
+
+    return null;
+};
+
 export const useStockMovement = () => {
     const [loading, setLoading] = useState(false);
 
@@ -146,7 +167,7 @@ export const useStockMovement = () => {
             const qtyAbs = Math.abs(params.quantity);
 
             // 1) tentativa principal: qty absoluta (type define sinal no banco)
-            let { error } = await callApplyStockMovementDelta({
+            let { data, error } = await callApplyStockMovementDelta({
                 storeId: ctx.store.id,
                 productId: params.productId,
                 type: params.type,
@@ -168,12 +189,44 @@ export const useStockMovement = () => {
                     orderId: params.orderId,
                 });
 
+                data = retry.data;
                 error = retry.error;
             }
 
             if (error) {
                 console.error('Erro ao registrar movimentação (RPC):', error);
                 throw error;
+            }
+
+            // Se houver fornecedor, tenta persistir no movimento recém-criado.
+            // A RPC pode (ou não) retornar o id; então fazemos fallback pelo último movimento do produto.
+            if (params.supplierId) {
+                let movementId = extractMovementId(data);
+
+                if (!movementId) {
+                    const { data: latest, error: latestErr } = await supabase
+                        .from('stock_movements')
+                        .select('id')
+                        .eq('store_id', ctx.store.id)
+                        .eq('product_id', params.productId)
+                        .eq('type', params.type)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (!latestErr) movementId = latest?.id ?? null;
+                }
+
+                if (movementId) {
+                    const { error: updErr } = await supabase
+                        .from('stock_movements')
+                        .update({ supplier_id: params.supplierId })
+                        .eq('id', movementId);
+
+                    if (updErr) {
+                        console.warn('Não foi possível salvar supplier_id no movimento:', updErr);
+                    }
+                }
             }
 
             return true;

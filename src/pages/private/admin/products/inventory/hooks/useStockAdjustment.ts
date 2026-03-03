@@ -18,7 +18,8 @@ export const useStockAdjustment = () => {
         productId: string,
         quantity: number,
         reason: string,
-        type: AdjustmentType
+        type: AdjustmentType,
+        supplierId?: string
     ): Promise<AdjustmentResult> => {
         setProcessing(true);
         try {
@@ -51,6 +52,7 @@ export const useStockAdjustment = () => {
                 quantity: quantity,
                 type: type,
                 reason: reason || undefined,
+                supplierId: supplierId || undefined,
             });
 
             if (!success) {
