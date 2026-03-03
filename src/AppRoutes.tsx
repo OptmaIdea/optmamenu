@@ -34,6 +34,7 @@ const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
 const Inventory = lazy(() => import('@/pages/private/admin/products/Inventory'));
 const StockMovements = lazy(() => import('@/pages/private/admin/products/inventory/StockMovements'));
+const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
 const Security = lazy(() => import('@/pages/private/admin/settings/security/Security'));
@@ -90,6 +91,7 @@ export default function AppRoutes() {
             <Route path="/admin/config" element={<Appearance />} />
             <Route path="/admin/inventory" element={<Inventory />} />
             <Route path="/admin/stock-movements" element={<StockMovements />} />
+            <Route path="/admin/suppliers" element={<Suppliers />} />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />

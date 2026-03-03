@@ -136,6 +136,7 @@ export default function PrivateLayout() {
             { path: '/admin/categories', icon: Layers, label: 'Categorias' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentações' },
+            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
         ],
         settings: [
             { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },

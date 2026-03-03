@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import SecurityConfirmModal from '@/components/common/SecurityConfirmModal';
 import { useStockAdjustment } from '@/pages/private/admin/products/inventory/hooks/useStockAdjustment';
 import { useStoreSecurityConfig } from '@/hooks/useStoreSecurityConfig';
+import { useSuppliers } from '@/pages/private/admin/products/suppliers/hooks/useSuppliers';
 import type { ProductStock, AdjustmentType } from '../types/inventory.types';
 
 interface StockAdjustmentModalProps {
@@ -24,14 +25,17 @@ export default function StockAdjustmentModal({
 }: StockAdjustmentModalProps) {
     const [quantity, setQuantity] = useState('');
     const [reason, setReason] = useState('');
+    const [supplierId, setSupplierId] = useState<string>('');
     const [showConfirm, setShowConfirm] = useState(false);
     const { processing, performAdjustment } = useStockAdjustment();
     const { tokenExpirySeconds, maxTokenAttempts } = useStoreSecurityConfig();
+    const { activeSuppliers } = useSuppliers();
 
     useEffect(() => {
         if (isOpen) {
             setQuantity('');
             setReason('');
+            setSupplierId('');
         }
     }, [isOpen]);
 
@@ -49,7 +53,13 @@ export default function StockAdjustmentModal({
 
     const handleConfirm = async () => {
         const qty = parseInt(quantity);
-        const result = await performAdjustment(product.id, qty, reason, type);
+        const supplier = type === 'entry' && supplierId
+            ? activeSuppliers.find(s => s.id === supplierId)
+            : undefined;
+
+        const reasonWithSupplier = supplier ? `${reason} (Fornecedor: ${supplier.name})` : reason;
+
+        const result = await performAdjustment(product.id, qty, reasonWithSupplier, type);
         if (result.success) {
             // Se for saída e o estoque zerou, descontinuar o produto
             if (type === 'exit') {
@@ -92,6 +102,24 @@ export default function StockAdjustmentModal({
                             <p className="font-bold text-gray-900 dark:text-white">{product.name}</p>
                             <p className="text-xs text-gray-400">Físico atual: {product.physical_stock}</p>
                         </div>
+
+                        {type === 'entry' && activeSuppliers.length > 0 && (
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                    Fornecedor (opcional)
+                                </label>
+                                <select
+                                    value={supplierId}
+                                    onChange={(e) => setSupplierId(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                >
+                                    <option value="">Selecione...</option>
+                                    {activeSuppliers.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
 
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
