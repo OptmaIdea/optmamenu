@@ -62,6 +62,12 @@ export default function StockMovementsPage() {
         const productId = searchParams.get('productId');
         const productName = searchParams.get('productName');
 
+        const movementType = searchParams.get('type') as any;
+        if (movementType) {
+            setFilters(prev => ({ ...prev, type: movementType }));
+        }
+
+
         if (productId) {
             setSelectedProduct({ id: productId, name: productName || 'Produto' });
             setFilters(prev => ({ ...prev, productId }));

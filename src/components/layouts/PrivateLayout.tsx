@@ -135,7 +135,11 @@ export default function PrivateLayout() {
             { path: '/admin/products', icon: Package, label: 'Produtos' },
             { path: '/admin/categories', icon: Layers, label: 'Categorias' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque' },
-            { path: '/admin/stock-movements', icon: History, label: 'Movimentações' },
+            { path: '/admin/stock/entries', icon: History, label: 'Entradas' },
+            { path: '/admin/stock/exits', icon: History, label: 'Saídas' },
+            { path: '/admin/stock/clearance', icon: History, label: 'Baixas' },
+            { path: '/admin/stock-movements', icon: History, label: 'Histórico' },
+            { path: '/admin/cashbook/purchases', icon: History, label: 'Livro Caixa (Compras)' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
         ],
         settings: [

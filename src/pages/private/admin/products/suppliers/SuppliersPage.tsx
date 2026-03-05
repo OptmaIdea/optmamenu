@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Pencil, Power } from 'lucide-react';
+import { Search, Plus, Pencil, Power, Package, Activity } from 'lucide-react';
 
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
@@ -49,7 +49,7 @@ const SupplierModal = ({
     setEmail(supplier?.email ?? '');
     setNotes(supplier?.notes ?? '');
     setActive(supplier?.active ?? true);
-  }, [isOpen, supplier?.id, state.mode]);
+  }, [isOpen, supplier?.id, state.open ? state.mode : undefined]);
 
   // Re-seed when opening/editing another supplier
   // (simple approach: modal is unmounted when closed)
@@ -189,38 +189,25 @@ export default function SuppliersPage() {
   };
 
   return (
-    <PageContainer>
+    <PageContainer
+      title="Fornecedores"
+      subtitle="Cadastre a origem das entradas para facilitar compras e reposição."
+      lastUpdated={lastUpdated}
+      onRefresh={fetchSuppliers}
+      action={
+        <button
+          onClick={() => setModal({ open: true, mode: 'create' })}
+          className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+        >
+          <Plus className="h-4 w-4" />
+          Novo fornecedor
+        </button>
+      }
+    >
       <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-4 rounded-2xl bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Fornecedores</h1>
-              <p className="mt-1 text-sm text-gray-600">Cadastre a origem das entradas para facilitar compras e reposição.</p>
-              <p className="mt-2 text-xs text-gray-500">Atualizado em {lastUpdated.toLocaleString()}</p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={fetchSuppliers}
-                className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-              >
-                Atualizar
-              </button>
-
-              <button
-                onClick={() => setModal({ open: true, mode: 'create' })}
-                className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
-              >
-                <Plus className="h-4 w-4" />
-                Novo fornecedor
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <StatsCard title="Ativos" value={activeCount} icon="box" trend="stable" />
-            <StatsCard title="Inativos" value={inactiveCount} icon="activity" trend="stable" />
-          </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <StatsCard title="Ativos" value={activeCount} icon={<Package size={20} />} color="purple" />
+          <StatsCard title="Inativos" value={inactiveCount} icon={<Activity size={20} />} color="orange" />
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">

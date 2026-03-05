@@ -1,4 +1,4 @@
-import { Routes, Route, Outlet/* , Navigate */ } from 'react-router-dom';
+import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import CreateStore from '@/pages/CreateStore';
@@ -34,6 +34,7 @@ const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
 const Inventory = lazy(() => import('@/pages/private/admin/products/Inventory'));
 const StockMovements = lazy(() => import('@/pages/private/admin/products/inventory/StockMovements'));
+const PurchasesLedger = lazy(() => import('@/pages/private/admin/products/inventory/PurchasesLedger'));
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
@@ -91,6 +92,11 @@ export default function AppRoutes() {
             <Route path="/admin/config" element={<Appearance />} />
             <Route path="/admin/inventory" element={<Inventory />} />
             <Route path="/admin/stock-movements" element={<StockMovements />} />
+<Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
+<Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
+<Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
+<Route path="/admin/cashbook/purchases" element={<PurchasesLedger />} />
+
             <Route path="/admin/suppliers" element={<Suppliers />} />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />

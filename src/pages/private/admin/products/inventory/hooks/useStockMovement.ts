@@ -10,6 +10,7 @@ interface RegisterMovementParams {
     reason?: string;
     orderId?: string;
     supplierId?: string;
+    meta?: Record<string, any>;
 }
 
 interface FetchMovementsResult {
@@ -198,36 +199,57 @@ export const useStockMovement = () => {
                 throw error;
             }
 
-            // Se houver fornecedor, tenta persistir no movimento recém-criado.
-            // A RPC pode (ou não) retornar o id; então fazemos fallback pelo último movimento do produto.
-            if (params.supplierId) {
-                let movementId = extractMovementId(data);
+            // Se houver fornecedor e/ou meta, tenta persistir no movimento recém-criado.
+// A RPC pode (ou não) retornar o id; então fazemos fallback pelo último movimento do produto.
+            if (params.supplierId || params.meta) {
+    let movementId = extractMovementId(data);
+    let currentMeta: any = null;
 
-                if (!movementId) {
-                    const { data: latest, error: latestErr } = await supabase
-                        .from('stock_movements')
-                        .select('id')
-                        .eq('store_id', ctx.store.id)
-                        .eq('product_id', params.productId)
-                        .eq('type', params.type)
-                        .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
+    if (!movementId) {
+        const { data: latest, error: latestErr } = await supabase
+            .from('stock_movements')
+            .select('id, metadata')
+            .eq('store_id', ctx.store.id)
+            .eq('product_id', params.productId)
+            .eq('type', params.type)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-                    if (!latestErr) movementId = latest?.id ?? null;
-                }
+        if (!latestErr) {
+            movementId = latest?.id ?? null;
+            currentMeta = (latest as any)?.metadata ?? null;
+        }
+    } else {
+        const { data: row, error: rowErr } = await supabase
+            .from('stock_movements')
+            .select('metadata')
+            .eq('id', movementId)
+            .maybeSingle();
 
-                if (movementId) {
-                    const { error: updErr } = await supabase
-                        .from('stock_movements')
-                        .update({ supplier_id: params.supplierId })
-                        .eq('id', movementId);
+        if (!rowErr) currentMeta = (row as any)?.metadata ?? null;
+    }
 
-                    if (updErr) {
-                        console.warn('Não foi possível salvar supplier_id no movimento:', updErr);
-                    }
-                }
-            }
+    if (movementId) {
+        const nextMeta =
+            params.meta
+                ? { ...(currentMeta ?? {}), ...(params.meta ?? {}) }
+                : currentMeta;
+
+        const updatePayload: Record<string, any> = {};
+        if (params.supplierId) updatePayload.supplier_id = params.supplierId;
+        if (params.meta) updatePayload.metadata = nextMeta;
+
+        const { error: updErr } = await supabase
+            .from('stock_movements')
+            .update(updatePayload)
+            .eq('id', movementId);
+
+        if (updErr) {
+            console.warn('Não foi possível atualizar dados no movimento:', updErr);
+        }
+    }
+}
 
             return true;
         } catch (error: any) {
