@@ -137,6 +137,7 @@ export default function PrivateLayout() {
             { path: '/admin/inventory', icon: FileText, label: 'Estoque' },
             { path: '/admin/stock/entries', icon: History, label: 'Entradas' },
             { path: '/admin/stock/exits', icon: History, label: 'Saídas' },
+            { path: '/admin/stock/purchase-documents', icon: FileText, label: 'Entrada por documento' },
             { path: '/admin/stock/clearance', icon: History, label: 'Baixas' },
             { path: '/admin/stock-movements', icon: History, label: 'Histórico' },
             { path: '/admin/cashbook/purchases', icon: History, label: 'Livro Caixa (Compras)' },

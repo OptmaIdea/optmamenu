@@ -35,6 +35,7 @@ const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders
 const Inventory = lazy(() => import('@/pages/private/admin/products/Inventory'));
 const StockMovements = lazy(() => import('@/pages/private/admin/products/inventory/StockMovements'));
 const PurchasesLedger = lazy(() => import('@/pages/private/admin/products/inventory/PurchasesLedger'));
+const PurchaseDocumentsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseDocumentsPage'));
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
@@ -92,9 +93,10 @@ export default function AppRoutes() {
             <Route path="/admin/config" element={<Appearance />} />
             <Route path="/admin/inventory" element={<Inventory />} />
             <Route path="/admin/stock-movements" element={<StockMovements />} />
-<Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
-<Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
-<Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
+            <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
+            <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
+            <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
+            <Route path="/admin/stock/purchase-documents" element={<PurchaseDocumentsPage />} />
 <Route path="/admin/cashbook/purchases" element={<PurchasesLedger />} />
 
             <Route path="/admin/suppliers" element={<Suppliers />} />
