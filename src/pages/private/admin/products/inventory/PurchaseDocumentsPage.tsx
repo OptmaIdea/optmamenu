@@ -1,389 +1,121 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { AlertTriangle, CheckCircle2, FileText, Plus, Save, Trash2, Truck } from 'lucide-react';
+import {
+  CheckCircle2,
+  Eye,
+  FileText,
+  Pencil,
+  Plus,
+  Save,
+  Trash2,
+} from 'lucide-react';
+import { toast } from 'sonner';
 
+import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
 import AlertBanner from '@/components/common/AlertBanner';
 import StatsCard from '@/components/common/StatsCard';
-import { supabase } from '@/lib/supabase';
-import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 
-type Supplier = {
+import type { Supplier } from '@/pages/private/admin/products/suppliers/types/supplier.types';
+import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
+
+type PurchaseDocumentStatus = 'draft' | 'confirmed' | 'canceled' | 'cancelled';
+
+type PurchaseDocument = {
   id: string;
-  name: string;
-  active: boolean;
-};
-
-type Product = {
-  id: string;
-  name: string;
-  discontinued: boolean | null;
-  is_discontinued: boolean | null;
-};
-
-type PurchaseDocumentStatus = 'draft' | 'confirmed' | 'cancelled';
-
-type PurchaseDocumentRow = {
-  id: string;
-  created_at: string;
   store_id: string;
-  supplier_id: string;
-  invoice_number: string | null;
-  issue_date: string | null;
-  total_amount: number | null;
-  notes: string | null;
+  supplier_id: string | null;
   status: PurchaseDocumentStatus;
-
-  supplier?: { name: string }[] | null;
+  issue_date: string | null;
+  invoice_number: string | null;
+  notes: string | null;
+  created_at: string;
+  total_amount: number | null;
 };
 
-type PurchaseDocumentItemRow = {
-  id: string;
-  document_id: string;
+type PurchaseDocumentItemInput = {
+  id?: string;
   product_id: string;
   quantity: number;
-  unit_cost: number;
-  total_cost: number | null;
+  unit_cost: number | null;
 };
 
-type LineItemDraft = {
-  product_id: string;
-  quantity: string; // string para inputs
-  unit_cost: string; // string para inputs
+type StoreLike = { id: string };
+
+type InventoryProductLike = {
+  id: string;
+  name: string;
+  active?: boolean | null;
+  discontinued?: boolean | null;
+  is_discontinued?: boolean | null;
 };
 
-function toNumber(v: string): number {
-  const n = Number(String(v).replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
-}
+const getCurrentStore = async (): Promise<StoreLike | null> => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-function money(v: number | null | undefined): string {
-  const n = typeof v === 'number' && Number.isFinite(v) ? v : 0;
-  return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-}
+  if (!user) return null;
+
+  const { data: storeData, error } = await supabase.rpc('get_user_store_by_id', {
+    p_user_id: user.id,
+  });
+
+  if (error || !storeData) return null;
+
+  const store = Array.isArray(storeData) ? storeData[0] : storeData;
+  if (!store?.id) return null;
+
+  return { id: store.id };
+};
+
+const money = (value: number | null | undefined) =>
+  (value ?? 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+  });
 
 export default function PurchaseDocumentsPage() {
-  const { storeId } = useCurrentStore();
+  const { products: inventoryProducts } = useInventory();
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [documents, setDocuments] = useState<PurchaseDocumentRow[]>([]);
+  const [documents, setDocuments] = useState<PurchaseDocument[]>([]);
+  const [pageError, setPageError] = useState<string | null>(null);
 
-  // Editor
-  const [editorOpen, setEditorOpen] = useState<boolean>(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftOpen, setDraftOpen] = useState(false);
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [editingReadOnly, setEditingReadOnly] = useState(false);
 
-  const [supplierId, setSupplierId] = useState<string>('');
-  const [invoiceNumber, setInvoiceNumber] = useState<string>('');
-  const [issueDate, setIssueDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState<string>('');
-  const [lineItems, setLineItems] = useState<LineItemDraft[]>([
-    { product_id: '', quantity: '1', unit_cost: '0' },
+  const [draftSupplierId, setDraftSupplierId] = useState<string>('');
+  const [draftIssueDate, setDraftIssueDate] = useState<string>(() =>
+    new Date().toISOString().slice(0, 10),
+  );
+  const [draftInvoiceNumber, setDraftInvoiceNumber] = useState<string>('');
+  const [draftNotes, setDraftNotes] = useState<string>('');
+  const [draftItems, setDraftItems] = useState<PurchaseDocumentItemInput[]>([
+    { product_id: '', quantity: 1, unit_cost: null },
   ]);
 
-  const computedTotal = useMemo(() => {
-    return lineItems.reduce((acc, li) => acc + toNumber(li.quantity) * toNumber(li.unit_cost), 0);
-  }, [lineItems]);
-
-  const resetEditor = useCallback(() => {
-    setEditingId(null);
-    setSupplierId('');
-    setInvoiceNumber('');
-    setIssueDate(new Date().toISOString().slice(0, 10));
-    setNotes('');
-    setLineItems([{ product_id: '', quantity: '1', unit_cost: '0' }]);
-  }, []);
-
-  const openNew = useCallback(() => {
-    resetEditor();
-    setEditorOpen(true);
-  }, [resetEditor]);
-
-  const loadAll = useCallback(async () => {
-    if (!storeId) return;
-
-    setLoading(true);
-    setError(null);
-
-    const [supRes, prodRes, docRes] = await Promise.all([
-      supabase.from('suppliers').select('id,name,active').eq('store_id', storeId).order('name', { ascending: true }),
-      supabase
-        .from('products')
-        .select('id,name,discontinued,is_discontinued')
-        .eq('store_id', storeId)
-        .eq('active', true)
-        // safety: exclui descontinuados (independente de qual flag teu banco esteja usando)
-        .eq('discontinued', false)
-        .eq('is_discontinued', false)
-        .order('name', { ascending: true }),
-      supabase
-        .from('purchase_documents')
-        .select(
-          'id,created_at,store_id,supplier_id,invoice_number,issue_date,total_amount,notes,status,supplier:suppliers(name)',
-        )
-        .eq('store_id', storeId)
-        .order('created_at', { ascending: false }),
-    ]);
-
-    if (supRes.error) setError(supRes.error.message);
-    if (prodRes.error) setError(prodRes.error.message);
-    if (docRes.error) setError(docRes.error.message);
-
-    setSuppliers((supRes.data as Supplier[]) || []);
-    setProducts((prodRes.data as Product[]) || []);
-    setDocuments((docRes.data as PurchaseDocumentRow[]) || []);
-
-    setLoading(false);
-  }, [storeId]);
-
-  useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
-
-  const addLine = useCallback(() => {
-    setLineItems((prev) => [...prev, { product_id: '', quantity: '1', unit_cost: '0' }]);
-  }, []);
-
-  const removeLine = useCallback((idx: number) => {
-    setLineItems((prev) => prev.filter((_, i) => i !== idx));
-  }, []);
-
-  const updateLine = useCallback((idx: number, patch: Partial<LineItemDraft>) => {
-    setLineItems((prev) => prev.map((li, i) => (i === idx ? { ...li, ...patch } : li)));
-  }, []);
-
-  const loadForEdit = useCallback(
-    async (id: string) => {
-      if (!storeId) return;
-
-      setError(null);
-
-      const docRes = await supabase
-        .from('purchase_documents')
-        .select('id,created_at,store_id,supplier_id,invoice_number,issue_date,total_amount,notes,status')
-        .eq('store_id', storeId)
-        .eq('id', id)
-        .maybeSingle();
-
-      if (docRes.error) {
-        setError(docRes.error.message);
-        return;
-      }
-      if (!docRes.data) {
-        setError('Documento não encontrado.');
-        return;
-      }
-
-      const itemsRes = await supabase
-        .from('purchase_document_items')
-        .select('id,document_id,product_id,quantity,unit_cost,total_cost')
-        .eq('document_id', id)
-        .order('id', { ascending: true });
-
-      if (itemsRes.error) {
-        setError(itemsRes.error.message);
-        return;
-      }
-
-      const doc = docRes.data as PurchaseDocumentRow;
-      const items = (itemsRes.data as PurchaseDocumentItemRow[]) || [];
-
-      setEditingId(doc.id);
-      setSupplierId(doc.supplier_id);
-      setInvoiceNumber(doc.invoice_number ?? '');
-      setIssueDate((doc.issue_date ?? new Date().toISOString().slice(0, 10)) as string);
-      setNotes(doc.notes ?? '');
-      setLineItems(
-        items.length
-          ? items.map((it) => ({
-            product_id: it.product_id,
-            quantity: String(it.quantity ?? 0),
-            unit_cost: String(it.unit_cost ?? 0),
-          }))
-          : [{ product_id: '', quantity: '1', unit_cost: '0' }],
-      );
-
-      setEditorOpen(true);
-    },
-    [storeId],
-  );
-
-  const checkInvoiceUnique = useCallback(
-    async (pSupplierId: string, pInvoice: string, excludeId?: string | null) => {
-      if (!storeId) return true;
-
-      const inv = pInvoice.trim();
-      if (!inv) return true;
-
-      let q = supabase
-        .from('purchase_documents')
-        .select('id')
-        .eq('store_id', storeId)
-        .eq('supplier_id', pSupplierId)
-        .eq('invoice_number', inv)
-        .limit(1);
-
-      if (excludeId) q = q.neq('id', excludeId);
-
-      const res = await q;
-      if (res.error) return true; // não bloqueia caso falhe o check
-      return (res.data ?? []).length === 0;
-    },
-    [storeId],
-  );
-
-  const upsertDraft = useCallback(async () => {
-    if (!storeId) return;
-
-    setError(null);
-
-    const sId = supplierId.trim();
-    if (!sId) {
-      setError('Selecione um fornecedor.');
-      return;
-    }
-
-    const inv = invoiceNumber.trim();
-    if (inv) {
-      const ok = await checkInvoiceUnique(sId, inv, editingId);
-      if (!ok) {
-        setError('Já existe um documento com esse número para este fornecedor.');
-        return;
-      }
-    }
-
-    const normalizedLines = lineItems
-      .map((li) => ({
-        product_id: li.product_id,
-        quantity: toNumber(li.quantity),
-        unit_cost: toNumber(li.unit_cost),
-      }))
-      .filter((li) => li.product_id && li.quantity > 0);
-
-    if (!normalizedLines.length) {
-      setError('Adicione pelo menos 1 item com produto e quantidade.');
-      return;
-    }
-
-    // Header
-    let docId = editingId;
-
-    if (!docId) {
-      const createRes = await supabase
-        .from('purchase_documents')
-        .insert({
-          store_id: storeId,
-          supplier_id: sId,
-          invoice_number: inv || null,
-          issue_date: issueDate || null,
-          notes: notes || null,
-          status: 'draft',
-        })
-        .select('id')
-        .single();
-
-      if (createRes.error) {
-        setError(createRes.error.message);
-        return;
-      }
-      docId = createRes.data.id as string;
-      setEditingId(docId);
-    } else {
-      const updateRes = await supabase
-        .from('purchase_documents')
-        .update({
-          supplier_id: sId,
-          invoice_number: inv || null,
-          issue_date: issueDate || null,
-          notes: notes || null,
-        })
-        .eq('store_id', storeId)
-        .eq('id', docId);
-
-      if (updateRes.error) {
-        setError(updateRes.error.message);
-        return;
-      }
-    }
-
-    // Itens (replace simples por enquanto)
-    const delRes = await supabase.from('purchase_document_items').delete().eq('document_id', docId);
-    if (delRes.error) {
-      setError(delRes.error.message);
-      return;
-    }
-
-    const insRes = await supabase.from('purchase_document_items').insert(
-      normalizedLines.map((li) => ({
-        document_id: docId,
-        product_id: li.product_id,
-        quantity: li.quantity,
-        unit_cost: li.unit_cost,
-      })),
+  const products = useMemo(() => {
+    return ((inventoryProducts ?? []) as InventoryProductLike[]).filter(
+      (p) =>
+        p.active !== false &&
+        p.discontinued !== true &&
+        p.is_discontinued !== true,
     );
+  }, [inventoryProducts]);
 
-    if (insRes.error) {
-      setError(insRes.error.message);
-      return;
-    }
-
-    // Total no header
-    const total = normalizedLines.reduce((acc, li) => acc + li.quantity * li.unit_cost, 0);
-    const totRes = await supabase.from('purchase_documents').update({ total_amount: total }).eq('store_id', storeId).eq('id', docId);
-
-    if (totRes.error) {
-      setError(totRes.error.message);
-      return;
-    }
-
-    await loadAll();
-  }, [storeId, supplierId, invoiceNumber, issueDate, notes, lineItems, editingId, checkInvoiceUnique, loadAll]);
-
-  const confirmDocument = useCallback(
-    async (id: string) => {
-      setError(null);
-
-      const res = await supabase.rpc('confirm_purchase_document', { p_document_id: id });
-      if (res.error) {
-        setError(res.error.message);
-        return;
-      }
-
-      await loadAll();
-      setEditorOpen(false);
+  const supplierName = useCallback(
+    (id: string | null) => {
+      if (!id) return '—';
+      return suppliers.find((s) => s.id === id)?.name ?? '—';
     },
-    [loadAll],
-  );
-
-  const deleteDocument = useCallback(
-    async (id: string) => {
-      if (!storeId) return;
-
-      setError(null);
-
-      const delItems = await supabase.from('purchase_document_items').delete().eq('document_id', id);
-      if (delItems.error) {
-        setError(delItems.error.message);
-        return;
-      }
-
-      const delDoc = await supabase.from('purchase_documents').delete().eq('store_id', storeId).eq('id', id);
-      if (delDoc.error) {
-        setError(delDoc.error.message);
-        return;
-      }
-
-      await loadAll();
-
-      if (editingId === id) {
-        setEditorOpen(false);
-        resetEditor();
-      }
-    },
-    [storeId, loadAll, editingId, resetEditor],
+    [suppliers],
   );
 
   const stats = useMemo(() => {
@@ -391,307 +123,726 @@ export default function PurchaseDocumentsPage() {
     const confirmed = documents.filter((d) => d.status === 'confirmed').length;
     const totalConfirmed = documents
       .filter((d) => d.status === 'confirmed')
-      .reduce((acc, d) => acc + (typeof d.total_amount === 'number' ? d.total_amount : 0), 0);
+      .reduce((sum, d) => sum + (d.total_amount ?? 0), 0);
 
     return { drafts, confirmed, totalConfirmed };
   }, [documents]);
 
+  const canSaveDraft = useMemo(() => {
+    if (!storeId) return false;
+    return draftItems.some((i) => i.product_id && i.quantity > 0);
+  }, [draftItems, storeId]);
+
+  const currentDraftTotal = useMemo(() => {
+    return draftItems.reduce((sum, item) => {
+      const qty = Number(item.quantity || 0);
+      const unit = Number(item.unit_cost || 0);
+      return sum + qty * unit;
+    }, 0);
+  }, [draftItems]);
+
+  const resetDraft = useCallback(() => {
+    setEditingDocId(null);
+    setEditingReadOnly(false);
+    setDraftSupplierId('');
+    setDraftIssueDate(new Date().toISOString().slice(0, 10));
+    setDraftInvoiceNumber('');
+    setDraftNotes('');
+    setDraftItems([{ product_id: '', quantity: 1, unit_cost: null }]);
+  }, []);
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setPageError(null);
+
+    try {
+      const store = await getCurrentStore();
+      if (!store) throw new Error('Loja não encontrada');
+
+      setStoreId(store.id);
+
+      const [{ data: sData, error: sErr }, { data: dData, error: dErr }] =
+        await Promise.all([
+          supabase
+            .from('suppliers')
+            .select('*')
+            .eq('store_id', store.id)
+            .order('name', { ascending: true }),
+          supabase
+            .from('purchase_documents')
+            .select('*')
+            .eq('store_id', store.id)
+            .order('created_at', { ascending: false }),
+        ]);
+
+      if (sErr) throw sErr;
+      if (dErr) throw dErr;
+
+      setSuppliers((sData ?? []) as Supplier[]);
+      setDocuments((dData ?? []) as PurchaseDocument[]);
+    } catch (e: unknown) {
+      console.error('Error loading purchase documents:', e);
+      const message =
+        e instanceof Error ? e.message : 'Erro ao carregar documentos';
+      setPageError(message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  const addDraftItem = useCallback(() => {
+    setDraftItems((prev) => [
+      ...prev,
+      { product_id: '', quantity: 1, unit_cost: null },
+    ]);
+  }, []);
+
+  const removeDraftItem = useCallback((idx: number) => {
+    setDraftItems((prev) => prev.filter((_, i) => i !== idx));
+  }, []);
+
+  const updateDraftItem = useCallback(
+    (idx: number, patch: Partial<PurchaseDocumentItemInput>) => {
+      setDraftItems((prev) =>
+        prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
+      );
+    },
+    [],
+  );
+
+  const openNewDraft = useCallback(() => {
+    resetDraft();
+    setDraftOpen(true);
+  }, [resetDraft]);
+
+  const openDocument = useCallback(
+    async (doc: PurchaseDocument, readOnly = false) => {
+      try {
+        setSaving(true);
+        setPageError(null);
+
+        const { data: itemsData, error: itemsErr } = await supabase
+          .from('purchase_document_items')
+          .select(
+            'id,purchase_document_id,store_id,product_id,quantity,unit_cost,total_cost',
+          )
+          .eq('purchase_document_id', doc.id)
+          .order('id', { ascending: true });
+
+        if (itemsErr) throw itemsErr;
+
+        setEditingDocId(doc.id);
+        setEditingReadOnly(doc.status === 'confirmed' || readOnly);
+        setDraftSupplierId(doc.supplier_id ?? '');
+        setDraftIssueDate(
+          doc.issue_date ?? new Date().toISOString().slice(0, 10),
+        );
+        setDraftInvoiceNumber(doc.invoice_number ?? '');
+        setDraftNotes(doc.notes ?? '');
+        setDraftItems(
+          (
+            (itemsData ?? []) as Array<{
+              id: string;
+              purchase_document_id: string;
+              store_id: string;
+              product_id: string;
+              quantity: number;
+              unit_cost: number | null;
+              total_cost: number | null;
+            }>
+          ).map((item) => ({
+            id: item.id,
+            product_id: item.product_id,
+            quantity: item.quantity,
+            unit_cost: item.unit_cost,
+          })),
+        );
+
+        setDraftOpen(true);
+      } catch (e: unknown) {
+        console.error('Error opening purchase document:', e);
+        const message =
+          e instanceof Error ? e.message : 'Erro ao abrir documento';
+        toast.error(message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [],
+  );
+
+  const createOrUpdateDraft = useCallback(async () => {
+    if (!storeId) return;
+
+    if (!canSaveDraft) {
+      toast.error('Adicione ao menos 1 item válido');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const payload = {
+        store_id: storeId,
+        supplier_id: draftSupplierId || null,
+        status: 'draft' as const,
+        issue_date: draftIssueDate || null,
+        invoice_number: draftInvoiceNumber.trim() || null,
+        notes: draftNotes.trim() || null,
+        total_amount: currentDraftTotal,
+      };
+
+      let docId = editingDocId;
+
+      if (docId) {
+        const { error: updateErr } = await supabase
+          .from('purchase_documents')
+          .update(payload)
+          .eq('id', docId);
+
+        if (updateErr) throw updateErr;
+
+        const { error: delErr } = await supabase
+          .from('purchase_document_items')
+          .delete()
+          .eq('purchase_document_id', docId);
+
+        if (delErr) throw delErr;
+      } else {
+        const { data: doc, error: createErr } = await supabase
+          .from('purchase_documents')
+          .insert(payload)
+          .select('id')
+          .single();
+
+        if (createErr) throw createErr;
+        docId = doc.id as string;
+      }
+
+      const itemsPayload = draftItems
+        .filter((i) => i.product_id && i.quantity > 0)
+        .map((i) => ({
+          store_id: storeId,
+          purchase_document_id: docId,
+          product_id: i.product_id,
+          quantity: i.quantity,
+          unit_cost: i.unit_cost,
+        }));
+
+      const { error: itemsErr } = await supabase
+        .from('purchase_document_items')
+        .insert(itemsPayload);
+
+      if (itemsErr) throw itemsErr;
+
+      toast.success(editingDocId ? 'Documento atualizado' : 'Documento criado');
+
+      setDraftOpen(false);
+      resetDraft();
+      await fetchAll();
+    } catch (e: unknown) {
+      console.error('Error saving purchase document:', e);
+      const message =
+        e instanceof Error ? e.message : 'Erro ao salvar documento';
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [
+    storeId,
+    canSaveDraft,
+    draftSupplierId,
+    draftIssueDate,
+    draftInvoiceNumber,
+    draftNotes,
+    currentDraftTotal,
+    editingDocId,
+    draftItems,
+    fetchAll,
+    resetDraft,
+  ]);
+
+  const confirmDocument = useCallback(
+    async (docId: string) => {
+      const confirmed = window.confirm(
+        'Confirmar esta entrada lançará o estoque e não poderá ser desfeito automaticamente.\n\nDeseja continuar?',
+      );
+
+      if (!confirmed) return;
+
+      setSaving(true);
+      try {
+        const { data: document, error: documentErr } = await supabase
+          .from('purchase_documents')
+          .select('*')
+          .eq('id', docId)
+          .maybeSingle();
+
+        if (documentErr) throw documentErr;
+        if (!document) throw new Error('Documento não encontrado');
+
+        if (document.status === 'confirmed') {
+          toast.success('Documento já estava confirmado');
+          await fetchAll();
+          return;
+        }
+
+        const { error } = await supabase.rpc('confirm_purchase_document', {
+          p_document_id: docId,
+        });
+
+        if (error) throw error;
+
+        toast.success('Entrada confirmada e lançada no estoque');
+        setDraftOpen(false);
+        resetDraft();
+        await fetchAll();
+      } catch (e: unknown) {
+        console.error('Error confirming purchase document:', e);
+        const message =
+          e instanceof Error ? e.message : 'Erro ao confirmar documento';
+        toast.error(message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [fetchAll, resetDraft],
+  );
+
+  const deleteDraft = useCallback(
+    async (docId: string) => {
+      const confirmed = window.confirm(
+        'Excluir este rascunho é uma operação irreversível.\n\nDeseja continuar?',
+      );
+
+      if (!confirmed) return;
+
+      setSaving(true);
+      try {
+        const { error: iErr } = await supabase
+          .from('purchase_document_items')
+          .delete()
+          .eq('purchase_document_id', docId);
+
+        if (iErr) throw iErr;
+
+        const { error: dErr } = await supabase
+          .from('purchase_documents')
+          .delete()
+          .eq('id', docId);
+
+        if (dErr) throw dErr;
+
+        toast.success('Documento removido');
+
+        if (editingDocId === docId) {
+          setDraftOpen(false);
+          resetDraft();
+        }
+
+        await fetchAll();
+      } catch (e: unknown) {
+        console.error('Error deleting document:', e);
+        const message =
+          e instanceof Error ? e.message : 'Erro ao remover documento';
+        toast.error(message);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [editingDocId, fetchAll, resetDraft],
+  );
+
   return (
     <PageContainer title="Entradas (Documentos de Compra)">
-      {error ? <AlertBanner type="error" title="Atenção" message={error} /> : null}
+      {pageError ? (
+        <AlertBanner type="error" title="Atenção" message={pageError} />
+      ) : null}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <StatsCard title="Rascunhos" value={stats.drafts} icon={<FileText className="h-5 w-5" />} />
-        <StatsCard title="Confirmados" value={stats.confirmed} icon={<CheckCircle2 className="h-5 w-5" />} />
-        <StatsCard title="Total confirmado" value={money(stats.totalConfirmed)} icon={<Truck className="h-5 w-5" />} />
-      </div>
-
-      <div className="mt-6 flex items-center justify-between gap-3">
-        <div className="text-sm text-slate-600">
-          Crie um documento para lançar <span className="font-medium">vários itens</span> de uma única nota/romaneio.
-        </div>
-
-        <button
-          type="button"
-          onClick={openNew}
-          className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
-        >
-          <Plus className="h-4 w-4" />
-          Novo documento
-        </button>
-      </div>
-
-      <div className="mt-4 overflow-hidden rounded-2xl border bg-white">
-        <div className="grid grid-cols-12 gap-2 border-b bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
-          <div className="col-span-3">Fornecedor</div>
-          <div className="col-span-2">Documento</div>
-          <div className="col-span-2">Emissão</div>
-          <div className="col-span-2">Status</div>
-          <div className="col-span-2 text-right">Total</div>
-          <div className="col-span-1 text-right">Ações</div>
-        </div>
-
-        {loading ? (
-          <div className="p-4 text-sm text-slate-600">Carregando…</div>
-        ) : documents.length === 0 ? (
-          <div className="p-4 text-sm text-slate-600">Nenhum documento ainda.</div>
-        ) : (
-          <div className="divide-y">
-            {documents.map((d) => (
-              <div key={d.id} className="grid grid-cols-12 items-center gap-2 px-4 py-3 text-sm">
-                <div className="col-span-3 truncate">{d.supplier?.[0]?.name ?? '—'}</div>
-                <div className="col-span-2 truncate">{d.invoice_number ?? '—'}</div>
-                <div className="col-span-2 truncate">{d.issue_date ?? '—'}</div>
-                <div className="col-span-2">
-                  <span
-                    className={[
-                      'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
-                      d.status === 'confirmed'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : d.status === 'draft'
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-slate-100 text-slate-700',
-                    ].join(' ')}
-                  >
-                    {d.status === 'confirmed' ? 'Confirmado' : d.status === 'draft' ? 'Rascunho' : 'Cancelado'}
-                  </span>
-                </div>
-                <div className="col-span-2 text-right font-medium">{money(d.total_amount)}</div>
-                <div className="col-span-1 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void loadForEdit(d.id)}
-                    className="rounded-lg border px-2 py-1 text-xs font-medium hover:bg-slate-50"
-                  >
-                    Ver
-                  </button>
-
-                  {d.status !== 'confirmed' ? (
-                    <button
-                      type="button"
-                      onClick={() => void confirmDocument(d.id)}
-                      className="rounded-lg bg-emerald-600 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-700"
-                      title="Confirmar (dá entrada no estoque)"
-                    >
-                      Confirmar
-                    </button>
-                  ) : null}
-
-                  <button
-                    type="button"
-                    onClick={() => void deleteDocument(d.id)}
-                    className="rounded-lg bg-rose-600 px-2 py-1 text-xs font-medium text-white hover:bg-rose-700"
-                    title="Excluir"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+      {loading ? (
+        <LoadingSpinner />
+      ) : (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <StatsCard
+              title="Rascunhos"
+              value={stats.drafts}
+              icon={<FileText className="h-5 w-5" />}
+            />
+            <StatsCard
+              title="Confirmados"
+              value={stats.confirmed}
+              icon={<CheckCircle2 className="h-5 w-5" />}
+            />
+            <StatsCard
+              title="Total confirmado"
+              value={money(stats.totalConfirmed)}
+              icon={<Save className="h-5 w-5" />}
+            />
           </div>
-        )}
-      </div>
 
-      {editorOpen ? (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-auto bg-black/40 p-4">
-          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between gap-3 border-b p-4">
-              <div>
-                <div className="text-lg font-semibold">{editingId ? 'Revisar documento' : 'Novo documento'}</div>
-                <div className="text-xs text-slate-600">Salve rascunho, revise e depois confirme.</div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setEditorOpen(false);
-                  setError(null);
-                }}
-                className="rounded-lg border px-3 py-2 text-sm font-medium hover:bg-slate-50"
-              >
-                Fechar
-              </button>
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              Crie um documento para lançar vários itens de uma única nota/romaneio.
             </div>
 
-            <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
-              <label className="block text-sm">
-                <div className="mb-1 text-xs font-semibold text-slate-600">Fornecedor</div>
-                <select
-                  value={supplierId}
-                  onChange={(e: ChangeEvent<HTMLSelectElement>) => setSupplierId(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
-                >
-                  <option value="">Selecione…</option>
-                  {suppliers.map((s) => (
-                    <option key={s.id} value={s.id} disabled={!s.active}>
-                      {s.name}
-                      {!s.active ? ' (inativo)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            <button
+              className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
+              onClick={openNewDraft}
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+              Novo documento
+            </button>
+          </div>
 
-              <label className="block text-sm">
-                <div className="mb-1 text-xs font-semibold text-slate-600">Número do documento</div>
-                <input
-                  value={invoiceNumber}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setInvoiceNumber(e.target.value)}
-                  placeholder="Ex: 124"
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
-                />
-              </label>
-
-              <label className="block text-sm">
-                <div className="mb-1 text-xs font-semibold text-slate-600">Data de emissão</div>
-                <input
-                  type="date"
-                  value={issueDate}
-                  onChange={(e: ChangeEvent<HTMLInputElement>) => setIssueDate(e.target.value)}
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
-                />
-              </label>
-
-              <label className="md:col-span-3 block text-sm">
-                <div className="mb-1 text-xs font-semibold text-slate-600">Observações</div>
-                <textarea
-                  value={notes}
-                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
-                  rows={2}
-                  className="w-full rounded-xl border px-3 py-2 text-sm"
-                  placeholder="Opcional"
-                />
-              </label>
-            </div>
-
-            <div className="border-t px-4 py-3">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-sm font-semibold">Itens</div>
-                <button
-                  type="button"
-                  onClick={addLine}
-                  className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium hover:bg-slate-50"
-                >
-                  <Plus className="h-4 w-4" />
-                  Adicionar item
-                </button>
-              </div>
-
-              <div className="overflow-hidden rounded-2xl border">
-                <div className="grid grid-cols-12 gap-2 border-b bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
-                  <div className="col-span-6">Produto</div>
-                  <div className="col-span-2">Qtd</div>
-                  <div className="col-span-3">Custo unit.</div>
-                  <div className="col-span-1 text-right">—</div>
+          {draftOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-4xl rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {editingReadOnly
+                      ? 'Documento confirmado (somente leitura)'
+                      : editingDocId
+                        ? 'Editar documento'
+                        : 'Nova entrada por documento'}
+                  </h2>
+                  <button
+                    className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    onClick={() => setDraftOpen(false)}
+                    type="button"
+                  >
+                    Fechar
+                  </button>
                 </div>
 
-                <div className="divide-y">
-                  {lineItems.map((li, idx) => (
-                    <div key={idx} className="grid grid-cols-12 items-center gap-2 px-4 py-3">
-                      <div className="col-span-6">
-                        <select
-                          value={li.product_id}
-                          onChange={(e: ChangeEvent<HTMLSelectElement>) => updateLine(idx, { product_id: e.target.value })}
-                          className="w-full rounded-xl border px-3 py-2 text-sm"
-                        >
-                          <option value="">Selecione…</option>
-                          {products.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
+                      Fornecedor
+                    </label>
+                    <select
+                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                      value={draftSupplierId}
+                      onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                        setDraftSupplierId(e.target.value)
+                      }
+                      disabled={editingReadOnly}
+                    >
+                      <option value="">(Sem fornecedor)</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                      <div className="col-span-2">
-                        <input
-                          value={li.quantity}
-                          onChange={(e: ChangeEvent<HTMLInputElement>) => updateLine(idx, { quantity: e.target.value })}
-                          inputMode="decimal"
-                          className="w-full rounded-xl border px-3 py-2 text-sm"
-                        />
-                      </div>
+                  <div>
+                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
+                      Data
+                    </label>
+                    <input
+                      type="date"
+                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                      value={draftIssueDate}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                        setDraftIssueDate(e.target.value)
+                      }
+                      disabled={editingReadOnly}
+                    />
+                  </div>
 
-                      <div className="col-span-3">
-                        <input
-                          value={li.unit_cost}
-                          onChange={(e: ChangeEvent<HTMLInputElement>) => updateLine(idx, { unit_cost: e.target.value })}
-                          inputMode="decimal"
-                          className="w-full rounded-xl border px-3 py-2 text-sm"
-                        />
-                      </div>
+                  <div>
+                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
+                      Nº Nota / Documento
+                    </label>
+                    <input
+                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                      value={draftInvoiceNumber}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                        setDraftInvoiceNumber(e.target.value)
+                      }
+                      placeholder="Ex: 12345"
+                      disabled={editingReadOnly}
+                    />
+                  </div>
 
-                      <div className="col-span-1 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => removeLine(idx)}
-                          className="rounded-lg p-2 text-rose-600 hover:bg-rose-50"
-                          title="Remover"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                  <div>
+                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
+                      Observações
+                    </label>
+                    <input
+                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                      value={draftNotes}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                        setDraftNotes(e.target.value)
+                      }
+                      placeholder="Opcional"
+                      disabled={editingReadOnly}
+                    />
+                  </div>
+                </div>
 
-                      {li.product_id ? (
-                        <div className="col-span-12 -mt-1 text-xs text-slate-600">
-                          <span className="inline-flex items-center gap-2">
-                            <span className="font-medium">Subtotal:</span>
-                            {money(toNumber(li.quantity) * toNumber(li.unit_cost))}
-                          </span>
+                <div className="mt-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      Itens
+                    </div>
+
+                    {!editingReadOnly ? (
+                      <button
+                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
+                        onClick={addDraftItem}
+                        type="button"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Adicionar item
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    {draftItems.map((it, idx) => (
+                      <div
+                        key={idx}
+                        className="grid grid-cols-1 gap-2 rounded-2xl border border-gray-200 p-3 dark:border-gray-800 md:grid-cols-12"
+                      >
+                        <div className="md:col-span-6">
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-300">
+                            Produto
+                          </label>
+                          <select
+                            className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                            value={it.product_id}
+                            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
+                              updateDraftItem(idx, { product_id: e.target.value })
+                            }
+                            disabled={editingReadOnly}
+                          >
+                            <option value="">Selecione...</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name}
+                              </option>
+                            ))}
+                          </select>
                         </div>
+
+                        <div className="md:col-span-2">
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-300">
+                            Qtd
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                            value={it.quantity}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                              updateDraftItem(idx, {
+                                quantity: Number(e.target.value || 0),
+                              })
+                            }
+                            disabled={editingReadOnly}
+                          />
+                        </div>
+
+                        <div className="md:col-span-3">
+                          <label className="mb-1 block text-xs text-gray-600 dark:text-gray-300">
+                            Custo unitário (R$)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                            value={it.unit_cost ?? ''}
+                            onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                              updateDraftItem(idx, {
+                                unit_cost:
+                                  e.target.value === ''
+                                    ? null
+                                    : Number(e.target.value),
+                              })
+                            }
+                            disabled={editingReadOnly}
+                          />
+                        </div>
+
+                        <div className="md:col-span-1 flex items-end justify-end">
+                          {!editingReadOnly ? (
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
+                              onClick={() => removeDraftItem(idx)}
+                              title="Remover"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-700 dark:text-gray-300">
+                    Total do documento:{' '}
+                    <span className="font-semibold">{money(currentDraftTotal)}</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {!editingReadOnly ? (
+                      <button
+                        className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
+                        onClick={() => void createOrUpdateDraft()}
+                        disabled={saving || !canSaveDraft}
+                        type="button"
+                      >
+                        <Save className="h-4 w-4" />
+                        {editingDocId ? 'Salvar alterações' : 'Salvar rascunho'}
+                      </button>
+                    ) : null}
+
+                    {editingDocId && !editingReadOnly ? (
+                      <button
+                        className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
+                        onClick={() => void confirmDocument(editingDocId)}
+                        disabled={saving}
+                        type="button"
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Confirmar
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+            <div className="grid grid-cols-12 gap-2 border-b border-gray-200 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:text-gray-400">
+              <div className="col-span-4">Fornecedor</div>
+              <div className="col-span-2">Documento</div>
+              <div className="col-span-2">Emissão</div>
+              <div className="col-span-1">Status</div>
+              <div className="col-span-1 text-right">Total</div>
+              <div className="col-span-2 text-right">Ações</div>
+            </div>
+
+            <div className="divide-y divide-gray-200 dark:divide-gray-800">
+              {documents.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-gray-600 dark:text-gray-300">
+                  Nenhum documento criado ainda.
+                </div>
+              ) : (
+                documents.map((doc) => (
+                  <div key={doc.id} className="grid grid-cols-12 items-center gap-2 px-4 py-3">
+                    <div className="col-span-4 min-w-0">
+                      <div className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                        {supplierName(doc.supplier_id)}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">
+                      {doc.invoice_number || '—'}
+                    </div>
+
+                    <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">
+                      {doc.issue_date || '—'}
+                    </div>
+
+                    <div className="col-span-1">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${doc.status === 'confirmed'
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                          }`}
+                      >
+                        {doc.status === 'confirmed' ? 'Confirmado' : 'Rascunho'}
+                      </span>
+                    </div>
+
+                    <div className="col-span-1 text-right text-sm font-medium text-gray-900 dark:text-white">
+                      {money(doc.total_amount)}
+                    </div>
+
+                    <div className="col-span-2 flex justify-end gap-2">
+                      <button
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
+                        onClick={() => void openDocument(doc, true)}
+                        title="Visualizar"
+                        type="button"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+
+                      {doc.status === 'draft' ? (
+                        <>
+                          <button
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
+                            onClick={() => void openDocument(doc, false)}
+                            title="Editar"
+                            type="button"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white hover:opacity-90 disabled:opacity-60"
+                            onClick={() => void confirmDocument(doc.id)}
+                            disabled={saving}
+                            title="Confirmar"
+                            type="button"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </button>
+
+                          <button
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
+                            onClick={() => void deleteDraft(doc.id)}
+                            disabled={saving}
+                            title="Excluir"
+                            type="button"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </>
                       ) : null}
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                <div className="inline-flex items-center gap-2 text-sm text-slate-700">
-                  <AlertTriangle className="h-4 w-4 text-amber-600" />
-                  <span>Confirmar deve dar entrada no estoque (via RPC no banco).</span>
-                </div>
-
-                <div className="text-right">
-                  <div className="text-xs text-slate-600">Total</div>
-                  <div className="text-lg font-semibold">{money(computedTotal)}</div>
-                </div>
-              </div>
-
-              <div className="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditorOpen(false);
-                    setError(null);
-                  }}
-                  className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-slate-50"
-                >
-                  Cancelar
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => void upsertDraft()}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700"
-                >
-                  <Save className="h-4 w-4" />
-                  Salvar rascunho
-                </button>
-
-                {editingId ? (
-                  <button
-                    type="button"
-                    onClick={() => void confirmDocument(editingId)}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Confirmar
-                  </button>
-                ) : null}
-              </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-4 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+            <div className="font-medium text-gray-900 dark:text-white">
+              Como usar
+            </div>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>
+                Clique em <b>Novo documento</b> e preencha fornecedor, nota e itens.
+              </li>
+              <li>
+                Salve o documento como <b>rascunho</b>.
+              </li>
+              <li>
+                Revise em <b>Visualizar</b> ou <b>Editar</b>.
+              </li>
+              <li>
+                Clique em <b>Confirmar</b> para lançar no estoque.
+              </li>
+            </ol>
+          </div>
         </div>
-      ) : null}
+      )}
     </PageContainer>
   );
 }

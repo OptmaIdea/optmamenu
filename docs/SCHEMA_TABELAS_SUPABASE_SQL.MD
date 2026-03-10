@@ -1,6 +1,18 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.audit_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  store_id uuid,
+  user_id uuid,
+  action text NOT NULL,
+  entity text,
+  entity_id uuid,
+  old_data jsonb,
+  new_data jsonb,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT audit_logs_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.categories (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
@@ -362,6 +374,33 @@ CREATE TABLE public.promotions (
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT promotions_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.purchase_document_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  purchase_document_id uuid NOT NULL,
+  product_id uuid NOT NULL,
+  quantity numeric NOT NULL,
+  unit_cost numeric NOT NULL,
+  total_cost numeric DEFAULT (quantity * unit_cost),
+  store_id uuid NOT NULL,
+  CONSTRAINT purchase_document_items_pkey PRIMARY KEY (id),
+  CONSTRAINT purchase_document_items_document_id_fkey FOREIGN KEY (purchase_document_id) REFERENCES public.purchase_documents(id),
+  CONSTRAINT purchase_document_items_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
+  CONSTRAINT purchase_document_items_purchase_document_id_fkey FOREIGN KEY (purchase_document_id) REFERENCES public.purchase_documents(id)
+);
+CREATE TABLE public.purchase_documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  store_id uuid NOT NULL,
+  supplier_id uuid NOT NULL,
+  invoice_number text,
+  issue_date date DEFAULT CURRENT_DATE,
+  total_amount numeric DEFAULT 0,
+  notes text,
+  status text NOT NULL DEFAULT 'draft'::text,
+  CONSTRAINT purchase_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT purchase_documents_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.stores(id),
+  CONSTRAINT purchase_documents_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id)
+);
 CREATE TABLE public.stock_movements (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   product_id uuid NOT NULL,
@@ -380,7 +419,9 @@ CREATE TABLE public.stock_movements (
   reason_code text,
   metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_by uuid,
+  supplier_id uuid,
   CONSTRAINT stock_movements_pkey PRIMARY KEY (id),
+  CONSTRAINT stock_movements_supplier_id_fkey FOREIGN KEY (supplier_id) REFERENCES public.suppliers(id),
   CONSTRAINT stock_movements_product_id_fkey FOREIGN KEY (product_id) REFERENCES public.products(id),
   CONSTRAINT stock_movements_order_id_fkey FOREIGN KEY (order_id) REFERENCES public.orders(id),
   CONSTRAINT stock_movements_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
@@ -477,4 +518,25 @@ CREATE TABLE public.stores (
   max_token_attempts integer DEFAULT 3 CHECK (max_token_attempts >= 3 AND max_token_attempts <= 7),
   CONSTRAINT stores_pkey PRIMARY KEY (id),
   CONSTRAINT stores_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.suppliers (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone,
+  store_id uuid NOT NULL,
+  name text NOT NULL,
+  document text,
+  phone text,
+  email text,
+  notes text,
+  active boolean NOT NULL DEFAULT true,
+  CONSTRAINT suppliers_pkey PRIMARY KEY (id),
+  CONSTRAINT suppliers_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.stores(id)
+);
+CREATE TABLE public.user_pins (
+  user_id uuid NOT NULL,
+  pin_hash text NOT NULL,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT user_pins_pkey PRIMARY KEY (user_id),
+  CONSTRAINT user_pins_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );

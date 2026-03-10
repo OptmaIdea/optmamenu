@@ -32,6 +32,15 @@ const normalizeStore = (storeData: any): StoreLike | null => {
     return storeData;
 };
 
+const extractSuggestedRpcName = (err: any): string | null => {
+    const hint = String(err?.hint ?? '');
+    const match = hint.match(/function public\.([a-zA-Z0-9_]+)/);
+    return match?.[1] ?? null;
+};
+
+const isMissingRpcError = (err: any) => String(err?.code ?? '') === 'PGRST202';
+
+
 /**
  * Calcula quantidade com sinal (fallback), caso o banco exija sinal coerente com type
  * - entry/cancellation/reservation => +
@@ -47,71 +56,46 @@ const applySignByType = (type: StockMovementType, qtyAbs: number): number => {
 };
 
 /**
- * Tenta chamar a RPC apply_stock_movement_delta com possíveis assinaturas.
- * Como você não sabe a assinatura exata, tentamos variações comuns de nomes de parâmetros.
- * - Não enviamos parâmetros extras; payload precisa bater com o que existe no Postgres.
+ * Chama a RPC apply_stock_movement_delta.
+ * Assinatura confirmada pelo hint do PostgREST: p_product_id, p_quantity, p_reason, p_store_id, p_type.
+ * Tentamos dois payloads: com e sem p_order_id, para compatibilidade com variações do schema.
  */
 const callApplyStockMovementDelta = async (args: {
     storeId: string;
     productId: string;
     type: StockMovementType;
-    qty: number; // pode ser abs (positivo) ou signed (fallback)
+    qty: number;
     reason?: string;
     orderId?: string;
 }) => {
-    const payloads: Array<Record<string, any>> = [
-        // Assinaturas "novas" (mais completas)
-        {
-            p_store_id: args.storeId,
-            p_product_id: args.productId,
-            p_type: args.type,
-            p_quantity: args.qty,
-            p_reason: args.reason ?? null,
-            p_order_id: args.orderId ?? null,
-        },
-        {
-            p_store_id: args.storeId,
-            p_product_id: args.productId,
-            p_type: args.type,
-            p_qty: args.qty,
-            p_reason: args.reason ?? null,
-            p_order_id: args.orderId ?? null,
-        },
+    // Payload principal: assinatura exata confirmada pelo PostgREST
+    const payloadBase = {
+        p_product_id: args.productId,
+        p_quantity: args.qty,
+        p_reason: args.reason ?? null,
+        p_store_id: args.storeId,
+        p_type: args.type,
+    };
 
-        // Assinaturas "enxutas" (sem reason/order)
-        {
-            p_store_id: args.storeId,
-            p_product_id: args.productId,
-            p_type: args.type,
-            p_quantity: args.qty,
-        },
-        {
-            p_store_id: args.storeId,
-            p_product_id: args.productId,
-            p_type: args.type,
-            p_qty: args.qty,
-        },
+    // Payload estendido: inclui p_order_id caso a função aceite
+    const payloadWithOrder = {
+        ...payloadBase,
+        p_order_id: args.orderId ?? null,
+    };
 
-        // Algumas variações de naming (caso o projeto antigo tenha seguido outro padrão)
-        {
-            store_id: args.storeId,
-            product_id: args.productId,
-            type: args.type,
-            quantity: args.qty,
-            reason: args.reason ?? null,
-            order_id: args.orderId ?? null,
-        },
-    ];
-
-    let lastError: any = null;
-
-    for (const payload of payloads) {
+    // Tenta primeiro com order_id, depois sem
+    for (const payload of [payloadWithOrder, payloadBase]) {
         const { data, error } = await supabase.rpc('apply_stock_movement_delta', payload);
         if (!error) return { data, error: null };
-        lastError = error;
+
+        // Se a função não existe de forma alguma (PGRST202 sem hint útil), para imediatamente
+        if (isMissingRpcError(error) && !extractSuggestedRpcName(error)) {
+            return { data: null, error };
+        }
     }
 
-    return { data: null, error: lastError };
+    // Última tentativa: repete sem order_id para capturar o erro definitivo
+    return supabase.rpc('apply_stock_movement_delta', payloadBase);
 };
 
 const extractMovementId = (data: any): string | null => {
@@ -200,56 +184,56 @@ export const useStockMovement = () => {
             }
 
             // Se houver fornecedor e/ou meta, tenta persistir no movimento recém-criado.
-// A RPC pode (ou não) retornar o id; então fazemos fallback pelo último movimento do produto.
+            // A RPC pode (ou não) retornar o id; então fazemos fallback pelo último movimento do produto.
             if (params.supplierId || params.meta) {
-    let movementId = extractMovementId(data);
-    let currentMeta: any = null;
+                let movementId = extractMovementId(data);
+                let currentMeta: any = null;
 
-    if (!movementId) {
-        const { data: latest, error: latestErr } = await supabase
-            .from('stock_movements')
-            .select('id, metadata')
-            .eq('store_id', ctx.store.id)
-            .eq('product_id', params.productId)
-            .eq('type', params.type)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+                if (!movementId) {
+                    const { data: latest, error: latestErr } = await supabase
+                        .from('stock_movements')
+                        .select('id, metadata')
+                        .eq('store_id', ctx.store.id)
+                        .eq('product_id', params.productId)
+                        .eq('type', params.type)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
 
-        if (!latestErr) {
-            movementId = latest?.id ?? null;
-            currentMeta = (latest as any)?.metadata ?? null;
-        }
-    } else {
-        const { data: row, error: rowErr } = await supabase
-            .from('stock_movements')
-            .select('metadata')
-            .eq('id', movementId)
-            .maybeSingle();
+                    if (!latestErr) {
+                        movementId = latest?.id ?? null;
+                        currentMeta = (latest as any)?.metadata ?? null;
+                    }
+                } else {
+                    const { data: row, error: rowErr } = await supabase
+                        .from('stock_movements')
+                        .select('metadata')
+                        .eq('id', movementId)
+                        .maybeSingle();
 
-        if (!rowErr) currentMeta = (row as any)?.metadata ?? null;
-    }
+                    if (!rowErr) currentMeta = (row as any)?.metadata ?? null;
+                }
 
-    if (movementId) {
-        const nextMeta =
-            params.meta
-                ? { ...(currentMeta ?? {}), ...(params.meta ?? {}) }
-                : currentMeta;
+                if (movementId) {
+                    const nextMeta =
+                        params.meta
+                            ? { ...(currentMeta ?? {}), ...(params.meta ?? {}) }
+                            : currentMeta;
 
-        const updatePayload: Record<string, any> = {};
-        if (params.supplierId) updatePayload.supplier_id = params.supplierId;
-        if (params.meta) updatePayload.metadata = nextMeta;
+                    const updatePayload: Record<string, any> = {};
+                    if (params.supplierId) updatePayload.supplier_id = params.supplierId;
+                    if (params.meta) updatePayload.metadata = nextMeta;
 
-        const { error: updErr } = await supabase
-            .from('stock_movements')
-            .update(updatePayload)
-            .eq('id', movementId);
+                    const { error: updErr } = await supabase
+                        .from('stock_movements')
+                        .update(updatePayload)
+                        .eq('id', movementId);
 
-        if (updErr) {
-            console.warn('Não foi possível atualizar dados no movimento:', updErr);
-        }
-    }
-}
+                    if (updErr) {
+                        console.warn('Não foi possível atualizar dados no movimento:', updErr);
+                    }
+                }
+            }
 
             return true;
         } catch (error: any) {
