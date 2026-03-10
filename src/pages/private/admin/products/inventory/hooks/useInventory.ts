@@ -40,7 +40,8 @@ export const useInventory = () => {
                     is_discontinued,
                     min_stock,
                     max_stock,
-                    created_at
+                    created_at,
+                    last_entry_unit_cost
                 `)
                 .eq('store_id', store.id)
                 .eq('is_discontinued', false)
@@ -65,6 +66,7 @@ export const useInventory = () => {
                 reserved_stock: 0,
                 available_stock: p.stock_quantity || 0,
                 created_at: p.created_at,
+                last_entry_unit_cost: p.last_entry_unit_cost ?? null,
             }));
 
             setProducts(transformedData);

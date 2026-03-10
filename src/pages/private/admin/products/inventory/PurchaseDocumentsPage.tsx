@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
+  ArrowLeft,
   CheckCircle2,
   Eye,
   FileText,
@@ -49,6 +51,7 @@ type InventoryProductLike = {
   active?: boolean | null;
   discontinued?: boolean | null;
   is_discontinued?: boolean | null;
+  last_entry_unit_cost?: number | null;
 };
 
 const getCurrentStore = async (): Promise<StoreLike | null> => {
@@ -109,6 +112,10 @@ export default function PurchaseDocumentsPage() {
         p.is_discontinued !== true,
     );
   }, [inventoryProducts]);
+
+  const productMap = useMemo(() => {
+    return new Map(products.map((p) => [p.id, p]));
+  }, [products]);
 
   const supplierName = useCallback(
     (id: string | null) => {
@@ -458,7 +465,19 @@ export default function PurchaseDocumentsPage() {
   );
 
   return (
-    <PageContainer title="Entradas (Documentos de Compra)">
+    <PageContainer
+      title="Entradas por Documento"
+      subtitle="Lance vários itens em uma única nota e confirme a entrada depois da revisão"
+      action={
+        <Link
+          to="/admin/stock-movements"
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Voltar para movimentações
+        </Link>
+      }
+    >
       {pageError ? (
         <AlertBanner type="error" title="Atenção" message={pageError} />
       ) : null}
@@ -619,9 +638,18 @@ export default function PurchaseDocumentsPage() {
                           <select
                             className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
                             value={it.product_id}
-                            onChange={(e: ChangeEvent<HTMLSelectElement>) =>
-                              updateDraftItem(idx, { product_id: e.target.value })
-                            }
+                            onChange={(e: ChangeEvent<HTMLSelectElement>) => {
+                              const selectedProductId = e.target.value;
+                              const selectedProduct = productMap.get(selectedProductId);
+
+                              updateDraftItem(idx, {
+                                product_id: selectedProductId,
+                                unit_cost:
+                                  selectedProduct?.last_entry_unit_cost != null
+                                    ? Number(selectedProduct.last_entry_unit_cost)
+                                    : draftItems[idx]?.unit_cost ?? null,
+                              });
+                            }}
                             disabled={editingReadOnly}
                           >
                             <option value="">Selecione...</option>
@@ -761,8 +789,8 @@ export default function PurchaseDocumentsPage() {
                     <div className="col-span-1">
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${doc.status === 'confirmed'
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
                           }`}
                       >
                         {doc.status === 'confirmed' ? 'Confirmado' : 'Rascunho'}

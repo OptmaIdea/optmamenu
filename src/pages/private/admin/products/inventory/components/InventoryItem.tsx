@@ -4,8 +4,8 @@ import type { ProductStock } from '../types/inventory.types';
 
 interface InventoryItemProps {
     product: ProductStock;
-    onEntry: (product: ProductStock) => void;
-    onExit: (product: ProductStock) => void;
+    onEntry?: (product: ProductStock) => void;
+    onExit?: (product: ProductStock) => void;
     onViewMovements?: (product: ProductStock) => void;
     viewMode: 'table' | 'card';
 }
@@ -60,6 +60,7 @@ export default function InventoryItem({ product, onEntry, onExit, onViewMovement
                 </td>
                 <td className="p-4 text-right">
                     <div className="flex justify-end gap-2">
+                        {onEntry && (
                         <button
                             onClick={() => onEntry(product)}
                             className="p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors"
@@ -67,6 +68,8 @@ export default function InventoryItem({ product, onEntry, onExit, onViewMovement
                         >
                             <ArrowUpCircle size={18} />
                         </button>
+                        )}
+                        {onExit && (
                         <button
                             onClick={() => onExit(product)}
                             className="p-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors"
@@ -74,6 +77,7 @@ export default function InventoryItem({ product, onEntry, onExit, onViewMovement
                         >
                             <ArrowDownCircle size={18} />
                         </button>
+                        )}
                     </div>
                 </td>
             </tr>
@@ -125,18 +129,22 @@ export default function InventoryItem({ product, onEntry, onExit, onViewMovement
                         <List size={16} /> Movimentações
                     </button>
                 )}
+                {onEntry && (
                 <button
                     onClick={() => onEntry(product)}
                     className="flex-1 py-2 bg-green-100 text-green-700 rounded-lg font-bold text-sm flex items-center justify-center gap-2"
                 >
                     <ArrowUpCircle size={16} /> Entrada
                 </button>
+                )}
+                {onExit && (
                 <button
                     onClick={() => onExit(product)}
                     className="flex-1 py-2 bg-red-100 text-red-700 rounded-lg font-bold text-sm flex items-center justify-center gap-2"
                 >
                     <ArrowDownCircle size={16} /> Saída
                 </button>
+                )}
             </div>
         </div>
     );

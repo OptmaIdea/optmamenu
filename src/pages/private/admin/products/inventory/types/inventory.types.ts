@@ -15,6 +15,7 @@ export interface ProductStock {
     // Campos adicionais da view (se houver)
     created_at?: string;
     updated_at?: string;
+    last_entry_unit_cost?: number | null;
 }
 
 export type AdjustmentType = 'entry' | 'exit';

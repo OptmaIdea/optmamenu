@@ -4,8 +4,8 @@ import InventoryItem from '@/pages/private/admin/products/inventory/components/I
 
 interface InventoryListProps {
     products: ProductStock[];
-    onEntry: (product: ProductStock) => void;
-    onExit: (product: ProductStock) => void;
+    onEntry?: (product: ProductStock) => void;
+    onExit?: (product: ProductStock) => void;
     onViewMovements?: (product: ProductStock) => void;
 }
 
