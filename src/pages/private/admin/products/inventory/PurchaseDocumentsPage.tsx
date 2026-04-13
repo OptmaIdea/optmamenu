@@ -9,7 +9,9 @@ import {
   Pencil,
   Plus,
   Save,
+  ShieldAlert,
   Trash2,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -104,6 +106,12 @@ export default function PurchaseDocumentsPage() {
     { product_id: '', quantity: 1, unit_cost: null },
   ]);
 
+  const [editingStatus, setEditingStatus] = useState<PurchaseDocumentStatus | null>(null);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<PurchaseDocument | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelMasterPassword, setCancelMasterPassword] = useState('');
+
   const products = useMemo(() => {
     return ((inventoryProducts ?? []) as InventoryProductLike[]).filter(
       (p) =>
@@ -151,6 +159,7 @@ export default function PurchaseDocumentsPage() {
   const resetDraft = useCallback(() => {
     setEditingDocId(null);
     setEditingReadOnly(false);
+    setEditingStatus(null);
     setDraftSupplierId('');
     setDraftIssueDate(new Date().toISOString().slice(0, 10));
     setDraftInvoiceNumber('');
@@ -226,6 +235,13 @@ export default function PurchaseDocumentsPage() {
     setDraftOpen(true);
   }, [resetDraft]);
 
+  const openCancelModal = useCallback((doc: PurchaseDocument) => {
+    setCancelTarget(doc);
+    setCancelReason('');
+    setCancelMasterPassword('');
+    setCancelOpen(true);
+  }, []);
+
   const openDocument = useCallback(
     async (doc: PurchaseDocument, readOnly = false) => {
       try {
@@ -243,7 +259,8 @@ export default function PurchaseDocumentsPage() {
         if (itemsErr) throw itemsErr;
 
         setEditingDocId(doc.id);
-        setEditingReadOnly(doc.status === 'confirmed' || readOnly);
+        setEditingStatus(doc.status);
+        setEditingReadOnly(doc.status === 'confirmed' || doc.status === 'cancelled' || readOnly);
         setDraftSupplierId(doc.supplier_id ?? '');
         setDraftIssueDate(
           doc.issue_date ?? new Date().toISOString().slice(0, 10),
@@ -419,6 +436,53 @@ export default function PurchaseDocumentsPage() {
     },
     [fetchAll, resetDraft],
   );
+
+  const cancelConfirmedDocument = useCallback(async () => {
+    if (!cancelTarget) return;
+
+    if (!cancelReason.trim() || cancelReason.trim().length < 3) {
+      toast.error('Informe um motivo com pelo menos 3 caracteres');
+      return;
+    }
+
+    if (!cancelMasterPassword.trim()) {
+      toast.error('Informe a senha master');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Cancelar esta entrada irá gerar movimentação inversa, ajustar o estoque e manter trilha de auditoria.\n\nDeseja continuar?',
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const { error } = await supabase.rpc('cancel_purchase_document', {
+        p_document_id: cancelTarget.id,
+        p_reason: cancelReason.trim(),
+        p_master_password: cancelMasterPassword,
+      });
+
+      if (error) throw error;
+
+      toast.success('Entrada cancelada com sucesso');
+      setCancelOpen(false);
+      setCancelTarget(null);
+      setCancelReason('');
+      setCancelMasterPassword('');
+      setDraftOpen(false);
+      resetDraft();
+      await fetchAll();
+    } catch (e: unknown) {
+      console.error('Error cancelling purchase document:', e);
+      const message =
+        e instanceof Error ? e.message : 'Erro ao cancelar documento';
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  }, [cancelMasterPassword, cancelReason, cancelTarget, fetchAll, resetDraft]);
 
   const deleteDraft = useCallback(
     async (docId: string) => {
@@ -748,7 +812,104 @@ export default function PurchaseDocumentsPage() {
                         Confirmar
                       </button>
                     ) : null}
+
+                    {editingDocId && editingStatus === 'confirmed' ? (
+                      <button
+                        className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
+                        onClick={() => openCancelModal({
+                          id: editingDocId,
+                          store_id: storeId ?? '',
+                          supplier_id: draftSupplierId || null,
+                          status: 'confirmed',
+                          issue_date: draftIssueDate || null,
+                          invoice_number: draftInvoiceNumber || null,
+                          notes: draftNotes || null,
+                          created_at: '',
+                          total_amount: currentDraftTotal,
+                        })}
+                        disabled={saving}
+                        type="button"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Cancelar entrada
+                      </button>
+                    ) : null}
                   </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {cancelOpen && cancelTarget ? (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-lg rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Cancelar entrada confirmada
+                    </h3>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                      Documento {cancelTarget.invoice_number || cancelTarget.id}. Esta operação irá gerar movimentação inversa e manter trilha de auditoria.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    onClick={() => setCancelOpen(false)}
+                  >
+                    Fechar
+                  </button>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
+                      Motivo do cancelamento
+                    </label>
+                    <textarea
+                      value={cancelReason}
+                      onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setCancelReason(e.target.value)}
+                      rows={3}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                      placeholder="Descreva o motivo do cancelamento"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
+                      Senha master
+                    </label>
+                    <input
+                      type="password"
+                      value={cancelMasterPassword}
+                      onChange={(e: ChangeEvent<HTMLInputElement>) => setCancelMasterPassword(e.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                      placeholder="Digite a senha master"
+                    />
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                    Esta operação não apaga o documento. Ela cria a movimentação inversa, ajusta o estoque e marca a entrada como cancelada.
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
+                    onClick={() => setCancelOpen(false)}
+                  >
+                    Voltar
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
+                    onClick={() => void cancelConfirmedDocument()}
+                    disabled={saving}
+                  >
+                    <ShieldAlert className="h-4 w-4" />
+                    Confirmar cancelamento
+                  </button>
                 </div>
               </div>
             </div>
@@ -790,10 +951,12 @@ export default function PurchaseDocumentsPage() {
                       <span
                         className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${doc.status === 'confirmed'
                           ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                          : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
+                          : doc.status === 'cancelled'
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
+                            : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300'
                           }`}
                       >
-                        {doc.status === 'confirmed' ? 'Confirmado' : 'Rascunho'}
+                        {doc.status === 'confirmed' ? 'Confirmado' : doc.status === 'cancelled' ? 'Cancelado' : 'Rascunho'}
                       </span>
                     </div>
 
@@ -842,6 +1005,16 @@ export default function PurchaseDocumentsPage() {
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </>
+                      ) : doc.status === 'confirmed' ? (
+                        <button
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
+                          onClick={() => openCancelModal(doc)}
+                          disabled={saving}
+                          title="Cancelar entrada"
+                          type="button"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
                       ) : null}
                     </div>
                   </div>
