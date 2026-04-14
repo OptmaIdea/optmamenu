@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
+  Download,
   Eye,
   EyeOff,
   FileText,
@@ -21,6 +22,7 @@ import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import AlertBanner from '@/components/common/AlertBanner';
 import StatsCard from '@/components/common/StatsCard';
+import { buildCsv, downloadCsv, formatCsvNumberBR } from '@/utils/csv';
 
 import type { Supplier } from '@/pages/private/admin/products/suppliers/types/supplier.types';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
@@ -37,6 +39,8 @@ type PurchaseDocument = {
   notes: string | null;
   created_at: string;
   total_amount: number | null;
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
 };
 
 type PurchaseDocumentItemInput = {
@@ -91,7 +95,6 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
-
 export default function PurchaseDocumentsPage() {
   const { products: inventoryProducts } = useInventory();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -126,6 +129,14 @@ export default function PurchaseDocumentsPage() {
   const [showCancelPassword, setShowCancelPassword] = useState(false);
   const [autoOpenedDocId, setAutoOpenedDocId] = useState<string | null>(null);
 
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    status: '',
+    supplierId: searchParams.get('supplier_id') || '',
+    invoiceNumber: '',
+  });
+
   const products = useMemo(() => {
     return ((inventoryProducts ?? []) as InventoryProductLike[]).filter(
       (p) =>
@@ -147,15 +158,93 @@ export default function PurchaseDocumentsPage() {
     [suppliers],
   );
 
+  const filteredDocuments = useMemo(() => {
+    return documents.filter((doc) => {
+      const issueDate = doc.issue_date ? new Date(`${doc.issue_date}T00:00:00`) : null;
+
+      if (filters.dateFrom) {
+        const from = new Date(`${filters.dateFrom}T00:00:00`);
+        if (!issueDate || issueDate < from) return false;
+      }
+
+      if (filters.dateTo) {
+        const to = new Date(`${filters.dateTo}T23:59:59`);
+        if (!issueDate || issueDate > to) return false;
+      }
+
+      if (filters.status.trim()) {
+        if ((doc.status || '') !== filters.status) return false;
+      }
+
+      if (filters.supplierId.trim()) {
+        if ((doc.supplier_id || '') !== filters.supplierId) return false;
+      }
+
+      if (filters.invoiceNumber.trim()) {
+        const invoice = (doc.invoice_number || '').toLowerCase();
+        if (!invoice.includes(filters.invoiceNumber.trim().toLowerCase())) return false;
+      }
+
+      return true;
+    });
+  }, [documents, filters]);
+
+  const exportFilteredDocumentsCsv = useCallback(() => {
+    if (!filteredDocuments.length) return;
+
+    const rows = filteredDocuments.map((doc) => ({
+      id: doc.id,
+      numero_documento: doc.invoice_number?.trim() || doc.id,
+      emissao: doc.issue_date ?? '',
+      status: doc.status ?? '',
+      fornecedor_id: doc.supplier_id ?? '',
+      fornecedor: suppliers.find((s) => s.id === doc.supplier_id)?.name ?? '',
+      total: formatCsvNumberBR(doc.total_amount ?? 0),
+      criado_em: doc.created_at ?? '',
+      observacoes: doc.notes ?? '',
+    }));
+
+    const csv = buildCsv(rows, [
+      'id',
+      'numero_documento',
+      'emissao',
+      'status',
+      'fornecedor_id',
+      'fornecedor',
+      'total',
+      'criado_em',
+      'observacoes',
+    ]);
+
+    const dateSuffix = new Date().toISOString().slice(0, 10);
+    downloadCsv(`documentos_compra_${dateSuffix}.csv`, csv);
+  }, [filteredDocuments, suppliers]);
+
   const stats = useMemo(() => {
-    const drafts = documents.filter((d) => d.status === 'draft').length;
-    const confirmed = documents.filter((d) => d.status === 'confirmed').length;
-    const totalConfirmed = documents
+    const drafts = filteredDocuments.filter((d) => d.status === 'draft').length;
+    const confirmed = filteredDocuments.filter((d) => d.status === 'confirmed').length;
+    const totalConfirmed = filteredDocuments
       .filter((d) => d.status === 'confirmed')
       .reduce((sum, d) => sum + (d.total_amount ?? 0), 0);
 
     return { drafts, confirmed, totalConfirmed };
-  }, [documents]);
+  }, [filteredDocuments]);
+
+  const resetFilters = useCallback(() => {
+    setFilters({
+      dateFrom: '',
+      dateTo: '',
+      status: '',
+      supplierId: '',
+      invoiceNumber: '',
+    });
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('supplier_id');
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+    setAutoOpenedDocId(null);
+  }, [searchParams, setSearchParams]);
 
   const canSaveDraft = useMemo(() => {
     if (!storeId) return false;
@@ -223,6 +312,7 @@ export default function PurchaseDocumentsPage() {
   useEffect(() => {
     void fetchAll();
   }, [fetchAll]);
+
   const addDraftItem = useCallback(() => {
     setDraftItems((prev) => [
       ...prev,
@@ -312,7 +402,6 @@ export default function PurchaseDocumentsPage() {
     [],
   );
 
-
   useEffect(() => {
     const openId = searchParams.get('open');
     if (!openId || loading) return;
@@ -324,6 +413,15 @@ export default function PurchaseDocumentsPage() {
     setAutoOpenedDocId(openId);
     void openDocument(target, true);
   }, [autoOpenedDocId, documents, loading, openDocument, searchParams]);
+
+  useEffect(() => {
+    const supplierIdFromUrl = searchParams.get('supplier_id') || '';
+    setFilters((prev) =>
+      prev.supplierId === supplierIdFromUrl
+        ? prev
+        : { ...prev, supplierId: supplierIdFromUrl },
+    );
+  }, [searchParams]);
 
   const createOrUpdateDraft = useCallback(async () => {
     if (!storeId) return;
@@ -590,37 +688,155 @@ export default function PurchaseDocumentsPage() {
             />
           </div>
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div className="text-sm text-gray-600 dark:text-gray-300">
-              Crie um documento para lançar vários itens de uma única nota/romaneio.
-            </div>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Crie um documento para lançar vários itens de uma única nota/romaneio.
+              </div>
 
-            <div className="flex items-center gap-2">
-              {searchParams.get('supplier_id') ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
+                  onClick={openNewDraft}
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
+                  Novo documento
+                </button>
+
                 <button
                   type="button"
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.delete('supplier_id');
-                    next.delete('open');
-                    setSearchParams(next, { replace: true });
-                    setAutoOpenedDocId(null);
-                  }}
+                  onClick={exportFilteredDocumentsCsv}
+                  disabled={!filteredDocuments.length}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <Download className="h-4 w-4" />
+                  Exportar CSV
+                </button>
+
+                {searchParams.get('supplier_id') ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = new URLSearchParams(searchParams);
+                      next.delete('supplier_id');
+                      next.delete('open');
+                      setSearchParams(next, { replace: true });
+                      setAutoOpenedDocId(null);
+                      setFilters((prev) => ({ ...prev, supplierId: '' }));
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Limpar filtro de fornecedor
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Filtros
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Combine data, status, fornecedor e documento.
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={resetFilters}
                   className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   <XCircle className="h-4 w-4" />
-                  Limpar filtro de fornecedor
+                  Limpar filtros
                 </button>
-              ) : null}
+              </div>
 
-              <button
-                className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
-                onClick={openNewDraft}
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-                Novo documento
-              </button>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Data inicial
+                  </label>
+                  <input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Data final
+                  </label>
+                  <input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Status
+                  </label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, status: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  >
+                    <option value="">Todos</option>
+                    <option value="draft">Rascunho</option>
+                    <option value="confirmed">Confirmado</option>
+                    <option value="cancelled">Cancelado</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Fornecedor
+                  </label>
+                  <select
+                    value={filters.supplierId}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, supplierId: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  >
+                    <option value="">Todos</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Documento / Nota
+                  </label>
+                  <input
+                    type="text"
+                    value={filters.invoiceNumber}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, invoiceNumber: e.target.value }))
+                    }
+                    placeholder="Ex: 12345"
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -873,6 +1089,8 @@ export default function PurchaseDocumentsPage() {
                           notes: draftNotes || null,
                           created_at: '',
                           total_amount: currentDraftTotal,
+                          cancelled_at: null,
+                          cancel_reason: null,
                         })}
                         disabled={saving}
                         type="button"
@@ -989,12 +1207,14 @@ export default function PurchaseDocumentsPage() {
             </div>
 
             <div className="divide-y divide-gray-200 dark:divide-gray-800">
-              {documents.length === 0 ? (
+              {filteredDocuments.length === 0 ? (
                 <div className="px-4 py-6 text-sm text-gray-600 dark:text-gray-300">
-                  Nenhum documento criado ainda.
+                  {documents.length === 0
+                    ? 'Nenhum documento cadastrado ainda.'
+                    : 'Nenhum documento encontrado com os filtros atuais.'}
                 </div>
               ) : (
-                documents.map((doc) => (
+                filteredDocuments.map((doc) => (
                   <div key={doc.id} className="grid grid-cols-12 items-center gap-2 px-4 py-3">
                     <div className="col-span-4 min-w-0">
                       <div className="truncate text-sm font-medium text-gray-900 dark:text-white">
