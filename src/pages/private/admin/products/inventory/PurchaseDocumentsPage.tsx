@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle2,
   Eye,
+  EyeOff,
   FileText,
   Pencil,
   Plus,
@@ -81,8 +82,19 @@ const money = (value: number | null | undefined) =>
     currency: 'BRL',
   });
 
+const getErrorMessage = (error: unknown, fallback: string) => {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  }
+  return fallback;
+};
+
+
 export default function PurchaseDocumentsPage() {
   const { products: inventoryProducts } = useInventory();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -111,6 +123,8 @@ export default function PurchaseDocumentsPage() {
   const [cancelTarget, setCancelTarget] = useState<PurchaseDocument | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelMasterPassword, setCancelMasterPassword] = useState('');
+  const [showCancelPassword, setShowCancelPassword] = useState(false);
+  const [autoOpenedDocId, setAutoOpenedDocId] = useState<string | null>(null);
 
   const products = useMemo(() => {
     return ((inventoryProducts ?? []) as InventoryProductLike[]).filter(
@@ -209,7 +223,6 @@ export default function PurchaseDocumentsPage() {
   useEffect(() => {
     void fetchAll();
   }, [fetchAll]);
-
   const addDraftItem = useCallback(() => {
     setDraftItems((prev) => [
       ...prev,
@@ -239,6 +252,7 @@ export default function PurchaseDocumentsPage() {
     setCancelTarget(doc);
     setCancelReason('');
     setCancelMasterPassword('');
+    setShowCancelPassword(false);
     setCancelOpen(true);
   }, []);
 
@@ -289,8 +303,7 @@ export default function PurchaseDocumentsPage() {
         setDraftOpen(true);
       } catch (e: unknown) {
         console.error('Error opening purchase document:', e);
-        const message =
-          e instanceof Error ? e.message : 'Erro ao abrir documento';
+        const message = getErrorMessage(e, 'Erro ao abrir documento');
         toast.error(message);
       } finally {
         setSaving(false);
@@ -298,6 +311,19 @@ export default function PurchaseDocumentsPage() {
     },
     [],
   );
+
+
+  useEffect(() => {
+    const openId = searchParams.get('open');
+    if (!openId || loading) return;
+    if (autoOpenedDocId === openId) return;
+
+    const target = documents.find((doc) => doc.id === openId);
+    if (!target) return;
+
+    setAutoOpenedDocId(openId);
+    void openDocument(target, true);
+  }, [autoOpenedDocId, documents, loading, openDocument, searchParams]);
 
   const createOrUpdateDraft = useCallback(async () => {
     if (!storeId) return;
@@ -370,8 +396,7 @@ export default function PurchaseDocumentsPage() {
       await fetchAll();
     } catch (e: unknown) {
       console.error('Error saving purchase document:', e);
-      const message =
-        e instanceof Error ? e.message : 'Erro ao salvar documento';
+      const message = getErrorMessage(e, 'Erro ao salvar documento');
       toast.error(message);
     } finally {
       setSaving(false);
@@ -427,8 +452,7 @@ export default function PurchaseDocumentsPage() {
         await fetchAll();
       } catch (e: unknown) {
         console.error('Error confirming purchase document:', e);
-        const message =
-          e instanceof Error ? e.message : 'Erro ao confirmar documento';
+        const message = getErrorMessage(e, 'Erro ao confirmar documento');
         toast.error(message);
       } finally {
         setSaving(false);
@@ -476,8 +500,7 @@ export default function PurchaseDocumentsPage() {
       await fetchAll();
     } catch (e: unknown) {
       console.error('Error cancelling purchase document:', e);
-      const message =
-        e instanceof Error ? e.message : 'Erro ao cancelar documento';
+      const message = getErrorMessage(e, 'Erro ao cancelar documento');
       toast.error(message);
     } finally {
       setSaving(false);
@@ -518,8 +541,7 @@ export default function PurchaseDocumentsPage() {
         await fetchAll();
       } catch (e: unknown) {
         console.error('Error deleting document:', e);
-        const message =
-          e instanceof Error ? e.message : 'Erro ao remover documento';
+        const message = getErrorMessage(e, 'Erro ao remover documento');
         toast.error(message);
       } finally {
         setSaving(false);
@@ -568,20 +590,45 @@ export default function PurchaseDocumentsPage() {
             />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="text-sm text-gray-600 dark:text-gray-300">
               Crie um documento para lançar vários itens de uma única nota/romaneio.
             </div>
 
-            <button
-              className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
-              onClick={openNewDraft}
-              type="button"
-            >
-              <Plus className="h-4 w-4" />
-              Novo documento
-            </button>
+            <div className="flex items-center gap-2">
+              {searchParams.get('supplier_id') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete('supplier_id');
+                    next.delete('open');
+                    setSearchParams(next, { replace: true });
+                    setAutoOpenedDocId(null);
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Limpar filtro de fornecedor
+                </button>
+              ) : null}
+
+              <button
+                className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
+                onClick={openNewDraft}
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
+                Novo documento
+              </button>
+            </div>
           </div>
+
+          {searchParams.get('supplier_id') ? (
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+              Exibindo entradas do fornecedor <b>{supplierName(searchParams.get('supplier_id'))}</b>.
+            </div>
+          ) : null}
 
           {draftOpen ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -855,7 +902,10 @@ export default function PurchaseDocumentsPage() {
                   <button
                     type="button"
                     className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    onClick={() => setCancelOpen(false)}
+                    onClick={() => {
+                      setCancelOpen(false);
+                      setShowCancelPassword(false);
+                    }}
                   >
                     Fechar
                   </button>
@@ -879,13 +929,23 @@ export default function PurchaseDocumentsPage() {
                     <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
                       Senha master
                     </label>
-                    <input
-                      type="password"
-                      value={cancelMasterPassword}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setCancelMasterPassword(e.target.value)}
-                      className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
-                      placeholder="Digite a senha master"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showCancelPassword ? 'text' : 'password'}
+                        value={cancelMasterPassword}
+                        onChange={(e: ChangeEvent<HTMLInputElement>) => setCancelMasterPassword(e.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-white p-2 pr-10 text-sm dark:border-gray-700 dark:bg-gray-950"
+                        placeholder="Digite a senha master"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowCancelPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        title={showCancelPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                      >
+                        {showCancelPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
@@ -897,7 +957,10 @@ export default function PurchaseDocumentsPage() {
                   <button
                     type="button"
                     className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
-                    onClick={() => setCancelOpen(false)}
+                    onClick={() => {
+                      setCancelOpen(false);
+                      setShowCancelPassword(false);
+                    }}
                   >
                     Voltar
                   </button>

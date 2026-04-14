@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Search, Plus, Pencil, Power, Package, Activity } from 'lucide-react';
+import { Search, Plus, Pencil, Power, Package, Activity, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
@@ -51,8 +52,6 @@ const SupplierModal = ({
     setActive(supplier?.active ?? true);
   }, [isOpen, supplier?.id, state.open ? state.mode : undefined]);
 
-  // Re-seed when opening/editing another supplier
-  // (simple approach: modal is unmounted when closed)
   if (!isOpen) return null;
 
   const title = state.mode === 'create' ? 'Novo fornecedor' : 'Editar fornecedor';
@@ -63,7 +62,9 @@ const SupplierModal = ({
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="text-lg font-semibold text-gray-900">{title}</div>
-            <div className="mt-1 text-sm text-gray-600">Dados básicos para identificar a origem das entradas.</div>
+            <div className="mt-1 text-sm text-gray-600">
+              Dados básicos para identificar a origem das entradas.
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -171,14 +172,23 @@ const SupplierModal = ({
 };
 
 export default function SuppliersPage() {
-  const { suppliers, loading, saving, lastUpdated, fetchSuppliers, upsertSupplier, setSupplierActive } = useSuppliers();
+  const navigate = useNavigate();
+  const { suppliers, loading, saving, lastUpdated, fetchSuppliers, upsertSupplier, setSupplierActive } =
+    useSuppliers();
+
   const [query, setQuery] = useState('');
   const [modal, setModal] = useState<ModalState>({ open: false });
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return suppliers;
-    return suppliers.filter(s => (s.name ?? '').toLowerCase().includes(q));
+    return suppliers.filter(
+      s =>
+        (s.name ?? '').toLowerCase().includes(q) ||
+        (s.document ?? '').toLowerCase().includes(q) ||
+        (s.phone ?? '').toLowerCase().includes(q) ||
+        (s.email ?? '').toLowerCase().includes(q)
+    );
   }, [suppliers, query]);
 
   const activeCount = useMemo(() => suppliers.filter(s => s.active).length, [suppliers]);
@@ -231,17 +241,29 @@ export default function SuppliersPage() {
             ) : filtered.length === 0 ? (
               <EmptyState
                 title="Nenhum fornecedor encontrado"
-                description={suppliers.length === 0 ? 'Cadastre o primeiro fornecedor para começar.' : 'Tente ajustar o filtro de busca.'}
+                description={
+                  suppliers.length === 0
+                    ? 'Cadastre o primeiro fornecedor para começar.'
+                    : 'Tente ajustar o filtro de busca.'
+                }
               />
             ) : (
               <div className="overflow-hidden rounded-2xl border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Fornecedor</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Contato</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">Ações</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                        Fornecedor
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                        Contato
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                        Ações
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
@@ -268,12 +290,23 @@ export default function SuppliersPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center justify-end gap-2">
                             <button
+                              onClick={() => navigate(`/admin/suppliers/${s.id}`)}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                              title="Ver histórico"
+                              type="button"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+
+                            <button
                               onClick={() => setModal({ open: true, mode: 'edit', supplier: s })}
                               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                              type="button"
                             >
                               <Pencil className="h-4 w-4" />
                               Editar
                             </button>
+
                             <button
                               onClick={() => setSupplierActive(s.id, !s.active)}
                               className={
@@ -282,6 +315,7 @@ export default function SuppliersPage() {
                                   ? 'border border-red-200 bg-white text-red-700 hover:bg-red-50'
                                   : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50')
                               }
+                              type="button"
                             >
                               <Power className="h-4 w-4" />
                               {s.active ? 'Desativar' : 'Ativar'}

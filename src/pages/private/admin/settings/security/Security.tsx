@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import bcrypt from 'bcryptjs';
-import { toast } from 'sonner';
 import { timezoneUtils } from '@/utils/timezoneUtils';
+import { toast } from 'sonner';
 import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
-    RefreshCw, Smartphone, Eye, EyeOff, Settings
+    RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 
@@ -14,6 +14,14 @@ export default function Security() {
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
+
+    const [logFilters, setLogFilters] = useState({
+        dateFrom: '',
+        dateTo: '',
+        user: '',
+        action: '',
+        outcome: ''
+    });
 
     // Store Data
     const [store, setStore] = useState<{
@@ -30,11 +38,11 @@ export default function Security() {
     const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
     const [showPassword, setShowPassword] = useState({ new: false, confirm: false });
 
-    // PIN State (campo de entrada)
+    // PIN State
     const [pinData, setPinData] = useState('');
     const [showPin, setShowPin] = useState(false);
 
-    // 🔹 Configurações Avançadas
+    // Advanced Settings
     const [tokenExpiry, setTokenExpiry] = useState(15);
     const [maxAttempts, setMaxAttempts] = useState(3);
 
@@ -43,7 +51,19 @@ export default function Security() {
     const [loadingLogs, setLoadingLogs] = useState(false);
     const [tableMissing, setTableMissing] = useState(false);
 
-    // --- MODAL DE REAUTENTICAÇÃO (AGORA COM PIN) ---
+    // Store master password
+    const [masterPasswordData, setMasterPasswordData] = useState({
+        loginPassword: '',
+        newMaster: '',
+        confirmMaster: ''
+    });
+    const [showMasterPassword, setShowMasterPassword] = useState({
+        login: false,
+        newMaster: false,
+        confirmMaster: false
+    });
+
+    // PIN auth modal
     const [pinAuthModal, setPinAuthModal] = useState({
         isOpen: false,
         pin: '',
@@ -54,16 +74,54 @@ export default function Security() {
 
     useEffect(() => {
         fetchInitialData();
-        fetchLogs();
     }, []);
 
-    // --- DADOS INICIAIS ---
+    useEffect(() => {
+        if (store?.id) {
+            fetchLogs();
+        }
+    }, [store?.id]);
+
+    useEffect(() => {
+        if (store?.id) {
+            fetchLogs();
+        }
+    }, [
+        store?.id,
+        logFilters.dateFrom,
+        logFilters.dateTo,
+        logFilters.user,
+        logFilters.action,
+        logFilters.outcome
+    ]);
+
+    useEffect(() => {
+        const today = new Date();
+        const from = new Date();
+        from.setDate(today.getDate() - 6);
+
+        const toInput = (d: Date) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        setLogFilters(prev => ({
+            ...prev,
+            dateFrom: prev.dateFrom || toInput(from),
+            dateTo: prev.dateTo || toInput(today)
+        }));
+    }, []);
+
+
+
+    // Initial data
     const fetchInitialData = async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // 1️⃣ Buscar a store do usuário
             const { data: storeDataRaw, error: storeError } = await supabase.rpc(
                 'get_user_store_by_id',
                 { p_user_id: user.id }
@@ -78,7 +136,6 @@ export default function Security() {
 
             if (!userStore?.id) return;
 
-            // 2️⃣ Buscar config administrativa completa
             const { data: adminDataRaw, error: adminError } = await supabase.rpc(
                 'get_store_config_admin',
                 { p_store_id: userStore.id }
@@ -91,39 +148,57 @@ export default function Security() {
                 : adminDataRaw;
 
             if (adminStore) {
-                setStore(adminStore);
-                setPinData(adminStore.stock_password_hash ? '******' : '');
-                setTokenExpiry(adminStore.token_expiry_seconds ?? 15);
-                setMaxAttempts(adminStore.max_token_attempts ?? 3);
-            }
+                const mergedStore = {
+                    ...adminStore,
+                    id: adminStore.id || userStore.id
+                };
 
+                setStore(mergedStore);
+                setPinData(mergedStore.stock_password_hash ? '******' : '');
+                setTokenExpiry(mergedStore.token_expiry_seconds ?? 15);
+                setMaxAttempts(mergedStore.max_token_attempts ?? 3);
+            }
         } catch (error) {
             console.error('Error fetching data:', error);
         } finally {
             setLoading(false);
         }
     };
-    // --- LOGS ---
+
+    // Logs
     const fetchLogs = async () => {
+        if (!store?.id) return;
+
         setLoadingLogs(true);
         setTableMissing(false);
+
         try {
-            const { data, error } = await supabase
-                .from('store_security_logs')
-                .select('*')
-                .order('created_at', { ascending: false })
-                .limit(50);
+            const { data, error } = await supabase.rpc('get_store_security_logs', {
+                p_store_id: store.id,
+                p_limit: 200,
+                p_date_from: logFilters.dateFrom || null,
+                p_date_to: logFilters.dateTo || null,
+                p_user: logFilters.user.trim() || null,
+                p_action: logFilters.action.trim() || null,
+                p_outcome: logFilters.outcome || null
+            });
 
             if (error) {
                 console.error('Logs fetch error:', error);
-                if (error.code === 'PGRST205' || error.message?.includes('store_security_logs')) {
+                if (
+                    error.code === 'PGRST205' ||
+                    error.message?.includes('store_security_logs') ||
+                    error.message?.includes('get_store_security_logs')
+                ) {
                     setTableMissing(true);
                 }
+                setLogs([]);
             } else {
                 setLogs(data || []);
             }
         } catch (e) {
             console.error(e);
+            setLogs([]);
         } finally {
             setLoadingLogs(false);
         }
@@ -134,29 +209,35 @@ export default function Security() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!store?.id || !user) return;
 
-            const { error } = await supabase.from('store_security_logs').insert([{
-                store_id: store.id,
-                user_id: user.id,
-                user_email: user.email,
-                action,
-                details,
-                outcome
-            }]);
+            const { error } = await supabase.rpc('insert_security_log', {
+                p_store_id: store.id,
+                p_user_id: user.id,
+                p_user_email: user.email,
+                p_action: action,
+                p_details: details,
+                p_outcome: outcome
+            });
 
             if (error) throw error;
-            fetchLogs();
+            await fetchLogs();
         } catch (e) {
-            console.error("Failed to log security action:", e);
+            console.error('Failed to log security action:', e);
         }
     };
 
-    // --- SENHA LOGIN ---
+    // Login password
     const handlePasswordChange = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage('');
 
-        if (passwordData.new.length < 6) return setMessage('Erro: A nova senha deve ter pelo menos 6 caracteres.');
-        if (passwordData.new !== passwordData.confirm) return setMessage('Erro: As senhas não conferem.');
+        if (passwordData.new.length < 6) {
+            setMessage('Erro: A nova senha deve ter pelo menos 6 caracteres.');
+            return;
+        }
+        if (passwordData.new !== passwordData.confirm) {
+            setMessage('Erro: As senhas não conferem.');
+            return;
+        }
 
         setSaving(true);
         try {
@@ -174,7 +255,73 @@ export default function Security() {
         }
     };
 
-    // --- PIN ESTOQUE (validação e salvamento) ---
+    // Store master password
+    const handleMasterPasswordReset = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setMessage('');
+
+        if (!store?.id) {
+            setMessage('Erro: Loja não encontrada.');
+            return;
+        }
+
+        if (masterPasswordData.newMaster.trim().length < 6) {
+            setMessage('Erro: A nova senha master deve ter pelo menos 6 caracteres.');
+            return;
+        }
+
+        if (masterPasswordData.newMaster !== masterPasswordData.confirmMaster) {
+            setMessage('Erro: A confirmação da nova senha master não confere.');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            'Deseja redefinir a senha master da loja?\n\nEssa senha será usada em operações sensíveis, como cancelamento de entrada.'
+        );
+        if (!confirmed) return;
+
+        setSaving(true);
+        try {
+            const { data: { user }, error: userError } = await supabase.auth.getUser();
+            if (userError) throw userError;
+            if (!user?.email) throw new Error('Usuário autenticado sem e-mail.');
+
+            const { error: reauthError } = await supabase.auth.signInWithPassword({
+                email: user.email,
+                password: masterPasswordData.loginPassword
+            });
+
+            if (reauthError) {
+                throw new Error('Senha do usuário inválida.');
+            }
+
+            const { error: rpcError } = await supabase.rpc('reset_store_master_password', {
+                p_store_id: store.id,
+                p_new_password: masterPasswordData.newMaster
+            });
+
+            if (rpcError) throw rpcError;
+
+            await fetchInitialData();
+
+            setMessage('Senha master redefinida com sucesso!');
+            setMasterPasswordData({
+                loginPassword: '',
+                newMaster: '',
+                confirmMaster: ''
+            });
+
+            await logAction('Redefinição de Senha Master', {}, 'success');
+        } catch (error: any) {
+            console.error('Master password reset error:', error);
+            setMessage('Erro ao redefinir senha master: ' + error.message);
+            await logAction('Redefinição de Senha Master', { error: error.message }, 'failure');
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    // PIN validation
     const validateStockPin = (pin: string, document: string): string | null => {
         if (!/^\d{6}$/.test(pin)) return 'O PIN deve ter exatamente 6 dígitos numéricos.';
         if ('0123456789'.includes(pin) || '9876543210'.includes(pin)) return 'O PIN não pode ser uma sequência simples.';
@@ -206,7 +353,6 @@ export default function Security() {
         if (!store) return;
         setMessage('');
 
-        // Se for a máscara, não faz nada
         if (pinData === '******') {
             toast.info('Nenhuma alteração no PIN.');
             return;
@@ -217,7 +363,7 @@ export default function Security() {
             setMessage(`Erro no PIN: ${pinError}`);
             return;
         }
-        // Abre modal para confirmar com o PIN ATUAL
+
         setPinAuthModal({ isOpen: true, pin: '', showPin: false, action: 'save_pin', error: '' });
     };
 
@@ -226,23 +372,19 @@ export default function Security() {
         setPinAuthModal({ isOpen: true, pin: '', showPin: false, action: 'unblock', error: '' });
     };
 
-    // --- CONFIGURAÇÕES AVANÇADAS ---
     const handleAdvancedSave = async () => {
         if (!store) return;
         setMessage('');
         setPinAuthModal({ isOpen: true, pin: '', showPin: false, action: 'save_advanced', error: '' });
     };
 
-    // --- VERIFICADOR DE PIN (reutiliza lógica do useStorePassword) ---
     const verifyStockPin = async (plainPin: string): Promise<boolean> => {
         const hash = store?.stock_password_hash;
         if (!hash) {
-            // Nenhum PIN cadastrado – permite ação? Melhor bloquear.
             toast.error('Nenhum PIN cadastrado. Configure um PIN primeiro.');
             return false;
         }
 
-        // Se começa com "$2", é bcrypt
         if (hash.startsWith('$2')) {
             try {
                 return await bcrypt.compare(plainPin, hash);
@@ -250,11 +392,10 @@ export default function Security() {
                 return false;
             }
         }
-        // Fallback para texto puro (legado)
+
         return plainPin === hash;
     };
 
-    // --- SUBMISSÃO DO MODAL DE PIN ---
     const handlePinAuthSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
@@ -268,11 +409,9 @@ export default function Security() {
                 return;
             }
 
-            // --- AÇÕES AUTORIZADAS ---
             if (pinAuthModal.action === 'save_pin') {
                 if (!store) return;
 
-                // 🔐 Gerar hash bcrypt do novo PIN
                 const salt = await bcrypt.genSalt(10);
                 const hashedPin = await bcrypt.hash(pinData, salt);
 
@@ -285,7 +424,7 @@ export default function Security() {
                 setStore({ ...store, stock_password_hash: hashedPin });
                 setMessage('PIN de estoque salvo com sucesso!');
                 await logAction(store.stock_password_hash ? 'Alteração de PIN' : 'Criação de PIN', {}, 'success');
-                setPinData('******'); // restaura máscara após salvar
+                setPinData('******');
 
             } else if (pinAuthModal.action === 'unblock') {
                 if (!store) return;
@@ -313,19 +452,24 @@ export default function Security() {
 
                 setStore({ ...store, token_expiry_seconds: tokenExpiry, max_token_attempts: maxAttempts });
                 setMessage('Configurações avançadas salvas com sucesso!');
-                await logAction('Alteração de Configurações de Token',
-                    { token_expiry: tokenExpiry, max_attempts: maxAttempts }, 'success');
+                await logAction(
+                    'Alteração de Configurações de Token',
+                    { token_expiry: tokenExpiry, max_attempts: maxAttempts },
+                    'success'
+                );
             }
 
-            // Fecha o modal
             setPinAuthModal({ isOpen: false, pin: '', showPin: false, action: null, error: '' });
         } catch (error: any) {
             setMessage('Erro: ' + error.message);
             await logAction(
-                pinAuthModal.action === 'unblock' ? 'Tentativa de Desbloqueio'
-                    : pinAuthModal.action === 'save_pin' ? 'Tentativa de Gravação PIN'
+                pinAuthModal.action === 'unblock'
+                    ? 'Tentativa de Desbloqueio'
+                    : pinAuthModal.action === 'save_pin'
+                        ? 'Tentativa de Gravação PIN'
                         : 'Tentativa de Alteração de Configurações',
-                { error: error.message }, 'failure'
+                { error: error.message },
+                'failure'
             );
         } finally {
             setSaving(false);
@@ -339,22 +483,87 @@ export default function Security() {
         { id: 'advanced', label: 'Configurações Avançadas', icon: Settings },
     ];
 
-    if (loading) return <div className="p-8 flex justify-center"><Loader className="animate-spin text-brand-green" /></div>;
+    const filteredLogs = useMemo(() => {
+        return logs.filter(log => {
+            const createdAt = log.created_at ? new Date(log.created_at) : null;
+
+            if (logFilters.dateFrom) {
+                const from = new Date(`${logFilters.dateFrom}T00:00:00`);
+                if (!createdAt || createdAt < from) return false;
+            }
+
+            if (logFilters.dateTo) {
+                const to = new Date(`${logFilters.dateTo}T23:59:59`);
+                if (!createdAt || createdAt > to) return false;
+            }
+
+            if (logFilters.user.trim()) {
+                const userValue = (log.user_email || '').toLowerCase();
+                if (!userValue.includes(logFilters.user.trim().toLowerCase())) return false;
+            }
+
+            if (logFilters.action.trim()) {
+                const actionValue = (log.action || '').toLowerCase();
+                if (!actionValue.includes(logFilters.action.trim().toLowerCase())) return false;
+            }
+
+            if (logFilters.outcome.trim()) {
+                if ((log.outcome || '') !== logFilters.outcome) return false;
+            }
+
+            return true;
+        });
+    }, [logs, logFilters]);
+
+    const resetLogFilters = () => {
+        const today = new Date();
+        const from = new Date();
+        from.setDate(today.getDate() - 6);
+
+        const toInput = (d: Date) => {
+            const year = d.getFullYear();
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        };
+
+        setLogFilters({
+            dateFrom: toInput(from),
+            dateTo: toInput(today),
+            user: '',
+            action: '',
+            outcome: ''
+        });
+    };
+
+    if (loading) {
+        return (
+            <div className="p-8 flex justify-center">
+                <Loader className="animate-spin text-brand-green" />
+            </div>
+        );
+    }
 
     return (
         <div className="max-w-5xl mx-auto p-4 md:p-8">
             <h1 className="text-3xl font-black text-gray-800 dark:text-gray-100 mb-2">Senhas e Acesso</h1>
-            <p className="text-gray-500 dark:text-gray-400 mb-8">Gerencie suas credenciais de acesso e segurança da loja.</p>
+            <p className="text-gray-500 dark:text-gray-400 mb-8">
+                Gerencie suas credenciais de acesso e segurança da loja.
+            </p>
 
             {message && (
-                <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300' : 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'}`}>
+                <div
+                    className={`p-4 rounded-xl mb-6 flex items-center gap-3 shadow-sm border ${message.includes('Erro')
+                        ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300'
+                        : 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'
+                        }`}
+                >
                     {message.includes('Erro') ? <AlertCircle size={24} /> : <CheckCircle size={24} />}
                     <span className="font-medium">{message}</span>
                 </div>
             )}
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                {/* Tabs Header */}
                 <div className="flex border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
                     {tabs.map(tab => (
                         <button
@@ -372,7 +581,6 @@ export default function Security() {
                 </div>
 
                 <div className="p-6 md:p-8">
-                    {/* --- MODAL DE AUTENTICAÇÃO COM PIN --- */}
                     {pinAuthModal.isOpen && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                             <div className="bg-white dark:bg-gray-900 w-full max-w-md p-6 rounded-2xl shadow-xl animate-zoomIn">
@@ -381,38 +589,62 @@ export default function Security() {
                                     Autorização com PIN de Estoque
                                 </h3>
                                 <p className="text-gray-500 mb-4">
-                                    Digite o PIN de estoque para {pinAuthModal.action === 'save_pin' ? 'alterar/cadastrar o PIN' :
-                                        pinAuthModal.action === 'unblock' ? 'desbloquear o PIN' :
-                                            'salvar as configurações avançadas'}.
+                                    Digite o PIN de estoque para{' '}
+                                    {pinAuthModal.action === 'save_pin'
+                                        ? 'alterar/cadastrar o PIN'
+                                        : pinAuthModal.action === 'unblock'
+                                            ? 'desbloquear o PIN'
+                                            : 'salvar as configurações avançadas'}
+                                    .
                                 </p>
+
                                 <form onSubmit={handlePinAuthSubmit}>
                                     <div className="relative mb-4">
                                         <input
-                                            type={pinAuthModal.showPin ? "text" : "password"}
+                                            type={pinAuthModal.showPin ? 'text' : 'password'}
                                             placeholder="PIN de 6 dígitos"
                                             className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white pr-10 font-mono tracking-widest"
                                             value={pinAuthModal.pin}
-                                            onChange={e => setPinAuthModal({ ...pinAuthModal, pin: e.target.value.replace(/\D/g, '').slice(0, 6) })}
+                                            onChange={e =>
+                                                setPinAuthModal({
+                                                    ...pinAuthModal,
+                                                    pin: e.target.value.replace(/\D/g, '').slice(0, 6)
+                                                })
+                                            }
                                             maxLength={6}
                                             autoFocus
                                             required
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => setPinAuthModal({ ...pinAuthModal, showPin: !pinAuthModal.showPin })}
+                                            onClick={() =>
+                                                setPinAuthModal({ ...pinAuthModal, showPin: !pinAuthModal.showPin })
+                                            }
                                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                                             tabIndex={-1}
                                         >
                                             {pinAuthModal.showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                         </button>
                                     </div>
+
                                     {pinAuthModal.error && (
-                                        <p className="text-sm text-red-600 dark:text-red-400 mb-4">{pinAuthModal.error}</p>
+                                        <p className="text-sm text-red-600 dark:text-red-400 mb-4">
+                                            {pinAuthModal.error}
+                                        </p>
                                     )}
+
                                     <div className="flex gap-2 justify-end">
                                         <button
                                             type="button"
-                                            onClick={() => setPinAuthModal({ isOpen: false, pin: '', showPin: false, action: null, error: '' })}
+                                            onClick={() =>
+                                                setPinAuthModal({
+                                                    isOpen: false,
+                                                    pin: '',
+                                                    showPin: false,
+                                                    action: null,
+                                                    error: ''
+                                                })
+                                            }
                                             className="px-4 py-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg font-bold"
                                             disabled={saving}
                                         >
@@ -432,11 +664,17 @@ export default function Security() {
                         </div>
                     )}
 
-                    {/* --- ABA: LOGS --- */}
+                    {/* LOGS */}
                     <div className={activeTab === 'logs' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-bold text-gray-800 dark:text-white">Registro de Atividades</h3>
-                            <button onClick={fetchLogs} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500" title="Atualizar">
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                Registro de Atividades
+                            </h3>
+                            <button
+                                onClick={fetchLogs}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500"
+                                title="Atualizar"
+                            >
                                 <RefreshCw size={16} className={loadingLogs ? 'animate-spin' : ''} />
                             </button>
                         </div>
@@ -466,6 +704,60 @@ export default function Security() {
                             </div>
                         )}
 
+
+
+                        <div className="mb-4 flex flex-col gap-3">
+                            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                                <input
+                                    type="date"
+                                    value={logFilters.dateFrom}
+                                    onChange={e => setLogFilters(prev => ({ ...prev, dateFrom: e.target.value }))}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                />
+                                <input
+                                    type="date"
+                                    value={logFilters.dateTo}
+                                    onChange={e => setLogFilters(prev => ({ ...prev, dateTo: e.target.value }))}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Filtrar por usuário"
+                                    value={logFilters.user}
+                                    onChange={e => setLogFilters(prev => ({ ...prev, user: e.target.value }))}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Filtrar por ação"
+                                    value={logFilters.action}
+                                    onChange={e => setLogFilters(prev => ({ ...prev, action: e.target.value }))}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                />
+                                <select
+                                    value={logFilters.outcome}
+                                    onChange={e => setLogFilters(prev => ({ ...prev, outcome: e.target.value }))}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                >
+                                    <option value="">Todos os resultados</option>
+                                    <option value="success">Sucesso</option>
+                                    <option value="failure">Falha</option>
+                                </select>
+                            </div>
+
+                            <div className="flex justify-end">
+                                <button
+                                    type="button"
+                                    onClick={resetLogFilters}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                                >
+                                    <Filter size={16} />
+                                    Limpar filtros
+                                </button>
+                            </div>
+                        </div>
+
+
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
@@ -477,26 +769,39 @@ export default function Security() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                    {logs.length === 0 ? (
+                                    {filteredLogs.length === 0 ? (
                                         <tr>
                                             <td colSpan={4} className="p-8 text-center text-gray-400">
-                                                {loadingLogs ? 'Carregando...' : 'Nenhuma atividade registrada recentemente.'}
-                                                {!loadingLogs && <p className="text-xs mt-2 text-yellow-500">Se atividades não aparecem após ações, verifique se a tabela 'store_security_logs' existe no banco de dados.</p>}
+                                                {loadingLogs ? 'Carregando...' : 'Nenhuma atividade encontrada para os filtros aplicados.'}
+                                                {!loadingLogs && (
+                                                    <p className="text-xs mt-2 text-yellow-500">
+                                                        Se atividades não aparecem após ações, verifique se a tabela
+                                                        {' '}store_security_logs existe no banco de dados.
+                                                    </p>
+                                                )}
                                             </td>
                                         </tr>
                                     ) : (
-                                        logs.map(log => (
+                                        filteredLogs.map(log => (
                                             <tr key={log.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                                 <td className="p-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                                                     {timezoneUtils.formatBrazilDateTime(log.created_at)}
                                                 </td>
-                                                <td className="p-3 font-medium text-gray-700 dark:text-gray-300">{log.user_email}</td>
-                                                <td className="p-3 text-gray-800 dark:text-gray-200">{log.action}</td>
+                                                <td className="p-3 font-medium text-gray-700 dark:text-gray-300">
+                                                    {log.user_email}
+                                                </td>
+                                                <td className="p-3 text-gray-800 dark:text-gray-200">
+                                                    {log.action}
+                                                </td>
                                                 <td className="p-3">
                                                     {log.outcome === 'success' ? (
-                                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">Sucesso</span>
+                                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs font-bold">
+                                                            Sucesso
+                                                        </span>
                                                     ) : (
-                                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">Falha</span>
+                                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs font-bold">
+                                                            Falha
+                                                        </span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -507,15 +812,20 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* --- ABA: LOGIN PASSWORD --- */}
+                    {/* LOGIN PASSWORD */}
                     <div className={activeTab === 'login' ? 'block animate-fadeIn' : 'hidden'}>
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Alterar Senha do Sistema</h3>
+                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
+                            Alterar Senha do Sistema
+                        </h3>
+
                         <form onSubmit={handlePasswordChange} className="max-w-md space-y-4">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nova Senha</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                    Nova Senha
+                                </label>
                                 <div className="relative">
                                     <input
-                                        type={showPassword.new ? "text" : "password"}
+                                        type={showPassword.new ? 'text' : 'password'}
                                         value={passwordData.new}
                                         onChange={e => setPasswordData({ ...passwordData, new: e.target.value })}
                                         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
@@ -531,11 +841,14 @@ export default function Security() {
                                     </button>
                                 </div>
                             </div>
+
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Confirmar Nova Senha</label>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                    Confirmar Nova Senha
+                                </label>
                                 <div className="relative">
                                     <input
-                                        type={showPassword.confirm ? "text" : "password"}
+                                        type={showPassword.confirm ? 'text' : 'password'}
                                         value={passwordData.confirm}
                                         onChange={e => setPasswordData({ ...passwordData, confirm: e.target.value })}
                                         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
@@ -544,26 +857,155 @@ export default function Security() {
                                     <button
                                         type="button"
                                         onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                                     >
                                         {showPassword.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
                                     </button>
                                 </div>
                             </div>
+
                             <div className="pt-4">
                                 <button
                                     type="submit"
                                     disabled={saving || !passwordData.new}
-                                    className="flex items-center gap-2 bg-brand-green text-white px-6 py-3 rounded-lg font-bold hover:brightness-90 transition disabled:opacity-50"
+                                    className="flex items-center gap-2 bg-brand-green text-white px-6 py-3 rounded-lg font-bold hover:brightness-90 transition disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-700"
                                 >
                                     {saving ? <Loader size={20} className="animate-spin" /> : <Save size={20} />}
                                     Atualizar Senha
                                 </button>
                             </div>
                         </form>
+
+                        <div className="mt-8 border-t border-gray-100 pt-8 dark:border-gray-700">
+                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">
+                                Redefinir Senha Master da Loja
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                                Essa senha é usada em operações sensíveis, como cancelamento de entrada confirmada.
+                            </p>
+
+                            <form onSubmit={handleMasterPasswordReset} className="max-w-md space-y-4">
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Senha do usuário
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type={showMasterPassword.login ? 'text' : 'password'}
+                                            value={masterPasswordData.loginPassword}
+                                            onChange={e =>
+                                                setMasterPasswordData({
+                                                    ...masterPasswordData,
+                                                    loginPassword: e.target.value
+                                                })
+                                            }
+                                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                            placeholder="Digite sua senha do login"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowMasterPassword(prev => ({ ...prev, login: !prev.login }))
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                        >
+                                            {showMasterPassword.login ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Nova senha master
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type={showMasterPassword.newMaster ? 'text' : 'password'}
+                                            value={masterPasswordData.newMaster}
+                                            onChange={e =>
+                                                setMasterPasswordData({
+                                                    ...masterPasswordData,
+                                                    newMaster: e.target.value
+                                                })
+                                            }
+                                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                            placeholder="Mínimo 6 caracteres"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowMasterPassword(prev => ({
+                                                    ...prev,
+                                                    newMaster: !prev.newMaster
+                                                }))
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                        >
+                                            {showMasterPassword.newMaster ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                        Confirmar nova senha master
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type={showMasterPassword.confirmMaster ? 'text' : 'password'}
+                                            value={masterPasswordData.confirmMaster}
+                                            onChange={e =>
+                                                setMasterPasswordData({
+                                                    ...masterPasswordData,
+                                                    confirmMaster: e.target.value
+                                                })
+                                            }
+                                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                            placeholder="Repita a nova senha"
+                                            required
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setShowMasterPassword(prev => ({
+                                                    ...prev,
+                                                    confirmMaster: !prev.confirmMaster
+                                                }))
+                                            }
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                        >
+                                            {showMasterPassword.confirmMaster ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                                    Essa senha será exigida em operações críticas da loja. Guarde-a em local seguro.
+                                </div>
+
+                                <div className="pt-2">
+                                    <button
+                                        type="submit"
+                                        disabled={
+                                            saving ||
+                                            !masterPasswordData.loginPassword.trim() ||
+                                            !masterPasswordData.newMaster.trim() ||
+                                            !masterPasswordData.confirmMaster.trim()
+                                        }
+                                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-60"
+                                    >
+                                        {saving && <Loader size={16} className="animate-spin" />}
+                                        <Lock size={16} />
+                                        Redefinir Senha Master
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
 
-                    {/* --- ABA: STOCK PIN --- */}
+                    {/* PIN */}
                     <div className={activeTab === 'pin' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 p-6 rounded-xl">
                             <div className="flex items-start gap-4">
@@ -571,7 +1013,9 @@ export default function Security() {
                                     <Lock size={24} />
                                 </div>
                                 <div className="flex-1">
-                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">PIN de Segurança</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
+                                        PIN de Segurança
+                                    </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
                                         Este PIN é utilizado para autorizar funções específicas do sistema, que exigem segurança.
                                         Mantenha-o seguro.
@@ -602,7 +1046,7 @@ export default function Security() {
                                             <div className="flex flex-col md:flex-row gap-4 items-center">
                                                 <div className="relative flex-1">
                                                     <input
-                                                        type={showPin ? "text" : "password"}
+                                                        type={showPin ? 'text' : 'password'}
                                                         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.5em] text-center font-bold text-xl pr-10"
                                                         value={pinData}
                                                         onChange={e => setPinData(e.target.value.replace(/\D/g, '').slice(0, 6))}
@@ -620,15 +1064,13 @@ export default function Security() {
                                                     <button
                                                         type="button"
                                                         onClick={() => {
-                                                            // Alterna a visibilidade
                                                             setShowPin(!showPin);
-                                                            // Registra log apenas se houver PIN digitado e estiver revelando
                                                             if (pinData.length > 0 && !showPin) {
                                                                 logAction('Visualização de PIN', { field: 'pin_input' }, 'success').catch(console.error);
                                                             }
                                                         }}
                                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
-                                                        title={showPin ? "Ocultar PIN" : "Mostrar PIN"}
+                                                        title={showPin ? 'Ocultar PIN' : 'Mostrar PIN'}
                                                     >
                                                         {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                                     </button>
@@ -642,8 +1084,10 @@ export default function Security() {
                                                         <span className="block mb-1">Defina um PIN de 6 números.</span>
                                                     )}
                                                     <span className="opacity-75">
-                                                        * 6 números<br />
-                                                        * Sem sequências<br />
+                                                        * 6 números
+                                                        <br />
+                                                        * Sem sequências
+                                                        <br />
                                                         * Sem repetições
                                                     </span>
                                                 </div>
@@ -664,7 +1108,7 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* --- 🔹 NOVA ABA: CONFIGURAÇÕES AVANÇADAS --- */}
+                    {/* ADVANCED */}
                     <div className={activeTab === 'advanced' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 p-6 rounded-xl">
                             <div className="flex items-start gap-4">
@@ -677,10 +1121,10 @@ export default function Security() {
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
                                         Ajuste o tempo de expiração e o número máximo de tentativas do token usado para excluir/descontinuar produtos.
-                                        <br />As alterações exigem o PIN de segurança.
+                                        <br />
+                                        As alterações exigem o PIN de segurança.
                                     </p>
 
-                                    {/* Slider: Tempo de expiração */}
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -706,7 +1150,6 @@ export default function Security() {
                                         </div>
                                     </div>
 
-                                    {/* Slider: Máximo de tentativas */}
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -732,14 +1175,13 @@ export default function Security() {
                                         </div>
                                     </div>
 
-                                    {/* Botão Salvar */}
                                     <div className="mt-6 pt-4 border-t border-purple-200 dark:border-purple-800/30 flex justify-end">
                                         <button
                                             type="button"
                                             onClick={handleAdvancedSave}
                                             disabled={saving || !store?.stock_password_hash}
                                             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title={!store?.stock_password_hash ? "Configure um PIN de segurança primeiro" : ""}
+                                            title={!store?.stock_password_hash ? 'Configure um PIN de segurança primeiro' : ''}
                                         >
                                             {saving ? <Loader size={20} className="animate-spin" /> : <Save size={20} />}
                                             Salvar configurações
