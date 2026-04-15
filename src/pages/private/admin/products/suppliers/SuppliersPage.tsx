@@ -6,6 +6,7 @@ import {
   Power,
   Package,
   Activity,
+  BarChart3,
   Eye,
   Download,
   FileText,
@@ -431,7 +432,7 @@ export default function SuppliersPage() {
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3 xl:w-auto">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 xl:w-auto">
             <select
               value={operationalFilter}
               onChange={(e) =>
@@ -465,6 +466,15 @@ export default function SuppliersPage() {
             >
               <Download className="h-4 w-4" />
               Exportar CSV
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate('/admin/stock/purchase-insights')}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Dashboard de compras
             </button>
           </div>
         </div>

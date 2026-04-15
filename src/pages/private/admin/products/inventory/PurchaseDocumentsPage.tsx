@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  BarChart3,
   CheckCircle2,
   Download,
   Eye,
@@ -48,6 +49,15 @@ type PurchaseDocumentItemInput = {
   product_id: string;
   quantity: number;
   unit_cost: number | null;
+};
+
+type PurchaseDocumentItemRow = {
+  id: string;
+  purchase_document_id: string;
+  product_id: string;
+  quantity: number;
+  unit_cost: number | null;
+  total_cost: number | null;
 };
 
 type StoreLike = { id: string };
@@ -96,6 +106,8 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 };
 
 export default function PurchaseDocumentsPage() {
+  const navigate = useNavigate();
+
   const { products: inventoryProducts } = useInventory();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -105,6 +117,7 @@ export default function PurchaseDocumentsPage() {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [documents, setDocuments] = useState<PurchaseDocument[]>([]);
+  const [documentItems, setDocumentItems] = useState<PurchaseDocumentItemRow[]>([]);
   const [pageError, setPageError] = useState<string | null>(null);
 
   const [draftOpen, setDraftOpen] = useState(false);
@@ -134,6 +147,7 @@ export default function PurchaseDocumentsPage() {
     dateTo: '',
     status: '',
     supplierId: searchParams.get('supplier_id') || '',
+    productId: searchParams.get('product_id') || '',
     invoiceNumber: '',
   });
 
@@ -149,6 +163,26 @@ export default function PurchaseDocumentsPage() {
   const productMap = useMemo(() => {
     return new Map(products.map((p) => [p.id, p]));
   }, [products]);
+
+  const itemsByDocument = useMemo(() => {
+    const map = new Map<string, PurchaseDocumentItemRow[]>();
+
+    documentItems.forEach((item) => {
+      const current = map.get(item.purchase_document_id) ?? [];
+      current.push(item);
+      map.set(item.purchase_document_id, current);
+    });
+
+    return map;
+  }, [documentItems]);
+
+  const productName = useCallback(
+    (id: string | null) => {
+      if (!id) return '—';
+      return productMap.get(id)?.name ?? '—';
+    },
+    [productMap],
+  );
 
   const supplierName = useCallback(
     (id: string | null) => {
@@ -180,6 +214,12 @@ export default function PurchaseDocumentsPage() {
         if ((doc.supplier_id || '') !== filters.supplierId) return false;
       }
 
+      if (filters.productId.trim()) {
+        const docItems = itemsByDocument.get(doc.id) ?? [];
+        const hasProduct = docItems.some((item) => item.product_id === filters.productId);
+        if (!hasProduct) return false;
+      }
+
       if (filters.invoiceNumber.trim()) {
         const invoice = (doc.invoice_number || '').toLowerCase();
         if (!invoice.includes(filters.invoiceNumber.trim().toLowerCase())) return false;
@@ -187,22 +227,32 @@ export default function PurchaseDocumentsPage() {
 
       return true;
     });
-  }, [documents, filters]);
+  }, [documents, filters, itemsByDocument]);
 
   const exportFilteredDocumentsCsv = useCallback(() => {
     if (!filteredDocuments.length) return;
 
-    const rows = filteredDocuments.map((doc) => ({
-      id: doc.id,
-      numero_documento: doc.invoice_number?.trim() || doc.id,
-      emissao: doc.issue_date ?? '',
-      status: doc.status ?? '',
-      fornecedor_id: doc.supplier_id ?? '',
-      fornecedor: suppliers.find((s) => s.id === doc.supplier_id)?.name ?? '',
-      total: formatCsvNumberBR(doc.total_amount ?? 0),
-      criado_em: doc.created_at ?? '',
-      observacoes: doc.notes ?? '',
-    }));
+    const rows = filteredDocuments.map((doc) => {
+      const docItems = itemsByDocument.get(doc.id) ?? [];
+      const productSummary = docItems
+        .map((item) => `${productName(item.product_id)} x ${formatCsvNumberBR(item.quantity ?? 0)}`)
+        .join(' | ');
+
+      return {
+        id: doc.id,
+        numero_documento: doc.invoice_number?.trim() || doc.id,
+        emissao: doc.issue_date ?? '',
+        status: doc.status ?? '',
+        fornecedor_id: doc.supplier_id ?? '',
+        fornecedor: suppliers.find((s) => s.id === doc.supplier_id)?.name ?? '',
+        produto_id_filtrado: filters.productId || '',
+        produto_filtrado: filters.productId ? productName(filters.productId) : '',
+        itens: productSummary,
+        total: formatCsvNumberBR(doc.total_amount ?? 0),
+        criado_em: doc.created_at ?? '',
+        observacoes: doc.notes ?? '',
+      };
+    });
 
     const csv = buildCsv(rows, [
       'id',
@@ -211,6 +261,9 @@ export default function PurchaseDocumentsPage() {
       'status',
       'fornecedor_id',
       'fornecedor',
+      'produto_id_filtrado',
+      'produto_filtrado',
+      'itens',
       'total',
       'criado_em',
       'observacoes',
@@ -218,7 +271,7 @@ export default function PurchaseDocumentsPage() {
 
     const dateSuffix = new Date().toISOString().slice(0, 10);
     downloadCsv(`documentos_compra_${dateSuffix}.csv`, csv);
-  }, [filteredDocuments, suppliers]);
+  }, [filteredDocuments, suppliers, itemsByDocument, filters.productId, productName]);
 
   const stats = useMemo(() => {
     const drafts = filteredDocuments.filter((d) => d.status === 'draft').length;
@@ -236,11 +289,13 @@ export default function PurchaseDocumentsPage() {
       dateTo: '',
       status: '',
       supplierId: '',
+      productId: '',
       invoiceNumber: '',
     });
 
     const next = new URLSearchParams(searchParams);
     next.delete('supplier_id');
+    next.delete('product_id');
     next.delete('open');
     setSearchParams(next, { replace: true });
     setAutoOpenedDocId(null);
@@ -280,25 +335,34 @@ export default function PurchaseDocumentsPage() {
 
       setStoreId(store.id);
 
-      const [{ data: sData, error: sErr }, { data: dData, error: dErr }] =
-        await Promise.all([
-          supabase
-            .from('suppliers')
-            .select('*')
-            .eq('store_id', store.id)
-            .order('name', { ascending: true }),
-          supabase
-            .from('purchase_documents')
-            .select('*')
-            .eq('store_id', store.id)
-            .order('created_at', { ascending: false }),
-        ]);
+      const [
+        { data: sData, error: sErr },
+        { data: dData, error: dErr },
+        { data: iData, error: iErr },
+      ] = await Promise.all([
+        supabase
+          .from('suppliers')
+          .select('*')
+          .eq('store_id', store.id)
+          .order('name', { ascending: true }),
+        supabase
+          .from('purchase_documents')
+          .select('*')
+          .eq('store_id', store.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('purchase_document_items')
+          .select('id, purchase_document_id, product_id, quantity, unit_cost, total_cost')
+          .eq('store_id', store.id),
+      ]);
 
       if (sErr) throw sErr;
       if (dErr) throw dErr;
+      if (iErr) throw iErr;
 
       setSuppliers((sData ?? []) as Supplier[]);
       setDocuments((dData ?? []) as PurchaseDocument[]);
+      setDocumentItems((iData ?? []) as PurchaseDocumentItemRow[]);
     } catch (e: unknown) {
       console.error('Error loading purchase documents:', e);
       const message =
@@ -416,12 +480,38 @@ export default function PurchaseDocumentsPage() {
 
   useEffect(() => {
     const supplierIdFromUrl = searchParams.get('supplier_id') || '';
+    const productIdFromUrl = searchParams.get('product_id') || '';
+
     setFilters((prev) =>
-      prev.supplierId === supplierIdFromUrl
+      prev.supplierId === supplierIdFromUrl && prev.productId === productIdFromUrl
         ? prev
-        : { ...prev, supplierId: supplierIdFromUrl },
+        : { ...prev, supplierId: supplierIdFromUrl, productId: productIdFromUrl },
     );
   }, [searchParams]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(searchParams);
+    const currentSupplierId = next.get('supplier_id') || '';
+    const currentProductId = next.get('product_id') || '';
+
+    let changed = false;
+
+    if (filters.supplierId !== currentSupplierId) {
+      if (filters.supplierId) next.set('supplier_id', filters.supplierId);
+      else next.delete('supplier_id');
+      changed = true;
+    }
+
+    if (filters.productId !== currentProductId) {
+      if (filters.productId) next.set('product_id', filters.productId);
+      else next.delete('product_id');
+      changed = true;
+    }
+
+    if (changed) {
+      setSearchParams(next, { replace: true });
+    }
+  }, [filters.supplierId, filters.productId, searchParams, setSearchParams]);
 
   const createOrUpdateDraft = useCallback(async () => {
     if (!storeId) return;
@@ -653,13 +743,23 @@ export default function PurchaseDocumentsPage() {
       title="Entradas por Documento"
       subtitle="Lance vários itens em uma única nota e confirme a entrada depois da revisão"
       action={
-        <Link
-          to="/admin/stock-movements"
-          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar para movimentações
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/admin/stock-movements"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Voltar para movimentações
+          </Link>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/stock/purchase-insights')}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <BarChart3 className="h-4 w-4" />
+            Dashboard de compras
+          </button>
+        </div>
       }
     >
       {pageError ? (
@@ -714,21 +814,22 @@ export default function PurchaseDocumentsPage() {
                   Exportar CSV
                 </button>
 
-                {searchParams.get('supplier_id') ? (
+                {searchParams.get('supplier_id') || searchParams.get('product_id') ? (
                   <button
                     type="button"
                     onClick={() => {
                       const next = new URLSearchParams(searchParams);
                       next.delete('supplier_id');
+                      next.delete('product_id');
                       next.delete('open');
                       setSearchParams(next, { replace: true });
                       setAutoOpenedDocId(null);
-                      setFilters((prev) => ({ ...prev, supplierId: '' }));
+                      setFilters((prev) => ({ ...prev, supplierId: '', productId: '' }));
                     }}
                     className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
                     <XCircle className="h-4 w-4" />
-                    Limpar filtro de fornecedor
+                    Limpar filtros de contexto
                   </button>
                 ) : null}
               </div>
@@ -741,7 +842,7 @@ export default function PurchaseDocumentsPage() {
                     Filtros
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">
-                    Combine data, status, fornecedor e documento.
+                    Combine data, status, fornecedor, produto e documento.
                   </div>
                 </div>
 
@@ -755,7 +856,7 @@ export default function PurchaseDocumentsPage() {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                     Data inicial
@@ -824,6 +925,26 @@ export default function PurchaseDocumentsPage() {
 
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Produto
+                  </label>
+                  <select
+                    value={filters.productId}
+                    onChange={(e) =>
+                      setFilters((prev) => ({ ...prev, productId: e.target.value }))
+                    }
+                    className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                  >
+                    <option value="">Todos</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">
                     Documento / Nota
                   </label>
                   <input
@@ -843,6 +964,12 @@ export default function PurchaseDocumentsPage() {
           {searchParams.get('supplier_id') ? (
             <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
               Exibindo entradas do fornecedor <b>{supplierName(searchParams.get('supplier_id'))}</b>.
+            </div>
+          ) : null}
+
+          {searchParams.get('product_id') ? (
+            <div className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-800 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-200">
+              Exibindo entradas do produto <b>{productName(searchParams.get('product_id'))}</b>.
             </div>
           ) : null}
 
@@ -1223,7 +1350,12 @@ export default function PurchaseDocumentsPage() {
                     </div>
 
                     <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">
-                      {doc.invoice_number || '—'}
+                      <div>{doc.invoice_number || '—'}</div>
+                      {filters.productId ? (
+                        <div className="mt-0.5 text-xs text-purple-600 dark:text-purple-300">
+                          Produto filtrado: {productName(filters.productId)}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">
