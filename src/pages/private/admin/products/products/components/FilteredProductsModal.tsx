@@ -40,11 +40,19 @@ export default function FilteredProductsModal({
         useReactToPrint({ contentRef: printRef }) :
         () => window.print(); // fallback
 
+    const getProductInventory = (product: Product) => {
+        const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
+        const reserved = product.display_reserved ?? 0;
+        const available = product.display_available ?? product.stock_quantity ?? 0;
+        return { onHand, reserved, available };
+    };
+
     const getStockStatusLabel = (product: Product) => {
+        const { onHand, available } = getProductInventory(product);
         if (!product.active) return 'inativo';
-        if (product.stock_quantity === 0) return 'zerado';
-        if (product.stock_quantity <= product.min_stock) return 'baixo';
-        if (product.stock_quantity > product.max_stock) return 'excesso';
+        if (available <= 0) return 'zerado';
+        if (available <= product.min_stock) return 'baixo';
+        if (onHand > product.max_stock) return 'excesso';
         return 'normal';
     };
 
@@ -199,7 +207,14 @@ export default function FilteredProductsModal({
                                                             {product.name}
                                                         </div>
                                                         <div className="flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-                                                            <span>Estoque: {product.stock_quantity ?? 0}</span>
+                                                            {(() => {
+                                                                const { onHand, reserved, available } = getProductInventory(product);
+                                                                return (
+                                                                    <span>
+                                                                        Disponível: {available} • Físico: {onHand} • Reservado: {reserved}
+                                                                    </span>
+                                                                );
+                                                            })()}
                                                             <span>
                                                                 Preço: {product.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                                             </span>

@@ -32,7 +32,11 @@ const Legal = lazy(() => import('@/pages/private/admin/support/Legal'));
 const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));
 const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/Appearance'));
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
-const Inventory = lazy(() => import('@/pages/private/admin/products/Inventory'));
+const InventoryByLocationPage = lazy(() => import('@/pages/private/admin/products/inventory/InventoryByLocationPage'));
+const TransfersPage = lazy(() => import('@/pages/private/admin/products/inventory/TransfersPage'));
+const TransferDetailPage = lazy(() => import('@/pages/private/admin/products/inventory/TransferDetailPage'));
+const ProductLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/ProductLifecyclePage'));
+const ProductLifecycleSelectorPage = lazy(() => import('@/pages/private/admin/products/inventory/ProductLifecycleSelectorPage'));
 const StockMovements = lazy(() => import('@/pages/private/admin/products/inventory/StockMovements'));
 const PurchasesLedger = lazy(() => import('@/pages/private/admin/products/inventory/PurchasesLedger'));
 const PurchaseDocumentsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseDocumentsPage'));
@@ -93,7 +97,11 @@ export default function AppRoutes() {
             <Route path="/admin/legal" element={<Legal />} />
             <Route path="/admin/faq" element={<FAQ />} />
             <Route path="/admin/config" element={<Appearance />} />
-            <Route path="/admin/inventory" element={<Inventory />} />
+            <Route path="/admin/inventory" element={<InventoryByLocationPage />} />
+            <Route path="/admin/transfers" element={<TransfersPage />} />
+            <Route path="/admin/transfers/:id" element={<TransferDetailPage />} />
+            <Route path="/admin/products/lifecycle" element={<ProductLifecycleSelectorPage />} />
+            <Route path="/admin/products/:id/lifecycle" element={<ProductLifecyclePage />} />
             <Route path="/admin/stock-movements" element={<StockMovements />} />
             <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
             <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />

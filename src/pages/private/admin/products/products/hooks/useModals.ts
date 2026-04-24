@@ -26,22 +26,26 @@ export const useModals = (products: Product[]) => {
     const stats = useMemo<ProductStats>(() => {
         const total = products.length;
         const activeProducts = products.filter((p) => p.active);
-        const inactiveProducts = products.filter((p) => !p.active);
 
         const totalActive = activeProducts.length;
-        const totalInactive = inactiveProducts.length;
+        const totalInactive = products.filter((p) => !p.active).length;
 
         const totalValue = activeProducts.reduce(
-            (acc, p) => acc + (p.price * (p.stock_quantity || 0)),
+            (acc, p) => acc + (p.price * (p.display_on_hand ?? p.stock_quantity ?? 0)),
             0
         );
 
-        const zeroStockProducts = activeProducts.filter((p) => p.stock_quantity === 0);
-        const lowStockProducts = activeProducts.filter(
-            (p) => p.stock_quantity > 0 && p.stock_quantity <= p.min_stock
+        const zeroStockProducts = activeProducts.filter(
+            (p) => (p.display_available ?? p.stock_quantity ?? 0) <= 0
         );
+
+        const lowStockProducts = activeProducts.filter((p) => {
+            const available = p.display_available ?? p.stock_quantity ?? 0;
+            return available > 0 && available <= p.min_stock;
+        });
+
         const highStockProducts = activeProducts.filter(
-            (p) => p.stock_quantity > p.max_stock
+            (p) => (p.display_on_hand ?? p.stock_quantity ?? 0) > p.max_stock
         );
 
         return {

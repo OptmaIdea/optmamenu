@@ -1,4 +1,11 @@
-import { AlertCircle, AlertTriangle, ArrowUp, CheckCircle, XCircle, MoreVertical } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowUp,
+  CheckCircle,
+  XCircle,
+  MoreVertical,
+} from 'lucide-react';
 import type { Product } from '../types/product.types';
 import ProductThumb from '@/pages/private/admin/products/products/components/ProductThumb';
 
@@ -9,47 +16,40 @@ interface ProductRowProps {
 }
 
 export default function ProductRow({ product, onActionClick, deletingId }: ProductRowProps) {
-  // Determine stock status
+  const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
+  const reserved = product.display_reserved ?? 0;
+  const available = product.display_available ?? product.stock_quantity ?? 0;
+
   const getInventoryStatus = (p: Product) => {
+    const currentAvailable = p.display_available ?? p.stock_quantity ?? 0;
+    const currentOnHand = p.display_on_hand ?? p.stock_quantity ?? 0;
+
     if (!p.active) return 'inactive';
-    if (p.stock_quantity === 0) return 'zero';
-    if (p.stock_quantity <= p.min_stock) return 'low';
-    if (p.stock_quantity > p.max_stock) return 'high';
+    if (currentAvailable <= 0) return 'zero';
+    if (currentAvailable <= p.min_stock) return 'low';
+    if (currentOnHand > p.max_stock) return 'high';
     return 'normal';
-  };[{
-    "resource": "/d:/optmamenusys/src/pages/private/admin/products/products/hooks/useModals.ts",
-    "owner": "typescript",
-    "code": "6133",
-    "severity": 4,
-    "message": "'inactiveProducts' is declared but its value is never read.",
-    "source": "ts",
-    "startLineNumber": 29,
-    "startColumn": 15,
-    "endLineNumber": 29,
-    "endColumn": 31,
-    "tags": [
-      1
-    ],
-    "origin": "extHost1"
-  }]
+  };
 
   const stockStatus = getInventoryStatus(product);
 
-  // Row background based on status
   let rowBgClass = '';
   if (!product.active) {
-    rowBgClass = 'bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100/80 dark:hover:bg-gray-700/50';
+    rowBgClass =
+      'bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100/80 dark:hover:bg-gray-700/50';
   } else if (stockStatus === 'zero') {
-    rowBgClass = 'bg-red-50/80 dark:bg-red-950/20 hover:bg-red-100/80 dark:hover:bg-red-900/30';
+    rowBgClass =
+      'bg-red-50/80 dark:bg-red-950/20 hover:bg-red-100/80 dark:hover:bg-red-900/30';
   } else if (stockStatus === 'low') {
-    rowBgClass = 'bg-yellow-50/80 dark:bg-yellow-950/20 hover:bg-yellow-100/80 dark:hover:bg-yellow-900/30';
+    rowBgClass =
+      'bg-yellow-50/80 dark:bg-yellow-950/20 hover:bg-yellow-100/80 dark:hover:bg-yellow-900/30';
   } else if (stockStatus === 'high') {
-    rowBgClass = 'bg-purple-50/80 dark:bg-purple-950/20 hover:bg-purple-100/80 dark:hover:bg-purple-900/30';
+    rowBgClass =
+      'bg-purple-50/80 dark:bg-purple-950/20 hover:bg-purple-100/80 dark:hover:bg-purple-900/30';
   } else {
     rowBgClass = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
   }
 
-  // Format price
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -57,17 +57,16 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
 
   return (
     <tr className={`transition-colors ${rowBgClass}`}>
-      {/* Product column - sticky on mobile */}
       <td
         className="
-    px-4 py-2.5
-    sticky left-0 z-30            /* ← z-30 para ficar acima de outros elementos */
-    bg-inherit                   /* ← herda a cor de fundo da linha */
-    before:content-['']          /* ← borda direita simulada */
-    before:absolute before:top-0 before:right-0 before:h-full before:w-px
-    before:bg-gray-200 dark:before:bg-gray-700
-    md:static md:before:hidden   /* ← desliga no desktop */
-  "
+          px-4 py-2.5
+          sticky left-0 z-30
+          bg-inherit
+          before:content-['']
+          before:absolute before:top-0 before:right-0 before:h-full before:w-px
+          before:bg-gray-200 dark:before:bg-gray-700
+          md:static md:before:hidden
+        "
       >
         <div className="flex items-center gap-3">
           <ProductThumb product={product} />
@@ -75,11 +74,6 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
             <div className="font-medium text-gray-900 dark:text-white truncate max-w-[200px]">
               {product.name}
             </div>
-            {/*             {product.description && (
-              <div className="text-xs text-gray-500 truncate max-w-[200px]">
-                {product.description}
-              </div>
-            )} */}
             {product.category?.name && (
               <div className="text-xs text-gray-400 italic mt-0.5 truncate max-w-[200px]">
                 {product.category.name}
@@ -89,48 +83,52 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
         </div>
       </td>
 
-      {/* Stock column */}
-      <td className="px-4 py-2.5 ">
-        <div className="flex items-center gap-1.5 justify-center sm:justify-start">
+      <td className="px-4 py-2.5">
+        <div className="flex flex-col items-center sm:items-start">
           {!product.active ? (
             <span className="font-medium text-gray-500 dark:text-gray-400">-</span>
           ) : (
             <>
-              <span className="font-medium text-gray-900 dark:text-white">
-                {product.stock_quantity ?? 0}
+              <div className="flex items-center gap-1.5">
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {available}
+                </span>
+
+                {stockStatus === 'zero' && (
+                  <AlertCircle
+                    size={16}
+                    className="text-red-600 dark:text-red-400"
+                    aria-label="Estoque zerado"
+                  />
+                )}
+                {stockStatus === 'low' && (
+                  <AlertTriangle
+                    size={16}
+                    className="text-yellow-600 dark:text-yellow-400"
+                    aria-label="Estoque baixo"
+                  />
+                )}
+                {stockStatus === 'high' && (
+                  <ArrowUp
+                    size={16}
+                    className="text-purple-600 dark:text-purple-400"
+                    aria-label="Excesso de estoque"
+                  />
+                )}
+              </div>
+
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                Físico {onHand} • Reservado {reserved}
               </span>
-              {stockStatus === 'zero' && (
-                <AlertCircle
-                  size={16}
-                  className="text-red-600 dark:text-red-400"
-                  aria-label="Estoque zerado"
-                />
-              )}
-              {stockStatus === 'low' && (
-                <AlertTriangle
-                  size={16}
-                  className="text-yellow-600 dark:text-yellow-400"
-                  aria-label="Estoque baixo"
-                />
-              )}
-              {stockStatus === 'high' && (
-                <ArrowUp
-                  size={16}
-                  className="text-purple-600 dark:text-purple-400"
-                  aria-label="Excesso de estoque"
-                />
-              )}
             </>
           )}
         </div>
       </td>
 
-      {/* Price column */}
       <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
         {formattedPrice}
       </td>
 
-      {/* Status column */}
       <td className="px-4 py-2.5">
         <div className="flex items-center justify-center sm:justify-start">
           {product.active ? (
@@ -159,7 +157,6 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
         </div>
       </td>
 
-      {/* Actions column */}
       <td className="px-4 py-2.5 text-right">
         <button
           onClick={() => onActionClick(product.id)}

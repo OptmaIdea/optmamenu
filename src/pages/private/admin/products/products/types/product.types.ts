@@ -18,10 +18,16 @@ export interface Product {
     stock_quantity: number;
     min_stock: number;
     max_stock: number;
-    is_discontinued?: boolean; // Produto descontinuado (não pode ser reativado)
+    is_discontinued?: boolean;
     last_sale_at?: string;
     last_stock_entry_at?: string;
     created_at?: string;
+
+    // Multiestoque consolidado para exibição
+    display_on_hand?: number;
+    display_reserved?: number;
+    display_available?: number;
+    display_stock_status?: 'out' | 'low' | 'ok' | 'over';
 }
 
 export interface PriceRule {

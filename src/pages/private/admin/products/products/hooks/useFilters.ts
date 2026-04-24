@@ -85,10 +85,13 @@ export const useFilters = (products: Product[]) => {
 
     // Get stock status for a product
     const getInventoryStatus = useCallback((product: Product) => {
+        const available = product.display_available ?? product.stock_quantity ?? 0;
+        const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
+
         if (!product.active) return 'inactive';
-        if (product.stock_quantity === 0) return 'zero';
-        if (product.stock_quantity <= product.min_stock) return 'low';
-        if (product.stock_quantity > product.max_stock) return 'high';
+        if (available <= 0) return 'zero';
+        if (available <= product.min_stock) return 'low';
+        if (onHand > product.max_stock) return 'high';
         return 'normal';
     }, []);
 
@@ -154,6 +157,11 @@ export const useFilters = (products: Product[]) => {
             if (sortConfig.key === 'category') {
                 aValue = a.category?.name || '';
                 bValue = b.category?.name || '';
+            }
+
+            if (sortConfig.key === 'stock_quantity') {
+                aValue = a.display_available ?? a.stock_quantity ?? 0;
+                bValue = b.display_available ?? b.stock_quantity ?? 0;
             }
 
             if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;

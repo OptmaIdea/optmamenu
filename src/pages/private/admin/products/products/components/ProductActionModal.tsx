@@ -1,7 +1,8 @@
 // components/ProductActionModal.tsx
 
 import { useState } from 'react';
-import { X, Eye, Edit, Trash2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { X, Eye, Edit, Trash2, Activity } from 'lucide-react';
 import type { Product } from '../types/product.types';
 import ProductThumb from '@/pages/private/admin/products/products/components/ProductThumb';
 
@@ -22,6 +23,7 @@ export default function ProductActionModal({
     onView,
     onDelete,
 }: ProductActionModalProps) {
+    const navigate = useNavigate();
     const [actionLoading, setActionLoading] = useState<'view' | 'delete' | null>(null);
 
     const handleView = () => {
@@ -99,6 +101,23 @@ export default function ProductActionModal({
                             <div className="font-medium text-gray-900 dark:text-white">Editar</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                                 Alterar informações
+                            </div>
+                        </div>
+                    </button>
+
+                    {/* Vida do produto */}
+                    <button
+                        onClick={() => {
+                            navigate(`/admin/products/${product.id}/lifecycle`);
+                            onClose();
+                        }}
+                        className="w-full flex items-center gap-3 p-3 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg text-left"
+                    >
+                        <Activity size={18} className="text-[#21A896]" />
+                        <div>
+                            <div className="font-medium text-gray-900 dark:text-white">Vida do produto</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                Estoque, movimentações e auditoria
                             </div>
                         </div>
                     </button>

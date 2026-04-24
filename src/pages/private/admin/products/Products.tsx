@@ -12,6 +12,7 @@ import { useProducts } from '@/pages/private/admin/products/products/hooks/usePr
 import { useFilters } from '@/pages/private/admin/products/products/hooks/useFilters';
 import { useModals } from '@/pages/private/admin/products/products/hooks/useModals';
 import { useExport } from '@/pages/private/admin/products/products/hooks/useExport';
+import { useProductInventorySnapshot } from '@/hooks/inventory/useProductInventorySnapshot';
 
 // Components
 import PageContainer from '@/components/common/PageContainer';
@@ -22,20 +23,54 @@ import FilteredProductsModal from '@/pages/private/admin/products/products/compo
 import ProductActionModal from '@/pages/private/admin/products/products/components/ProductActionModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import DiscontinuedProductsModal from '@/pages/private/admin/products/products/components/DiscontinuedProductsModal';
+import EmptyState from '@/components/common/empty-state/EmptyState';
+import { PackageSearch } from 'lucide-react';
 
 export default function ProductsPage() {
     // Products data
     const { products, loading, deletingId, lastUpdated, handleRefresh } = useProducts();
+    const { snapshotMap, loading: inventoryLoading } = useProductInventorySnapshot();
+
+    // Enriquece cada produto com totais consolidados do multiestoque
+    const productsWithInventory = useMemo(() => {
+        return products.map((product) => {
+            const inventory = snapshotMap.get(product.id);
+
+            const displayOnHand = inventory?.onHand ?? product.stock_quantity ?? 0;
+            const displayReserved = inventory?.reserved ?? 0;
+            const displayAvailable = inventory?.available ?? product.stock_quantity ?? 0;
+
+            let displayStockStatus: 'out' | 'low' | 'ok' | 'over' = 'ok';
+
+            if (displayAvailable <= 0) {
+                displayStockStatus = 'out';
+            } else if (displayAvailable <= (product.min_stock ?? 0)) {
+                displayStockStatus = 'low';
+            } else if (displayOnHand > (product.max_stock ?? Number.MAX_SAFE_INTEGER)) {
+                displayStockStatus = 'over';
+            } else {
+                displayStockStatus = 'ok';
+            }
+
+            return {
+                ...product,
+                display_on_hand: displayOnHand,
+                display_reserved: displayReserved,
+                display_available: displayAvailable,
+                display_stock_status: displayStockStatus,
+            };
+        });
+    }, [products, snapshotMap]);
 
     // ✅ Produtos NÃO descontinuados (para listagem principal e estatísticas)
     const nonDiscontinuedProducts = useMemo(() => {
-        return products.filter(p => !p.is_discontinued);
-    }, [products]);
+        return productsWithInventory.filter(p => !p.is_discontinued);
+    }, [productsWithInventory]);
 
     // ✅ Produtos descontinuados (para o modal específico)
     const discontinuedProducts = useMemo(() => {
-        return products.filter(p => p.is_discontinued === true);
-    }, [products]);
+        return productsWithInventory.filter(p => p.is_discontinued === true);
+    }, [productsWithInventory]);
 
     // Estados para modais de visualização e exclusão
     const [viewProduct, setViewProduct] = useState<Product | null>(null);
@@ -163,9 +198,13 @@ export default function ProductsPage() {
 
     const [showDiscontinuedModal, setShowDiscontinuedModal] = useState(false);
 
-    if (loading) {
+    if (loading || inventoryLoading) {
         return <LoadingSpinner />;
     }
+
+    const hasAnyProducts = nonDiscontinuedProducts.length > 0;
+    const hasFilteredProducts = filteredAndSortedProducts.length > 0;
+    const isFilteredEmpty = hasAnyProducts && !hasFilteredProducts;
 
     return (
         <>
@@ -208,54 +247,81 @@ export default function ProductsPage() {
                     </div>
                 }
             >
-                {/* Stats Cards */}
-                <StatsCards stats={stats} onStatsClick={openStatsModal} />
-
-                {/* Filter Bar */}
-                <FilterBar
-                    searchTerm={searchTerm}
-                    onSearchChange={setSearchTerm}
-                    onClearSearch={clearSearch}
-                    filterCategory={filterCategory}
-                    onFilterCategoryChange={setFilterCategory}
-                    categories={categories}
-                    filterStock={filterStock}
-                    onFilterStockChange={setFilterStock}
-                    filterStatus={filterStatus}
-                    onFilterStatusChange={setFilterStatus}
-                    groupByCategory={groupByCategory}
-                    onGroupByCategoryChange={setGroupByCategory}
-                    onClearFilters={clearFilters}
-                    onExport={(format) => exportData(filteredAndSortedProducts, format)}
-                />
-
                 {/* Botão de Produtos Descontinuados (posicionado após o FilterBar) */}
-                <div className="flex justify-end mt-2 mb-4">
-                    <button
-                        onClick={() => setShowDiscontinuedModal(true)}
-                        className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-1.5"
-                    >
-                        <Archive size={16} />
-                        <span className="hidden sm:inline">Descontinuados</span>
-                        {discontinuedProducts.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-full text-xs">
-                                {discontinuedProducts.length}
-                            </span>
-                        )}
-                    </button>
-                </div>
+                {hasAnyProducts && (
+                    <div className="flex justify-end mt-2 mb-4">
+                        <button
+                            onClick={() => setShowDiscontinuedModal(true)}
+                            className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-1.5"
+                        >
+                            <Archive size={16} />
+                            <span className="hidden sm:inline">Descontinuados</span>
+                            {discontinuedProducts.length > 0 && (
+                                <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-full text-xs">
+                                    {discontinuedProducts.length}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+                )}
 
-                {/* Product Table */}
-                <ProductTable
-                    groupedProducts={groupedProducts}
-                    groupByCategory={groupByCategory}
-                    collapsedCategories={collapsedCategories}
-                    onToggleCategory={toggleCategory}
-                    sortConfig={sortConfig}
-                    onSort={handleSort}
-                    onActionClick={openActionModal}
-                    deletingId={deletingId}
-                />
+                {/* Main Content */}
+                {!hasAnyProducts ? (
+                    <EmptyState
+                        icon={<PackageSearch className="h-5 w-5" />}
+                        title="Nenhum produto cadastrado"
+                        description="Quando você cadastrar produtos ativos, eles aparecerão aqui com estoque consolidado, preço e status."
+                    />
+                ) : (
+                    <>
+                        <StatsCards stats={stats} onStatsClick={openStatsModal} />
+
+                        <FilterBar
+                            searchTerm={searchTerm}
+                            onSearchChange={setSearchTerm}
+                            onClearSearch={clearSearch}
+                            filterCategory={filterCategory}
+                            onFilterCategoryChange={setFilterCategory}
+                            categories={categories}
+                            filterStock={filterStock}
+                            onFilterStockChange={setFilterStock}
+                            filterStatus={filterStatus}
+                            onFilterStatusChange={setFilterStatus}
+                            groupByCategory={groupByCategory}
+                            onGroupByCategoryChange={setGroupByCategory}
+                            onClearFilters={clearFilters}
+                            onExport={(format) => exportData(filteredAndSortedProducts, format)}
+                        />
+
+                        {/* Botão de Produtos Descontinuados reposicionado para o bloco principal */}
+                        <div className="flex justify-end mt-2 mb-4">
+                            <button
+                                onClick={() => setShowDiscontinuedModal(true)}
+                                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-1.5"
+                            >
+                                <Archive size={16} />
+                                <span className="hidden sm:inline">Descontinuados</span>
+                                {discontinuedProducts.length > 0 && (
+                                    <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-full text-xs">
+                                        {discontinuedProducts.length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+
+                        <ProductTable
+                            groupedProducts={groupedProducts}
+                            groupByCategory={groupByCategory}
+                            collapsedCategories={collapsedCategories}
+                            onToggleCategory={toggleCategory}
+                            sortConfig={sortConfig}
+                            onSort={handleSort}
+                            onActionClick={openActionModal}
+                            deletingId={deletingId}
+                            isFilteredEmpty={isFilteredEmpty}
+                        />
+                    </>
+                )}
             </PageContainer>
 
             {/* Filtered Products Modal */}

@@ -26,6 +26,29 @@ const isCheckConstraintSignError = (err: any) => {
     return msg.includes('check_quantity_sign') || msg.includes('violates check constraint');
 };
 
+const getMovementSourceLabel = (source: string | null | undefined) => {
+    switch (source) {
+        case 'stock_transfer':
+            return 'Transferência';
+        case 'purchase_document':
+            return 'Documento de compra';
+        case 'manual':
+            return 'Manual';
+        case 'order':
+            return 'Pedido';
+        case 'reservation':
+            return 'Reserva';
+        case 'adjustment':
+            return 'Ajuste';
+        case 'inventory_entry':
+            return 'Entrada';
+        case 'inventory_exit':
+            return 'Saída';
+        default:
+            return source ?? '';
+    }
+};
+
 const normalizeStore = (storeData: any): StoreLike | null => {
     if (!storeData) return null;
     if (Array.isArray(storeData)) return storeData[0] ?? null;
@@ -281,12 +304,29 @@ export const useStockMovement = () => {
             }
             if (filters.type) query = query.eq('type', filters.type);
 
+            if (filters.locationId) {
+                query = query.or(
+                    `location_id.eq.${filters.locationId},from_location_id.eq.${filters.locationId},to_location_id.eq.${filters.locationId}`
+                );
+            }
+
             if (filters.startDate) query = query.gte('created_at', filters.startDate);
 
             if (filters.endDate) {
                 const end = new Date(filters.endDate);
                 end.setDate(end.getDate() + 1);
                 query = query.lt('created_at', end.toISOString());
+            }
+
+            if (filters.search?.trim()) {
+                const searchTerm = filters.search.trim();
+                query = query.or(
+                    [
+                        `reason.ilike.%${searchTerm}%`,
+                        `reason_code.ilike.%${searchTerm}%`,
+                        `source.ilike.%${searchTerm}%`,
+                    ].join(',')
+                );
             }
 
             const from = (page - 1) * pageSize;
@@ -298,6 +338,62 @@ export const useStockMovement = () => {
 
             if (error) throw error;
 
+            const allLocationIds = Array.from(
+                new Set(
+                    (data || [])
+                        .flatMap((item: any) => [
+                            item.location_id,
+                            item.from_location_id,
+                            item.to_location_id,
+                        ])
+                        .filter(Boolean)
+                )
+            );
+
+            let locationMap = new Map<string, { name: string; code: string }>();
+
+            if (allLocationIds.length > 0) {
+                const { data: locationsData, error: locationsError } = await supabase
+                    .from('stock_locations')
+                    .select('id, name, code')
+                    .in('id', allLocationIds);
+
+                if (locationsError) throw locationsError;
+
+                locationMap = new Map(
+                    (locationsData || []).map((loc: any) => [
+                        loc.id,
+                        { name: loc.name, code: loc.code },
+                    ])
+                );
+            }
+
+            const allTransferIds = Array.from(
+                new Set(
+                    (data || [])
+                        .map((item: any) => item.transfer_id)
+                        .filter(Boolean)
+                )
+            );
+
+            let transferMap = new Map<string, { transfer_code: string | null }>();
+
+            if (allTransferIds.length > 0) {
+                const { data: transfersData, error: transfersError } = await supabase
+                    .from('stock_transfers')
+                    .select('id, transfer_code')
+                    .in('id', allTransferIds);
+
+                if (transfersError) throw transfersError;
+
+                transferMap = new Map(
+                    (transfersData || []).map((transfer: any) => [
+                        transfer.id,
+                        { transfer_code: transfer.transfer_code ?? null },
+                    ])
+                );
+            }
+
             const movements: StockMovement[] = (data || []).map((item: any) => ({
                 id: item.id,
                 product_id: item.product_id,
@@ -306,11 +402,32 @@ export const useStockMovement = () => {
                 quantity: item.quantity,
                 type: item.type,
                 reason: item.reason ?? item.reason_code ?? null,
-                // compat: alguns schemas têm user_id, outros created_by
                 user_id: item.user_id ?? item.created_by ?? null,
                 previous_stock: item.previous_stock,
                 new_stock: item.new_stock,
                 created_at: item.created_at,
+                transfer_id: item.transfer_id ?? null,
+
+                location_id: item.location_id ?? null,
+                location_name: item.location_id ? locationMap.get(item.location_id)?.name ?? null : null,
+                location_code: item.location_id ? locationMap.get(item.location_id)?.code ?? null : null,
+
+                from_location_id: item.from_location_id ?? null,
+                from_location_name: item.from_location_id
+                    ? locationMap.get(item.from_location_id)?.name ?? null
+                    : null,
+
+                to_location_id: item.to_location_id ?? null,
+                to_location_name: item.to_location_id
+                    ? locationMap.get(item.to_location_id)?.name ?? null
+                    : null,
+
+                source: item.source ?? null,
+                source_label: getMovementSourceLabel(item.source),
+                source_id: item.source_id ?? null,
+                transfer_code: item.transfer_id
+                    ? transferMap.get(item.transfer_id)?.transfer_code ?? item.transfer_id
+                    : null,
             }));
 
             const total = count || 0;

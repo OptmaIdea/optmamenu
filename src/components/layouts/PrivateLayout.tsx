@@ -3,7 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import { useLowStock } from '@/pages/private/admin/products/inventory/hooks/useLowStock';
+import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import {
     LayoutDashboard,
     Package,
@@ -30,7 +30,8 @@ import {
     ExternalLink,
     Lock,
     MessageSquare,
-    Truck
+    Truck,
+    Activity
 } from 'lucide-react';
 
 export default function PrivateLayout() {
@@ -41,9 +42,18 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(false);
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
-    const { criticalCount, zeroCount } = useLowStock(storeId || undefined);
+    const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
+
+    const SIDEBAR_GROUPS_STORAGE_KEY = 'optmamenu.sidebar.groups';
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+        dashboard: true,
+        commercial: false,
+        products: true,
+        settings: false,
+        support: false,
+    });
 
     useEffect(() => {
         const initialize = async () => {
@@ -106,9 +116,37 @@ export default function PrivateLayout() {
         setIsMobileOpen(false);
     }, [pathname]);
 
+    // Load sidebar group state from localStorage
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(SIDEBAR_GROUPS_STORAGE_KEY);
+            if (raw) {
+                setOpenSections((prev) => ({ ...prev, ...JSON.parse(raw) }));
+            }
+        } catch {
+            // noop
+        }
+    }, []);
+
+    // Persist sidebar group state to localStorage
+    useEffect(() => {
+        try {
+            localStorage.setItem(SIDEBAR_GROUPS_STORAGE_KEY, JSON.stringify(openSections));
+        } catch {
+            // noop
+        }
+    }, [openSections]);
+
     const handleLogout = async () => {
         await supabase.auth.signOut();
         navigate('/');
+    };
+
+    const toggleSection = (section: string) => {
+        setOpenSections((prev) => ({
+            ...prev,
+            [section]: !prev[section],
+        }));
     };
 
     const toggleDarkMode = () => {
@@ -134,9 +172,11 @@ export default function PrivateLayout() {
         products: [
             { path: '/admin/products', icon: Package, label: 'Produtos' },
             { path: '/admin/categories', icon: Layers, label: 'Categorias' },
-            { path: '/admin/inventory', icon: FileText, label: 'Estoque' },
+            { path: '/admin/inventory', icon: FileText, label: 'Estoque por local' },
+            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
+            { path: '/admin/transfers', icon: Truck, label: 'Transferências' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
-            { path: '/admin/cashbook/purchases', icon: History, label: 'Livro Caixa (Compras)' },
+            { path: '/admin/cashbook/purchases', icon: History, label: 'Compras' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentação' },
         ],
         settings: [
@@ -219,57 +259,60 @@ export default function PrivateLayout() {
                     {Object.entries(navigationItems).map(([section, items]) => (
                         <div key={section} className="space-y-1">
                             {!isSidebarCollapsed && (
-                                <div className="px-4 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider font-candara">
-                                    {section === 'dashboard' && 'Dashboard'}
-                                    {section === 'commercial' && 'Comercial'}
-                                    {section === 'products' && 'Produtos'}
-                                    {section === 'settings' && 'Configurações'}
-                                    {section === 'support' && 'Suporte'}
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => toggleSection(section)}
+                                    className="w-full flex items-center justify-between px-4 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider font-candara"
+                                >
+                                    <span>
+                                        {section === 'dashboard' && 'Dashboard'}
+                                        {section === 'commercial' && 'Comercial'}
+                                        {section === 'products' && 'Produtos'}
+                                        {section === 'settings' && 'Configurações'}
+                                        {section === 'support' && 'Suporte'}
+                                    </span>
+                                    <span className="text-gray-400">{openSections[section] ? '−' : '+'}</span>
+                                </button>
                             )}
-                            {items.map(item => {
+                            {(openSections[section] || isSidebarCollapsed) && items.map(item => {
                                 const IconComponent = item.icon;
-                                const isActive = pathname === item.path;
+                                const isActive =
+                                    pathname === item.path ||
+                                    (item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
 
                                 return (
                                     <Link
                                         key={item.path}
                                         to={item.path}
                                         title={isSidebarCollapsed ? item.label : ''}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${isActive
-                                            ? 'bg-[#21A896]/10 dark:bg-[#21A896]/20 text-[#21A896] dark:text-[#21A896]'
-                                            : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                                            }`}
+                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
+                                            isActive
+                                                ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20'
+                                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                                        }`}
                                     >
                                         <IconComponent
                                             size={22}
                                             className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
                                         />
-                                        {isSidebarCollapsed && item.path === '/admin/inventory' && criticalCount > 0 && (
-                                            <span
-                                                className={`absolute right-3 w-2.5 h-2.5 rounded-full
-                                                    ${zeroCount > 0 ? 'bg-red-500' : 'bg-yellow-400'}
-                                                `}
-                                            />
+                                        {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (
+                                            <span className="absolute right-3 w-2.5 h-2.5 rounded-full bg-amber-400" />
                                         )}
                                         {!isSidebarCollapsed && (
                                             <div className="flex items-center justify-between w-full">
                                                 <span className="font-candara">{item.label}</span>
 
-                                                {item.path === '/admin/inventory' && criticalCount > 0 && (
+                                                {item.path === '/admin/inventory' && attentionCount > 0 && (
                                                     <span
-                                                        className={`ml-2 inline-flex items-center justify-center min-w-[22px] h-5 px-2 rounded-full text-[11px] font-black
-                                                            ${zeroCount > 0
-                                                                ? 'bg-red-100 text-red-700 dark:bg-red-900/20 dark:text-red-300'
-                                                                : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-200'
-                                                            }`}
-                                                        title={zeroCount > 0 ? 'Produtos com estoque zerado ou baixo' : 'Produtos com estoque baixo'}
+                                                        className="ml-2 inline-flex items-center justify-center min-w-[22px] h-5 px-2 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                                                        title="Itens com estoque baixo ou zerado"
                                                     >
-                                                        {criticalCount}
+                                                        {attentionCount}
                                                     </span>
                                                 )}
                                             </div>
-                                        )}                                    </Link>
+                                        )}
+                                    </Link>
                                 );
                             })}
                         </div>

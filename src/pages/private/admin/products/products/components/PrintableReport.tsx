@@ -23,10 +23,13 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
         ref
     ) => {
         const getStockStatusLabel = (product: Product) => {
+            const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
+            const available = product.display_available ?? product.stock_quantity ?? 0;
+
             if (!product.active) return 'inativo';
-            if (product.stock_quantity === 0) return 'zerado';
-            if (product.stock_quantity <= product.min_stock) return 'baixo';
-            if (product.stock_quantity > product.max_stock) return 'excesso';
+            if (available <= 0) return 'zerado';
+            if (available <= product.min_stock) return 'baixo';
+            if (onHand > product.max_stock) return 'excesso';
             return 'normal';
         };
 
@@ -74,38 +77,38 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                             <tr style={{ borderBottom: '1px solid #aaa', textAlign: 'left' }}>
                                 <th style={{ padding: '6px 4px' }}>Produto</th>
                                 <th style={{ padding: '6px 4px' }}>Categoria</th>
-                                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Estoque</th>
+                                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Físico</th>
+                                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Reservado</th>
+                                <th style={{ padding: '6px 4px', textAlign: 'right' }}>Disponível</th>
                                 <th style={{ padding: '6px 4px', textAlign: 'right' }}>Preço</th>
                                 <th style={{ padding: '6px 4px' }}>Status</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {products.map((p, idx) => (
-                                <tr
-                                    key={p.id}
-                                    style={{
-                                        backgroundColor: idx % 2 === 0 ? '#f9f9f9' : 'white',
-                                    }}
-                                >
-                                    <td style={{ padding: '6px 4px' }}>{p.name}</td>
-                                    <td style={{ padding: '6px 4px' }}>{p.category?.name || '—'}</td>
-                                    <td style={{ padding: '6px 4px', textAlign: 'right' }}>{p.stock_quantity}</td>
-                                    <td style={{ padding: '6px 4px', textAlign: 'right' }}>
-                                        {p.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                    </td>
-                                    <td style={{ padding: '6px 4px' }}>
-                                        {!p.active
-                                            ? 'inativo'
-                                            : p.stock_quantity === 0
-                                                ? 'zerado'
-                                                : p.stock_quantity <= p.min_stock
-                                                    ? 'baixo'
-                                                    : p.stock_quantity > p.max_stock
-                                                        ? 'excesso'
-                                                        : 'normal'}
-                                    </td>
-                                </tr>
-                            ))}
+                            {products.map((p, idx) => {
+                                const onHand = p.display_on_hand ?? p.stock_quantity ?? 0;
+                                const reserved = p.display_reserved ?? 0;
+                                const available = p.display_available ?? p.stock_quantity ?? 0;
+
+                                return (
+                                    <tr
+                                        key={p.id}
+                                        style={{
+                                            backgroundColor: idx % 2 === 0 ? '#f9f9f9' : 'white',
+                                        }}
+                                    >
+                                        <td style={{ padding: '6px 4px' }}>{p.name}</td>
+                                        <td style={{ padding: '6px 4px' }}>{p.category?.name || '—'}</td>
+                                        <td style={{ padding: '6px 4px', textAlign: 'right' }}>{onHand}</td>
+                                        <td style={{ padding: '6px 4px', textAlign: 'right' }}>{reserved}</td>
+                                        <td style={{ padding: '6px 4px', textAlign: 'right' }}>{available}</td>
+                                        <td style={{ padding: '6px 4px', textAlign: 'right' }}>
+                                            {p.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                        </td>
+                                        <td style={{ padding: '6px 4px' }}>{getStockStatusLabel(p)}</td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 ) : (
@@ -138,25 +141,35 @@ const PrintableReport = forwardRef<HTMLDivElement, PrintableReportProps>(
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid #aaa', textAlign: 'left' }}>
                                             <th style={{ padding: '4px 4px' }}>Produto</th>
-                                            <th style={{ padding: '4px 4px', textAlign: 'right' }}>Estoque</th>
+                                            <th style={{ padding: '4px 4px', textAlign: 'right' }}>Disponível</th>
+                                            <th style={{ padding: '4px 4px', textAlign: 'right' }}>Físico</th>
+                                            <th style={{ padding: '4px 4px', textAlign: 'right' }}>Reservado</th>
                                             <th style={{ padding: '4px 4px', textAlign: 'right' }}>Preço</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {items.map((p, idx) => (
-                                            <tr
-                                                key={p.id}
-                                                style={{
-                                                    backgroundColor: (groupIdx + idx) % 2 === 0 ? '#f9f9f9' : 'white',
-                                                }}
-                                            >
-                                                <td style={{ padding: '4px 4px' }}>{p.name}</td>
-                                                <td style={{ padding: '4px 4px', textAlign: 'right' }}>{p.stock_quantity}</td>
-                                                <td style={{ padding: '4px 4px', textAlign: 'right' }}>
-                                                    {p.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {items.map((p, idx) => {
+                                            const onHand = p.display_on_hand ?? p.stock_quantity ?? 0;
+                                            const reserved = p.display_reserved ?? 0;
+                                            const available = p.display_available ?? p.stock_quantity ?? 0;
+
+                                            return (
+                                                <tr
+                                                    key={p.id}
+                                                    style={{
+                                                        backgroundColor: (groupIdx + idx) % 2 === 0 ? '#f9f9f9' : 'white',
+                                                    }}
+                                                >
+                                                    <td style={{ padding: '4px 4px' }}>{p.name}</td>
+                                                    <td style={{ padding: '4px 4px', textAlign: 'right' }}>{available}</td>
+                                                    <td style={{ padding: '4px 4px', textAlign: 'right' }}>{onHand}</td>
+                                                    <td style={{ padding: '4px 4px', textAlign: 'right' }}>{reserved}</td>
+                                                    <td style={{ padding: '4px 4px', textAlign: 'right' }}>
+                                                        {p.price.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

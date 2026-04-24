@@ -38,16 +38,29 @@ export interface AdjustmentPayload {
 export interface StockMovement {
     id: string;
     product_id: string;
-    product_name?: string; // Opcional, vindo de join
+    product_name?: string;
     order_id: string | null;
     quantity: number;
     type: StockMovementType;
     reason: string | null;
     user_id: string | null;
-    user_email?: string; // Opcional, vindo de join
+    user_email?: string;
     previous_stock: number;
     new_stock: number;
     created_at: string;
+    transfer_id?: string | null;
+
+    location_id?: string | null;
+    location_name?: string | null;
+    location_code?: string | null;
+    from_location_id?: string | null;
+    from_location_name?: string | null;
+    to_location_id?: string | null;
+    to_location_name?: string | null;
+    source?: string | null;
+    source_id?: string | null;
+    source_label?: string | null;
+    transfer_code?: string | null;
 }
 
 export interface StockMovementFilters {
@@ -56,4 +69,6 @@ export interface StockMovementFilters {
     type?: StockMovementType;
     startDate?: string;
     endDate?: string;
+    locationId?: string;
+    search?: string;
 }

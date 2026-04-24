@@ -2,6 +2,7 @@ import { Fragment } from 'react';
 import { Package, Plus, Minus } from 'lucide-react';
 import type { Product, SortConfig } from '../types/product.types';
 import ProductRow from '@/pages/private/admin/products/products/components/ProductRow';
+import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
 
 interface GroupedProduct {
     category: string;
@@ -17,6 +18,7 @@ interface ProductTableProps {
     onSort: (key: SortConfig['key']) => void;
     onActionClick: (productId: string) => void;
     deletingId: string | null;
+    isFilteredEmpty?: boolean;
 }
 
 export default function ProductTable({
@@ -28,6 +30,7 @@ export default function ProductTable({
     onSort,
     onActionClick,
     deletingId,
+    isFilteredEmpty,
 }: ProductTableProps) {
     const getSortIndicator = (key: SortConfig['key']) => {
         if (sortConfig.key !== key) return '';
@@ -114,17 +117,17 @@ export default function ProductTable({
                                 </Fragment>
                             );
                         })}
+
+                        {isFilteredEmpty && (
+                            <EmptyTableState
+                                colSpan={5}
+                                title="Nenhum resultado para os filtros aplicados"
+                                description="Os filtros atuais não retornaram resultados. Limpe os filtros ou busque por outro nome, categoria ou status."
+                            />
+                        )}
                     </tbody>
                 </table>
             </div>
-
-            {groupedProducts.length === 1 &&
-                groupedProducts[0].products.length === 0 && (
-                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                        <Package size={32} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                        <p>Nenhum produto encontrado</p>
-                    </div>
-                )}
         </div>
     );
 }

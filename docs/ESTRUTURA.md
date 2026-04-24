@@ -4,8 +4,8 @@
 
 Este documento descreve a organização de diretórios e arquivos do projeto OptmaMenu.
 
-**Última Atualização:** Março 2026
-**Versão:** 2.2
+**Última Atualização:** Abril 2026
+**Versão:** 2.3
 
 ## Status das Funcionalidades (Março 2026)
 
@@ -23,6 +23,7 @@ Este documento descreve a organização de diretórios e arquivos do projeto Opt
 - ✅ **Segurança** (PIN, logs, auditoria)
 - ✅ **RPC Architecture** (22 arquivos migrados)
 - ✅ **Usuários (RBAC)** (Gerenciamento completo de usuários e permissões)
+- ✅ **Multi-Estoque Avançado** (Transferências, Ciclo de Vida e Exportações)
 
 ### 🟡 Em Desenvolvimento
 
@@ -33,7 +34,6 @@ Este documento descreve a organização de diretórios e arquivos do projeto Opt
 
 ### 🔵 Planejamento
 
-- 🔵 **Multi-Loja Avançado** (Transferências)
 - 🔵 **API de Integrações** (Webhooks)
 - 🔵 **App Mobile** (React Native)
 - 🔵 **Modo Offline**
@@ -239,8 +239,13 @@ optmamenusys/
 │   │   │       │   │   │   └── category.types.ts
 │   │   │       │   │   └── utils/
 │   │   │       │   │       └── categoryPricing.ts
-│   │   │       │   ├── inventory/  # Módulo de inventário
+│   │   │       │   ├── inventory/  # Módulo de inventário (Multi-Local)
+│   │   │       │   │   ├── InventoryByLocationPage.tsx
+│   │   │       │   │   ├── ProductLifecyclePage.tsx
+│   │   │       │   │   ├── ProductLifecycleSelectorPage.tsx
 │   │   │       │   │   ├── StockMovements.tsx
+│   │   │       │   │   ├── TransfersPage.tsx
+│   │   │       │   │   ├── TransferDetailPage.tsx
 │   │   │       │   │   ├── components/
 │   │   │       │   │   │   ├── InventoryItem.tsx
 │   │   │       │   │   │   ├── InventoryList.tsx
@@ -376,6 +381,9 @@ optmamenusys/
 │   │   └── store.ts
 │   │
 │   ├── utils/                      # Funções utilitárias
+│   │   ├── export/                 # 🆕 Utilitários de exportação
+│   │   │   ├── csv.ts
+│   │   │   └── formatters.ts
 │   │   ├── supabaseStorage.ts
 │   │   └── timezoneUtils.ts
 │   │

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams, Link } from 'react-router-dom';
+import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   History,
   Filter,
@@ -16,12 +16,17 @@ import {
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { supabase } from '@/lib/supabase';
+import EmptyState from '@/components/common/empty-state/EmptyState';
+
+import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { useStockMovement } from '@/pages/private/admin/products/inventory/hooks/useStockMovement';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
 import type { StockMovement, StockMovementType, StockMovementFilters } from './types/inventory.types';
 import PrintableStockMovements from '@/pages/private/admin/products/inventory/components/PrintableStockMovements';
 import { useReactToPrint } from 'react-to-print';
 import { timezoneUtils } from '@/utils/timezoneUtils';
+import { downloadCsv } from '@/utils/export/csv';
+import { formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
 
 const MOVEMENT_LABELS: Record<StockMovementType, { label: string; color: string }> = {
   entry: { label: 'Entrada', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
@@ -34,6 +39,7 @@ const MOVEMENT_LABELS: Record<StockMovementType, { label: string; color: string 
 
 export default function StockMovementsPage() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { fetchMovements } = useStockMovement();
   const { products: allProducts } = useInventory();
 
@@ -45,11 +51,15 @@ export default function StockMovementsPage() {
 
   const [showFilters, setShowFilters] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [movementSearch, setMovementSearch] = useState('');
+  const [locationFilter, setLocationFilter] = useState('all');
   const [filters, setFilters] = useState<StockMovementFilters>({
     productId: undefined,
     type: undefined,
     startDate: undefined,
     endDate: undefined,
+    locationId: undefined,
+    search: undefined,
   });
 
   const [selectedProduct, setSelectedProduct] = useState<{ id: string; name: string } | null>(null);
@@ -80,6 +90,8 @@ export default function StockMovementsPage() {
       type: movementType || undefined,
       productId: productId || undefined,
       productIds: productIds ? productIds.split(',') : undefined,
+      locationId: undefined,
+      search: undefined,
     });
 
     if (productId) {
@@ -142,10 +154,14 @@ export default function StockMovementsPage() {
       type: undefined,
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0],
+      locationId: undefined,
+      search: undefined,
     });
     setSelectedProduct(null);
     setSelectedProductIds([]);
     setProductSearch('');
+    setMovementSearch('');
+    setLocationFilter('all');
     setCurrentPage(1);
   };
 
@@ -172,6 +188,24 @@ export default function StockMovementsPage() {
       return !term || p.name.toLowerCase().includes(term);
     }).slice(0, 20);
   }, [availableProducts, productSearch, selectedProductIds]);
+
+  const locationOptions = useMemo(() => {
+    const map = new Map<string, string>();
+
+    movements.forEach((movement) => {
+      if (movement.location_id && movement.location_name) {
+        map.set(movement.location_id, movement.location_name);
+      }
+      if (movement.from_location_id && movement.from_location_name) {
+        map.set(movement.from_location_id, movement.from_location_name);
+      }
+      if (movement.to_location_id && movement.to_location_name) {
+        map.set(movement.to_location_id, movement.to_location_name);
+      }
+    });
+
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [movements]);
 
   const addProductSelection = (productId: string) => {
     if (selectedProductIds.includes(productId)) return;
@@ -200,6 +234,77 @@ export default function StockMovementsPage() {
 
   const formatDate = (dateString: string) => timezoneUtils.formatBrazilDateTime(dateString);
   const formatDateOnly = (dateString: string) => timezoneUtils.formatBrazilDate(dateString);
+
+  const handleExportCsv = () => {
+    const exportableMovements = movements;
+    downloadCsv({
+      filename: `movimentacoes_estoque_${new Date().toISOString().slice(0, 10)}.csv`,
+      headers: [
+        'Data/Hora',
+        'Produto',
+        'Local',
+        'Tipo',
+        'Quantidade',
+        'Estoque antes',
+        'Estoque depois',
+        'Motivo',
+        'Origem',
+        'Transferência',
+      ],
+      rows: exportableMovements.map((movement) => [
+        formatDateTimePtBr(movement.created_at),
+        movement.product_name ?? '',
+        movement.location_name
+          ? movement.location_name
+          : movement.from_location_name || movement.to_location_name
+          ? `${movement.from_location_name ?? '—'} -> ${movement.to_location_name ?? '—'}`
+          : '',
+        MOVEMENT_LABELS[movement.type]?.label ?? movement.type,
+        formatNumberPtBr(movement.quantity),
+        formatNumberPtBr(movement.previous_stock),
+        formatNumberPtBr(movement.new_stock),
+        movement.reason ?? '',
+        movement.source_label ?? movement.source ?? '',
+        movement.transfer_code ?? movement.transfer_id ?? '',
+      ]),
+    });
+  };
+
+  const hasActiveFilters =
+    !!movementSearch.trim() ||
+    !!productSearch.trim() ||
+    locationFilter !== 'all' ||
+    !!filters.type ||
+    !!filters.productId ||
+    !!(filters.productIds && filters.productIds.length > 0);
+
+  useEffect(() => {
+    if (!loading && movements.length === 0 && hasActiveFilters) {
+      setShowFilters(true);
+    }
+  }, [loading, movements.length, hasActiveFilters, setShowFilters]);
+
+  const emptyStateActions = (
+    <div className="flex flex-wrap items-center justify-center gap-3">
+      {!showFilters && (
+        <button
+          type="button"
+          onClick={() => setShowFilters(true)}
+          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+        >
+          Abrir filtros
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={clearFilters}
+        className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition"
+      >
+        Limpar filtros
+      </button>
+    </div>
+  );
 
   return (
     <PageContainer
@@ -244,6 +349,13 @@ export default function StockMovementsPage() {
             <Printer size={18} />
             <span className="hidden sm:inline">Imprimir</span>
           </button>
+          <button
+            onClick={handleExportCsv}
+            className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
+          >
+            <FileText size={18} />
+            <span className="hidden sm:inline">Exportar CSV</span>
+          </button>
         </div>
       }
     >
@@ -282,16 +394,40 @@ export default function StockMovementsPage() {
               <ListFilter size={18} />
               Filtros Avançados
             </h3>
-            <button
-              onClick={clearFilters}
-              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 font-medium flex items-center gap-1"
-            >
-              <X size={14} />
-              Limpar Filtros
-            </button>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 font-medium flex items-center gap-1"
+              >
+                <X size={14} />
+                Limpar Filtros
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="xl:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                <Search size={16} />
+                Busca
+              </label>
+              <input
+                type="text"
+                value={movementSearch}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setMovementSearch(nextValue);
+                  setFilters((prev) => ({
+                    ...prev,
+                    search: nextValue.trim() ? nextValue : undefined,
+                  }));
+                  setCurrentPage(1);
+                }}
+                placeholder="Buscar por motivo, origem do movimento ou referência"
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+              />
+            </div>
+
             <div className="lg:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                 <Calendar size={16} />
@@ -303,7 +439,10 @@ export default function StockMovementsPage() {
                   <input
                     type="date"
                     value={filters.startDate || ''}
-                    onChange={(e) => setFilters({ ...filters, startDate: e.target.value || undefined })}
+                    onChange={(e) => {
+                      setFilters({ ...filters, startDate: e.target.value || undefined });
+                      setCurrentPage(1);
+                    }}
                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
                   />
                 </div>
@@ -312,7 +451,10 @@ export default function StockMovementsPage() {
                   <input
                     type="date"
                     value={filters.endDate || ''}
-                    onChange={(e) => setFilters({ ...filters, endDate: e.target.value || undefined })}
+                    onChange={(e) => {
+                      setFilters({ ...filters, endDate: e.target.value || undefined });
+                      setCurrentPage(1);
+                    }}
                     className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
                   />
                 </div>
@@ -325,12 +467,41 @@ export default function StockMovementsPage() {
               </label>
               <select
                 value={filters.type || ''}
-                onChange={(e) => setFilters({ ...filters, type: (e.target.value as StockMovementType) || undefined })}
+                onChange={(e) => {
+                  setFilters({ ...filters, type: (e.target.value as StockMovementType) || undefined });
+                  setCurrentPage(1);
+                }}
                 className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
               >
                 <option value="">Todos os tipos</option>
                 {Object.entries(MOVEMENT_LABELS).map(([key, { label }]) => (
                   <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Local
+              </label>
+              <select
+                value={locationFilter}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setLocationFilter(nextValue);
+                  setFilters((prev) => ({
+                    ...prev,
+                    locationId: nextValue === 'all' ? undefined : nextValue,
+                  }));
+                  setCurrentPage(1);
+                }}
+                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+              >
+                <option value="all">Todos os locais</option>
+                {locationOptions.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
                 ))}
               </select>
             </div>
@@ -402,7 +573,24 @@ export default function StockMovementsPage() {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-6 print:mb-4">
+      {!loading && movements.length === 0 ? (
+        <EmptyState
+          icon={<History className="h-5 w-5" />}
+          title={
+            hasActiveFilters
+              ? 'Nenhum resultado para os filtros aplicados'
+              : 'Ainda não há registros para esta operação'
+          }
+          description={
+            hasActiveFilters
+              ? 'Os filtros atuais não retornaram resultados. Limpe os filtros ou ajuste período, local, tipo ou busca.'
+              : 'Entradas, saídas, reservas, ajustes e transferências aparecerão aqui conforme o estoque for operado.'
+          }
+          action={hasActiveFilters ? emptyStateActions : undefined}
+        />
+      ) : (
+        <>
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-6 print:mb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <History size={20} />
@@ -424,30 +612,79 @@ export default function StockMovementsPage() {
               <tr>
                 <th className="p-4 print:p-2">Data/Hora</th>
                 <th className="p-4 print:p-2">Produto</th>
+                <th className="p-4 print:p-2">Local</th>
                 <th className="p-4 print:p-2 text-center">Tipo</th>
-                <th className="p-4 print:p-2 text-right">Quantidade</th>
-                <th className="p-4 print:p-2 text-right">Estoque Antes</th>
-                <th className="p-4 print:p-2 text-right">Estoque Depois</th>
-                <th className="p-4 print:p-2">Motivo</th>
+                <th className="p-4 print:p-2 text-right">
+                  <div className="inline-flex items-center gap-1 justify-end">
+                    Quantidade
+                    <InfoTooltip text="Variação registrada na movimentação. Valores positivos indicam entrada; negativos indicam saída." />
+                  </div>
+                </th>
+                <th className="p-4 print:p-2 text-right">
+                  <div className="inline-flex items-center gap-1 justify-end">
+                    Estoque Antes
+                    <InfoTooltip text="Saldo imediatamente antes da movimentação." />
+                  </div>
+                </th>
+                <th className="p-4 print:p-2 text-right">
+                  <div className="inline-flex items-center gap-1 justify-end">
+                    Estoque Depois
+                    <InfoTooltip text="Saldo imediatamente após a movimentação." />
+                  </div>
+                </th>
+                <th className="p-4 print:p-2">
+                  <div className="inline-flex items-center gap-1">
+                    Motivo
+                    <InfoTooltip text="Descrição operacional do que gerou a movimentação, como transferência, ajuste, reserva ou saída manual." />
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
-                <tr><td colSpan={7} className="p-8 text-center text-gray-500">Carregando...</td></tr>
-              ) : movements.length === 0 ? (
-                <tr><td colSpan={7} className="p-8 text-center text-gray-500"><Package size={48} className="mx-auto mb-4 opacity-50" /><p>Nenhuma movimentação encontrada no período selecionado</p></td></tr>
+                <tr><td colSpan={8} className="p-8 text-center text-gray-500">Carregando...</td></tr>
               ) : (
                 movements.map((movement) => {
                   const config = MOVEMENT_LABELS[movement.type];
                   return (
                     <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors print:hover:bg-transparent">
                       <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at)}</td>
-                      <td className="p-4 print:p-2 font-medium text-gray-900 dark:text-white">{movement.product_name || 'Produto removido'}</td>
+                      <td className="p-4 print:p-2 font-medium text-gray-900 dark:text-white">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
+                          className="font-medium text-[#21A896] hover:underline text-left"
+                        >
+                          {movement.product_name || 'Produto removido'}
+                        </button>
+                      </td>
+                      <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">
+                        {movement.location_name ? (
+                          movement.location_name
+                        ) : movement.from_location_name || movement.to_location_name ? (
+                          <span>
+                            {movement.from_location_name ?? '—'} → {movement.to_location_name ?? '—'}
+                          </span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td className="p-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{config.label}</span></td>
                       <td className={`p-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
                       <td className="p-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
                       <td className="p-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
-                      <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs truncate">{movement.reason || '-'}</td>
+                      <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs">
+                        <div className="truncate">{movement.reason || '-'}</div>
+                        {movement.transfer_id && (
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/transfers/${movement.transfer_id}`)}
+                            className="text-xs text-gray-500 hover:text-[#21A896] mt-0.5"
+                          >
+                            Ver transferência
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   );
                 })
@@ -466,6 +703,8 @@ export default function StockMovementsPage() {
           </div>
         )}
       </div>
+        </>
+      )}
 
       <div className="hidden">
         <PrintableStockMovements

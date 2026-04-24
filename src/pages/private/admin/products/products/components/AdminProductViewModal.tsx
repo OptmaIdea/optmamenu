@@ -1,6 +1,6 @@
 // components/AdminProductViewModal.tsx
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Package, Calendar, User, Edit, Layers, Archive, AlertCircle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Product } from '../types/product.types';
 
@@ -14,20 +14,28 @@ interface AdminProductViewModalProps {
 export default function AdminProductViewModal({ isOpen, onClose, product, onEdit }: AdminProductViewModalProps) {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+    useEffect(() => {
+        setCurrentImageIndex(0);
+    }, [product?.id]);
+
     if (!isOpen || !product) return null;
 
     const images = product.images && product.images.length > 0 ? product.images : [];
     const hasMultipleImages = images.length > 1;
 
-    const stockStatus = () => {
+    const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
+    const reserved = product.display_reserved ?? 0;
+    const available = product.display_available ?? product.stock_quantity ?? 0;
+
+    const getInventoryStatus = () => {
         if (!product.active) return { label: 'inativo', color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' };
-        if (product.stock_quantity === 0) return { label: 'zerado', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' };
-        if (product.stock_quantity <= product.min_stock) return { label: 'baixo', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' };
-        if (product.stock_quantity > product.max_stock) return { label: 'excesso', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' };
+        if (available <= 0) return { label: 'zerado', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' };
+        if (available <= product.min_stock) return { label: 'baixo', color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' };
+        if (onHand > product.max_stock) return { label: 'excesso', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' };
         return { label: 'normal', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' };
     };
 
-    const status = stockStatus();
+    const status = getInventoryStatus();
 
     // Metadados (mock – futuramente poderão vir do produto)
     const createdAt = product.created_at || new Date().toISOString();
@@ -166,16 +174,27 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                             <div className="space-y-4">
                                 <div>
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Estoque</label>
-                                    <div className="flex items-center gap-3 mt-1">
-                                        <span className="text-2xl font-bold text-gray-900 dark:text-white">
-                                            {product.stock_quantity}
-                                        </span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+                                        <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Físico</p>
+                                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{onHand}</p>
+                                        </div>
+                                        <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Reservado</p>
+                                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{reserved}</p>
+                                        </div>
+                                        <div className="rounded-md border border-gray-200 dark:border-gray-700 p-3">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">Disponível</p>
+                                            <p className="text-lg font-semibold text-gray-900 dark:text-white">{available}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-2">
                                         <span className={`px-2 py-1 rounded-full text-xs font-bold ${status.color}`}>
                                             {status.label}
                                         </span>
-                                    </div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        Mín: {product.min_stock} • Máx: {product.max_stock}
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            Mín: {product.min_stock} • Máx: {product.max_stock}
+                                        </span>
                                     </div>
                                 </div>
 
