@@ -438,6 +438,8 @@ export default function StockMovementsPage() {
                   <span className="text-xs text-gray-500 mb-1 block">Data inicial</span>
                   <input
                     type="date"
+                    title="Data inicial (formato dd/mm/aaaa)"
+                    aria-label="Data inicial"
                     value={filters.startDate || ''}
                     onChange={(e) => {
                       setFilters({ ...filters, startDate: e.target.value || undefined });
@@ -450,6 +452,8 @@ export default function StockMovementsPage() {
                   <span className="text-xs text-gray-500 mb-1 block">Data final</span>
                   <input
                     type="date"
+                    title="Data final (formato dd/mm/aaaa)"
+                    aria-label="Data final"
                     value={filters.endDate || ''}
                     onChange={(e) => {
                       setFilters({ ...filters, endDate: e.target.value || undefined });
@@ -459,6 +463,9 @@ export default function StockMovementsPage() {
                   />
                 </div>
               </div>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Período no formato dd/mm/aaaa.
+              </p>
             </div>
 
             <div>

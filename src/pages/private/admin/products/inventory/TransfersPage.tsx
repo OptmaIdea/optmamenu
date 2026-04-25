@@ -198,13 +198,15 @@ export default function TransfersPage() {
             Gestão de transferências entre locais de estoque.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition whitespace-nowrap shrink-0"
-        >
-          Exportar CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition whitespace-nowrap shrink-0"
+          >
+            Exportar CSV
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -242,6 +244,7 @@ export default function TransfersPage() {
 
           <input
             type="date"
+            title="Data inicial (formato dd/mm/aaaa)"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
             className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
@@ -250,6 +253,7 @@ export default function TransfersPage() {
 
           <input
             type="date"
+            title="Data final (formato dd/mm/aaaa)"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
             className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
@@ -279,6 +283,10 @@ export default function TransfersPage() {
           >
             {destinationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </div>
+
+        <div className="mt-1 flex flex-wrap gap-4 text-[11px] text-gray-400">
+          <span>Formato das datas: dd/mm/aaaa</span>
         </div>
 
         {hasFilters && (

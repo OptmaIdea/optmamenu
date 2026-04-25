@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import {
     LayoutDashboard,
@@ -416,10 +417,11 @@ export default function PrivateLayout() {
                     )}
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                <main id="main-scroll-container" className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
                     <Outlet />
                 </main>
             </div>
+            <BackToTopButton />
         </div>
     );
 }

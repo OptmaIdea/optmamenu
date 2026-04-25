@@ -13,6 +13,7 @@ export default function ProductLifecycleSelectorPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'category-asc' | 'category-desc'>('category-asc');
   const [selected, setSelected] = useState<Product[]>([]);
 
   const activeProducts = useMemo(
@@ -64,7 +65,7 @@ export default function ProductLifecycleSelectorPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    return activeProducts.filter((p) => {
+    const base = activeProducts.filter((p) => {
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
@@ -83,7 +84,32 @@ export default function ProductLifecycleSelectorPage() {
 
       return matchesSearch && matchesCategory && matchesStatus;
     });
-  }, [activeProducts, search, categoryFilter, statusFilter]);
+
+    return [...base].sort((a, b) => {
+      const aCategory = a.category?.name?.toLowerCase() ?? '';
+      const bCategory = b.category?.name?.toLowerCase() ?? '';
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
+
+      switch (sortBy) {
+        case 'name-asc':
+          return aName.localeCompare(bName, 'pt-BR');
+        case 'name-desc':
+          return bName.localeCompare(aName, 'pt-BR');
+        case 'category-desc':
+          return (
+            bCategory.localeCompare(aCategory, 'pt-BR') ||
+            aName.localeCompare(bName, 'pt-BR')
+          );
+        case 'category-asc':
+        default:
+          return (
+            aCategory.localeCompare(bCategory, 'pt-BR') ||
+            aName.localeCompare(bName, 'pt-BR')
+          );
+      }
+    });
+  }, [activeProducts, search, categoryFilter, statusFilter, sortBy]);
 
   const hasFilters =
     search.trim() !== '' ||
@@ -94,6 +120,7 @@ export default function ProductLifecycleSelectorPage() {
     setSearch('');
     setStatusFilter('all');
     setCategoryFilter('all');
+    setSortBy('category-asc');
   };
 
   const isSelected = (p: Product) => selected.some((s) => s.id === p.id);
@@ -171,7 +198,7 @@ export default function ProductLifecycleSelectorPage() {
       )}
 
       <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           <div className="relative md:col-span-2">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -203,6 +230,17 @@ export default function ProductLifecycleSelectorPage() {
                 {category.name}
               </option>
             ))}
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+            className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+          >
+            <option value="category-asc">Categoria A → Z</option>
+            <option value="category-desc">Categoria Z → A</option>
+            <option value="name-asc">Nome A → Z</option>
+            <option value="name-desc">Nome Z → A</option>
           </select>
 
           <div className="flex gap-3">

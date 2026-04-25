@@ -9,7 +9,7 @@ import { downloadCsv } from '@/utils/export/csv';
 import { formatCurrencyPtBr, formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
-import { History, MapPinned } from 'lucide-react';
+import { History, MapPinned, X } from 'lucide-react';
 
 type LifecycleTab = 'summary' | 'locations' | 'movements' | 'audit';
 
@@ -185,8 +185,17 @@ export default function ProductLifecyclePage() {
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
+                onClick={() => navigate('/admin/products')}
+                className="h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm transition inline-flex items-center gap-1.5"
+              >
+                <X size={16} className="text-gray-400" />
+                <span>Fechar Visão</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={() => navigate(`/admin/stock-movements?product=${row.product_id}`)}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 text-sm transition"
+                className="h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm transition inline-flex items-center"
               >
                 Ver movimentações
               </button>
@@ -194,25 +203,9 @@ export default function ProductLifecyclePage() {
               <button
                 type="button"
                 onClick={() => navigate('/admin/transfers')}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 text-sm transition"
+                className="h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm transition inline-flex items-center"
               >
                 Ver transferências
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/admin/products/lifecycle')}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 text-sm transition"
-              >
-                Voltar para Vida do Produto
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/admin/products')}
-                className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 text-sm transition"
-              >
-                Voltar para produtos
               </button>
             </div>
           </div>

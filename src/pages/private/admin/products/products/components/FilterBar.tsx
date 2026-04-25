@@ -55,14 +55,14 @@ export default function FilterBar({
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl mb-6">
             <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
                 {/* Busca com botão X */}
-                <div className="relative">
+                <div className="relative min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <input
                         type="text"
                         placeholder="Buscar produto..."
                         value={searchTerm}
                         onChange={(e) => onSearchChange(e.target.value)}
-                        className="w-full pl-9 pr-8 h-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-[#21A896]"
+                        className="w-full min-w-0 pl-9 pr-8 h-10 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-[#21A896]"
                     />
                     {searchTerm && (
                         <button
@@ -79,7 +79,7 @@ export default function FilterBar({
                 <select
                     value={filterCategory}
                     onChange={(e) => onFilterCategoryChange(e.target.value)}
-                    className="w-full h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
+                    className="w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
                 >
                     <option value="all">Todas categorias</option>
                     {categories.map((cat) => (
@@ -93,7 +93,7 @@ export default function FilterBar({
                 <select
                     value={filterStock}
                     onChange={(e) => onFilterStockChange(e.target.value as FilterStock)}
-                    className="w-full h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
+                    className="w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
                 >
                     <option value="all">Todos estoques</option>
                     <option value="zero">Zerado</option>
@@ -106,7 +106,7 @@ export default function FilterBar({
                 <select
                     value={filterStatus}
                     onChange={(e) => onFilterStatusChange(e.target.value as FilterStatus)}
-                    className="w-full h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
+                    className="w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
                 >
                     <option value="all">Todos status</option>
                     <option value="active">Ativos</option>
