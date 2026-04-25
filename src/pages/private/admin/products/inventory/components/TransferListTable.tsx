@@ -15,9 +15,9 @@ export default function TransferListTable({ rows, onClearFilters }: Props) {
 
 
   return (
-    <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
+    <div className="bg-white dark:bg-gray-800 shadow-sm rounded-2xl">
+      <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
+        <table className="min-w-[1050px] w-full text-sm">
           <thead className="bg-gray-50 dark:bg-gray-900/40">
             <tr>
               <th className="text-left px-4 py-3">Código</th>
@@ -71,7 +71,7 @@ export default function TransferListTable({ rows, onClearFilters }: Props) {
                       e.stopPropagation();
                       navigate(`/admin/transfers/${row.id}`);
                     }}
-                    className="text-[#21A896] font-medium hover:underline"
+                    className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs sm:text-sm font-medium bg-[#21A896]/10 text-[#21A896] hover:bg-[#21A896]/20 transition"
                   >
                     Detalhe
                   </button>

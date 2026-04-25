@@ -386,7 +386,7 @@ export default function PrivateLayout() {
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col overflow-hidden h-screen bg-gray-50 dark:bg-gray-900">
+            <div className="flex-1 min-w-0 flex flex-col overflow-hidden h-screen bg-gray-50 dark:bg-gray-900">
                 {/* Mobile Header */}
                 <header className="md:hidden bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center z-20 shadow-sm">
                     <button

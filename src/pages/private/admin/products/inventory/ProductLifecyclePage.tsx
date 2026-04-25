@@ -162,7 +162,7 @@ export default function ProductLifecyclePage() {
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               Vida do produto
@@ -218,7 +218,7 @@ export default function ProductLifecyclePage() {
           </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="mt-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
           <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
             <div className="text-sm text-gray-500 flex items-center gap-1">
               Estoque total
@@ -255,8 +255,9 @@ export default function ProductLifecyclePage() {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-white dark:bg-gray-800 p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-wrap gap-2">
+      <div className="rounded-2xl bg-white dark:bg-gray-800 p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div className="w-full lg:w-auto overflow-x-auto">
+          <div className="flex min-w-max gap-2 pb-1 lg:pb-0">
           {tabs.map((tab) => {
             const active = activeTab === tab.key;
             return (
@@ -274,6 +275,7 @@ export default function ProductLifecyclePage() {
               </button>
             );
           })}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2 pr-2">
@@ -373,13 +375,13 @@ export default function ProductLifecyclePage() {
       )}
 
       {activeTab === 'locations' && locationRows.length > 0 && (
-        <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+        <div className="space-y-4">
+          <div className="flex items-center">
             <h2 className="font-semibold text-gray-900 dark:text-white">Estoque por local</h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <table className="min-w-[860px] w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900/40">
                 <tr>
                   <th className="text-left px-4 py-3">Local</th>
@@ -423,13 +425,13 @@ export default function ProductLifecyclePage() {
       )}
 
       {activeTab === 'movements' && movementRows.length > 0 && (
-        <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+        <div className="space-y-4">
+          <div className="flex items-center">
             <h2 className="font-semibold text-gray-900 dark:text-white">Movimentações físicas</h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <table className="min-w-[860px] w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900/40">
                 <tr>
                   <th className="text-left px-4 py-3">Data/Hora</th>
@@ -458,13 +460,13 @@ export default function ProductLifecyclePage() {
       )}
 
       {activeTab === 'audit' && (
-        <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+        <div className="space-y-4">
+          <div className="flex items-center">
             <h2 className="font-semibold text-gray-900 dark:text-white">Auditoria não física</h2>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+            <table className="min-w-[860px] w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900/40">
                 <tr>
                   <th className="text-left px-4 py-3">Data/Hora</th>

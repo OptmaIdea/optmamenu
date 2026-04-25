@@ -60,12 +60,11 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
       <td
         className="
           px-4 py-2.5
-          sticky left-0 z-30
-          bg-inherit
-          before:content-['']
-          before:absolute before:top-0 before:right-0 before:h-full before:w-px
-          before:bg-gray-200 dark:before:bg-gray-700
-          md:static md:before:hidden
+          lg:sticky lg:left-0 lg:z-30
+          lg:bg-inherit
+          lg:before:content-['']
+          lg:before:absolute lg:before:top-0 lg:before:right-0 lg:before:h-full lg:before:w-px
+          lg:before:bg-gray-200 lg:dark:before:bg-gray-700
         "
       >
         <div className="flex items-center gap-3">

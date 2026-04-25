@@ -171,7 +171,7 @@ export default function ProductLifecycleSelectorPage() {
       )}
 
       <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4 shadow-sm space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <div className="relative md:col-span-2">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
             <input
@@ -275,7 +275,7 @@ export default function ProductLifecycleSelectorPage() {
                     </svg>
                   )}
                 </div>
-                <div className="w-full h-24 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                <div className="h-28 sm:h-32 w-full object-cover rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
                   {p.images?.[0] ? (
                     <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
                   ) : (
@@ -283,7 +283,7 @@ export default function ProductLifecycleSelectorPage() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 dark:text-white text-sm truncate pr-6">{p.name}</p>
+                  <p className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2 pr-6">{p.name}</p>
                   {p.category && <p className="text-xs text-gray-400 truncate">{p.category.name}</p>}
                 </div>
                 <div className="flex items-center justify-between gap-2">

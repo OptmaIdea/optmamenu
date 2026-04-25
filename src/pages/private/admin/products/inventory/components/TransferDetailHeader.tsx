@@ -8,7 +8,7 @@ type Props = {
 export default function TransferDetailHeader({ header }: Props) {
   return (
     <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700 space-y-4">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {header.transfer_code ?? 'Transferência'}
@@ -20,7 +20,7 @@ export default function TransferDetailHeader({ header }: Props) {
         <TransferStatusBadge status={header.status} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
         <div>
           <div className="text-gray-500">Solicitado</div>
           <div className="font-semibold">{header.total_requested_qty}</div>

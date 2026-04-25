@@ -191,7 +191,7 @@ export default function TransfersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Transferências</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -207,7 +207,7 @@ export default function TransfersPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: 'Total', value: total },
           { label: 'Enviadas', value: shipped },
@@ -279,19 +279,18 @@ export default function TransfersPage() {
           >
             {destinationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
+        </div>
 
-          {hasFilters && (
+        {hasFilters && (
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
             <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition">
               <X size={14} />
               Limpar filtros
             </button>
-          )}
-        </div>
-
-        {hasFilters && (
-          <p className="text-xs text-gray-400">
-            {filteredRows.length} de {rows.length} transferência{rows.length !== 1 ? 's' : ''} exibida{filteredRows.length !== 1 ? 's' : ''}
-          </p>
+            <p className="text-xs text-gray-400">
+              {filteredRows.length} de {rows.length} transferência{rows.length !== 1 ? 's' : ''} exibida{filteredRows.length !== 1 ? 's' : ''}
+            </p>
+          </div>
         )}
       </div>
 

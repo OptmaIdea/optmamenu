@@ -311,31 +311,31 @@ export default function StockMovementsPage() {
       title={selectedProduct ? `Movimentações: ${selectedProduct.name}` : 'Movimentações de Estoque'}
       subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
       action={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             to="/admin/products"
-            className="p-2 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
             title="Ir para Produtos"
           >
             <Package size={20} />
           </Link>
           <Link
             to="/admin/inventory"
-            className="p-2 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
             title="Ir para Estoque"
           >
             <FileText size={20} />
           </Link>
           <Link
             to="/admin/stock/purchase-documents"
-            className="p-2 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
             title="Entradas por documento"
           >
             <Plus size={20} />
           </Link>
           <button
             onClick={() => setShowFilters(!showFilters)}
-            className={`px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors ${showFilters
+            className={`h-10 px-3 text-sm rounded-lg font-medium flex items-center gap-2 transition-colors ${showFilters
               ? 'bg-[#21A896] text-white'
               : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
           >
@@ -344,14 +344,14 @@ export default function StockMovementsPage() {
           </button>
           <button
             onClick={handlePrint}
-            className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
+            className="h-10 px-3 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
           >
             <Printer size={18} />
             <span className="hidden sm:inline">Imprimir</span>
           </button>
           <button
             onClick={handleExportCsv}
-            className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
+            className="h-10 px-3 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
           >
             <FileText size={18} />
             <span className="hidden sm:inline">Exportar CSV</span>
@@ -405,7 +405,7 @@ export default function StockMovementsPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             <div className="xl:col-span-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                 <Search size={16} />
@@ -424,7 +424,7 @@ export default function StockMovementsPage() {
                   setCurrentPage(1);
                 }}
                 placeholder="Buscar por motivo, origem do movimento ou referência"
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                className="w-full min-w-0 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
               />
             </div>
 
@@ -554,10 +554,10 @@ export default function StockMovementsPage() {
                   </div>
                 )}
 
-                <div className="mt-3 flex flex-wrap items-center gap-3">
+                <div className="mt-3 flex flex-col sm:flex-row items-center gap-3">
                   <button
                     onClick={applyProductFilter}
-                    className="px-3 py-1.5 bg-[#21A896] text-white text-sm rounded-lg hover:bg-[#1a867a]"
+                    className="w-full sm:w-auto px-3 py-1.5 bg-[#21A896] text-white text-sm rounded-lg hover:bg-[#1a867a]"
                   >
                     Aplicar filtro de produtos
                   </button>
@@ -591,7 +591,7 @@ export default function StockMovementsPage() {
       ) : (
         <>
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-6 print:mb-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
             <History size={20} />
             <span className="font-medium">Total de movimentações: </span>
@@ -605,34 +605,34 @@ export default function StockMovementsPage() {
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden print:shadow-none print:border-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+      <div className="bg-white dark:bg-gray-800 rounded-lg print:shadow-none print:border-0">
+        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
+          <table className="min-w-[980px] w-full text-left">
             <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm font-medium print:bg-gray-100">
               <tr>
-                <th className="p-4 print:p-2">Data/Hora</th>
-                <th className="p-4 print:p-2">Produto</th>
-                <th className="p-4 print:p-2">Local</th>
-                <th className="p-4 print:p-2 text-center">Tipo</th>
-                <th className="p-4 print:p-2 text-right">
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Data/Hora</th>
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Produto</th>
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Local</th>
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center">Tipo</th>
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
                   <div className="inline-flex items-center gap-1 justify-end">
                     Quantidade
                     <InfoTooltip text="Variação registrada na movimentação. Valores positivos indicam entrada; negativos indicam saída." />
                   </div>
                 </th>
-                <th className="p-4 print:p-2 text-right">
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
                   <div className="inline-flex items-center gap-1 justify-end">
                     Estoque Antes
                     <InfoTooltip text="Saldo imediatamente antes da movimentação." />
                   </div>
                 </th>
-                <th className="p-4 print:p-2 text-right">
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
                   <div className="inline-flex items-center gap-1 justify-end">
                     Estoque Depois
                     <InfoTooltip text="Saldo imediatamente após a movimentação." />
                   </div>
                 </th>
-                <th className="p-4 print:p-2">
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
                   <div className="inline-flex items-center gap-1">
                     Motivo
                     <InfoTooltip text="Descrição operacional do que gerou a movimentação, como transferência, ajuste, reserva ou saída manual." />
@@ -648,8 +648,8 @@ export default function StockMovementsPage() {
                   const config = MOVEMENT_LABELS[movement.type];
                   return (
                     <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors print:hover:bg-transparent">
-                      <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at)}</td>
-                      <td className="p-4 print:p-2 font-medium text-gray-900 dark:text-white">
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at)}</td>
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 font-medium text-gray-900 dark:text-white">
                         <button
                           type="button"
                           onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
@@ -658,7 +658,7 @@ export default function StockMovementsPage() {
                           {movement.product_name || 'Produto removido'}
                         </button>
                       </td>
-                      <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">
                         {movement.location_name ? (
                           movement.location_name
                         ) : movement.from_location_name || movement.to_location_name ? (
@@ -669,11 +669,11 @@ export default function StockMovementsPage() {
                           '—'
                         )}
                       </td>
-                      <td className="p-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{config.label}</span></td>
-                      <td className={`p-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
-                      <td className="p-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
-                      <td className="p-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
-                      <td className="p-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 max-w-xs">
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{config.label}</span></td>
+                      <td className={`px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
                         <div className="truncate">{movement.reason || '-'}</div>
                         {movement.transfer_id && (
                           <button

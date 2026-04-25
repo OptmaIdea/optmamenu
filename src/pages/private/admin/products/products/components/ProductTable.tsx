@@ -38,14 +38,13 @@ export default function ProductTable({
     };
 
     return (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
-            <div className="overflow-x-auto custom-scrollbar">
-                <table className="w-full text-sm relative">
-                    <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm custom-scrollbar">
+            <table className="min-w-[860px] w-full text-sm relative">
+                <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                         <tr>
                             {/* Coluna Produto - sticky no mobile */}
                             <th
-                                className="px-4 py-2.5 sticky left-0 z-40 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896] sticky left-0 z-20 bg-gray-50 dark:bg-gray-900/50 border-r border-gray-200 dark:border-gray-700 md:static md:border-r-0"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896] lg:sticky lg:left-0 lg:z-20 bg-gray-50 dark:bg-gray-900/50 lg:border-r border-gray-200 dark:border-gray-700"
                                 onClick={() => onSort('name')}
                             >
                                 Produto {getSortIndicator('name')}
@@ -127,7 +126,6 @@ export default function ProductTable({
                         )}
                     </tbody>
                 </table>
-            </div>
         </div>
     );
 }

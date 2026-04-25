@@ -214,31 +214,31 @@ export default function ProductsPage() {
                 lastUpdated={lastUpdated}
                 onRefresh={handleRefresh}
                 action={
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <Link
                             to="/admin/inventory"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md transition-colors"
+                            className="inline-flex items-center justify-center h-10 w-10 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition-colors"
                             title="Ir para controle de estoque"
                         >
                             <FileText size={16} />
                         </Link>
                         <Link
                             to="/admin/stock-movements"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md transition-colors"
+                            className="inline-flex items-center justify-center h-10 w-10 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition-colors"
                             title="Ver histórico de movimentações"
                         >
                             <History size={16} />
                         </Link>
                         <Link
                             to="/admin/categories"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md transition-colors"
+                            className="inline-flex items-center justify-center h-10 w-10 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition-colors"
                             title="Gerenciar categorias"
                         >
                             <Layers size={16} />
                         </Link>
                         <button
                             onClick={handleNewProduct}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-md transition-colors"
+                            className="inline-flex items-center gap-1.5 h-10 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-xl transition-colors"
                         >
                             <Plus size={16} />
                             <span className="hidden md:inline">Novo Produto</span>

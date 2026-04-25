@@ -158,7 +158,7 @@ export default function InventoryByLocationPage() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500">Posições</div>
           <div className="text-2xl font-bold">{filteredRows.length}</div>
@@ -195,7 +195,7 @@ export default function InventoryByLocationPage() {
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
           <input
             type="text"
             placeholder="Buscar por produto ou local"
@@ -233,7 +233,7 @@ export default function InventoryByLocationPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="w-full rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition"
+              className="w-full xl:w-auto rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition"
             >
               Limpar filtros
             </button>
@@ -246,15 +246,15 @@ export default function InventoryByLocationPage() {
         )}
       </div>
 
-      <div className="rounded-2xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
+      <div className="space-y-4">
+        <div className="flex items-center">
           <h2 className="font-semibold text-gray-900 dark:text-white">
             Posição por local
           </h2>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
+          <table className="min-w-[860px] w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/40">
               <tr>
                 <th className="text-left px-4 py-3">Local</th>
