@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useInventoryByLocation } from './hooks/useInventoryByLocation';
 import { downloadCsv } from '@/utils/export/csv';
@@ -6,7 +7,7 @@ import { formatNumberPtBr } from '@/utils/export/formatters';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
-import { PackageSearch } from 'lucide-react';
+import { PackageSearch, Package, Activity } from 'lucide-react';
 
 const statusLabelMap: Record<string, string> = {
   out: 'Sem estoque',
@@ -149,13 +150,29 @@ export default function InventoryByLocationPage() {
             Visão multiestoque com saldo físico, reservado e disponível por local.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleExportCsv}
-          className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition whitespace-nowrap shrink-0"
-        >
-          Exportar CSV
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/admin/products"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+            title="Ir para Produtos"
+          >
+            <Package size={20} />
+          </Link>
+          <Link
+            to="/admin/products/lifecycle"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+            title="Ir para Vida do Produto"
+          >
+            <Activity size={20} />
+          </Link>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition whitespace-nowrap shrink-0"
+          >
+            Exportar CSV
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">

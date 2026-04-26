@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, Activity, X, ExternalLink, Package, Boxes, SearchX } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Search, Activity, X, ExternalLink, Package, Boxes, SearchX, FileText } from 'lucide-react';
 import { useProducts } from '@/pages/private/admin/products/products/hooks/useProducts';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
@@ -146,6 +146,24 @@ export default function ProductLifecycleSelectorPage() {
         subtitle="Selecione um produto para abrir sua visão 360º de estoque, movimentações e auditoria."
         lastUpdated={lastUpdated}
         onRefresh={handleRefresh}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/admin/products"
+              className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+              title="Ir para Produtos"
+            >
+              <Package size={20} />
+            </Link>
+            <Link
+              to="/admin/inventory"
+              className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+              title="Ir para Estoque por Local"
+            >
+              <FileText size={20} />
+            </Link>
+          </div>
+        }
       >
         <EmptyState
           icon={<Boxes className="h-5 w-5" />}
@@ -162,6 +180,24 @@ export default function ProductLifecycleSelectorPage() {
       subtitle="Selecione um produto para abrir sua visão 360º de estoque, movimentações e auditoria."
       lastUpdated={lastUpdated}
       onRefresh={handleRefresh}
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/admin/products"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+            title="Ir para Produtos"
+          >
+            <Package size={20} />
+          </Link>
+          <Link
+            to="/admin/inventory"
+            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
+            title="Ir para Estoque por Local"
+          >
+            <FileText size={20} />
+          </Link>
+        </div>
+      }
     >
       {selected.length > 0 && (
         <div className="rounded-2xl bg-[#21A896]/10 border border-[#21A896]/30 p-4 flex flex-wrap items-center gap-3">
