@@ -576,6 +576,11 @@ export const stockService = {
 
   createManualStockAdjustment,
   adjustStockToPhysicalCount,
+  createPurchaseQuotation,
+  getPurchaseQuotationsByStore,
+  getPurchaseQuotationDetail,
+  updatePurchaseQuotationResponse,
+  convertPurchaseQuotationToDraft,
 };
 
 
@@ -654,3 +659,197 @@ export type CreatePurchaseDocumentDraftBatchResult = {
   items_count: number;
   total_amount: number;
 };
+
+export type CreatePurchaseQuotationItemInput = {
+  product_id: string;
+  quantity: number;
+  unit_cost?: number | null;
+  notes?: string | null;
+};
+
+export type CreatePurchaseQuotationInput = {
+  supplierId: string;
+  items: CreatePurchaseQuotationItemInput[];
+  messageSubject?: string | null;
+  messageBody?: string | null;
+  sentChannel?: 'whatsapp' | 'email' | 'pdf' | 'manual' | 'other' | null;
+  responsibleName?: string | null;
+  notes?: string | null;
+};
+
+export type CreatePurchaseQuotationResult = {
+  quotation_id: string;
+  quotation_code: string;
+  status: string;
+  items_count: number;
+};
+
+export type PurchaseQuotationSummary = {
+  id: string;
+  quotation_code: string;
+  supplier_id: string;
+  supplier_name: string;
+  status: string;
+  sent_channel: string | null;
+  requested_at: string;
+  responded_at: string | null;
+  expires_at: string | null;
+  items_count: number;
+  total_reference: number;
+  total_quoted: number;
+  converted_purchase_document_id: string | null;
+  responsible_name: string | null;
+  notes: string | null;
+};
+
+export type PurchaseQuotationDetailItem = {
+  id: string;
+  product_id: string;
+  product_name: string;
+  requested_qty: number;
+  reference_unit_cost: number | null;
+  quoted_unit_cost: number | null;
+  approved_qty: number | null;
+  notes: string | null;
+  supplier_notes: string | null;
+};
+
+export type PurchaseQuotationDetail = {
+  id: string;
+  store_id: string;
+  supplier_id: string;
+  supplier_name: string;
+  quotation_code: string;
+  status: string;
+  sent_channel: string | null;
+  requested_at: string;
+  responded_at: string | null;
+  expires_at: string | null;
+  responsible_name: string | null;
+  message_subject: string | null;
+  message_body: string | null;
+  notes: string | null;
+  converted_purchase_document_id: string | null;
+  items: PurchaseQuotationDetailItem[];
+};
+export type UpdatePurchaseQuotationResponseItemInput = {
+  id: string;
+  quoted_unit_cost?: number | null;
+  approved_qty?: number | null;
+  supplier_notes?: string | null;
+};
+
+export type UpdatePurchaseQuotationResponseInput = {
+  quotationId: string;
+  items: UpdatePurchaseQuotationResponseItemInput[];
+  status?: 'draft' | 'sent' | 'answered' | 'approved' | 'rejected' | 'cancelled';
+  sentChannel?: 'whatsapp' | 'email' | 'pdf' | 'manual' | 'other' | null;
+  responsibleName?: string | null;
+  notes?: string | null;
+};
+
+export type UpdatePurchaseQuotationResponseResult = {
+  quotation_id: string;
+  status: string;
+  items_count: number;
+  total_quoted: number;
+};
+
+export type ConvertPurchaseQuotationToDraftInput = {
+  quotationId: string;
+  notes?: string | null;
+};
+
+export type ConvertPurchaseQuotationToDraftResult = {
+  purchase_document_id: string;
+  quotation_id: string;
+  quotation_code: string;
+  supplier_id: string;
+  supplier_name: string;
+  status: string;
+  items_count: number;
+  total_amount: number;
+};
+
+export async function updatePurchaseQuotationResponse(
+  input: UpdatePurchaseQuotationResponseInput,
+): Promise<UpdatePurchaseQuotationResponseResult> {
+  const { data, error } = await supabase.rpc('update_purchase_quotation_response', {
+    p_quotation_id: input.quotationId,
+    p_items: input.items,
+    p_status: input.status ?? 'answered',
+    p_sent_channel: input.sentChannel ?? null,
+    p_responsible_name: input.responsibleName ?? null,
+    p_notes: input.notes ?? null,
+  });
+
+  if (error) throw error;
+
+  return Array.isArray(data)
+    ? (data[0] as UpdatePurchaseQuotationResponseResult)
+    : (data as UpdatePurchaseQuotationResponseResult);
+}
+
+
+
+export async function convertPurchaseQuotationToDraft(
+  input: ConvertPurchaseQuotationToDraftInput,
+): Promise<ConvertPurchaseQuotationToDraftResult> {
+  const { data, error } = await supabase.rpc('convert_purchase_quotation_to_draft', {
+    p_quotation_id: input.quotationId,
+    p_notes: input.notes ?? null,
+  });
+
+  if (error) throw error;
+
+  return Array.isArray(data)
+    ? (data[0] as ConvertPurchaseQuotationToDraftResult)
+    : (data as ConvertPurchaseQuotationToDraftResult);
+}
+
+export async function createPurchaseQuotation(
+  input: CreatePurchaseQuotationInput,
+): Promise<CreatePurchaseQuotationResult> {
+  const { data, error } = await supabase.rpc('create_purchase_quotation', {
+    p_supplier_id: input.supplierId,
+    p_items: input.items,
+    p_message_subject: input.messageSubject ?? null,
+    p_message_body: input.messageBody ?? null,
+    p_sent_channel: input.sentChannel ?? null,
+    p_responsible_name: input.responsibleName ?? null,
+    p_notes: input.notes ?? null,
+  });
+
+  if (error) throw error;
+
+  return Array.isArray(data)
+    ? (data[0] as CreatePurchaseQuotationResult)
+    : (data as CreatePurchaseQuotationResult);
+}
+
+export async function getPurchaseQuotationsByStore(
+  storeId: string,
+  status?: string | null,
+): Promise<PurchaseQuotationSummary[]> {
+  const { data, error } = await supabase.rpc('get_purchase_quotations_by_store', {
+    p_store_id: storeId,
+    p_status: status ?? null,
+    p_limit: 100,
+  });
+
+  if (error) throw error;
+
+  return (data ?? []) as PurchaseQuotationSummary[];
+}
+
+export async function getPurchaseQuotationDetail(
+  quotationId: string,
+): Promise<PurchaseQuotationDetail> {
+  const { data, error } = await supabase.rpc('get_purchase_quotation_detail', {
+    p_quotation_id: quotationId,
+  });
+
+  if (error) throw error;
+
+  return data as PurchaseQuotationDetail;
+}

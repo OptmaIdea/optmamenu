@@ -16,7 +16,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-
+import { PurchaseQuotationsPanel } from './components/PurchaseQuotationsPanel';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -784,6 +784,8 @@ export default function PurchaseDocumentsPage() {
               setAutoOpenedDocId(null);
             }}
           />
+
+          {storeId && <PurchaseQuotationsPanel storeId={storeId} />}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatsCard

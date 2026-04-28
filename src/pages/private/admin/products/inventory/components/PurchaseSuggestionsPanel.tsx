@@ -130,11 +130,15 @@ export function PurchaseSuggestionsPanel({
     const [quantities, setQuantities] = useState<Record<string, number>>({});
     const [unitCosts, setUnitCosts] = useState<Record<string, number>>({});
 
+    const [savingQuotation, setSavingQuotation] = useState(false);
+    const [savedQuotationCode, setSavedQuotationCode] = useState<string | null>(null);
+
     const [quotationPreview, setQuotationPreview] = useState<{
         supplierId: string;
         supplierName: string;
         supplierPhone?: string | null;
         supplierEmail?: string | null;
+        groupKey: string;
         items: {
             productId: string;
             productName: string;
@@ -367,11 +371,14 @@ export function PurchaseSuggestionsPanel({
             (item) => item.id === group.supplierId,
         );
 
+        setSavedQuotationCode(null);
+
         setQuotationPreview({
             supplierId: group.supplierId,
             supplierName: group.supplierName,
             supplierPhone: getSupplierPhoneForQuotation(supplier),
             supplierEmail: getSupplierEmailForQuotation(supplier),
+            groupKey: group.supplierId,
             items: selectedRows.map((row) => {
                 const key = getSuggestionKey(row);
 
@@ -383,6 +390,60 @@ export function PurchaseSuggestionsPanel({
                 };
             }),
         });
+    }
+
+    async function handleCreateDraftFromQuotation() {
+        if (!quotationPreview) return;
+
+        const group = groups.find(
+            (item) => item.supplierId === quotationPreview.supplierId,
+        );
+
+        if (!group) {
+            toast.error('Não foi possível localizar o grupo da cotação.');
+            return;
+        }
+
+        await handleCreateDraftForGroup(group);
+        setQuotationPreview(null);
+    }
+
+    async function handleSaveQuotation(payload: {
+        messageSubject: string;
+        messageBody: string;
+        sentChannel: 'whatsapp' | 'email' | 'pdf' | 'manual' | 'other' | null;
+    }) {
+        if (!quotationPreview) return;
+
+        try {
+            setSavingQuotation(true);
+
+            const result = await stockService.createPurchaseQuotation({
+                supplierId: quotationPreview.supplierId,
+                items: quotationPreview.items.map((item) => ({
+                    product_id: item.productId,
+                    quantity: item.quantity,
+                    unit_cost: item.unitCost ?? null,
+                })),
+                messageSubject: payload.messageSubject,
+                messageBody: payload.messageBody,
+                sentChannel: payload.sentChannel,
+                responsibleName: 'Responsável pela cotação',
+                notes: 'Cotação criada a partir da central de sugestões de compra.',
+            });
+
+            setSavedQuotationCode(result.quotation_code);
+            toast.success(`Cotação ${result.quotation_code} salva com sucesso.`);
+        } catch (error) {
+            console.error('Erro ao salvar cotação:', error);
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Não foi possível salvar a cotação.',
+            );
+        } finally {
+            setSavingQuotation(false);
+        }
     }
 
     if (!storeId) return null;
@@ -691,7 +752,15 @@ export function PurchaseSuggestionsPanel({
                 supplierPhone={quotationPreview?.supplierPhone}
                 supplierEmail={quotationPreview?.supplierEmail}
                 items={quotationPreview?.items ?? []}
-                onClose={() => setQuotationPreview(null)}
+                onClose={() => {
+                    setQuotationPreview(null);
+                    setSavedQuotationCode(null);
+                }}
+                onCreateDraft={handleCreateDraftFromQuotation}
+                creatingDraft={creatingGroup === quotationPreview?.supplierId}
+                onSaveQuotation={handleSaveQuotation}
+                savingQuotation={savingQuotation}
+                savedQuotationCode={savedQuotationCode}
             />
         </section>
     );
