@@ -86,6 +86,10 @@ export function getMovementOperationLabel(movement: ProductMovementNarrativeInpu
   const type = String(movement.type ?? '').toLowerCase();
   const source = String(movement.source ?? '').toLowerCase();
 
+  if (source === 'physical_count_adjustment') {
+    return 'Ajuste por contagem física';
+  }
+
   if (source === 'manual_adjustment' && type === 'clearance') {
     return 'Baixa manual de estoque';
   }
@@ -153,6 +157,10 @@ export function getMovementDirectionLabel(movement: ProductMovementNarrativeInpu
 export function getMovementReferenceLabel(movement: ProductMovementNarrativeInput) {
   const source = String(movement.source ?? '').toLowerCase();
 
+  if (source === 'physical_count_adjustment') {
+    return 'Contagem física';
+  }
+
   if (source === 'manual_adjustment') {
     return 'Ajuste manual';
   }
@@ -182,6 +190,15 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
   const location = asText(movement.location_name, 'Local não identificado');
   const fromLocation = asText(movement.from_location_name, 'origem não identificada');
   const toLocation = asText(movement.to_location_name, 'destino não identificado');
+
+  if (source === 'physical_count_adjustment') {
+    const signedQty = asNumber(movement.quantity);
+    const formattedQty = signedQty > 0 ? `+${signedQty}` : String(signedQty);
+    const previous = asNumber(movement.previous_stock);
+    const next = asNumber(movement.new_stock);
+
+    return `${location} ajustado por contagem física: de ${previous} para ${next}. Diferença: ${formattedQty} un.`;
+  }
 
   if (source === 'manual_adjustment' && type === 'clearance') {
     return `${location} teve baixa manual de ${qty} un. no estoque.`;
@@ -239,6 +256,7 @@ export function getMovementTone(movement: ProductMovementNarrativeInput) {
   const type = String(movement.type ?? '').toLowerCase();
   const source = String(movement.source ?? '').toLowerCase();
 
+  if (source === 'physical_count_adjustment') return 'neutral';
   if (source === 'manual_adjustment' && type === 'clearance') return 'danger';
   if (source === 'manual_adjustment') return 'neutral';
   if (type === 'clearance') return 'danger';

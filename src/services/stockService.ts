@@ -300,7 +300,8 @@ export type ManualStockAdjustmentKind =
   | 'damage'
   | 'expired'
   | 'breakage'
-  | 'loss';
+  | 'loss'
+  | 'physical_count';
 
 export type CreateManualStockAdjustmentInput = {
   productId: string;
@@ -337,6 +338,41 @@ export async function createManualStockAdjustment(
   return Array.isArray(data)
     ? (data[0] as CreateManualStockAdjustmentResult)
     : (data as CreateManualStockAdjustmentResult);
+}
+
+export type AdjustStockToPhysicalCountInput = {
+  productId: string;
+  locationId: string;
+  countedQuantity: number;
+  reason?: string | null;
+  notes?: string | null;
+};
+
+export type AdjustStockToPhysicalCountResult = {
+  movement_id: string | null;
+  product_id: string;
+  location_id: string;
+  previous_quantity: number;
+  counted_quantity: number;
+  adjustment_quantity: number;
+  movement_type: string | null;
+  message: string;
+};
+
+export async function adjustStockToPhysicalCount(
+  input: AdjustStockToPhysicalCountInput,
+): Promise<AdjustStockToPhysicalCountResult[]> {
+  const { data, error } = await supabase.rpc('adjust_stock_to_physical_count', {
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_counted_quantity: input.countedQuantity,
+    p_reason: input.reason ?? null,
+    p_notes: input.notes ?? null,
+  });
+
+  if (error) throw error;
+
+  return normalizeRows<AdjustStockToPhysicalCountResult>(data);
 }
 
 export const stockService = {
@@ -539,6 +575,7 @@ export const stockService = {
   },
 
   createManualStockAdjustment,
+  adjustStockToPhysicalCount,
 };
 
 

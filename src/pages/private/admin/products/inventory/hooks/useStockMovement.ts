@@ -28,6 +28,8 @@ const isCheckConstraintSignError = (err: any) => {
 
 const getMovementSourceLabel = (source: string | null | undefined) => {
     switch (source) {
+        case 'physical_count_adjustment':
+            return 'Ajuste por contagem física';
         case 'stock_transfer':
             return 'Transferência';
         case 'purchase_document':

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { supabase } from '@/lib/supabase';
 import {
     stockService,
     type PurchaseSuggestionRow,
@@ -21,25 +22,23 @@ import {
 
 import { usePurchaseSuggestions } from '../hooks/usePurchaseSuggestions';
 
+type EligibleSupplierOption = {
+  id: string;
+  name: string;
+  active: boolean;
+  blocked: boolean;
+  homologation_status: string | null;
+};
+
 type PurchaseSuggestionsPanelProps = {
     storeId: string | null;
     onDraftCreated?: (purchaseDocumentId: string) => Promise<void> | void;
 };
 
-type GroupedSuggestion = {
-    supplierId: string | null;
-    supplierName: string;
-    supplierBlocked: boolean;
-    supplierPreferred: boolean;
-    items: PurchaseSuggestionRow[];
-};
+
 
 function getSuggestionKey(row: PurchaseSuggestionRow) {
     return row.product_id;
-}
-
-function getSupplierKey(row: PurchaseSuggestionRow) {
-    return row.suggested_supplier_id ?? 'no_supplier';
 }
 
 export function PurchaseSuggestionsPanel({
@@ -56,9 +55,55 @@ export function PurchaseSuggestionsPanel({
     const [expanded, setExpanded] = useState(false);
     const [creatingGroup, setCreatingGroup] = useState<string | null>(null);
 
+    const [eligibleSuppliers, setEligibleSuppliers] = useState<EligibleSupplierOption[]>([]);
+    const [supplierBySuggestion, setSupplierBySuggestion] = useState<Record<string, string>>({});
+
     const [selected, setSelected] = useState<Record<string, boolean>>({});
     const [quantities, setQuantities] = useState<Record<string, number>>({});
     const [unitCosts, setUnitCosts] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+        async function loadEligibleSuppliers() {
+            if (!storeId) return;
+
+            const { data, error } = await supabase
+                .from('suppliers')
+                .select('id, name, active, blocked, homologation_status')
+                .eq('store_id', storeId)
+                .eq('active', true)
+                .eq('blocked', false)
+                .eq('homologation_status', 'approved')
+                .order('name', { ascending: true });
+
+            if (error) {
+                console.error('Erro ao carregar fornecedores elegíveis:', error);
+                toast.error('Não foi possível carregar fornecedores para compra.');
+                return;
+            }
+
+            setEligibleSuppliers(data ?? []);
+        }
+
+        loadEligibleSuppliers();
+    }, [storeId]);
+
+    useEffect(() => {
+        if (!suggestions.length) return;
+
+        setSupplierBySuggestion((current) => {
+            const next = { ...current };
+
+            suggestions.forEach((row) => {
+                const key = getSuggestionKey(row);
+
+                if (!next[key] && row.suggested_supplier_id) {
+                    next[key] = row.suggested_supplier_id;
+                }
+            });
+
+            return next;
+        });
+    }, [suggestions]);
 
     useEffect(() => {
         setSelected((current) => {
@@ -67,9 +112,7 @@ export function PurchaseSuggestionsPanel({
             suggestions.forEach((row) => {
                 const key = getSuggestionKey(row);
                 if (next[key] === undefined) {
-                    next[key] =
-                        Boolean(row.suggested_supplier_id) &&
-                        !row.suggested_supplier_blocked;
+                    next[key] = true; // start selected by default
                 }
             });
 
@@ -104,35 +147,35 @@ export function PurchaseSuggestionsPanel({
     }, [suggestions]);
 
     const groups = useMemo(() => {
-        const map = new Map<string, GroupedSuggestion>();
+        const map = new Map<string, PurchaseSuggestionRow[]>();
 
         suggestions.forEach((row) => {
-            const key = getSupplierKey(row);
+            const chosenSupplierId = supplierBySuggestion[getSuggestionKey(row)];
 
-            const supplierName =
-                row.suggested_supplier_trade_name ||
-                row.suggested_supplier_name ||
-                'Sem fornecedor histórico';
+            if (!chosenSupplierId) {
+                const key = 'without_supplier';
+                map.set(key, [...(map.get(key) ?? []), row]);
+                return;
+            }
 
-            const current =
-                map.get(key) ??
-                {
-                    supplierId: row.suggested_supplier_id,
-                    supplierName,
-                    supplierBlocked: Boolean(row.suggested_supplier_blocked),
-                    supplierPreferred: Boolean(row.suggested_supplier_preferred),
-                    items: [],
-                };
-
-            current.items.push(row);
-            map.set(key, current);
+            map.set(chosenSupplierId, [...(map.get(chosenSupplierId) ?? []), row]);
         });
 
-        return Array.from(map.entries()).map(([key, group]) => ({
-            key,
-            ...group,
-        }));
-    }, [suggestions]);
+        return Array.from(map.entries()).map(([supplierId, rows]) => {
+            const supplier =
+                eligibleSuppliers.find((item) => item.id === supplierId) ?? null;
+
+            return {
+                supplierId,
+                supplierName:
+                    supplierId === 'without_supplier'
+                        ? 'Produtos pendentes de fornecedor'
+                        : supplier?.name ?? 'Fornecedor selecionado',
+                rows,
+                canCreateDraft: supplierId !== 'without_supplier',
+            };
+        });
+    }, [suggestions, supplierBySuggestion, eligibleSuppliers]);
 
     const totals = useMemo(() => {
         return suggestions.reduce(
@@ -155,41 +198,36 @@ export function PurchaseSuggestionsPanel({
         );
     }, [quantities, suggestions, unitCosts]);
 
-    const handleCreateDraft = async (group: GroupedSuggestion & { key: string }) => {
-        if (!group.supplierId) {
-            toast.warning('Este grupo não possui fornecedor histórico. Crie o documento manualmente ou defina um fornecedor.');
+    const handleCreateDraftForGroup = async (group: {
+        supplierId: string;
+        supplierName: string;
+        rows: PurchaseSuggestionRow[];
+        canCreateDraft: boolean;
+    }) => {
+        if (!group.canCreateDraft || group.supplierId === 'without_supplier') {
+            toast.error('Escolha um fornecedor antes de criar o rascunho.');
             return;
         }
 
-        if (group.supplierBlocked) {
-            toast.warning('Fornecedor bloqueado. Revise o cadastro antes de criar uma compra.');
-            return;
-        }
+        const selectedRows = group.rows.filter((row) =>
+            selected[getSuggestionKey(row)]
+        );
 
-        const selectedItems = group.items
-            .filter((row) => selected[getSuggestionKey(row)])
-            .map((row) => {
-                const key = getSuggestionKey(row);
-
-                return {
-                    productId: row.product_id,
-                    quantity: Number(quantities[key] ?? row.suggested_purchase_qty ?? 0),
-                    unitCost: Number(unitCosts[key] ?? row.suggested_unit_cost ?? 0),
-                };
-            })
-            .filter((item) => item.quantity > 0 && item.unitCost >= 0);
-
-        if (!selectedItems.length) {
-            toast.warning('Selecione ao menos um produto para criar o rascunho.');
+        if (!selectedRows.length) {
+            toast.error('Selecione ao menos um produto.');
             return;
         }
 
         try {
-            setCreatingGroup(group.key);
+            setCreatingGroup(group.supplierId);
 
             const result = await stockService.createPurchaseDocumentDraftBatch({
                 supplierId: group.supplierId,
-                items: selectedItems,
+                items: selectedRows.map((row) => ({
+                    productId: row.product_id,
+                    quantity: quantities[getSuggestionKey(row)] ?? row.suggested_purchase_qty ?? 1,
+                    unitCost: unitCosts[getSuggestionKey(row)] ?? row.suggested_unit_cost ?? 0,
+                })),
                 notes: 'Rascunho criado a partir da central de sugestões de compra.',
             });
 
@@ -283,11 +321,11 @@ export function PurchaseSuggestionsPanel({
                     {!loading &&
                         !error &&
                         groups.map((group) => {
-                            const selectedCount = group.items.filter(
+                            const selectedCount = group.rows.filter(
                                 (row) => selected[getSuggestionKey(row)],
                             ).length;
 
-                            const groupTotal = group.items.reduce((sum, row) => {
+                            const groupTotal = group.rows.reduce((sum, row) => {
                                 const key = getSuggestionKey(row);
                                 if (!selected[key]) return sum;
 
@@ -297,17 +335,11 @@ export function PurchaseSuggestionsPanel({
                                 return sum + qty * cost;
                             }, 0);
 
-                            const canCreate =
-                                Boolean(group.supplierId) &&
-                                !group.supplierBlocked &&
-                                !['rejected', 'reproved', 'reprovado', 'blocked', 'bloqueado'].includes(
-                                    String(group.items[0]?.suggested_supplier_homologation_status ?? '').toLowerCase(),
-                                ) &&
-                                selectedCount > 0;
+                            const canCreate = group.canCreateDraft && selectedCount > 0;
 
                             return (
                                 <div
-                                    key={group.key}
+                                    key={group.supplierId}
                                     className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-emerald-900/40 dark:bg-gray-900"
                                 >
                                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -318,54 +350,40 @@ export function PurchaseSuggestionsPanel({
                                                 <h3 className="font-semibold text-gray-900 dark:text-white">
                                                     {group.supplierName}
                                                 </h3>
-
-                                                {group.supplierPreferred && (
-                                                    <span className="rounded-full bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-700">
-                                                        Preferencial
-                                                    </span>
-                                                )}
-
-                                                {group.supplierBlocked && (
-                                                    <span className="rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-700">
-                                                        Bloqueado
-                                                    </span>
-                                                )}
-
-                                                {!group.supplierId && (
-                                                    <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
-                                                        Definir fornecedor manualmente
-                                                    </span>
-                                                )}
                                             </div>
 
                                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                {selectedCount} de {group.items.length} produto(s) selecionado(s) · estimado {formatCurrencyPtBr(groupTotal)}
+                                                {selectedCount} de {group.rows.length} produto(s) selecionado(s) · estimado {formatCurrencyPtBr(groupTotal)}
                                             </p>
                                         </div>
 
-                                        <button
-                                            type="button"
-                                            disabled={!canCreate || creatingGroup === group.key}
-                                            onClick={() => void handleCreateDraft(group)}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            <FilePlus2 size={16} />
-                                            {creatingGroup === group.key
-                                                ? 'Criando...'
-                                                : 'Criar rascunho'}
-                                        </button>
+                                        {group.canCreateDraft ? (
+                                            <button
+                                                type="button"
+                                                disabled={!canCreate || creatingGroup === group.supplierId}
+                                                onClick={() => void handleCreateDraftForGroup(group)}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                            >
+                                                <FilePlus2 size={16} />
+                                                {creatingGroup === group.supplierId
+                                                    ? 'Criando...'
+                                                    : 'Criar rascunho'}
+                                            </button>
+                                        ) : (
+                                            <p className="text-sm font-medium text-amber-600">
+                                                Escolha um fornecedor em cada item para liberar a criação do rascunho.
+                                            </p>
+                                        )}
                                     </div>
 
                                     <div className="mt-4 overflow-x-auto">
                                         <table className="min-w-[1060px] w-full text-sm">
                                             <thead>
                                                 <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                                                    <th className="py-2 pr-3">Selecionar</th>
+                                                    <th className="py-2 pr-3">Sel.</th>
                                                     <th className="py-2 pr-3">Produto</th>
+                                                    <th className="py-2 pr-3">Fornecedor</th>
                                                     <th className="py-2 pr-3">Disponível</th>
-                                                    <th className="py-2 pr-3">Trânsito entrada</th>
-                                                    <th className="py-2 pr-3">Projetado</th>
-                                                    <th className="py-2 pr-3">Mín/Máx</th>
                                                     <th className="py-2 pr-3">Comprar</th>
                                                     <th className="py-2 pr-3">Custo</th>
                                                     <th className="py-2 pr-3">Total</th>
@@ -374,21 +392,30 @@ export function PurchaseSuggestionsPanel({
                                             </thead>
 
                                             <tbody>
-                                                {group.items.map((row) => {
+                                                {group.rows.map((row) => {
                                                     const key = getSuggestionKey(row);
                                                     const qty = Number(quantities[key] ?? row.suggested_purchase_qty ?? 0);
                                                     const cost = Number(unitCosts[key] ?? row.suggested_unit_cost ?? 0);
+
+                                                    const selectedSupplierId = supplierBySuggestion[key] ?? '';
+                                                    const suggestedSupplierId = row.suggested_supplier_id ?? '';
+                                                    const supplierWasChanged =
+                                                        suggestedSupplierId &&
+                                                        selectedSupplierId &&
+                                                        selectedSupplierId !== suggestedSupplierId;
+
+                                                    const hasChosenSupplier = Boolean(selectedSupplierId);
 
                                                     return (
                                                         <tr
                                                             key={row.product_id}
                                                             className="border-t border-gray-100 dark:border-gray-800"
                                                         >
-                                                            <td className="py-2 pr-3">
+                                                            <td className="py-2 pr-3 align-top pt-3">
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={Boolean(selected[key])}
-                                                                    disabled={!group.supplierId || group.supplierBlocked}
+                                                                    disabled={!hasChosenSupplier}
                                                                     onChange={(event) =>
                                                                         setSelected((current) => ({
                                                                             ...current,
@@ -398,29 +425,66 @@ export function PurchaseSuggestionsPanel({
                                                                 />
                                                             </td>
 
-                                                            <td className="py-2 pr-3 font-medium text-gray-900 dark:text-gray-100">
+                                                            <td className="py-2 pr-3 align-top pt-3 font-medium text-gray-900 dark:text-gray-100">
                                                                 {row.product_name}
                                                             </td>
 
-                                                            <td className="py-2 pr-3">
+                                                            <td className="py-2 pr-3 align-top pt-2">
+                                                                <div className="space-y-1 w-48">
+                                                                    <select
+                                                                        value={selectedSupplierId}
+                                                                        onChange={(event) => {
+                                                                            setSupplierBySuggestion((current) => ({
+                                                                                ...current,
+                                                                                [key]: event.target.value,
+                                                                            }));
+                                                                        }}
+                                                                        className="w-full rounded-lg border px-2 py-1 text-xs"
+                                                                    >
+                                                                        <option value="">Selecionar fornecedor</option>
+                                                                        {eligibleSuppliers.map((supplier) => (
+                                                                            <option key={supplier.id} value={supplier.id}>
+                                                                                {supplier.name}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+
+                                                                    {row.suggested_supplier_name ? (
+                                                                        <p className="text-[11px] text-slate-500">
+                                                                            Sugerido: {row.suggested_supplier_name}
+                                                                        </p>
+                                                                    ) : (
+                                                                        <p className="text-[11px] text-amber-600">
+                                                                            Sem histórico: escolha um fornecedor aprovado.
+                                                                        </p>
+                                                                    )}
+
+                                                                    {supplierWasChanged && (
+                                                                        <div className="flex items-center gap-1 mt-1">
+                                                                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700 border border-blue-200">
+                                                                                Alterado
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {!hasChosenSupplier && (
+                                                                        <p className="text-[11px] text-red-500">
+                                                                            Escolha um fornecedor para incluir este item.
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+
+                                                            <td className="py-2 pr-3 align-top pt-3">
                                                                 {formatNumberPtBr(row.available)}
+                                                                {Number(row.in_transit_in ?? 0) > 0 && (
+                                                                    <span className="text-xs text-gray-400 ml-1">
+                                                                        (+{formatNumberPtBr(row.in_transit_in)})
+                                                                    </span>
+                                                                )}
                                                             </td>
 
-                                                            <td className="py-2 pr-3">
-                                                                {Number(row.in_transit_in ?? 0) > 0
-                                                                    ? `+${formatNumberPtBr(row.in_transit_in)}`
-                                                                    : '—'}
-                                                            </td>
-
-                                                            <td className="py-2 pr-3">
-                                                                {formatNumberPtBr(row.projected_available)}
-                                                            </td>
-
-                                                            <td className="py-2 pr-3">
-                                                                {formatNumberPtBr(row.min_stock)} / {formatNumberPtBr(row.max_stock)}
-                                                            </td>
-
-                                                            <td className="py-2 pr-3">
+                                                            <td className="py-2 pr-3 align-top pt-2">
                                                                 <input
                                                                     type="number"
                                                                     min={1}
@@ -435,7 +499,7 @@ export function PurchaseSuggestionsPanel({
                                                                 />
                                                             </td>
 
-                                                            <td className="py-2 pr-3">
+                                                            <td className="py-2 pr-3 align-top pt-2">
                                                                 <input
                                                                     type="number"
                                                                     min={0}
@@ -451,11 +515,11 @@ export function PurchaseSuggestionsPanel({
                                                                 />
                                                             </td>
 
-                                                            <td className="py-2 pr-3 font-semibold">
+                                                            <td className="py-2 pr-3 align-top pt-3 font-semibold">
                                                                 {formatCurrencyPtBr(qty * cost)}
                                                             </td>
 
-                                                            <td className="py-2 pr-3 text-xs text-gray-500">
+                                                            <td className="py-2 pr-3 align-top pt-3 text-xs text-gray-500">
                                                                 {row.recommendation_reason}
                                                             </td>
                                                         </tr>

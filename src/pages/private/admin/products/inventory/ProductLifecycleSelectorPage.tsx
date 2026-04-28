@@ -33,7 +33,7 @@ export default function ProductLifecycleSelectorPage() {
   const [search, setSearch] = useState('');
   const [selectedAction, setSelectedAction] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
-  const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'category-asc' | 'category-desc'>('category-asc');
+  const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'category-asc' | 'category-desc'>('name-asc');
   const [selected, setSelected] = useState<any[]>([]);
 
   const [managementMap, setManagementMap] = useState<Map<string, any>>(new Map());

@@ -345,8 +345,11 @@ export default function PurchaseDocumentsPage() {
       ] = await Promise.all([
         supabase
           .from('suppliers')
-          .select('*')
+          .select('id, name, active, blocked, homologation_status')
           .eq('store_id', store.id)
+          .eq('active', true)
+          .eq('blocked', false)
+          .eq('homologation_status', 'approved')
           .order('name', { ascending: true }),
         supabase
           .from('purchase_documents')
