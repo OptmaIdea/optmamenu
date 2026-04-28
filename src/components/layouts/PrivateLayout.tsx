@@ -32,7 +32,8 @@ import {
     Lock,
     MessageSquare,
     Truck,
-    Activity
+    Activity,
+    ArrowRightLeft,
 } from 'lucide-react';
 
 export default function PrivateLayout() {
@@ -175,7 +176,7 @@ export default function PrivateLayout() {
             { path: '/admin/categories', icon: Layers, label: 'Categorias' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque por local' },
             { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
-            { path: '/admin/transfers', icon: Truck, label: 'Transferências' },
+            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
             { path: '/admin/cashbook/purchases', icon: History, label: 'Compras' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentação' },
@@ -286,14 +287,15 @@ export default function PrivateLayout() {
                                         key={item.path}
                                         to={item.path}
                                         title={isSidebarCollapsed ? item.label : ''}
-                                        className={`flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all ${
-                                            isActive
+                                        className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all
+                                            ${isSidebarCollapsed ? 'justify-center px-2 py-3.5' : 'px-4 py-3'}
+                                            ${isActive
                                                 ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20'
                                                 : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                                        }`}
+                                            }`}
                                     >
                                         <IconComponent
-                                            size={22}
+                                            size={isSidebarCollapsed ? 26 : 22}
                                             className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
                                         />
                                         {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (

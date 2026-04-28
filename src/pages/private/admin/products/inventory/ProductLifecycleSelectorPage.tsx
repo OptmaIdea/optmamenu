@@ -1,25 +1,91 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Search, Activity, X, ExternalLink, Package, Boxes, SearchX, FileText } from 'lucide-react';
 import { useProducts } from '@/pages/private/admin/products/products/hooks/useProducts';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
 import EmptyState from '@/components/common/empty-state/EmptyState';
-import type { Product } from '@/pages/private/admin/products/products/types/product.types';
+import { InventoryQuickNav } from './components/InventoryQuickNav';
+import { supabase } from '@/lib/supabase';
+import { formatNumberPtBr } from '@/utils/export/formatters';
+
+const actionLabelMap: Record<string, string> = {
+  buy: 'Comprar',
+  transfer: 'Transferir',
+  transfer_or_redistribute: 'Transferir',
+  monitor: 'Monitorar',
+  review_excess: 'Revisar excesso',
+  ok: 'OK',
+};
+
+const actionClassMap: Record<string, string> = {
+  buy: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  transfer: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  transfer_or_redistribute: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  monitor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  review_excess: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+};
 
 export default function ProductLifecycleSelectorPage() {
   const navigate = useNavigate();
   const { products, loading, lastUpdated, handleRefresh } = useProducts();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [selectedAction, setSelectedAction] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'category-asc' | 'category-desc'>('category-asc');
-  const [selected, setSelected] = useState<Product[]>([]);
+  const [selected, setSelected] = useState<any[]>([]);
 
-  const activeProducts = useMemo(
-    () => products.filter((p) => !p.is_discontinued),
-    [products]
-  );
+  const [managementMap, setManagementMap] = useState<Map<string, any>>(new Map());
+
+  useEffect(() => {
+    const fetchManagementData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: storeData } = await supabase.rpc('get_user_store_by_id', { p_user_id: user.id });
+      if (!storeData || !storeData[0]) return;
+      
+      const { data: managementRows, error: managementError } = await supabase.rpc(
+        'get_inventory_management_products',
+        {
+          p_store_id: storeData[0].id,
+          p_recommended_action: null,
+          p_limit: 1000,
+        }
+      );
+
+      if (managementError) {
+        console.error('Erro ao carregar diagnóstico gerencial:', managementError);
+        return;
+      }
+
+      const map = new Map<string, any>((managementRows || []).map((row: any) => [row.product_id, row]));
+      setManagementMap(map);
+    };
+
+    if (products.length > 0) {
+      fetchManagementData();
+    }
+  }, [lastUpdated, products.length]);
+
+  const activeProducts = useMemo(() => {
+    return products
+      .filter((p) => !p.is_discontinued)
+      .map((product) => {
+        const management = managementMap.get(product.id);
+        return {
+          ...product,
+          global_available: Number(management?.global_available ?? 0),
+          global_on_hand: Number(management?.global_on_hand ?? 0),
+          global_reserved: Number(management?.global_reserved ?? 0),
+          global_status: management?.global_status ?? 'global_ok',
+          recommended_action: management?.recommended_action ?? 'ok',
+          location_stockout_count: Number(management?.location_stockout_count ?? 0),
+          location_critical_count: Number(management?.location_critical_count ?? 0),
+          possible_source_locations: Number(management?.possible_source_locations ?? 0),
+        } as any;
+      });
+  }, [products, managementMap]);
 
   const categoryOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -33,39 +99,10 @@ export default function ProductLifecycleSelectorPage() {
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
   }, [activeProducts]);
 
-  function getStockStatus(qty: number, min: number) {
-    if (qty === 0) return 'out';
-    if (qty <= min) return 'low';
-    return 'ok';
-  }
-
-  const stockLabel = (qty: number, min: number) => {
-    const status = getStockStatus(qty, min);
-
-    if (status === 'out') {
-      return {
-        text: 'Sem estoque',
-        cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
-      };
-    }
-
-    if (status === 'low') {
-      return {
-        text: 'Estoque baixo',
-        cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-      };
-    }
-
-    return {
-      text: 'Em estoque',
-      cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-    };
-  };
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    const base = activeProducts.filter((p) => {
+    let base = activeProducts.filter((p) => {
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
@@ -74,16 +111,21 @@ export default function ProductLifecycleSelectorPage() {
       const matchesCategory =
         categoryFilter === 'all' || p.category?.id === categoryFilter;
 
-      const stockStatus = getStockStatus(p.stock_quantity ?? 0, p.min_stock ?? 0);
-
-      const matchesStatus =
-        statusFilter === 'all' ||
-        (statusFilter === 'ok' && stockStatus === 'ok') ||
-        (statusFilter === 'low' && stockStatus === 'low') ||
-        (statusFilter === 'out' && stockStatus === 'out');
-
-      return matchesSearch && matchesCategory && matchesStatus;
+      return matchesSearch && matchesCategory;
     });
+
+    if (selectedAction !== 'all') {
+      base = base.filter((product) => {
+        if (selectedAction === 'transfer') {
+          return (
+            product.recommended_action === 'transfer' ||
+            product.recommended_action === 'transfer_or_redistribute'
+          );
+        }
+
+        return product.recommended_action === selectedAction;
+      });
+    }
 
     return [...base].sort((a, b) => {
       const aCategory = a.category?.name?.toLowerCase() ?? '';
@@ -109,29 +151,29 @@ export default function ProductLifecycleSelectorPage() {
           );
       }
     });
-  }, [activeProducts, search, categoryFilter, statusFilter, sortBy]);
+  }, [activeProducts, search, categoryFilter, selectedAction, sortBy]);
 
   const hasFilters =
     search.trim() !== '' ||
-    statusFilter !== 'all' ||
+    selectedAction !== 'all' ||
     categoryFilter !== 'all';
 
   const clearFilters = () => {
     setSearch('');
-    setStatusFilter('all');
+    setSelectedAction('all');
     setCategoryFilter('all');
     setSortBy('category-asc');
   };
 
-  const isSelected = (p: Product) => selected.some((s) => s.id === p.id);
-  const toggleSelect = (p: Product) => {
+  const isSelected = (p: any) => selected.some((s) => s.id === p.id);
+  const toggleSelect = (p: any) => {
     setSelected((prev) =>
       prev.some((s) => s.id === p.id) ? prev.filter((s) => s.id !== p.id) : [...prev, p]
     );
   };
   const removeSelected = (id: string) => setSelected((prev) => prev.filter((s) => s.id !== id));
   const clearSelected = () => setSelected([]);
-  const openSingle = (p: Product) => navigate(`/admin/products/${p.id}/lifecycle`);
+  const openSingle = (p: any) => navigate(`/admin/products/${p.id}/lifecycle`);
 
   const hasAnyProducts = activeProducts.length > 0;
   const hasFilteredProducts = filtered.length > 0;
@@ -182,20 +224,7 @@ export default function ProductLifecycleSelectorPage() {
       onRefresh={handleRefresh}
       action={
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/admin/products"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Ir para Produtos"
-          >
-            <Package size={20} />
-          </Link>
-          <Link
-            to="/admin/inventory"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Ir para Estoque por Local"
-          >
-            <FileText size={20} />
-          </Link>
+          <InventoryQuickNav />
         </div>
       }
     >
@@ -281,14 +310,16 @@ export default function ProductLifecycleSelectorPage() {
 
           <div className="flex gap-3">
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={selectedAction}
+              onChange={(e) => setSelectedAction(e.target.value)}
               className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
             >
-              <option value="all">Todos os status</option>
-              <option value="ok">Em estoque</option>
-              <option value="low">Estoque baixo</option>
-              <option value="out">Sem estoque</option>
+              <option value="all">Todas as ações</option>
+              <option value="buy">Comprar</option>
+              <option value="transfer">Transferir</option>
+              <option value="monitor">Monitorar</option>
+              <option value="review_excess">Revisar excesso</option>
+              <option value="ok">OK</option>
             </select>
 
             {hasFilters && (
@@ -329,7 +360,6 @@ export default function ProductLifecycleSelectorPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((p) => {
             const sel = isSelected(p);
-            const stock = stockLabel(p.stock_quantity, p.min_stock ?? 0);
             return (
               <div
                 key={p.id}
@@ -360,9 +390,36 @@ export default function ProductLifecycleSelectorPage() {
                   <p className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2 pr-6">{p.name}</p>
                   {p.category && <p className="text-xs text-gray-400 truncate">{p.category.name}</p>}
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stock.cls}`}>{stock.text}</span>
-                  <span className="text-xs font-bold text-gray-700 dark:text-gray-200">{p.stock_quantity} un.</span>
+                
+                <div className="flex flex-col gap-1.5 mt-auto mb-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span
+                      className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                        actionClassMap[p.recommended_action ?? 'ok']
+                      }`}
+                    >
+                      {actionLabelMap[p.recommended_action ?? 'ok']}
+                    </span>
+                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                      {formatNumberPtBr(p.global_available ?? 0)} un.
+                    </span>
+                  </div>
+                  
+                  {((p.location_stockout_count ?? 0) > 0 || ((p.possible_source_locations ?? 0) > 0 && (p.recommended_action === 'transfer' || p.recommended_action === 'transfer_or_redistribute'))) && (
+                    <div className="flex flex-col gap-0.5">
+                      {(p.location_stockout_count ?? 0) > 0 && (
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                          {p.location_stockout_count} local(is) sem estoque
+                        </p>
+                      )}
+                      {(p.possible_source_locations ?? 0) > 0 &&
+                        (p.recommended_action === 'transfer' || p.recommended_action === 'transfer_or_redistribute') && (
+                          <p className="text-[11px] text-blue-600 dark:text-blue-300">
+                            há origem possível
+                          </p>
+                        )}
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"

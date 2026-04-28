@@ -31,21 +31,46 @@ export const useModals = (products: Product[]) => {
         const totalInactive = products.filter((p) => !p.active).length;
 
         const totalValue = activeProducts.reduce(
-            (acc, p) => acc + (p.price * (p.display_on_hand ?? p.stock_quantity ?? 0)),
+            (acc, p) => acc + (p.price * Number(p.display_on_hand ?? 0)),
             0
         );
 
         const zeroStockProducts = activeProducts.filter(
-            (p) => (p.display_available ?? p.stock_quantity ?? 0) <= 0
+            (p) => Number(p.display_available ?? 0) <= 0
         );
 
-        const lowStockProducts = activeProducts.filter((p) => {
-            const available = p.display_available ?? p.stock_quantity ?? 0;
-            return available > 0 && available <= p.min_stock;
-        });
+        const lowStockProducts = activeProducts.filter(
+            (p) => p.global_status === 'global_critical'
+        );
+
+        const attentionStockProducts = activeProducts.filter(
+            (p) => p.global_status === 'global_attention'
+        );
 
         const highStockProducts = activeProducts.filter(
-            (p) => (p.display_on_hand ?? p.stock_quantity ?? 0) > p.max_stock
+            (p) => p.global_status === 'global_excess'
+        );
+
+        const recommendedBuyProducts = activeProducts.filter(
+            (p) => p.recommended_action === 'buy'
+        );
+
+        const recommendedTransferProducts = activeProducts.filter(
+            (p) =>
+                p.recommended_action === 'transfer' ||
+                p.recommended_action === 'transfer_or_redistribute'
+        );
+
+        const recommendedMonitorProducts = activeProducts.filter(
+            (p) => p.recommended_action === 'monitor'
+        );
+
+        const recommendedReviewExcessProducts = activeProducts.filter(
+            (p) => p.recommended_action === 'review_excess'
+        );
+
+        const recommendedOkProducts = activeProducts.filter(
+            (p) => p.recommended_action === 'ok'
         );
 
         return {
@@ -53,12 +78,24 @@ export const useModals = (products: Product[]) => {
             totalActive,
             totalInactive,
             totalValue,
+
             zeroStock: zeroStockProducts.length,
             lowStock: lowStockProducts.length,
+            attentionStock: attentionStockProducts.length,
             highStock: highStockProducts.length,
+
+            recommendedBuy: recommendedBuyProducts.length,
+            recommendedTransfer: recommendedTransferProducts.length,
+            recommendedMonitor: recommendedMonitorProducts.length,
+            recommendedReviewExcess: recommendedReviewExcessProducts.length,
+            recommendedOk: recommendedOkProducts.length,
+
             zeroStockProducts,
             lowStockProducts,
+            attentionStockProducts,
             highStockProducts,
+            recommendedBuyProducts,
+            recommendedTransferProducts,
             allProducts: products,
         };
     }, [products]);

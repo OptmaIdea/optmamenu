@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import type { Product } from '../types/product.types';
+import type { Product, DisplayStockStatus } from '../types/product.types';
 
 export const useProducts = () => {
     const [products, setProducts] = useState<Product[]>([]);
@@ -25,7 +25,8 @@ export const useProducts = () => {
             }
             const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
-            const { data: products, error: productsError } = await supabase
+            // Busca principal de produtos (cadastro, categoria, imagens, preço)
+            const { data: productsRaw, error: productsError } = await supabase
                 .from('products')
                 .select(`
           *,
@@ -36,7 +37,26 @@ export const useProducts = () => {
 
             if (productsError) throw productsError;
 
-            const parsedData: Product[] = products?.map(p => {
+            // Busca gerencial de estoque (Fase 6)
+            const { data: managementRows, error: managementError } = await supabase.rpc(
+                'get_inventory_management_products',
+                {
+                    p_store_id: store.id,
+                    p_recommended_action: null,
+                    p_limit: 1000,
+                }
+            );
+
+            if (managementError) {
+                console.error('Erro ao carregar diagnóstico gerencial de estoque:', managementError);
+            }
+
+            // Mapa de product_id → linha gerencial
+            const managementMap = new Map<string, any>(
+                (managementRows || []).map((row: any) => [row.product_id, row])
+            );
+
+            const parsedData: Product[] = (productsRaw || []).map(p => {
                 let parsedImages = p.images;
                 if (typeof p.images === 'string') {
                     try {
@@ -50,16 +70,68 @@ export const useProducts = () => {
                     }
                 }
 
+                const management = managementMap.get(p.id);
+
+                const globalOnHand = Number(management?.global_on_hand ?? 0);
+                const globalReserved = Number(management?.global_reserved ?? 0);
+                const globalAvailable = Number(management?.global_available ?? 0);
+
+                const displayStockStatus: DisplayStockStatus =
+                    management?.global_status === 'product_inactive'
+                        ? 'inactive'
+                        : management?.global_status === 'global_stockout'
+                            ? 'out'
+                            : management?.global_status === 'global_critical'
+                                ? 'low'
+                                : management?.global_status === 'global_attention'
+                                    ? 'attention'
+                                    : management?.global_status === 'global_excess'
+                                        ? 'over'
+                                        : 'ok';
+
                 return {
                     ...p,
-                    price_rules: typeof p.price_rules === 'string' ? JSON.parse(p.price_rules) : p.price_rules,
+
+                    price_rules: typeof p.price_rules === 'string'
+                        ? JSON.parse(p.price_rules)
+                        : p.price_rules,
+
                     images: Array.isArray(parsedImages) ? parsedImages : [],
+
                     category: p.category ? {
                         ...p.category,
-                        price_rules: typeof p.category.price_rules === 'string' ? JSON.parse(p.category.price_rules) : p.category.price_rules
-                    } : undefined
+                        price_rules: typeof p.category.price_rules === 'string'
+                            ? JSON.parse(p.category.price_rules)
+                            : p.category.price_rules
+                    } : undefined,
+
+                    display_on_hand: globalOnHand,
+                    display_reserved: globalReserved,
+                    display_available: globalAvailable,
+                    display_stock_status: displayStockStatus,
+
+                    global_on_hand: globalOnHand,
+                    global_reserved: globalReserved,
+                    global_available: globalAvailable,
+                    global_min_stock: Number(management?.global_min_stock ?? p.min_stock ?? 0),
+                    global_max_stock: Number(management?.global_max_stock ?? p.max_stock ?? 0),
+                    global_status: management?.global_status,
+
+                    total_locations: Number(management?.total_locations ?? 0),
+                    active_locations: Number(management?.active_locations ?? 0),
+                    sales_locations: Number(management?.sales_locations ?? 0),
+                    location_stockout_count: Number(management?.location_stockout_count ?? 0),
+                    location_critical_count: Number(management?.location_critical_count ?? 0),
+                    location_excess_count: Number(management?.location_excess_count ?? 0),
+                    locations_with_available_stock: Number(management?.locations_with_available_stock ?? 0),
+                    possible_source_locations: Number(management?.possible_source_locations ?? 0),
+                    alert_locations: Array.isArray(management?.alert_locations)
+                        ? management.alert_locations
+                        : [],
+
+                    recommended_action: management?.recommended_action ?? 'ok',
                 };
-            }) || [];
+            });
 
             setProducts(parsedData);
             setLastUpdated(new Date());

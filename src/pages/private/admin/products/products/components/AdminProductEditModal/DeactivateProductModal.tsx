@@ -57,7 +57,7 @@ export default function DeactivateProductModal({
             if (hasStock) {
                 const success = await registerMovement({
                     productId: product.id,
-                    quantity: product.stock_quantity,
+                    quantity: Number(product.stock_quantity) || 0,
                     type: 'clearance',
                     reason: `Inativação: ${reason}`,
                 });

@@ -34,22 +34,47 @@ export function useInventoryByLocation() {
   }, [fetchRows, loadingStore]);
 
   const summary = useMemo(() => {
+    const productBuySet = new Set<string>();
+    const productTransferSet = new Set<string>();
+    const productMonitorSet = new Set<string>();
+    const productExcessSet = new Set<string>();
+
     const totals = rows.reduce(
       (acc, row) => {
         acc.onHand += Number(row.on_hand || 0);
         acc.reserved += Number(row.reserved || 0);
         acc.available += Number(row.available || 0);
-        if (row.stock_status === 'low') acc.low += 1;
-        if (row.stock_status === 'out') acc.out += 1;
+
+        if (row.location_status === 'location_stockout') acc.locationStockout += 1;
+        if (row.location_status === 'location_critical') acc.locationCritical += 1;
+        if (row.location_status === 'location_excess') acc.locationExcess += 1;
+
+        if (row.recommended_action === 'buy') productBuySet.add(row.product_id);
+        if (row.recommended_action === 'transfer') productTransferSet.add(row.product_id);
+        if (row.recommended_action === 'monitor') productMonitorSet.add(row.product_id);
+        if (row.recommended_action === 'review_excess') productExcessSet.add(row.product_id);
+
         return acc;
       },
-      { onHand: 0, reserved: 0, available: 0, low: 0, out: 0 }
+      {
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        locationStockout: 0,
+        locationCritical: 0,
+        locationExcess: 0,
+      }
     );
 
     return {
       ...totals,
       positions: rows.length,
       locations: new Set(rows.map((r) => r.location_id)).size,
+      products: new Set(rows.map((r) => r.product_id)).size,
+      recommendedBuy: productBuySet.size,
+      recommendedTransfer: productTransferSet.size,
+      recommendedMonitor: productMonitorSet.size,
+      recommendedReviewExcess: productExcessSet.size,
     };
   }, [rows]);
 

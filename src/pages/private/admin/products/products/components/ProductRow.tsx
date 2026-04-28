@@ -16,18 +16,16 @@ interface ProductRowProps {
 }
 
 export default function ProductRow({ product, onActionClick, deletingId }: ProductRowProps) {
-  const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
-  const reserved = product.display_reserved ?? 0;
-  const available = product.display_available ?? product.stock_quantity ?? 0;
+  const onHand = Number(product.display_on_hand ?? 0);
+  const reserved = Number(product.display_reserved ?? 0);
+  const available = Number(product.display_available ?? 0);
 
   const getInventoryStatus = (p: Product) => {
-    const currentAvailable = p.display_available ?? p.stock_quantity ?? 0;
-    const currentOnHand = p.display_on_hand ?? p.stock_quantity ?? 0;
-
     if (!p.active) return 'inactive';
-    if (currentAvailable <= 0) return 'zero';
-    if (currentAvailable <= p.min_stock) return 'low';
-    if (currentOnHand > p.max_stock) return 'high';
+    if (p.global_status === 'global_stockout') return 'zero';
+    if (p.global_status === 'global_critical') return 'low';
+    if (p.global_status === 'global_attention') return 'attention';
+    if (p.global_status === 'global_excess') return 'high';
     return 'normal';
   };
 
@@ -43,6 +41,9 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
   } else if (stockStatus === 'low') {
     rowBgClass =
       'bg-yellow-50/80 dark:bg-yellow-950/20 hover:bg-yellow-100/80 dark:hover:bg-yellow-900/30';
+  } else if (stockStatus === 'attention') {
+    rowBgClass =
+      'bg-amber-50/80 dark:bg-amber-950/20 hover:bg-amber-100/80 dark:hover:bg-amber-900/30';
   } else if (stockStatus === 'high') {
     rowBgClass =
       'bg-purple-50/80 dark:bg-purple-950/20 hover:bg-purple-100/80 dark:hover:bg-purple-900/30';
@@ -56,6 +57,8 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
     ? 'lg:bg-red-50 lg:dark:bg-red-900/30'
     : stockStatus === 'low'
     ? 'lg:bg-yellow-50 lg:dark:bg-yellow-900/30'
+    : stockStatus === 'attention'
+    ? 'lg:bg-amber-50 lg:dark:bg-amber-900/30'
     : stockStatus === 'high'
     ? 'lg:bg-purple-50 lg:dark:bg-purple-900/30'
     : 'lg:bg-white lg:dark:bg-gray-800';
@@ -64,6 +67,38 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
     style: 'currency',
     currency: 'BRL',
   }).format(product.price);
+
+  // Badge de ação gerencial
+  const actionMeta = (() => {
+    switch (product.recommended_action) {
+      case 'buy':
+        return {
+          label: 'Comprar',
+          className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+        };
+      case 'transfer':
+      case 'transfer_or_redistribute':
+        return {
+          label: 'Transferir',
+          className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+        };
+      case 'monitor':
+        return {
+          label: 'Monitorar',
+          className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+        };
+      case 'review_excess':
+        return {
+          label: 'Revisar excesso',
+          className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+        };
+      default:
+        return {
+          label: 'OK',
+          className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+        };
+    }
+  })();
 
   return (
     <tr className={`transition-colors ${rowBgClass}`}>
@@ -115,7 +150,14 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
                   <AlertTriangle
                     size={16}
                     className="text-yellow-600 dark:text-yellow-400"
-                    aria-label="Estoque baixo"
+                    aria-label="Estoque crítico"
+                  />
+                )}
+                {stockStatus === 'attention' && (
+                  <AlertTriangle
+                    size={16}
+                    className="text-amber-500 dark:text-amber-400"
+                    aria-label="Atenção no estoque"
                   />
                 )}
                 {stockStatus === 'high' && (
@@ -137,6 +179,31 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
 
       <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
         {formattedPrice}
+      </td>
+
+      {/* Coluna Ação Gerencial */}
+      <td className="px-4 py-2.5">
+        <div className="flex flex-col gap-1">
+          <span
+            className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${actionMeta.className}`}
+          >
+            {actionMeta.label}
+          </span>
+
+          {(product.location_stockout_count ?? 0) > 0 && (
+            <span className="text-[11px] text-gray-500 dark:text-gray-400">
+              {product.location_stockout_count} local(is) sem estoque
+            </span>
+          )}
+
+          {(product.possible_source_locations ?? 0) > 0 &&
+            (product.recommended_action === 'transfer' ||
+              product.recommended_action === 'transfer_or_redistribute') && (
+              <span className="text-[11px] text-blue-600 dark:text-blue-300">
+                há origem possível
+              </span>
+            )}
+        </div>
       </td>
 
       <td className="px-4 py-2.5">

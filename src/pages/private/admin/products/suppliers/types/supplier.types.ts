@@ -9,6 +9,12 @@ export type Supplier = {
   active: boolean;
   created_at: string;
   updated_at?: string | null;
+
+  // Campos de relacionamento / homologação
+  homologation_status?: string | null;
+  preferred_supplier?: boolean;
+  blocked?: boolean;
+  blocked_reason?: string | null;
 };
 
 export type SupplierInput = {

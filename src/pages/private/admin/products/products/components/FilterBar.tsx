@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, X, /* RefreshCw, */ Download, FilterX } from 'lucide-react';
-import type { Category, FilterStock, FilterStatus } from '../types/product.types';
+import type { Category, FilterStock, FilterStatus, FilterAction } from '../types/product.types';
 import type { ExportFormat } from '@/pages/private/admin/products/products/hooks/useExport';
 
 interface FilterBarProps {
@@ -17,6 +17,10 @@ interface FilterBarProps {
     // Stock filter
     filterStock: FilterStock;
     onFilterStockChange: (value: FilterStock) => void;
+
+    // Action filter
+    filterAction: FilterAction;
+    onFilterActionChange: (value: FilterAction) => void;
 
     // Status filter
     filterStatus: FilterStatus;
@@ -42,6 +46,8 @@ export default function FilterBar({
     categories,
     filterStock,
     onFilterStockChange,
+    filterAction,
+    onFilterActionChange,
     filterStatus,
     onFilterStatusChange,
     groupByCategory,
@@ -53,7 +59,7 @@ export default function FilterBar({
 
     return (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl mb-6">
-            <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+            <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
                 {/* Busca com botão X */}
                 <div className="relative min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -97,9 +103,24 @@ export default function FilterBar({
                 >
                     <option value="all">Todos estoques</option>
                     <option value="zero">Zerado</option>
-                    <option value="low">Baixo</option>
+                    <option value="low">Crítico</option>
+                    <option value="attention">Atenção</option>
                     <option value="normal">Normal</option>
                     <option value="high">Excesso</option>
+                </select>
+
+                {/* Filtro Ação Gerencial */}
+                <select
+                    value={filterAction}
+                    onChange={(e) => onFilterActionChange(e.target.value as FilterAction)}
+                    className="w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#21A896]"
+                >
+                    <option value="all">Todas ações</option>
+                    <option value="buy">Comprar</option>
+                    <option value="transfer">Transferir</option>
+                    <option value="monitor">Monitorar</option>
+                    <option value="review_excess">Revisar excesso</option>
+                    <option value="ok">OK</option>
                 </select>
 
                 {/* Filtro Status */}

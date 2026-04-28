@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
 
 type SupplierLite = { id: string; name: string };
 
@@ -74,8 +75,13 @@ export default function PurchasesLedger() {
 
   return (
     <PageContainer
-      title="Livro de Caixa (Compras)"
+      title="Compras"
       subtitle="Entradas de estoque com custo (quando informado)."
+      action={
+        <div className="flex flex-wrap items-center gap-2">
+          <InventoryQuickNav />
+        </div>
+      }
     >
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

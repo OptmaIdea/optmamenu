@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   BarChart3,
   CheckCircle2,
   Download,
@@ -26,7 +25,10 @@ import StatsCard from '@/components/common/StatsCard';
 import { buildCsv, downloadCsv, formatCsvNumberBR } from '@/utils/csv';
 
 import type { Supplier } from '@/pages/private/admin/products/suppliers/types/supplier.types';
+import { isSupplierPurchaseEligible } from './utils/supplierStatusUtils';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
+import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
+import { PurchaseSuggestionsPanel } from '@/pages/private/admin/products/inventory/components/PurchaseSuggestionsPanel';
 
 type PurchaseDocumentStatus = 'draft' | 'confirmed' | 'canceled' | 'cancelled';
 
@@ -116,6 +118,7 @@ export default function PurchaseDocumentsPage() {
 
   const [storeId, setStoreId] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const eligibleSuppliers = useMemo(() => suppliers.filter(isSupplierPurchaseEligible), [suppliers]);
   const [documents, setDocuments] = useState<PurchaseDocument[]>([]);
   const [documentItems, setDocumentItems] = useState<PurchaseDocumentItemRow[]>([]);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -740,17 +743,11 @@ export default function PurchaseDocumentsPage() {
 
   return (
     <PageContainer
-      title="Entradas por Documento"
-      subtitle="Lance vários itens em uma única nota e confirme a entrada depois da revisão"
+      title="Compras e Entradas"
+      subtitle="Crie rascunhos de compra por sugestão, revise documentos e confirme entradas no estoque"
       action={
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/admin/stock-movements"
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Voltar para movimentações
-          </Link>
+          <InventoryQuickNav />
           <button
             type="button"
             onClick={() => navigate('/admin/stock/purchase-insights')}
@@ -770,6 +767,21 @@ export default function PurchaseDocumentsPage() {
         <LoadingSpinner />
       ) : (
         <div className="space-y-6">
+          <PurchaseSuggestionsPanel
+            storeId={storeId}
+            onDraftCreated={async (purchaseDocumentId) => {
+              await fetchAll();
+
+              const next = new URLSearchParams(searchParams);
+              next.set('open', purchaseDocumentId);
+              next.delete('supplier_id');
+              next.delete('product_id');
+
+              setSearchParams(next, { replace: false });
+              setAutoOpenedDocId(null);
+            }}
+          />
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatsCard
               title="Rascunhos"
@@ -1007,7 +1019,7 @@ export default function PurchaseDocumentsPage() {
                       disabled={editingReadOnly}
                     >
                       <option value="">(Sem fornecedor)</option>
-                      {suppliers.map((s) => (
+                      {eligibleSuppliers.map((s) => (
                         <option key={s.id} value={s.id}>
                           {s.name}
                         </option>

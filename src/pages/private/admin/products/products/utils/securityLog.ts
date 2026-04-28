@@ -15,13 +15,14 @@ export const logAction = async (
         if (error || !storeData) return;
         const store = Array.isArray(storeData) ? storeData[0] : storeData;
         if (!store) return;
-        await supabase.from('store_security_logs').insert({
-            store_id: store.id,
-            user_id: user.id,
-            user_email: user.email,
-            action,
-            details,
-            outcome,
+        const storeId = store.id;
+        await supabase.rpc('insert_security_log', {
+            p_store_id: storeId,
+            p_user_id: user?.id ?? null,
+            p_user_email: user?.email ?? null,
+            p_action: action,
+            p_details: details ?? {},
+            p_outcome: outcome ?? 'success',
         });
     } catch (e) {
         console.error('Erro ao registrar log:', e);

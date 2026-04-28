@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Package, Plus, Minus } from 'lucide-react';
+import { Plus, Minus } from 'lucide-react';
 import type { Product, SortConfig } from '../types/product.types';
 import ProductRow from '@/pages/private/admin/products/products/components/ProductRow';
 import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
@@ -51,15 +51,21 @@ export default function ProductTable({
                             </th>
                             <th
                                 className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
-                                onClick={() => onSort('stock_quantity')}
+                                onClick={() => onSort('display_available')}
                             >
-                                Estoque {getSortIndicator('stock_quantity')}
+                                Estoque {getSortIndicator('display_available')}
                             </th>
                             <th
                                 className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
                                 onClick={() => onSort('price')}
                             >
                                 Preço {getSortIndicator('price')}
+                            </th>
+                            <th
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
+                                onClick={() => onSort('recommended_action')}
+                            >
+                                Ação {getSortIndicator('recommended_action')}
                             </th>
                             <th
                                 className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
@@ -83,7 +89,7 @@ export default function ProductTable({
                                             className="bg-gray-50/50 dark:bg-gray-800/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50"
                                             onClick={() => onToggleCategory(group.category)}
                                         >
-                                            <td colSpan={5} className="px-4 py-2">
+                                            <td colSpan={6} className="px-4 py-2">
                                                 <div className="flex items-center gap-2">
                                                     <button className="p-1 bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-600 text-[#21A896]">
                                                         {isCollapsed ? (
@@ -119,7 +125,7 @@ export default function ProductTable({
 
                         {isFilteredEmpty && (
                             <EmptyTableState
-                                colSpan={5}
+                                colSpan={6}
                                 title="Nenhum resultado para os filtros aplicados"
                                 description="Os filtros atuais não retornaram resultados. Limpe os filtros ou busque por outro nome, categoria ou status."
                             />

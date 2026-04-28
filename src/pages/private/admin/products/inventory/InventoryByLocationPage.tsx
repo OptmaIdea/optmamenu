@@ -1,34 +1,108 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useInventoryByLocation } from './hooks/useInventoryByLocation';
+import { useInventoryTransit } from './hooks/useInventoryTransit';
+import { mergeInventoryRowsWithTransit } from './utils/mergeInventoryTransit';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatNumberPtBr } from '@/utils/export/formatters';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
-import { PackageSearch, Package, Activity } from 'lucide-react';
+import {
+  PackageSearch,
+  ArrowRightLeft,
+  ShoppingCart,
+  AlertTriangle,
+  Archive,
+  Truck,
+} from 'lucide-react';
+import { InventoryQuickNav } from './components/InventoryQuickNav';
+
+// ─── Mapas de status local ────────────────────────────────────────────────────
 
 const statusLabelMap: Record<string, string> = {
   out: 'Sem estoque',
-  low: 'Baixo',
+  low: 'Crítico',
   ok: 'OK',
-  over: 'Acima do máximo',
+  over: 'Excesso',
+  inactive: 'Inativo',
+
+  location_stockout: 'Sem estoque no local',
+  location_critical: 'Crítico no local',
+  location_excess: 'Excesso no local',
+  location_ok: 'OK no local',
+  location_inactive: 'Local inativo',
+  product_inactive: 'Produto inativo',
+  monitor_only: 'Monitorar',
+  not_configured: 'Sem regra',
 };
 
 const statusClassMap: Record<string, string> = {
   out: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
   low: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
   ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
-  over: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+  over: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  inactive: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+
+  location_stockout: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+  location_critical: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  location_excess: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  location_ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
 };
 
+// ─── Mapas de ação gerencial ──────────────────────────────────────────────────
+
+const actionLabelMap: Record<string, string> = {
+  buy: 'Comprar',
+  transfer: 'Transferir',
+  monitor: 'Monitorar',
+  review_excess: 'Revisar excesso',
+  ok: 'OK',
+  await_transit: 'Aguardar recebimento',
+};
+
+const actionClassMap: Record<string, string> = {
+  buy: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  transfer: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+  monitor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  review_excess: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300',
+  ok: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+  await_transit: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300',
+};
+
+function getTransitAwareAction(row: any) {
+  const available = Number(row.available ?? 0);
+  const inTransitIn = Number(row.in_transit_in ?? 0);
+  if (available <= 0 && inTransitIn > 0) return 'await_transit';
+  return row.recommended_action;
+}
+
+const globalStatusLabelMap: Record<string, string> = {
+  product_inactive: 'Produto inativo',
+  global_stockout: 'Ruptura global',
+  global_critical: 'Crítico global',
+  global_attention: 'Atenção global',
+  global_excess: 'Excesso global',
+  global_ok: 'Global OK',
+};
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+
 export default function InventoryByLocationPage() {
-  const { rows, loading } = useInventoryByLocation();
+  const navigate = useNavigate();
+  const { rows: rawRows, loading, storeId } = useInventoryByLocation();
+  const { rows: transitRows } = useInventoryTransit(storeId);
+
+  const rows = useMemo(
+    () => mergeInventoryRowsWithTransit(rawRows, transitRows),
+    [rawRows, transitRows]
+  );
 
   const [search, setSearch] = useState('');
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedAction, setSelectedAction] = useState('all');
 
   const locations = useMemo(() => {
     const unique = new Map<string, string>();
@@ -51,22 +125,53 @@ export default function InventoryByLocationPage() {
       const matchesStatus =
         selectedStatus === 'all' || row.stock_status === selectedStatus;
 
-      return matchesSearch && matchesLocation && matchesStatus;
+      const matchesAction =
+        selectedAction === 'all' || row.recommended_action === selectedAction;
+
+      return matchesSearch && matchesLocation && matchesStatus && matchesAction;
     });
-  }, [rows, search, selectedLocation, selectedStatus]);
+  }, [rows, search, selectedLocation, selectedStatus, selectedAction]);
 
   const filteredSummary = useMemo(() => {
+    const buyProducts = new Set<string>();
+    const transferProducts = new Set<string>();
+    const monitorProducts = new Set<string>();
+    const excessProducts = new Set<string>();
+
     return filteredRows.reduce(
       (acc, row) => {
         acc.onHand += Number(row.on_hand || 0);
         acc.reserved += Number(row.reserved || 0);
         acc.available += Number(row.available || 0);
-        if (row.stock_status === 'low') acc.low += 1;
-        if (row.stock_status === 'out') acc.out += 1;
-        if (row.stock_status === 'over') acc.over += 1;
+
+        if (row.location_status === 'location_stockout') acc.locationStockout += 1;
+        if (row.location_status === 'location_critical') acc.locationCritical += 1;
+        if (row.location_status === 'location_excess') acc.locationExcess += 1;
+
+        if (row.recommended_action === 'buy') buyProducts.add(row.product_id);
+        if (row.recommended_action === 'transfer') transferProducts.add(row.product_id);
+        if (row.recommended_action === 'monitor') monitorProducts.add(row.product_id);
+        if (row.recommended_action === 'review_excess') excessProducts.add(row.product_id);
+
+        acc.recommendedBuy = buyProducts.size;
+        acc.recommendedTransfer = transferProducts.size;
+        acc.recommendedMonitor = monitorProducts.size;
+        acc.recommendedReviewExcess = excessProducts.size;
+
         return acc;
       },
-      { onHand: 0, reserved: 0, available: 0, low: 0, out: 0, over: 0 }
+      {
+        onHand: 0,
+        reserved: 0,
+        available: 0,
+        locationStockout: 0,
+        locationCritical: 0,
+        locationExcess: 0,
+        recommendedBuy: 0,
+        recommendedTransfer: 0,
+        recommendedMonitor: 0,
+        recommendedReviewExcess: 0,
+      }
     );
   }, [filteredRows]);
 
@@ -74,15 +179,25 @@ export default function InventoryByLocationPage() {
     return new Set(filteredRows.map((row) => row.location_id)).size;
   }, [filteredRows]);
 
+  const totalInTransitIn = useMemo(() => {
+    return filteredRows.reduce((sum, row) => sum + Number((row as any).in_transit_in ?? 0), 0);
+  }, [filteredRows]);
+
+  const totalInTransitOut = useMemo(() => {
+    return filteredRows.reduce((sum, row) => sum + Number((row as any).in_transit_out ?? 0), 0);
+  }, [filteredRows]);
+
   const hasFilters =
     search.trim() !== '' ||
     selectedLocation !== 'all' ||
-    selectedStatus !== 'all';
+    selectedStatus !== 'all' ||
+    selectedAction !== 'all';
 
   const clearFilters = () => {
     setSearch('');
     setSelectedLocation('all');
     setSelectedStatus('all');
+    setSelectedAction('all');
   };
 
   const handleExportCsv = () => {
@@ -90,30 +205,107 @@ export default function InventoryByLocationPage() {
       filename: `estoque_por_local_${new Date().toISOString().slice(0, 10)}.csv`,
       headers: [
         'Local',
+        'Código do local',
         'Produto',
         'Físico',
         'Reservado',
         'Disponível',
-        'Mínimo',
-        'Máximo',
-        'Status',
+        'Em trânsito entrada',
+        'Em trânsito saída',
+        'Disponível projetado',
+        'Transferências entrada',
+        'Transferências saída',
+        'Mínimo local provisório',
+        'Máximo local provisório',
+        'Status local',
+        'Ação',
+        'Status global',
+        'Disponível global',
+        'Origens possíveis',
       ],
-      rows: filteredRows.map((row) => [
-        row.location_name,
-        row.product_name,
-        formatNumberPtBr(row.on_hand),
-        formatNumberPtBr(row.reserved),
-        formatNumberPtBr(row.available),
-        formatNumberPtBr(row.min_stock),
-        formatNumberPtBr(row.max_stock),
-        statusLabelMap[row.stock_status] ?? row.stock_status ?? '',
-      ]),
+      rows: filteredRows.map((row) => {
+        const sourceLocations = Array.isArray(row.source_locations)
+          ? row.source_locations
+          : [];
+
+        const sourceSummary = sourceLocations
+          .filter((source) => source.location_id !== row.location_id)
+          .map(
+            (source) =>
+              `${source.location_name} (${source.location_code}) - Disp.: ${formatNumberPtBr(source.available ?? 0)}`
+          )
+          .join(' | ');
+
+        return [
+          row.location_name,
+          row.location_code,
+          row.product_name,
+          formatNumberPtBr(row.on_hand),
+          formatNumberPtBr(row.reserved),
+          formatNumberPtBr(row.available),
+          formatNumberPtBr(row.in_transit_in ?? 0),
+          formatNumberPtBr(row.in_transit_out ?? 0),
+          formatNumberPtBr((row as any).projected_available ?? row.available ?? 0),
+          Array.isArray((row as any).incoming_transfers)
+            ? (row as any).incoming_transfers.map((t: any) => t.transfer_code).join(' | ')
+            : '',
+          Array.isArray((row as any).outgoing_transfers)
+            ? (row as any).outgoing_transfers.map((t: any) => t.transfer_code).join(' | ')
+            : '',
+          formatNumberPtBr(row.provisional_location_min_stock ?? row.min_stock ?? 0),
+          formatNumberPtBr(row.provisional_location_max_stock ?? row.max_stock ?? 0),
+          statusLabelMap[row.location_status] ??
+            statusLabelMap[row.stock_status] ??
+            row.stock_status ??
+            '',
+          actionLabelMap[getTransitAwareAction(row)] ?? getTransitAwareAction(row) ?? '',
+          globalStatusLabelMap[row.global_status] ?? row.global_status ?? '',
+          formatNumberPtBr(row.global_available ?? 0),
+          sourceSummary || '',
+        ];
+      }),
     });
   };
 
   const hasAnyData = rows.length > 0;
   const hasFilteredData = filteredRows.length > 0;
   const isFilteredEmpty = hasAnyData && !hasFilteredData;
+
+  const handleCreateTransferFromRow = (row: any) => {
+    const sourceLocations = Array.isArray(row.source_locations)
+      ? row.source_locations
+      : [];
+
+    const bestSource = sourceLocations.find(
+      (source: any) => source.location_id !== row.location_id
+    );
+
+    if (!bestSource) return;
+
+    const destinationNeed = Math.max(
+      1,
+      Number(row.provisional_location_min_stock ?? 0) - Number(row.available ?? 0)
+    );
+
+    const sourceSafeExcess = Math.max(
+      0,
+      Number(bestSource.available ?? 0) - Number(row.provisional_location_min_stock ?? 0)
+    );
+
+    const suggestedQty = Math.max(
+      1,
+      Math.min(destinationNeed, sourceSafeExcess || destinationNeed)
+    );
+
+    const params = new URLSearchParams({
+      product_id: row.product_id,
+      source_location_id: bestSource.location_id,
+      destination_location_id: row.location_id,
+      suggested_qty: String(suggestedQty),
+    });
+
+    navigate(`/admin/transfers?${params.toString()}`);
+  };
 
   if (loading) return <LoadingSpinner />;
 
@@ -141,6 +333,7 @@ export default function InventoryByLocationPage() {
 
   return (
     <div className="space-y-6">
+      {/* Cabeçalho */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -151,20 +344,7 @@ export default function InventoryByLocationPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/admin/products"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Ir para Produtos"
-          >
-            <Package size={20} />
-          </Link>
-          <Link
-            to="/admin/products/lifecycle"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Ir para Vida do Produto"
-          >
-            <Activity size={20} />
-          </Link>
+          <InventoryQuickNav />
           <button
             type="button"
             onClick={handleExportCsv}
@@ -175,44 +355,100 @@ export default function InventoryByLocationPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+      {/* Cards gerenciais */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-4">
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500">Posições</div>
           <div className="text-2xl font-bold">{filteredRows.length}</div>
         </div>
+
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500">Locais</div>
           <div className="text-2xl font-bold">{filteredLocationsCount}</div>
         </div>
+
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
-            Físico
-            <InfoTooltip text="Quantidade física atualmente existente no local." />
+            Comprar
+            <InfoTooltip text="Produtos cujo estoque global está zerado ou crítico. A ação correta tende a ser compra/reposição." />
           </div>
-          <div className="text-2xl font-bold">{filteredSummary.onHand}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <ShoppingCart size={18} className="text-red-500" />
+            <span className="text-2xl font-bold text-red-600 dark:text-red-400">
+              {filteredSummary.recommendedBuy}
+            </span>
+          </div>
         </div>
+
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
-            Reservado
-            <InfoTooltip text="Quantidade separada para pedidos ou operações, indisponível para nova venda imediata." />
+            Transferir
+            <InfoTooltip text="Produtos com saldo global, mas com ruptura ou criticidade em algum local. A ação sugerida é redistribuição." />
           </div>
-          <div className="text-2xl font-bold">{filteredSummary.reserved}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <ArrowRightLeft size={18} className="text-blue-500" />
+            <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {filteredSummary.recommendedTransfer}
+            </span>
+          </div>
         </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Locais críticos
+            <InfoTooltip text="Quantidade de posições por local sem estoque ou abaixo do mínimo provisório." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <AlertTriangle size={18} className="text-amber-500" />
+            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              {filteredSummary.locationStockout + filteredSummary.locationCritical}
+            </span>
+          </div>
+        </div>
+
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Disponível
-            <InfoTooltip text="Quantidade utilizável agora. Normalmente é o físico menos o reservado." />
+            <InfoTooltip text="Soma do disponível das posições filtradas." />
           </div>
-          <div className="text-2xl font-bold">{filteredSummary.available}</div>
+          <div className="mt-2 flex items-center gap-2">
+            <Archive size={18} className="text-emerald-500" />
+            <span className="text-2xl font-bold">
+              {formatNumberPtBr(filteredSummary.available)}
+            </span>
+          </div>
         </div>
+
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
-          <div className="text-sm text-gray-500">Itens críticos</div>
-          <div className="text-2xl font-bold">{filteredSummary.low + filteredSummary.out}</div>
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Trânsito entrada
+            <InfoTooltip text="Quantidade total a caminho desta localização, ainda não recebida." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Truck size={18} className="text-sky-500" />
+            <span className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+              {formatNumberPtBr(totalInTransitIn)}
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+          <div className="text-sm text-gray-500 flex items-center gap-1">
+            Trânsito saída
+            <InfoTooltip text="Quantidade total enviada desta localização, ainda não recebida no destino." />
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <Truck size={18} className="text-amber-500" />
+            <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+              {formatNumberPtBr(totalInTransitOut)}
+            </span>
+          </div>
         </div>
       </div>
 
+      {/* Filtros */}
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
           <input
             type="text"
             placeholder="Buscar por produto ou local"
@@ -241,9 +477,23 @@ export default function InventoryByLocationPage() {
           >
             <option value="all">Todos os status</option>
             <option value="out">Sem estoque</option>
-            <option value="low">Baixo</option>
+            <option value="low">Crítico</option>
             <option value="ok">OK</option>
-            <option value="over">Acima do máximo</option>
+            <option value="over">Excesso</option>
+            <option value="inactive">Inativo</option>
+          </select>
+
+          <select
+            value={selectedAction}
+            onChange={(e) => setSelectedAction(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
+          >
+            <option value="all">Todas as ações</option>
+            <option value="buy">Comprar</option>
+            <option value="transfer">Transferir</option>
+            <option value="monitor">Monitorar</option>
+            <option value="review_excess">Revisar excesso</option>
+            <option value="ok">OK</option>
           </select>
 
           {hasFilters && (
@@ -263,6 +513,7 @@ export default function InventoryByLocationPage() {
         )}
       </div>
 
+      {/* Tabela */}
       <div className="space-y-4">
         <div className="flex items-center">
           <h2 className="font-semibold text-gray-900 dark:text-white">
@@ -271,7 +522,7 @@ export default function InventoryByLocationPage() {
         </div>
 
         <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-          <table className="min-w-[860px] w-full text-sm">
+          <table className="min-w-[1300px] w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/40">
               <tr>
                 <th className="text-left px-4 py-3">Local</th>
@@ -279,46 +530,168 @@ export default function InventoryByLocationPage() {
                 <th className="text-left px-4 py-3">Físico</th>
                 <th className="text-left px-4 py-3">Reservado</th>
                 <th className="text-left px-4 py-3">Disponível</th>
-                <th className="text-left px-4 py-3">Mín.</th>
-                <th className="text-left px-4 py-3">Máx.</th>
-                <th className="text-left px-4 py-3">Status</th>
+                <th className="text-left px-4 py-3">Entrando</th>
+                <th className="text-left px-4 py-3">Saindo</th>
+                <th className="text-left px-4 py-3">Mín. local</th>
+                <th className="text-left px-4 py-3">Status local</th>
+                <th className="text-left px-4 py-3">Ação</th>
+                <th className="text-left px-4 py-3">Global</th>
+                <th className="text-left px-4 py-3">Origem</th>
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => (
-                <tr
-                  key={`${row.location_id}-${row.product_id}-${row.variant_id ?? 'base'}`}
-                  className="border-t border-gray-100 dark:border-gray-700"
-                >
-                  <td className="px-4 py-3">{row.location_name}</td>
-                  <td className="px-4 py-3 font-medium">{row.product_name}</td>
-                  <td className="px-4 py-3">{row.on_hand}</td>
-                  <td className="px-4 py-3">{row.reserved}</td>
-                  <td className="px-4 py-3">{row.available}</td>
-                  <td className="px-4 py-3">{row.min_stock ?? '—'}</td>
-                  <td className="px-4 py-3">{row.max_stock ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${statusClassMap[row.stock_status] ??
-                        'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+              {filteredRows.map((row) => {
+                const sourceLocations = Array.isArray(row.source_locations)
+                  ? row.source_locations
+                  : [];
+
+                const bestSource = sourceLocations.find(
+                  (source) => source.location_id !== row.location_id
+                );
+
+                return (
+                  <tr
+                    key={`${row.location_id}-${row.product_id}-${row.variant_id ?? 'base'}`}
+                    className="border-t border-gray-100 dark:border-gray-700"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{row.location_name}</div>
+                      <div className="text-xs text-gray-400">{row.location_code}</div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{row.product_name}</div>
+                      <Link
+                        to={`/admin/products/${row.product_id}/lifecycle`}
+                        className="text-xs text-[#21A896] hover:underline"
+                      >
+                        Ver vida do produto
+                      </Link>
+                    </td>
+
+                    <td className="px-4 py-3">{formatNumberPtBr(row.on_hand)}</td>
+                    <td className="px-4 py-3">{formatNumberPtBr(row.reserved)}</td>
+
+                    <td className="px-4 py-3">
+                      <span className="font-semibold">
+                        {formatNumberPtBr(row.available)}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {Number((row as any).in_transit_in ?? 0) > 0 ? (
+                        <div className="space-y-1">
+                          <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+                            +{formatNumberPtBr((row as any).in_transit_in)} em trânsito
+                          </span>
+                          {Array.isArray((row as any).incoming_transfers) &&
+                            (row as any).incoming_transfers.slice(0, 1).map((transfer: any) => (
+                              <div key={transfer.transfer_id} className="text-xs text-blue-600">
+                                {transfer.transfer_code}
+                              </div>
+                            ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {Number((row as any).in_transit_out ?? 0) > 0 ? (
+                        <div className="space-y-1">
+                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                            -{formatNumberPtBr((row as any).in_transit_out)} em trânsito
+                          </span>
+                          {Array.isArray((row as any).outgoing_transfers) &&
+                            (row as any).outgoing_transfers.slice(0, 1).map((transfer: any) => (
+                              <div key={transfer.transfer_id} className="text-xs text-amber-600">
+                                {transfer.transfer_code}
+                              </div>
+                            ))}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {formatNumberPtBr(row.provisional_location_min_stock ?? row.min_stock ?? 0)}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          statusClassMap[row.location_status] ??
+                          statusClassMap[row.stock_status] ??
+                          'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
                         }`}
-                    >
-                      {statusLabelMap[row.stock_status] ?? row.stock_status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                      >
+                        {statusLabelMap[row.location_status] ??
+                          statusLabelMap[row.stock_status] ??
+                          row.stock_status}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {(() => {
+                        const action = getTransitAwareAction(row);
+                        return (
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                              actionClassMap[action] ??
+                              'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                            }`}
+                          >
+                            {actionLabelMap[action] ?? action}
+                          </span>
+                        );
+                      })()}
+                    </td>
+
+                    <td className="px-4 py-3">
+                      <div className="text-xs">
+                        {globalStatusLabelMap[row.global_status] ?? row.global_status}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Disp.: {formatNumberPtBr(row.global_available ?? 0)}
+                      </div>
+                    </td>
+
+                    <td className="px-4 py-3">
+                      {row.recommended_action === 'transfer' && bestSource ? (
+                        <div className="text-xs space-y-1">
+                          <div className="font-medium text-blue-600 dark:text-blue-300">
+                            {bestSource.location_name}
+                          </div>
+                          <div className="text-gray-400">
+                            Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCreateTransferFromRow(row)}
+                            className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                          >
+                            Criar transferência
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
 
               {!hasAnyData && (
                 <EmptyTableState
-                  colSpan={8}
+                  colSpan={12}
                   title="Nenhum saldo por local encontrado"
                   description="Quando houver estoque distribuído entre locais, ele aparecerá aqui."
                 />
               )}
               {isFilteredEmpty && (
                 <EmptyTableState
-                  colSpan={8}
+                  colSpan={12}
                   title="Nenhum resultado para os filtros aplicados"
                   description="Tente limpar os filtros ou ampliar a busca para encontrar outras posições."
                 />

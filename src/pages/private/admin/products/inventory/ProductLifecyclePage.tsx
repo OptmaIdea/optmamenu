@@ -1,15 +1,22 @@
 import { useMemo, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useProductLifecycle } from './hooks/useProductLifecycle';
 import { useProductStockMovements } from './hooks/useProductStockMovements';
 import { useProductInventoryAudit } from './hooks/useProductInventoryAudit';
 import { useProductLocationInventory } from './hooks/useProductLocationInventory';
+import { useProductStockManagement } from './hooks/useProductStockManagement';
+import { ProductStockManagementCards } from './components/ProductStockManagementCards';
+import { useProductSupplierLifecycle } from './hooks/useProductSupplierLifecycle';
+import { ProductSupplierCostPanel } from './components/ProductSupplierCostPanel';
+import { useProductTransitSummary } from './hooks/useProductTransitSummary';
+import { ProductTransitPanel } from './components/ProductTransitPanel';
+import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatCurrencyPtBr, formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
-import { History, MapPinned, X } from 'lucide-react';
+import { ArrowLeft, History, MapPinned } from 'lucide-react';
 
 type LifecycleTab = 'summary' | 'locations' | 'movements' | 'audit';
 
@@ -43,13 +50,31 @@ const stockStatusClassMap: Record<string, string> = {
 
 export default function ProductLifecyclePage() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<LifecycleTab>('summary');
 
   const { row, loading: loadingLifecycle } = useProductLifecycle(id);
   const { rows: movementRows, loading: loadingMovements } = useProductStockMovements(id);
   const { rows: auditRows, loading: loadingAudit } = useProductInventoryAudit(id);
   const { rows: locationRows, loading: loadingLocations } = useProductLocationInventory(id);
+  const {
+    globalSummary,
+    locationRows: managementRows,
+    loading: loadingManagement,
+    error: managementError,
+  } = useProductStockManagement(id);
+
+  const {
+    suppliers: productSuppliers,
+    costHistory: productCostHistory,
+    loading: productSupplierLoading,
+    error: productSupplierError,
+  } = useProductSupplierLifecycle(id);
+
+  const {
+    rows: productTransitRows,
+    loading: productTransitLoading,
+    error: productTransitError,
+  } = useProductTransitSummary(id);
 
   const loading = loadingLifecycle || loadingMovements || loadingAudit || loadingLocations;
 
@@ -172,43 +197,19 @@ export default function ProductLifecyclePage() {
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-3">
-            <div className="text-right">
-              <div className="text-lg font-semibold text-gray-900 dark:text-white">
-                {row.product_name}
-              </div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">
-                Preço atual: {row.price ? `R$ ${Number(row.price).toFixed(2)}` : '—'}
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => navigate('/admin/products/lifecycle')}
-                className="h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm transition inline-flex items-center gap-1.5"
+          {/* Barra de nav: botão Voltar + atalhos do módulo */}
+          <InventoryQuickNav
+            extra={
+              <Link
+                to="/admin/products/lifecycle"
+                className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-[#21A896] hover:border-[#21A896]/40 transition-colors text-sm font-medium"
+                title="Voltar para Vida do produto"
               >
-                <X size={16} className="text-gray-400" />
-                <span>Fechar Visão</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate(`/admin/stock-movements?product=${row.product_id}`)}
-                className="h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm transition inline-flex items-center"
-              >
-                Ver movimentações
-              </button>
-
-              <button
-                type="button"
-                onClick={() => navigate('/admin/transfers')}
-                className="h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm transition inline-flex items-center"
-              >
-                Ver transferências
-              </button>
-            </div>
-          </div>
+                <ArrowLeft size={16} />
+                <span className="hidden sm:inline">Vida do produto</span>
+              </Link>
+            }
+          />
         </div>
 
         <div className="mt-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
@@ -247,6 +248,39 @@ export default function ProductLifecyclePage() {
           </div>
         </div>
       </div>
+
+      {/* ── Nome do produto + nav ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <div className="text-lg font-semibold text-gray-900 dark:text-white">{row.product_name}</div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Preço atual: {row.price ? `R$ ${Number(row.price).toFixed(2)}` : '—'}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Diagnóstico gerencial ── */}
+      <ProductStockManagementCards
+        globalSummary={globalSummary}
+        locationRows={managementRows}
+        loading={loadingManagement}
+        error={managementError}
+      />
+
+      {/* ── Fornecedores e Custos ── */}
+      <ProductSupplierCostPanel
+        suppliers={productSuppliers}
+        costHistory={productCostHistory}
+        loading={productSupplierLoading}
+        error={productSupplierError}
+      />
+
+      {/* ── Trânsito ── */}
+      <ProductTransitPanel
+        rows={productTransitRows}
+        loading={productTransitLoading}
+        error={productTransitError}
+      />
 
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="w-full lg:w-auto overflow-x-auto">
@@ -301,6 +335,7 @@ export default function ProductLifecyclePage() {
           )}
         </div>
       </div>
+
 
       {activeTab === 'summary' && (
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">

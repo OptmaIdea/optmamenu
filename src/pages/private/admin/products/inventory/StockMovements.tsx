@@ -1,12 +1,11 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   History,
   Filter,
   X,
   ChevronLeft,
   ChevronRight,
-  Package,
   Printer,
   Calendar,
   ListFilter,
@@ -17,7 +16,6 @@ import {
 import PageContainer from '@/components/common/PageContainer';
 import { supabase } from '@/lib/supabase';
 import EmptyState from '@/components/common/empty-state/EmptyState';
-
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { useStockMovement } from '@/pages/private/admin/products/inventory/hooks/useStockMovement';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
@@ -27,6 +25,7 @@ import { useReactToPrint } from 'react-to-print';
 import { timezoneUtils } from '@/utils/timezoneUtils';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
+import { InventoryQuickNav } from './components/InventoryQuickNav';
 
 const MOVEMENT_LABELS: Record<StockMovementType, { label: string; color: string }> = {
   entry: { label: 'Entrada', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
@@ -312,27 +311,7 @@ export default function StockMovementsPage() {
       subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
       action={
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            to="/admin/products"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Ir para Produtos"
-          >
-            <Package size={20} />
-          </Link>
-          <Link
-            to="/admin/inventory"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Ir para Estoque"
-          >
-            <FileText size={20} />
-          </Link>
-          <Link
-            to="/admin/stock/purchase-documents"
-            className="flex items-center justify-center h-10 w-10 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
-            title="Entradas por documento"
-          >
-            <Plus size={20} />
-          </Link>
+          <InventoryQuickNav />
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`h-10 px-3 text-sm rounded-lg font-medium flex items-center gap-2 transition-colors ${showFilters

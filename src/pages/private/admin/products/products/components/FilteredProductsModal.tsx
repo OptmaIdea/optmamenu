@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef } from 'react';
 import { X, ArrowUpDown, Layers, Printer, ChevronDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import type { Product } from '../types/product.types';
+import type { Product, ModalFilterType } from '../types/product.types';
 import ProductThumb from '@/pages/private/admin/products/products/components/ProductThumb';
 import PrintableReport from '@/pages/private/admin/products/products/components/PrintableReport';
 import { useReactToPrint } from 'react-to-print'; // ou podemos usar window.print()
@@ -11,7 +11,7 @@ interface FilteredProductsModalProps {
     onClose: () => void;
     title: string;
     products: Product[];
-    type: 'zero' | 'low' | 'high' | 'all';
+    type: ModalFilterType;
     storeName: string;
     userEmail: string;
     onViewProduct?: (product: Product) => void;
@@ -41,18 +41,18 @@ export default function FilteredProductsModal({
         () => window.print(); // fallback
 
     const getProductInventory = (product: Product) => {
-        const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
-        const reserved = product.display_reserved ?? 0;
-        const available = product.display_available ?? product.stock_quantity ?? 0;
+        const onHand = Number(product.display_on_hand ?? 0);
+        const reserved = Number(product.display_reserved ?? 0);
+        const available = Number(product.display_available ?? 0);
         return { onHand, reserved, available };
     };
 
     const getStockStatusLabel = (product: Product) => {
-        const { onHand, available } = getProductInventory(product);
         if (!product.active) return 'inativo';
-        if (available <= 0) return 'zerado';
-        if (available <= product.min_stock) return 'baixo';
-        if (onHand > product.max_stock) return 'excesso';
+        if (product.global_status === 'global_stockout') return 'zerado';
+        if (product.global_status === 'global_critical') return 'crítico';
+        if (product.global_status === 'global_attention') return 'atenção';
+        if (product.global_status === 'global_excess') return 'excesso';
         return 'normal';
     };
 
@@ -231,14 +231,21 @@ export default function FilteredProductsModal({
                                                 </div>
                                                 {/* Badge de status quando agrupamento desligado */}
                                                 {groupBy === 'none' && type !== 'all' && (
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${type === 'zero' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                                                        type === 'zero' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
                                                         type === 'low' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                                                            type === 'high' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
-                                                                ''
-                                                        }`}>
+                                                        type === 'attention' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
+                                                        type === 'high' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' :
+                                                        type === 'buy' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                                                        type === 'transfer' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                                                        ''
+                                                    }`}>
                                                         {type === 'zero' && 'Zerado'}
-                                                        {type === 'low' && 'Baixo'}
+                                                        {type === 'low' && 'Crítico'}
+                                                        {type === 'attention' && 'Atenção'}
                                                         {type === 'high' && 'Excesso'}
+                                                        {type === 'buy' && 'Comprar'}
+                                                        {type === 'transfer' && 'Transferir'}
                                                     </span>
                                                 )}
                                             </div>

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Plus, Archive, Layers, History, FileText } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Plus, Archive } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AdminProductViewModal from '@/pages/private/admin/products/products/components/AdminProductViewModal';
 import ProductDeleteConfirmModal from '@/pages/private/admin/products/products/components/ProductDeleteConfirmModal';
@@ -12,7 +11,7 @@ import { useProducts } from '@/pages/private/admin/products/products/hooks/usePr
 import { useFilters } from '@/pages/private/admin/products/products/hooks/useFilters';
 import { useModals } from '@/pages/private/admin/products/products/hooks/useModals';
 import { useExport } from '@/pages/private/admin/products/products/hooks/useExport';
-import { useProductInventorySnapshot } from '@/hooks/inventory/useProductInventorySnapshot';
+
 
 // Components
 import PageContainer from '@/components/common/PageContainer';
@@ -25,52 +24,21 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import DiscontinuedProductsModal from '@/pages/private/admin/products/products/components/DiscontinuedProductsModal';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import { PackageSearch } from 'lucide-react';
+import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
 
 export default function ProductsPage() {
     // Products data
     const { products, loading, deletingId, lastUpdated, handleRefresh } = useProducts();
-    const { snapshotMap, loading: inventoryLoading } = useProductInventorySnapshot();
-
-    // Enriquece cada produto com totais consolidados do multiestoque
-    const productsWithInventory = useMemo(() => {
-        return products.map((product) => {
-            const inventory = snapshotMap.get(product.id);
-
-            const displayOnHand = inventory?.onHand ?? product.stock_quantity ?? 0;
-            const displayReserved = inventory?.reserved ?? 0;
-            const displayAvailable = inventory?.available ?? product.stock_quantity ?? 0;
-
-            let displayStockStatus: 'out' | 'low' | 'ok' | 'over' = 'ok';
-
-            if (displayAvailable <= 0) {
-                displayStockStatus = 'out';
-            } else if (displayAvailable <= (product.min_stock ?? 0)) {
-                displayStockStatus = 'low';
-            } else if (displayOnHand > (product.max_stock ?? Number.MAX_SAFE_INTEGER)) {
-                displayStockStatus = 'over';
-            } else {
-                displayStockStatus = 'ok';
-            }
-
-            return {
-                ...product,
-                display_on_hand: displayOnHand,
-                display_reserved: displayReserved,
-                display_available: displayAvailable,
-                display_stock_status: displayStockStatus,
-            };
-        });
-    }, [products, snapshotMap]);
 
     // ✅ Produtos NÃO descontinuados (para listagem principal e estatísticas)
     const nonDiscontinuedProducts = useMemo(() => {
-        return productsWithInventory.filter(p => !p.is_discontinued);
-    }, [productsWithInventory]);
+        return products.filter(p => !p.is_discontinued);
+    }, [products]);
 
     // ✅ Produtos descontinuados (para o modal específico)
     const discontinuedProducts = useMemo(() => {
-        return productsWithInventory.filter(p => p.is_discontinued === true);
-    }, [productsWithInventory]);
+        return products.filter(p => p.is_discontinued === true);
+    }, [products]);
 
     // Estados para modais de visualização e exclusão
     const [viewProduct, setViewProduct] = useState<Product | null>(null);
@@ -121,6 +89,8 @@ export default function ProductsPage() {
         setFilterStock,
         filterStatus,
         setFilterStatus,
+        filterAction,
+        setFilterAction,
         groupByCategory,
         setGroupByCategory,
         collapsedCategories,
@@ -198,7 +168,7 @@ export default function ProductsPage() {
 
     const [showDiscontinuedModal, setShowDiscontinuedModal] = useState(false);
 
-    if (loading || inventoryLoading) {
+    if (loading) {
         return <LoadingSpinner />;
     }
 
@@ -215,27 +185,7 @@ export default function ProductsPage() {
                 onRefresh={handleRefresh}
                 action={
                     <div className="flex flex-wrap items-center gap-2">
-                        <Link
-                            to="/admin/inventory"
-                            className="inline-flex items-center justify-center h-10 w-10 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition-colors"
-                            title="Ir para controle de estoque"
-                        >
-                            <FileText size={16} />
-                        </Link>
-                        <Link
-                            to="/admin/stock-movements"
-                            className="inline-flex items-center justify-center h-10 w-10 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition-colors"
-                            title="Ver histórico de movimentações"
-                        >
-                            <History size={16} />
-                        </Link>
-                        <Link
-                            to="/admin/categories"
-                            className="inline-flex items-center justify-center h-10 w-10 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-xl transition-colors"
-                            title="Gerenciar categorias"
-                        >
-                            <Layers size={16} />
-                        </Link>
+                        <InventoryQuickNav />
                         <button
                             onClick={handleNewProduct}
                             className="inline-flex items-center gap-1.5 h-10 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-xl transition-colors"
@@ -285,6 +235,8 @@ export default function ProductsPage() {
                             categories={categories}
                             filterStock={filterStock}
                             onFilterStockChange={setFilterStock}
+                            filterAction={filterAction}
+                            onFilterActionChange={setFilterAction}
                             filterStatus={filterStatus}
                             onFilterStatusChange={setFilterStatus}
                             groupByCategory={groupByCategory}
@@ -332,21 +284,33 @@ export default function ProductsPage() {
                     modalState.filterType === 'zero'
                         ? 'Produtos sem estoque'
                         : modalState.filterType === 'low'
-                            ? 'Produtos com estoque baixo'
-                            : modalState.filterType === 'high'
-                                ? 'Produtos com excesso de estoque'
-                                : 'Todos os produtos'
+                            ? 'Produtos com estoque crítico'
+                            : modalState.filterType === 'attention'
+                                ? 'Produtos em atenção'
+                                : modalState.filterType === 'high'
+                                    ? 'Produtos com excesso de estoque'
+                                    : modalState.filterType === 'buy'
+                                        ? 'Produtos para comprar'
+                                        : modalState.filterType === 'transfer'
+                                            ? 'Produtos para transferir'
+                                            : 'Todos os produtos'
                 }
                 products={
                     modalState.filterType === 'zero'
                         ? stats.zeroStockProducts
                         : modalState.filterType === 'low'
                             ? stats.lowStockProducts
-                            : modalState.filterType === 'high'
-                                ? stats.highStockProducts
-                                : stats.allProducts
+                            : modalState.filterType === 'attention'
+                                ? stats.attentionStockProducts
+                                : modalState.filterType === 'high'
+                                    ? stats.highStockProducts
+                                    : modalState.filterType === 'buy'
+                                        ? stats.recommendedBuyProducts
+                                        : modalState.filterType === 'transfer'
+                                            ? stats.recommendedTransferProducts
+                                            : stats.allProducts
                 }
-                type={modalState.filterType === 'zero' ? 'zero' : modalState.filterType === 'low' ? 'low' : 'all'}
+                type={modalState.filterType ?? 'all'}
                 storeName={storeName}
                 userEmail={userEmail}
                 onViewProduct={handleViewProduct}

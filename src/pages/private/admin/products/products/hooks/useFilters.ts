@@ -5,6 +5,7 @@ import type {
     SortConfig,
     FilterStock,
     FilterStatus,
+    FilterAction,
     Category
 } from '../types/product.types';
 
@@ -16,6 +17,7 @@ export const useFilters = (products: Product[]) => {
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterStock, setFilterStock] = useState<FilterStock>('all');
     const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+    const [filterAction, setFilterAction] = useState<FilterAction>('all');
 
     // Grouping
     const [groupByCategory, setGroupByCategory] = useState(false);
@@ -80,18 +82,17 @@ export const useFilters = (products: Product[]) => {
         setFilterCategory('all');
         setFilterStock('all');
         setFilterStatus('all');
+        setFilterAction('all');
         setGroupByCategory(false);
     }, []);
 
-    // Get stock status for a product
+    // Get stock status for a product (usado internamente para compatibilidade)
     const getInventoryStatus = useCallback((product: Product) => {
-        const available = product.display_available ?? product.stock_quantity ?? 0;
-        const onHand = product.display_on_hand ?? product.stock_quantity ?? 0;
-
         if (!product.active) return 'inactive';
-        if (available <= 0) return 'zero';
-        if (available <= product.min_stock) return 'low';
-        if (onHand > product.max_stock) return 'high';
+        if (product.global_status === 'global_stockout') return 'zero';
+        if (product.global_status === 'global_critical') return 'low';
+        if (product.global_status === 'global_attention') return 'attention';
+        if (product.global_status === 'global_excess') return 'high';
         return 'normal';
     }, []);
 
@@ -114,11 +115,32 @@ export const useFilters = (products: Product[]) => {
             result = result.filter((p) => p.category?.name === filterCategory);
         }
 
-        // Stock filter (only active products)
+        // Stock filter (baseado em display_stock_status / global_status)
         if (filterStock !== 'all') {
-            result = result.filter((p) => {
-                if (!p.active) return false; // inativos não entram nos filtros de estoque
-                return getInventoryStatus(p) === filterStock;
+            result = result.filter((product) => {
+                if (!product.active) return false;
+
+                if (filterStock === 'zero') {
+                    return product.display_stock_status === 'out';
+                }
+
+                if (filterStock === 'low') {
+                    return product.global_status === 'global_critical';
+                }
+
+                if (filterStock === 'attention') {
+                    return product.global_status === 'global_attention';
+                }
+
+                if (filterStock === 'high') {
+                    return product.global_status === 'global_excess';
+                }
+
+                if (filterStock === 'normal') {
+                    return product.global_status === 'global_ok';
+                }
+
+                return true;
             });
         }
 
@@ -128,16 +150,39 @@ export const useFilters = (products: Product[]) => {
             result = result.filter((p) => p.active === isActive);
         }
 
+        // Action filter (ação gerencial recomendada)
+        if (filterAction !== 'all') {
+            result = result.filter((product) => {
+                if (filterAction === 'transfer') {
+                    return (
+                        product.recommended_action === 'transfer' ||
+                        product.recommended_action === 'transfer_or_redistribute'
+                    );
+                }
+                return product.recommended_action === filterAction;
+            });
+        }
+
         // Sorting
         result = [...result].sort((a, b) => {
+            const direction = sortConfig.direction === 'asc' ? 1 : -1;
+
             // Special case for 'active' (boolean)
             if (sortConfig.key === 'active') {
                 if (a.active === b.active) return 0;
                 if (sortConfig.direction === 'asc') {
-                    return a.active ? -1 : 1; // ativo vem antes
+                    return a.active ? -1 : 1;
                 } else {
-                    return a.active ? 1 : -1; // inativo vem antes
+                    return a.active ? 1 : -1;
                 }
+            }
+
+            // Ordenação por disponível consolidado
+            if (sortConfig.key === 'display_available') {
+                return (
+                    (Number(a.display_available ?? 0) - Number(b.display_available ?? 0))
+                    * direction
+                );
             }
 
             let aValue: any = a[sortConfig.key as keyof Product];
@@ -159,11 +204,6 @@ export const useFilters = (products: Product[]) => {
                 bValue = b.category?.name || '';
             }
 
-            if (sortConfig.key === 'stock_quantity') {
-                aValue = a.display_available ?? a.stock_quantity ?? 0;
-                bValue = b.display_available ?? b.stock_quantity ?? 0;
-            }
-
             if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
@@ -176,9 +216,9 @@ export const useFilters = (products: Product[]) => {
         filterCategory,
         filterStock,
         filterStatus,
+        filterAction,
         sortConfig,
         groupByCategory,
-        getInventoryStatus,
     ]);
 
     // Group products by category
@@ -212,6 +252,8 @@ export const useFilters = (products: Product[]) => {
         setFilterStock,
         filterStatus,
         setFilterStatus,
+        filterAction,
+        setFilterAction,
 
         // Grouping
         groupByCategory,

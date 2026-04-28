@@ -53,6 +53,7 @@ const Marketing = lazy(() => import('@/pages/private/admin/marketing/Marketing')
 const Payments = lazy(() => import('@/pages/private/admin/payments/Payments'));
 const Delivery = lazy(() => import('@/pages/private/admin/delivery/Delivery'));
 const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
+const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -112,6 +113,7 @@ export default function AppRoutes() {
 
             <Route path="/admin/suppliers" element={<Suppliers />} />
             <Route path="/admin/suppliers/:id" element={<SupplierDetailPage />} />
+            <Route path="/admin/suppliers/:supplierId/lifecycle" element={<SupplierLifecyclePage />} />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
