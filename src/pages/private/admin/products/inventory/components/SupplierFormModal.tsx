@@ -82,6 +82,10 @@ export function SupplierFormModal({
     const [activeSection, setActiveSection] = useState<SectionKey>('basic');
     const [values, setValues] = useState<SupplierFormValues>(emptySupplierFormValues);
     const [saving, setSaving] = useState(false);
+    const headerSupplierName =
+        mode === 'edit'
+            ? values.name.trim() || values.trade_name.trim() || supplier?.name || 'Fornecedor sem nome'
+            : '';
 
     useEffect(() => {
         if (!open) return;
@@ -569,8 +573,8 @@ export function SupplierFormModal({
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="flex max-h-[92vh] w-full max-w-5xl flex-col rounded-2xl bg-white shadow-2xl dark:bg-gray-950">
-                <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
-                    <div>
+                <div className="flex items-start gap-4 border-b border-gray-100 p-5 dark:border-gray-800">
+                    <div className="min-w-0">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                             {mode === 'create' ? 'Novo fornecedor' : 'Editar fornecedor'}
                         </h2>
@@ -579,10 +583,21 @@ export function SupplierFormModal({
                         </p>
                     </div>
 
+                    {headerSupplierName && (
+                        <div className="ml-auto max-w-[42%] rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-right dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                            <div className="text-[11px] font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                                Fornecedor em edição
+                            </div>
+                            <div className="truncate text-sm font-bold text-gray-900 dark:text-white" title={headerSupplierName}>
+                                {headerSupplierName}
+                            </div>
+                        </div>
+                    )}
+
                     <button
                         type="button"
                         onClick={onClose}
-                        className="rounded-xl p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
+                        className="shrink-0 rounded-xl p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
                     >
                         <X size={18} />
                     </button>
