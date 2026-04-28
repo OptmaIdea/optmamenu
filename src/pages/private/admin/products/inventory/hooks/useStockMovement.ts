@@ -368,6 +368,80 @@ export const useStockMovement = () => {
                 );
             }
 
+            const allSupplierIds = Array.from(
+                new Set(
+                    (data || [])
+                        .map((item: any) => item.supplier_id)
+                        .filter(Boolean)
+                )
+            );
+
+            let supplierMap = new Map<string, { name: string }>();
+
+            if (allSupplierIds.length > 0) {
+                const { data: suppliersData, error: suppliersError } = await supabase
+                    .from('suppliers')
+                    .select('id, name')
+                    .in('id', allSupplierIds);
+
+                if (suppliersError) throw suppliersError;
+
+                supplierMap = new Map(
+                    (suppliersData || []).map((supplier: any) => [
+                        supplier.id,
+                        { name: supplier.name },
+                    ])
+                );
+            }
+
+            const purchaseDocumentIds = Array.from(
+                new Set(
+                    (data || [])
+                        .filter((item: any) => item.source === 'purchase_document' && item.source_id)
+                        .map((item: any) => item.source_id)
+                )
+            );
+
+            let purchaseDocMap = new Map<
+                string,
+                {
+                    purchase_document_number: string | null;
+                    supplier_id: string | null;
+                    supplier_name: string | null;
+                }
+            >();
+
+            if (purchaseDocumentIds.length > 0) {
+                const { data: purchaseDocs, error: purchaseDocsError } = await supabase
+                    .from('purchase_documents')
+                    .select(`
+                        id,
+                        supplier_id,
+                        supplier:suppliers (
+                            id,
+                            name
+                        )
+                    `)
+                    .in('id', purchaseDocumentIds);
+
+                if (purchaseDocsError) throw purchaseDocsError;
+
+                purchaseDocMap = new Map(
+                    (purchaseDocs || []).map((doc: any) => {
+                        const supplier = Array.isArray(doc.supplier) ? doc.supplier[0] : doc.supplier;
+
+                        return [
+                            doc.id,
+                            {
+                                purchase_document_number: null,
+                                supplier_id: doc.supplier_id ?? supplier?.id ?? null,
+                                supplier_name: supplier?.name ?? null,
+                            },
+                        ];
+                    })
+                );
+            }
+
             const allTransferIds = Array.from(
                 new Set(
                     (data || [])
@@ -394,41 +468,68 @@ export const useStockMovement = () => {
                 );
             }
 
-            const movements: StockMovement[] = (data || []).map((item: any) => ({
-                id: item.id,
-                product_id: item.product_id,
-                product_name: item.products?.name,
-                order_id: item.order_id ?? item.source_id ?? null,
-                quantity: item.quantity,
-                type: item.type,
-                reason: item.reason ?? item.reason_code ?? null,
-                user_id: item.user_id ?? item.created_by ?? null,
-                previous_stock: item.previous_stock,
-                new_stock: item.new_stock,
-                created_at: item.created_at,
-                transfer_id: item.transfer_id ?? null,
+            const movements: StockMovement[] = (data || []).map((item: any) => {
+                const purchaseInfo =
+                    item.source === 'purchase_document' && item.source_id
+                        ? purchaseDocMap.get(item.source_id)
+                        : null;
+                const supplierId = item.supplier_id ?? purchaseInfo?.supplier_id ?? null;
 
-                location_id: item.location_id ?? null,
-                location_name: item.location_id ? locationMap.get(item.location_id)?.name ?? null : null,
-                location_code: item.location_id ? locationMap.get(item.location_id)?.code ?? null : null,
+                return {
+                    id: item.id,
+                    product_id: item.product_id,
+                    product_name: item.products?.name,
+                    order_id: item.order_id ?? item.source_id ?? null,
+                    quantity: item.quantity,
+                    type: item.type,
+                    reason: item.reason ?? item.reason_code ?? null,
+                    user_id: item.user_id ?? item.created_by ?? null,
+                    previous_stock: item.previous_stock,
+                    new_stock: item.new_stock,
+                    created_at: item.created_at,
+                    transfer_id: item.transfer_id ?? null,
 
-                from_location_id: item.from_location_id ?? null,
-                from_location_name: item.from_location_id
-                    ? locationMap.get(item.from_location_id)?.name ?? null
-                    : null,
+                    location_id: item.location_id ?? null,
+                    location_name: item.location_id ? locationMap.get(item.location_id)?.name ?? null : null,
+                    location_code: item.location_id ? locationMap.get(item.location_id)?.code ?? null : null,
 
-                to_location_id: item.to_location_id ?? null,
-                to_location_name: item.to_location_id
-                    ? locationMap.get(item.to_location_id)?.name ?? null
-                    : null,
+                    from_location_id: item.from_location_id ?? null,
+                    from_location_name: item.from_location_id
+                        ? locationMap.get(item.from_location_id)?.name ?? null
+                        : null,
+                    from_location_code: item.from_location_id
+                        ? locationMap.get(item.from_location_id)?.code ?? null
+                        : null,
 
-                source: item.source ?? null,
-                source_label: getMovementSourceLabel(item.source),
-                source_id: item.source_id ?? null,
-                transfer_code: item.transfer_id
-                    ? transferMap.get(item.transfer_id)?.transfer_code ?? item.transfer_id
-                    : null,
-            }));
+                    to_location_id: item.to_location_id ?? null,
+                    to_location_name: item.to_location_id
+                        ? locationMap.get(item.to_location_id)?.name ?? null
+                        : null,
+                    to_location_code: item.to_location_id
+                        ? locationMap.get(item.to_location_id)?.code ?? null
+                        : null,
+
+                    supplier_id: supplierId,
+                    supplier_name:
+                        item.supplier_name ??
+                        purchaseInfo?.supplier_name ??
+                        (supplierId ? supplierMap.get(supplierId)?.name ?? null : null),
+                    purchase_document_number:
+                        item.purchase_document_number ??
+                        purchaseInfo?.purchase_document_number ??
+                        null,
+
+                    source: item.source ?? null,
+                    source_label: getMovementSourceLabel(item.source),
+                    source_id: item.source_id ?? null,
+                    transfer_code: item.transfer_id
+                        ? transferMap.get(item.transfer_id)?.transfer_code ?? item.transfer_id
+                        : null,
+                    divergence_qty: item.divergence_qty ?? null,
+                    divergence_resolution: item.divergence_resolution ?? null,
+                    divergence_reason: item.divergence_reason ?? null,
+                };
+            });
 
             const total = count || 0;
             const hasMore = total > page * pageSize;

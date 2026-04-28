@@ -182,6 +182,8 @@ export type ProductStockMovementRow = {
   metadata: Record<string, unknown>;
   created_by: string | null;
   supplier_id: string | null;
+  supplier_name: string | null;
+  purchase_document_number: string | null;
   location_id: string | null;
   location_code: string | null;
   location_name: string | null;
@@ -210,6 +212,132 @@ const normalizeRows = <T>(data: unknown): T[] => {
   if (!data) return [];
   return Array.isArray(data) ? (data as T[]) : [data as T];
 };
+
+type PurchaseDocumentMovementInfo = {
+  purchase_document_number: string | null;
+  supplier_id: string | null;
+  supplier_name: string | null;
+};
+
+const getNestedSupplier = (supplier: unknown): { id?: string | null; name?: string | null } | null => {
+  if (!supplier) return null;
+  return Array.isArray(supplier)
+    ? (supplier[0] as { id?: string | null; name?: string | null } | undefined) ?? null
+    : (supplier as { id?: string | null; name?: string | null });
+};
+
+const getPurchaseDocumentMovementMap = async (sourceIds: Array<string | null | undefined>) => {
+  const purchaseDocumentIds = Array.from(
+    new Set(sourceIds.filter((id): id is string => Boolean(id)))
+  );
+
+  if (purchaseDocumentIds.length === 0) {
+    return new Map<string, PurchaseDocumentMovementInfo>();
+  }
+
+  const { data, error } = await supabase
+    .from('purchase_documents')
+    .select(`
+      id,
+      supplier_id,
+      supplier:suppliers (
+        id,
+        name
+      )
+    `)
+    .in('id', purchaseDocumentIds);
+
+  if (error) throw error;
+
+  return new Map(
+    (data ?? []).map((doc: any) => {
+      const supplier = getNestedSupplier(doc.supplier);
+
+      return [
+        doc.id,
+        {
+          purchase_document_number: null,
+          supplier_id: doc.supplier_id ?? supplier?.id ?? null,
+          supplier_name: supplier?.name ?? null,
+        },
+      ] as const;
+    })
+  );
+};
+
+const enrichProductStockMovementsWithPurchaseDocuments = async (
+  movements: ProductStockMovementRow[]
+) => {
+  const purchaseDocMap = await getPurchaseDocumentMovementMap(
+    movements
+      .filter((movement) => movement.source === 'purchase_document')
+      .map((movement) => movement.source_id)
+  );
+
+  if (purchaseDocMap.size === 0) return movements;
+
+  return movements.map((movement) => {
+    const purchaseInfo =
+      movement.source === 'purchase_document' && movement.source_id
+        ? purchaseDocMap.get(movement.source_id)
+        : null;
+
+    return {
+      ...movement,
+      supplier_id: movement.supplier_id ?? purchaseInfo?.supplier_id ?? null,
+      supplier_name: movement.supplier_name ?? purchaseInfo?.supplier_name ?? null,
+      purchase_document_number:
+        movement.purchase_document_number ??
+        purchaseInfo?.purchase_document_number ??
+        null,
+    };
+  });
+};
+
+export type ManualStockAdjustmentKind =
+  | 'manual_entry'
+  | 'manual_exit'
+  | 'damage'
+  | 'expired'
+  | 'breakage'
+  | 'loss';
+
+export type CreateManualStockAdjustmentInput = {
+  productId: string;
+  locationId: string;
+  adjustmentKind: ManualStockAdjustmentKind;
+  quantity: number;
+  reason?: string;
+  notes?: string;
+};
+
+export type CreateManualStockAdjustmentResult = {
+  movement_id: string;
+  product_id: string;
+  location_id: string;
+  movement_type: string;
+  quantity: number;
+  message: string;
+};
+
+export async function createManualStockAdjustment(
+  input: CreateManualStockAdjustmentInput,
+): Promise<CreateManualStockAdjustmentResult> {
+  const { data, error } = await supabase.rpc('create_manual_stock_adjustment', {
+    p_product_id: input.productId,
+    p_location_id: input.locationId,
+    p_adjustment_kind: input.adjustmentKind,
+    p_quantity: input.quantity,
+    p_reason: input.reason ?? null,
+    p_notes: input.notes ?? null,
+  });
+
+  if (error) throw error;
+
+  return Array.isArray(data)
+    ? (data[0] as CreateManualStockAdjustmentResult)
+    : (data as CreateManualStockAdjustmentResult);
+}
 
 export const stockService = {
   async getInventoryPositionByStore(storeId: string): Promise<InventoryPositionRow[]> {
@@ -251,7 +379,9 @@ export const stockService = {
       p_product_id: productId,
     });
     if (error) throw error;
-    return normalizeRows<ProductStockMovementRow>(data);
+    return enrichProductStockMovementsWithPurchaseDocuments(
+      normalizeRows<ProductStockMovementRow>(data)
+    );
   },
 
   async getProductInventoryAuditEvents(storeId: string, productId: string): Promise<ProductInventoryAuditRow[]> {
@@ -407,6 +537,8 @@ export const stockService = {
     if (!rows[0]) throw new Error('O rascunho de compra não foi criado.');
     return rows[0];
   },
+
+  createManualStockAdjustment,
 };
 
 

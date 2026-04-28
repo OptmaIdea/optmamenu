@@ -17,17 +17,21 @@ import { formatCurrencyPtBr, formatDateTimePtBr, formatNumberPtBr } from '@/util
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { ArrowLeft, History, MapPinned } from 'lucide-react';
+import {
+  getMovementDirectionLabel,
+  getMovementDestinationLabel,
+  getMovementHumanDescription,
+  getMovementOperationLabel,
+  getMovementOriginLabel,
+  getMovementReferenceLabel,
+  getMovementStockPath,
+  getMovementToneClass,
+  getTransferDivergenceReasonLabel,
+  getTransferDivergenceResolutionLabel,
+  shortReference,
+} from './utils/productMovementNarrative';
 
 type LifecycleTab = 'summary' | 'locations' | 'movements' | 'audit';
-
-const movementTypeLabel: Record<string, string> = {
-  entry: 'Entrada',
-  exit: 'Saída',
-  confirmation: 'Baixa (Pedido)',
-  reservation: 'Reserva',
-  cancellation: 'Cancelamento',
-  clearance: 'Baixa',
-};
 
 const auditActionLabelMap: Record<string, string> = {
   reservation: 'Reserva',
@@ -52,7 +56,11 @@ export default function ProductLifecyclePage() {
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState<LifecycleTab>('summary');
 
-  const { row, loading: loadingLifecycle } = useProductLifecycle(id);
+  const {
+    row,
+    transferDivergences,
+    loading: loadingLifecycle,
+  } = useProductLifecycle(id);
   const { rows: movementRows, loading: loadingMovements } = useProductStockMovements(id);
   const { rows: auditRows, loading: loadingAudit } = useProductInventoryAudit(id);
   const { rows: locationRows, loading: loadingLocations } = useProductLocationInventory(id);
@@ -153,24 +161,70 @@ export default function ProductLifecyclePage() {
 
     downloadCsv({
       filename: `vida_produto_movimentacoes_${row.product_name}_${new Date().toISOString().slice(0, 10)}.csv`,
-      headers: [
-        'Data/Hora',
-        'Produto',
-        'Tipo',
-        'Quantidade',
-        'Estoque antes',
-        'Estoque depois',
-        'Motivo',
+      headers: ['Vida do produto - movimentações e divergências'],
+      rows: [
+        ['Movimentações físicas'],
+        [
+          'Data/Hora',
+          'Produto',
+          'Operação',
+          'Direção',
+          'Quantidade',
+          'Saldo no local',
+          'Local afetado',
+          'Origem',
+          'Destino',
+          'Referência',
+          'Descrição',
+          'Motivo',
+        ],
+        ...movementRows.map((movement) => [
+          formatDateTimePtBr(movement.created_at),
+          row.product_name ?? '',
+          getMovementOperationLabel(movement),
+          getMovementDirectionLabel(movement),
+          formatNumberPtBr(Math.abs(Number(movement.quantity ?? 0))),
+          getMovementStockPath(movement),
+          movement.location_name ?? '',
+          getMovementOriginLabel(movement),
+          getMovementDestinationLabel(movement),
+          getMovementReferenceLabel(movement),
+          getMovementHumanDescription(movement),
+          movement.reason ?? '',
+        ]),
+        [],
+        ['Divergências de transferência'],
+        [
+          'Data',
+          'Transferência',
+          'Origem',
+          'Destino',
+          'Enviado',
+          'Recebido',
+          'Divergência',
+          'Resolução',
+          'Motivo',
+          'Perda',
+          'Retorno origem',
+          'Falta aceita',
+          'Observação',
+        ],
+        ...transferDivergences.map((item) => [
+          formatDateTimePtBr(item.received_at ?? item.created_at),
+          item.transfer_code ?? item.transfer_id ?? '',
+          item.source_location_name ?? '',
+          item.destination_location_name ?? '',
+          formatNumberPtBr(item.shipped_qty ?? 0),
+          formatNumberPtBr(item.received_qty ?? 0),
+          formatNumberPtBr(item.divergence_qty ?? 0),
+          getTransferDivergenceResolutionLabel(item.divergence_resolution),
+          getTransferDivergenceReasonLabel(item.divergence_reason),
+          formatNumberPtBr(item.loss_qty ?? 0),
+          formatNumberPtBr(item.returned_to_origin_qty ?? 0),
+          formatNumberPtBr(item.accepted_shortage_qty ?? 0),
+          item.divergence_notes ?? '',
+        ]),
       ],
-      rows: movementRows.map((movement) => [
-        formatDateTimePtBr(movement.created_at),
-        row.product_name ?? '',
-        movementTypeLabel[movement.type] ?? movement.type,
-        formatNumberPtBr(movement.quantity),
-        formatNumberPtBr(movement.previous_stock),
-        formatNumberPtBr(movement.new_stock),
-        movement.reason ?? '',
-      ]),
     });
   };
 
@@ -444,7 +498,7 @@ export default function ProductLifecyclePage() {
         </div>
       )}
 
-      {activeTab === 'movements' && movementRows.length === 0 && (
+      {activeTab === 'movements' && movementRows.length === 0 && transferDivergences.length === 0 && (
         <EmptyState
           icon={<History className="h-5 w-5" />}
           title="Nenhuma movimentação encontrada para este produto"
@@ -452,37 +506,131 @@ export default function ProductLifecyclePage() {
         />
       )}
 
-      {activeTab === 'movements' && movementRows.length > 0 && (
+      {activeTab === 'movements' && (movementRows.length > 0 || transferDivergences.length > 0) && (
         <div className="space-y-4">
           <div className="flex items-center">
             <h2 className="font-semibold text-gray-900 dark:text-white">Movimentações físicas</h2>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
-            <table className="min-w-[860px] w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-900/40">
-                <tr>
-                  <th className="text-left px-4 py-3">Data/Hora</th>
-                  <th className="text-left px-4 py-3">Tipo</th>
-                  <th className="text-left px-4 py-3">Qtd.</th>
-                  <th className="text-left px-4 py-3">Antes</th>
-                  <th className="text-left px-4 py-3">Depois</th>
-                  <th className="text-left px-4 py-3">Motivo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movementRows.map((item) => (
-                  <tr key={item.id} className="border-t border-gray-100 dark:border-gray-700">
-                    <td className="px-4 py-3">{new Date(item.created_at).toLocaleString('pt-BR')}</td>
-                    <td className="px-4 py-3">{movementTypeLabel[item.type] ?? item.type}</td>
-                    <td className="px-4 py-3 font-semibold">{item.quantity}</td>
-                    <td className="px-4 py-3">{item.previous_stock}</td>
-                    <td className="px-4 py-3">{item.new_stock}</td>
-                    <td className="px-4 py-3">{item.reason ?? '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {transferDivergences.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold">
+                        Divergência na transferência
+                      </span>
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
+                        {Number(item.divergence_qty ?? 0)} un.
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm leading-relaxed">
+                      {Number(item.divergence_qty ?? 0)} un. não chegaram ao destino conforme o enviado.
+                    </p>
+                  </div>
+
+                  <div className="text-left text-xs md:text-right">
+                    <div className="font-semibold">
+                      Ref.: {shortReference(item.transfer_code ?? item.transfer_id, 'Transferência')}
+                    </div>
+                    <div className="mt-1 opacity-80">
+                      {item.source_location_name ?? 'Origem'} → {item.destination_location_name ?? 'Destino'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+                  <div className="rounded-xl bg-white/70 p-2">
+                    <div className="font-semibold opacity-70">Resolução</div>
+                    <div>{getTransferDivergenceResolutionLabel(item.divergence_resolution)}</div>
+                  </div>
+
+                  <div className="rounded-xl bg-white/70 p-2">
+                    <div className="font-semibold opacity-70">Motivo</div>
+                    <div>{getTransferDivergenceReasonLabel(item.divergence_reason)}</div>
+                  </div>
+
+                  <div className="rounded-xl bg-white/70 p-2">
+                    <div className="font-semibold opacity-70">Impacto</div>
+                    <div>
+                      Perda: {Number(item.loss_qty ?? 0)} · Retorno: {Number(item.returned_to_origin_qty ?? 0)} · Falta aceita: {Number(item.accepted_shortage_qty ?? 0)}
+                    </div>
+                  </div>
+                </div>
+
+                {item.divergence_notes && (
+                  <p className="mt-3 text-xs opacity-80">
+                    Observação: {item.divergence_notes}
+                  </p>
+                )}
+              </div>
+            ))}
+
+            {movementRows.map((movement) => (
+              <div
+                key={movement.id}
+                className={`rounded-2xl border p-4 shadow-sm ${getMovementToneClass(movement)}`}
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-bold">
+                        {getMovementOperationLabel(movement)}
+                      </span>
+
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
+                        {getMovementDirectionLabel(movement)}
+                      </span>
+
+                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">
+                        {Math.abs(Number(movement.quantity ?? 0))} un.
+                      </span>
+                    </div>
+
+                    <p className="mt-2 text-sm leading-relaxed">
+                      {getMovementHumanDescription(movement)}
+                    </p>
+                  </div>
+
+                  <div className="text-left text-xs md:text-right">
+                    <div className="font-semibold">
+                      Saldo no local: {getMovementStockPath(movement)}
+                    </div>
+                    <div className="mt-1 opacity-80">
+                      Ref.: {getMovementReferenceLabel(movement)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+                  <div className="rounded-xl bg-white/70 p-2">
+                    <div className="font-semibold opacity-70">Local afetado</div>
+                    <div>{movement.location_name ?? '—'}</div>
+                  </div>
+
+                  <div className="rounded-xl bg-white/70 p-2">
+                    <div className="font-semibold opacity-70">Origem</div>
+                    <div>{getMovementOriginLabel(movement)}</div>
+                  </div>
+
+                  <div className="rounded-xl bg-white/70 p-2">
+                    <div className="font-semibold opacity-70">Destino</div>
+                    <div>{getMovementDestinationLabel(movement)}</div>
+                  </div>
+                </div>
+
+                {movement.reason && (
+                  <p className="mt-3 text-xs opacity-80">
+                    Motivo/observação: {movement.reason}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

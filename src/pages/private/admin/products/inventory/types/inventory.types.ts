@@ -55,12 +55,20 @@ export interface StockMovement {
     location_code?: string | null;
     from_location_id?: string | null;
     from_location_name?: string | null;
+    from_location_code?: string | null;
     to_location_id?: string | null;
     to_location_name?: string | null;
+    to_location_code?: string | null;
+    supplier_id?: string | null;
+    supplier_name?: string | null;
+    purchase_document_number?: string | null;
     source?: string | null;
     source_id?: string | null;
     source_label?: string | null;
     transfer_code?: string | null;
+    divergence_qty?: number | null;
+    divergence_resolution?: string | null;
+    divergence_reason?: string | null;
 }
 
 export interface StockMovementFilters {

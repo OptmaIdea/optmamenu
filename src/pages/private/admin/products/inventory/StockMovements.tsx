@@ -12,6 +12,7 @@ import {
   FileText,
   Search,
   Plus,
+  PlusCircle,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { supabase } from '@/lib/supabase';
@@ -26,6 +27,19 @@ import { timezoneUtils } from '@/utils/timezoneUtils';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
+import { ManualStockAdjustmentModal } from './components/ManualStockAdjustmentModal';
+import {
+  getMovementDestinationLabel,
+  getMovementHumanDescription,
+  getMovementOperationLabel,
+  getMovementOriginLabel,
+  getMovementReferenceLabel,
+  getTransferDivergenceReasonLabel,
+  getTransferDivergenceResolutionLabel,
+} from './utils/productMovementNarrative';
+
+const INITIAL_MOVEMENTS_LIMIT = 7;
+const MOVEMENTS_PAGE_SIZE = 50;
 
 const MOVEMENT_LABELS: Record<StockMovementType, { label: string; color: string }> = {
   entry: { label: 'Entrada', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
@@ -40,18 +54,22 @@ export default function StockMovementsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { fetchMovements } = useStockMovement();
-  const { products: allProducts } = useInventory();
+  const { products: allProducts, refresh: refreshInventory } = useInventory();
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [total, setTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
+  const [initialMovementsLimit, setInitialMovementsLimit] = useState(INITIAL_MOVEMENTS_LIMIT);
   const [loading, setLoading] = useState(false);
-  const pageSize = 50;
 
   const [showFilters, setShowFilters] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [movementSearch, setMovementSearch] = useState('');
   const [locationFilter, setLocationFilter] = useState('all');
+  const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
+  const [adjustmentLocations, setAdjustmentLocations] = useState<
+    Array<{ id: string; name: string; code?: string | null }>
+  >([]);
   const [filters, setFilters] = useState<StockMovementFilters>({
     productId: undefined,
     type: undefined,
@@ -74,24 +92,22 @@ export default function StockMovementsPage() {
   });
 
   useEffect(() => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 3);
-
     const movementType = searchParams.get('type') as StockMovementType | null;
     const productId = searchParams.get('productId');
     const productName = searchParams.get('productName');
     const productIds = searchParams.get('productIds');
 
     setFilters({
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      startDate: undefined,
+      endDate: undefined,
       type: movementType || undefined,
       productId: productId || undefined,
       productIds: productIds ? productIds.split(',') : undefined,
       locationId: undefined,
       search: undefined,
     });
+    setCurrentPage(1);
+    setInitialMovementsLimit(INITIAL_MOVEMENTS_LIMIT);
 
     if (productId) {
       setSelectedProduct({ id: productId, name: productName || 'Produto' });
@@ -123,18 +139,58 @@ export default function StockMovementsPage() {
       if (error) return;
       const storeConfig = Array.isArray(data) ? data[0] : data;
       if (storeConfig) setStoreName(storeConfig.name);
+
+      const { data: locationsData, error: locationsError } = await supabase
+        .from('stock_locations')
+        .select('id, name, code')
+        .eq('store_id', store.id)
+        .order('name');
+
+      if (!locationsError) {
+        setAdjustmentLocations(
+          (locationsData || []).map((location: any) => ({
+            id: location.id,
+            name: location.name,
+            code: location.code ?? null,
+          })),
+        );
+      }
     };
     void fetchStoreAndUser();
   }, []);
 
+  const hasMovementQueryFilters = useMemo(() => {
+    return (
+      !!filters.search?.trim() ||
+      !!filters.locationId ||
+      !!filters.type ||
+      !!filters.productId ||
+      !!(filters.productIds && filters.productIds.length > 0) ||
+      !!filters.startDate ||
+      !!filters.endDate
+    );
+  }, [filters]);
+
+  const isSmartInitialLoad = !hasMovementQueryFilters;
+  const currentPageSize = isSmartInitialLoad ? initialMovementsLimit : MOVEMENTS_PAGE_SIZE;
+  const totalPages = isSmartInitialLoad ? 1 : Math.ceil(total / MOVEMENTS_PAGE_SIZE);
+  const canLoadMoreInitialMovements = isSmartInitialLoad && movements.length < total;
+
   useEffect(() => {
     void loadMovements();
-  }, [currentPage, filters]);
+  }, [currentPage, filters, initialMovementsLimit]);
+
+  useEffect(() => {
+    if (hasMovementQueryFilters) {
+      setInitialMovementsLimit(INITIAL_MOVEMENTS_LIMIT);
+    }
+  }, [hasMovementQueryFilters]);
 
   const loadMovements = async () => {
     setLoading(true);
     try {
-      const result = await fetchMovements(filters, currentPage, pageSize);
+      const page = isSmartInitialLoad ? 1 : currentPage;
+      const result = await fetchMovements(filters, page, currentPageSize);
       setMovements(result.movements);
       setTotal(result.total);
     } finally {
@@ -143,16 +199,12 @@ export default function StockMovementsPage() {
   };
 
   const clearFilters = () => {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - 3);
-
     setFilters({
       productId: undefined,
       productIds: undefined,
       type: undefined,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      startDate: undefined,
+      endDate: undefined,
       locationId: undefined,
       search: undefined,
     });
@@ -162,6 +214,7 @@ export default function StockMovementsPage() {
     setMovementSearch('');
     setLocationFilter('all');
     setCurrentPage(1);
+    setInitialMovementsLimit(INITIAL_MOVEMENTS_LIMIT);
   };
 
   const removeContextProductFilter = () => {
@@ -191,6 +244,10 @@ export default function StockMovementsPage() {
   const locationOptions = useMemo(() => {
     const map = new Map<string, string>();
 
+    adjustmentLocations.forEach((location) => {
+      map.set(location.id, location.name);
+    });
+
     movements.forEach((movement) => {
       if (movement.location_id && movement.location_name) {
         map.set(movement.location_id, movement.location_name);
@@ -204,7 +261,7 @@ export default function StockMovementsPage() {
     });
 
     return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
-  }, [movements]);
+  }, [adjustmentLocations, movements]);
 
   const addProductSelection = (productId: string) => {
     if (selectedProductIds.includes(productId)) return;
@@ -227,8 +284,6 @@ export default function StockMovementsPage() {
     setShowFilters(false);
   };
 
-  const totalPages = Math.ceil(total / pageSize);
-
   const formatQuantity = (qty: number) => (qty > 0 ? `+${Math.abs(qty)}` : `-${Math.abs(qty)}`);
 
   const formatDate = (dateString: string) => timezoneUtils.formatBrazilDateTime(dateString);
@@ -246,9 +301,11 @@ export default function StockMovementsPage() {
         'Quantidade',
         'Estoque antes',
         'Estoque depois',
-        'Motivo',
         'Origem',
-        'Transferência',
+        'Destino',
+        'Referência',
+        'Descrição',
+        'Observação',
       ],
       rows: exportableMovements.map((movement) => [
         formatDateTimePtBr(movement.created_at),
@@ -258,13 +315,15 @@ export default function StockMovementsPage() {
           : movement.from_location_name || movement.to_location_name
           ? `${movement.from_location_name ?? '—'} -> ${movement.to_location_name ?? '—'}`
           : '',
-        MOVEMENT_LABELS[movement.type]?.label ?? movement.type,
+        getMovementOperationLabel(movement),
         formatNumberPtBr(movement.quantity),
         formatNumberPtBr(movement.previous_stock),
         formatNumberPtBr(movement.new_stock),
+        getMovementOriginLabel(movement),
+        getMovementDestinationLabel(movement),
+        getMovementReferenceLabel(movement),
+        getMovementHumanDescription(movement),
         movement.reason ?? '',
-        movement.source_label ?? movement.source ?? '',
-        movement.transfer_code ?? movement.transfer_id ?? '',
       ]),
     });
   };
@@ -275,7 +334,9 @@ export default function StockMovementsPage() {
     locationFilter !== 'all' ||
     !!filters.type ||
     !!filters.productId ||
-    !!(filters.productIds && filters.productIds.length > 0);
+    !!(filters.productIds && filters.productIds.length > 0) ||
+    !!filters.startDate ||
+    !!filters.endDate;
 
   useEffect(() => {
     if (!loading && movements.length === 0 && hasActiveFilters) {
@@ -312,6 +373,14 @@ export default function StockMovementsPage() {
       action={
         <div className="flex flex-wrap items-center gap-2">
           <InventoryQuickNav />
+          <button
+            type="button"
+            onClick={() => setAdjustmentModalOpen(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span className="hidden sm:inline">Registrar ajuste</span>
+          </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`h-10 px-3 text-sm rounded-lg font-medium flex items-center gap-2 transition-colors ${showFilters
@@ -593,7 +662,7 @@ export default function StockMovementsPage() {
 
       <div className="bg-white dark:bg-gray-800 rounded-lg print:shadow-none print:border-0">
         <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
-          <table className="min-w-[980px] w-full text-left">
+          <table className="min-w-[1180px] w-full text-left">
             <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm font-medium print:bg-gray-100">
               <tr>
                 <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Data/Hora</th>
@@ -619,6 +688,9 @@ export default function StockMovementsPage() {
                   </div>
                 </th>
                 <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
+                  Origem/Destino
+                </th>
+                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
                   <div className="inline-flex items-center gap-1">
                     Motivo
                     <InfoTooltip text="Descrição operacional do que gerou a movimentação, como transferência, ajuste, reserva ou saída manual." />
@@ -628,10 +700,11 @@ export default function StockMovementsPage() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {loading ? (
-                <tr><td colSpan={8} className="p-8 text-center text-gray-500">Carregando...</td></tr>
+                <tr><td colSpan={9} className="p-8 text-center text-gray-500">Carregando...</td></tr>
               ) : (
                 movements.map((movement) => {
                   const config = MOVEMENT_LABELS[movement.type];
+                  const operationLabel = getMovementOperationLabel(movement);
                   return (
                     <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors print:hover:bg-transparent">
                       <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at)}</td>
@@ -655,12 +728,46 @@ export default function StockMovementsPage() {
                           '—'
                         )}
                       </td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{config.label}</span></td>
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{operationLabel}</span></td>
                       <td className={`px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
                       <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
                       <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
                       <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
-                        <div className="truncate">{movement.reason || '-'}</div>
+                        <div className="space-y-1">
+                          <div>
+                            <span className="font-semibold text-gray-500 dark:text-gray-400">Origem:</span>{' '}
+                            {getMovementOriginLabel(movement)}
+                          </div>
+
+                          <div>
+                            <span className="font-semibold text-gray-500 dark:text-gray-400">Destino:</span>{' '}
+                            {getMovementDestinationLabel(movement)}
+                          </div>
+
+                          <div className="text-xs text-gray-400">
+                            Ref.: {getMovementReferenceLabel(movement)}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
+                        <div className="space-y-1">
+                          <div>{getMovementHumanDescription(movement)}</div>
+                          {movement.reason && (
+                            <div className="text-xs text-gray-500">
+                              Obs.: {movement.reason}
+                            </div>
+                          )}
+                        </div>
+                        {Number(movement.divergence_qty ?? 0) > 0 && (
+                          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            <strong>Divergência:</strong>{' '}
+                            {Number(movement.divergence_qty)} un. não chegaram ao destino.{' '}
+                            <strong>Resolução:</strong>{' '}
+                            {getTransferDivergenceResolutionLabel(movement.divergence_resolution)}.{' '}
+                            <strong>Motivo:</strong>{' '}
+                            {getTransferDivergenceReasonLabel(movement.divergence_reason)}.
+                          </div>
+                        )}
                         {movement.transfer_id && (
                           <button
                             type="button"
@@ -679,7 +786,23 @@ export default function StockMovementsPage() {
           </table>
         </div>
 
-        {totalPages > 1 && (
+        {isSmartInitialLoad && canLoadMoreInitialMovements && (
+          <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              Exibindo os {movements.length} lançamentos mais recentes de {total}
+            </p>
+            <button
+              type="button"
+              onClick={() => setInitialMovementsLimit((limit) => Math.min(limit + MOVEMENTS_PAGE_SIZE, total))}
+              disabled={loading}
+              className="h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              Carregar mais
+            </button>
+          </div>
+        )}
+
+        {!isSmartInitialLoad && totalPages > 1 && (
           <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between print:hidden">
             <p className="text-sm text-gray-600 dark:text-gray-400">Página {currentPage} de {totalPages}</p>
             <div className="flex gap-2">
@@ -702,6 +825,16 @@ export default function StockMovementsPage() {
           filters={{ startDate: filters.startDate, endDate: filters.endDate, type: filters.type }}
         />
       </div>
+      <ManualStockAdjustmentModal
+        open={adjustmentModalOpen}
+        onClose={() => setAdjustmentModalOpen(false)}
+        onSuccess={() => {
+          void loadMovements();
+          refreshInventory();
+        }}
+        products={availableProducts}
+        locations={adjustmentLocations.length > 0 ? adjustmentLocations : locationOptions}
+      />
     </PageContainer>
   );
 }
