@@ -23,6 +23,8 @@ import {
   getLocalDateInputValue,
   toAppDate,
 } from '@/utils/dateTime';
+import OperationalTimeline from './components/OperationalTimeline';
+import { useOperationalTimeline } from './hooks/useOperationalTimeline';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -371,6 +373,18 @@ export default function PurchaseQuotationsPage() {
     { productId: '', quantity: 1, unitCost: null },
   ]);
 
+  const {
+    events: quotationTimelineEvents,
+    loading: loadingQuotationTimeline,
+    refetch: refetchQuotationTimeline,
+  } = useOperationalTimeline({
+    enabled: Boolean(detail?.id),
+    storeId,
+    entityType: 'purchase_quotation',
+    relatedPurchaseQuotationId: detail?.id ?? null,
+    limit: 30,
+  });
+
   const products = useMemo(() => {
     return ((inventoryProducts ?? []) as InventoryProductLike[])
       .filter((product) => (
@@ -701,6 +715,7 @@ export default function PurchaseQuotationsPage() {
       setDetail(refreshed);
       setDetailDraft(refreshed);
       setDetailMessage(refreshed.message_body || buildQuotationText(refreshed));
+      await refetchQuotationTimeline();
       await loadQuotations(storeId, { silent: true });
     } catch (error) {
       console.error('Erro ao salvar resposta da cotação:', error);
@@ -1375,6 +1390,18 @@ export default function PurchaseQuotationsPage() {
                   </div>
                 </div>
               </div>
+
+              <OperationalTimeline
+                compact
+                className="mt-4"
+                title="Andamento da cotação"
+                description="Histórico operacional desta cotação, incluindo criação, envio, resposta, aprovação e conversão."
+                emptyTitle="Nenhum andamento registrado"
+                emptyDescription="Os eventos desta cotação aparecerão aqui conforme o fluxo for executado."
+                events={quotationTimelineEvents}
+                loading={loadingQuotationTimeline}
+                onRefresh={() => void refetchQuotationTimeline()}
+              />
 
               <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
                 <div className="overflow-x-auto">

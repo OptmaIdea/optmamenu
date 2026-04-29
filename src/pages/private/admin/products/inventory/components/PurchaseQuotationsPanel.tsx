@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Copy,
   ExternalLink,
   Eye,
@@ -324,6 +326,7 @@ async function copyTextToClipboard(text: string) {
 export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProps) {
   const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [detail, setDetail] = useState<PurchaseQuotationDetail | null>(null);
   const [detailDraft, setDetailDraft] = useState<PurchaseQuotationDetail | null>(null);
   const [supplierContact, setSupplierContact] = useState<SupplierQuotationContact>({
@@ -587,67 +590,80 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadQuotations()}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void loadQuotations()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            {expanded ? 'Ocultar' : 'Ver'}
+          </button>
+        </div>
       </div>
 
-      <div className="mt-4 overflow-hidden rounded-2xl border">
-        {quotations.length === 0 ? (
-          <div className="p-6 text-sm text-slate-500">Nenhuma cotação salva ainda.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Cotação</th>
-                  <th className="px-4 py-3">Fornecedor</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3 text-right">Itens</th>
-                  <th className="px-4 py-3 text-right">Referência</th>
-                  <th className="px-4 py-3">Criada em</th>
-                  <th className="px-4 py-3 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {quotations.map((quotation) => (
-                  <tr key={quotation.id} className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-semibold text-slate-800">
-                      {quotation.quotation_code}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{quotation.supplier_name}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getQuotationStatusClassName(quotation.status)}`}>
-                        {getQuotationStatusLabel(quotation.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">{quotation.items_count}</td>
-                    <td className="px-4 py-3 text-right">{formatCurrency(quotation.total_reference)}</td>
-                    <td className="px-4 py-3">{quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        disabled={openingDetail}
-                        onClick={() => void handleOpenDetail(quotation.id)}
-                        className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-white"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        Abrir
-                      </button>
-                    </td>
+      {expanded && (
+        <div className="mt-4 overflow-hidden rounded-2xl border">
+          {quotations.length === 0 ? (
+            <div className="p-6 text-sm text-slate-500">Nenhuma cotação salva ainda.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">Cotação</th>
+                    <th className="px-4 py-3">Fornecedor</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3 text-right">Itens</th>
+                    <th className="px-4 py-3 text-right">Referência</th>
+                    <th className="px-4 py-3">Criada em</th>
+                    <th className="px-4 py-3 text-right">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+                </thead>
+                <tbody className="divide-y">
+                  {quotations.map((quotation) => (
+                    <tr key={quotation.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-semibold text-slate-800">
+                        {quotation.quotation_code}
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">{quotation.supplier_name}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getQuotationStatusClassName(quotation.status)}`}>
+                          {getQuotationStatusLabel(quotation.status)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right">{quotation.items_count}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(quotation.total_reference)}</td>
+                      <td className="px-4 py-3">{quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}</td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          disabled={openingDetail}
+                          onClick={() => void handleOpenDetail(quotation.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-white"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          Abrir
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {detail && detailDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
