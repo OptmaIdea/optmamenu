@@ -358,7 +358,7 @@ export default function PurchaseQuotationsPage() {
   const [detailMessage, setDetailMessage] = useState('');
   const [openingDetail, setOpeningDetail] = useState(false);
   const [savingResponse, setSavingResponse] = useState(false);
-  const [convertingToDraft, setConvertingToDraft] = useState(false);
+  const [, setConvertingToDraft] = useState(false);
   const [responseStatus, setResponseStatus] = useState<QuotationEditableStatus>('answered');
   const [sentChannel, setSentChannel] = useState<QuotationChannel>('');
   const [responsibleName, setResponsibleName] = useState('');
@@ -717,6 +717,24 @@ export default function PurchaseQuotationsPage() {
       setDetailMessage(refreshed.message_body || buildQuotationText(refreshed));
       await refetchQuotationTimeline();
       await loadQuotations(storeId, { silent: true });
+
+      const wasApprovedNow =
+        detail?.status !== 'approved' &&
+        refreshed.status === 'approved';
+
+      if (wasApprovedNow) {
+        const shouldConvert = window.confirm(
+          'Cotação aprovada com sucesso.\n\nDeseja converter esta cotação em rascunho de compra agora?',
+        );
+
+        if (shouldConvert) {
+          await convertQuotationToPurchase(detailDraft.id);
+          return;
+        }
+
+        // Se aprovou mas não quis converter agora, fecha o modal para liberar a lista
+        closeDetail();
+      }
     } catch (error) {
       console.error('Erro ao salvar resposta da cotação:', error);
       toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a resposta da cotação.');
@@ -725,33 +743,20 @@ export default function PurchaseQuotationsPage() {
     }
   }
 
-  async function createPurchaseDraftFromDetail() {
-    if (!detailDraft) return;
-
+  async function convertQuotationToPurchase(quotationId: string) {
     try {
       setConvertingToDraft(true);
-      await stockService.updatePurchaseQuotationResponse({
-        quotationId: detailDraft.id,
-        status: responseStatus === 'draft' || responseStatus === 'sent' ? 'approved' : responseStatus,
-        sentChannel: sentChannel || null,
-        responsibleName,
-        notes: quotationNotes,
-        items: detailDraft.items.map((item) => ({
-          id: item.id,
-          quoted_unit_cost: item.quoted_unit_cost == null ? null : Number(item.quoted_unit_cost),
-          approved_qty:
-            item.approved_qty == null ? Number(item.requested_qty) : Number(item.approved_qty),
-          supplier_notes: item.supplier_notes ?? null,
-        })),
-      });
-
       const result = await stockService.convertPurchaseQuotationToDraft({
-        quotationId: detailDraft.id,
-        notes: `Rascunho criado a partir da cotação ${detailDraft.quotation_code}.`,
+        quotationId,
+        notes: 'Rascunho criado a partir de cotação.',
       });
 
       toast.success('Rascunho de compra criado a partir da cotação.');
-      closeDetail();
+
+      if (detail && detail.id === quotationId) {
+        closeDetail();
+      }
+
       await loadQuotations(storeId, { silent: true });
       navigate(`/admin/stock/purchase-documents?open=${result.purchase_document_id}`);
     } catch (error) {
@@ -1050,15 +1055,43 @@ export default function PurchaseQuotationsPage() {
                       {quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <button
-                        type="button"
-                        disabled={openingDetail}
-                        onClick={() => void openDetail(quotation.id)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-                      >
-                        <Eye className="h-4 w-4" />
-                        Abrir
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={openingDetail}
+                          onClick={() => void openDetail(quotation.id)}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                          title="Abrir cotação"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+
+                        {quotation.status === 'approved' && (
+                          <button
+                            type="button"
+                            onClick={() => void convertQuotationToPurchase(quotation.id)}
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                            title="Converter em rascunho de compra"
+                          >
+                            <CheckCircle2 className="h-4 w-4" />
+                          </button>
+                        )}
+
+                        {quotation.status === 'converted' && quotation.converted_purchase_document_id && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate(
+                                `/admin/stock/purchase-documents?open=${quotation.converted_purchase_document_id}`,
+                              )
+                            }
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950"
+                            title="Abrir compra"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1526,31 +1559,9 @@ export default function PurchaseQuotationsPage() {
                     <Save className="h-4 w-4" />
                     {savingResponse ? 'Salvando...' : 'Salvar resposta'}
                   </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void createPurchaseDraftFromDetail()}
-                    disabled={convertingToDraft}
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {convertingToDraft ? 'Convertendo...' : 'Converter em rascunho'}
-                  </button>
                 </>
               )}
 
-              {detail.converted_purchase_document_id && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(`/admin/stock/purchase-documents?open=${detail.converted_purchase_document_id}`)
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Abrir compra
-                </button>
-              )}
             </div>
           </div>
         </div>

@@ -23,6 +23,7 @@ import {
 import { toast } from 'sonner';
 import { PurchaseQuotationsPanel } from './components/PurchaseQuotationsPanel';
 import { supabase } from '@/lib/supabase';
+import { stockService } from '@/services/stockService';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import AlertBanner from '@/components/common/AlertBanner';
@@ -595,31 +596,38 @@ export default function PurchaseDocumentsPage() {
 
         if (delErr) throw delErr;
       } else {
-        const { data: doc, error: createErr } = await supabase
-          .from('purchase_documents')
-          .insert(payload)
-          .select('id')
-          .single();
+        const result = await stockService.createPurchaseDocumentDraftBatch({
+          supplierId: draftSupplierId,
+          notes: draftNotes.trim() || null,
+          items: draftItems
+            .filter((i) => i.product_id && i.quantity > 0)
+            .map((i) => ({
+              productId: i.product_id,
+              quantity: i.quantity,
+              unitCost: i.unit_cost ?? 0,
+            })),
+        });
 
-        if (createErr) throw createErr;
-        docId = doc.id as string;
+        docId = result.purchase_document_id;
       }
 
-      const itemsPayload = draftItems
-        .filter((i) => i.product_id && i.quantity > 0)
-        .map((i) => ({
-          store_id: storeId,
-          purchase_document_id: docId,
-          product_id: i.product_id,
-          quantity: i.quantity,
-          unit_cost: i.unit_cost,
-        }));
+      if (editingDocId) {
+        const itemsPayload = draftItems
+          .filter((i) => i.product_id && i.quantity > 0)
+          .map((i) => ({
+            store_id: storeId,
+            purchase_document_id: docId,
+            product_id: i.product_id,
+            quantity: i.quantity,
+            unit_cost: i.unit_cost,
+          }));
 
-      const { error: itemsErr } = await supabase
-        .from('purchase_document_items')
-        .insert(itemsPayload);
+        const { error: itemsErr } = await supabase
+          .from('purchase_document_items')
+          .insert(itemsPayload);
 
-      if (itemsErr) throw itemsErr;
+        if (itemsErr) throw itemsErr;
+      }
 
       toast.success(editingDocId ? 'Documento atualizado' : 'Documento criado');
 
@@ -742,28 +750,20 @@ export default function PurchaseDocumentsPage() {
   const deleteDraft = useCallback(
     async (docId: string) => {
       const confirmed = window.confirm(
-        'Excluir este rascunho é uma operação irreversível.\n\nDeseja continuar?',
+        'Excluir este rascunho é uma operação irreversível.\n\nSe ele tiver sido criado a partir de uma cotação, o vínculo será desfeito e a cotação voltará ao status anterior.\n\nDeseja continuar?',
       );
 
       if (!confirmed) return;
 
       setSaving(true);
       try {
-        const { error: iErr } = await supabase
-          .from('purchase_document_items')
-          .delete()
-          .eq('purchase_document_id', docId);
+        const { error } = await supabase.rpc('delete_purchase_document_draft', {
+          p_document_id: docId,
+        });
 
-        if (iErr) throw iErr;
+        if (error) throw error;
 
-        const { error: dErr } = await supabase
-          .from('purchase_documents')
-          .delete()
-          .eq('id', docId);
-
-        if (dErr) throw dErr;
-
-        toast.success('Documento removido');
+        toast.success('Rascunho removido');
 
         if (editingDocId === docId) {
           setDraftOpen(false);

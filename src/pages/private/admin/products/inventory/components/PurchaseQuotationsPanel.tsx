@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  CheckCircle2,
+  /* CheckCircle2, */
   ChevronDown,
   ChevronUp,
   Copy,
-  ExternalLink,
   Eye,
   FileText,
   Mail,
@@ -18,6 +17,8 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { stockService } from '@/services/stockService';
+import OperationalTimeline from './OperationalTimeline';
+import { useOperationalTimeline } from '../hooks/useOperationalTimeline';
 import type {
   PurchaseQuotationDetail,
   PurchaseQuotationSummary,
@@ -335,11 +336,23 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
   });
   const [openingDetail, setOpeningDetail] = useState(false);
   const [savingResponse, setSavingResponse] = useState(false);
-  const [convertingToDraft, setConvertingToDraft] = useState(false);
+  const [, setConvertingToDraft] = useState(false);
   const [responseStatus, setResponseStatus] = useState<QuotationEditableStatus>('answered');
   const [sentChannel, setSentChannel] = useState<QuotationChannel>('');
   const [responsibleName, setResponsibleName] = useState('');
   const [quotationNotes, setQuotationNotes] = useState('');
+
+  const {
+    events: quotationTimelineEvents,
+    loading: loadingQuotationTimeline,
+    refetch: refetchQuotationTimeline,
+  } = useOperationalTimeline({
+    enabled: Boolean(detail?.id),
+    storeId,
+    entityType: 'purchase_quotation',
+    relatedPurchaseQuotationId: detail?.id ?? null,
+    limit: 30,
+  });
 
   const navigate = useNavigate();
 
@@ -364,7 +377,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
     try {
       setLoading(true);
       const data = await stockService.getPurchaseQuotationsByStore(storeId, null);
-      setQuotations(data);
+      setQuotations(data.slice(0, 7));
     } catch (error) {
       console.error('Erro ao carregar cotações:', error);
       toast.error('Não foi possível carregar as cotações.');
@@ -415,6 +428,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
       setSentChannel((data.sent_channel as QuotationChannel) || '');
       setResponsibleName(data.responsible_name || 'Responsável pela cotação');
       setQuotationNotes(data.notes || '');
+      await refetchQuotationTimeline();
       await loadSupplierContact(data.supplier_id);
     } catch (error) {
       console.error('Erro ao abrir cotação:', error);
@@ -526,7 +540,25 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
       setResponsibleName(refreshed.responsible_name || 'Responsável pela cotação');
       setQuotationNotes(refreshed.notes || '');
 
+      await refetchQuotationTimeline();
       await loadQuotations();
+
+      const wasApprovedNow =
+        detail?.status !== 'approved' &&
+        refreshed.status === 'approved';
+
+      if (wasApprovedNow) {
+        const shouldConvert = window.confirm(
+          'Cotação aprovada com sucesso.\n\nDeseja converter esta cotação em rascunho de compra agora?',
+        );
+
+        if (shouldConvert) {
+          await handleConvertToDraft();
+          return;
+        }
+
+        closeDetail();
+      }
     } catch (error) {
       console.error('Erro ao salvar resposta da cotação:', error);
       toast.error(
@@ -662,19 +694,29 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
               </table>
             </div>
           )}
+
+          <div className="border-t bg-slate-50 p-3 text-center">
+            <button
+              type="button"
+              onClick={() => navigate('/admin/stock/quotations')}
+              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+            >
+              Ver todas as cotações &rarr;
+            </button>
+          </div>
         </div>
       )}
 
       {detail && detailDraft && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
           <div className="w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-xl">
-            <div className="flex items-start justify-between border-b p-5">
+            <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
               <div>
-                <h3 className="text-lg font-semibold text-slate-900">{detail.quotation_code}</h3>
-                <p className="mt-1 text-sm text-slate-500">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.quotation_code}</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
                   {detail.supplier_name} · {getQuotationStatusLabel(detail.status)}
                 </p>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
                   Total cotado estimado: {formatCurrency(getDetailTotalQuoted())}
                 </p>
               </div>
@@ -682,7 +724,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
               <button
                 type="button"
                 onClick={closeDetail}
-                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                 aria-label="Fechar"
               >
                 <X className="h-5 w-5" />
@@ -691,18 +733,18 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
 
             <div className="max-h-[75vh] overflow-y-auto p-5">
               <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-xl border bg-slate-50 p-3">
-                  <div className="text-xs font-semibold uppercase text-slate-500">Criada em</div>
-                  <div className="mt-1 font-semibold">{detail.requested_at_display ?? formatDateTime(detail.requested_at)}</div>
+                <div className="rounded-xl border border-gray-100 bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Criada em</div>
+                  <div className="mt-1 font-semibold text-slate-900 dark:text-white">{detail.requested_at_display ?? formatDateTime(detail.requested_at)}</div>
                 </div>
 
-                <label className="rounded-xl border bg-slate-50 p-3">
-                  <div className="text-xs font-semibold uppercase text-slate-500">Status</div>
+                <label className="rounded-xl border border-gray-100 bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Status</div>
                   <select
                     value={responseStatus}
                     onChange={(event) => setResponseStatus(event.target.value as QuotationEditableStatus)}
                     disabled={detail.status === 'converted'}
-                    className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   >
                     <option value="draft">Rascunho</option>
                     <option value="sent">Enviada</option>
@@ -713,42 +755,53 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                   </select>
                 </label>
 
-                <label className="rounded-xl border bg-slate-50 p-3">
-                  <div className="text-xs font-semibold uppercase text-slate-500">Canal</div>
+                <label className="rounded-xl border border-gray-100 bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Canal</div>
                   <select
                     value={sentChannel}
                     onChange={(event) => setSentChannel(event.target.value as QuotationChannel)}
                     disabled={detail.status === 'converted'}
-                    className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   >
                     <option value="">Não informado</option>
                     <option value="whatsapp">WhatsApp</option>
                     <option value="email">E-mail</option>
                     <option value="pdf">PDF</option>
-                    <option value="manual">Manual</option>
                     <option value="other">Outro</option>
                   </select>
                 </label>
 
-                <label className="rounded-xl border bg-slate-50 p-3">
-                  <div className="text-xs font-semibold uppercase text-slate-500">Responsável</div>
+                <label className="rounded-xl border border-gray-100 bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Responsável</div>
                   <input
                     value={responsibleName}
                     onChange={(event) => setResponsibleName(event.target.value)}
                     disabled={detail.status === 'converted'}
-                    className="mt-1 w-full rounded-lg border px-2 py-1 text-sm"
+                    className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     placeholder="Responsável pela cotação"
                   />
                 </label>
               </div>
 
-              <div className="mt-4 rounded-2xl border bg-slate-50 p-4">
+              <OperationalTimeline
+                compact
+                className="mt-4"
+                title="Andamento da cotação"
+                description="Histórico operacional desta cotação, incluindo criação, envio, resposta, aprovação e conversão."
+                emptyTitle="Nenhum andamento registrado"
+                emptyDescription="Os eventos desta cotação aparecerão aqui conforme o fluxo for executado."
+                events={quotationTimelineEvents}
+                loading={loadingQuotationTimeline}
+                onRefresh={() => void refetchQuotationTimeline()}
+              />
+
+              <div className="mt-4 rounded-2xl border border-gray-100 bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <div className="text-xs font-semibold uppercase text-slate-500">Contatos do fornecedor</div>
-                    <div className="mt-1 text-sm text-slate-700">
-                      WhatsApp/telefone: {supplierContact.phone || 'não informado'} · E-mail:{' '}
-                      {supplierContact.email || 'não informado'}
+                    <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Contatos do fornecedor</div>
+                    <div className="mt-1 text-sm text-slate-700 dark:text-gray-300">
+                      WhatsApp/telefone: <span className="font-medium text-slate-900 dark:text-white">{supplierContact.phone || 'não informado'}</span> · E-mail:{' '}
+                      <span className="font-medium text-slate-900 dark:text-white">{supplierContact.email || 'não informado'}</span>
                     </div>
                   </div>
 
@@ -756,7 +809,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                     <button
                       type="button"
                       onClick={() => void handleCopyQuotationText()}
-                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
                     >
                       <Copy className="h-4 w-4" />
                       Copiar
@@ -765,7 +818,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                     <button
                       type="button"
                       onClick={handlePrintQuotation}
-                      className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
                     >
                       <Printer className="h-4 w-4" />
                       Imprimir/PDF
@@ -774,7 +827,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                     {mailtoUrl ? (
                       <a
                         href={mailtoUrl}
-                        className="inline-flex items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
                       >
                         <Mail className="h-4 w-4" />
                         E-mail
@@ -784,7 +837,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                         type="button"
                         disabled
                         title="Fornecedor sem e-mail cadastrado"
-                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border bg-white px-3 py-2 text-xs font-semibold text-slate-400 opacity-70"
+                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 opacity-70 dark:border-gray-700 dark:bg-gray-900"
                       >
                         <Mail className="h-4 w-4" />
                         E-mail indisponível
@@ -806,7 +859,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                         type="button"
                         disabled
                         title="Fornecedor sem WhatsApp/telefone cadastrado"
-                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 opacity-70"
+                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 opacity-70 dark:bg-gray-800 dark:text-gray-400"
                       >
                         <MessageCircle className="h-4 w-4" />
                         WhatsApp indisponível
@@ -816,10 +869,10 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                 </div>
               </div>
 
-              <div className="mt-4 overflow-hidden rounded-2xl border">
+              <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[980px] text-sm">
-                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-gray-900">
                       <tr>
                         <th className="px-4 py-3">Produto</th>
                         <th className="px-4 py-3 text-right">Solicitado</th>
@@ -831,15 +884,15 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                       </tr>
                     </thead>
 
-                    <tbody className="divide-y">
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
                       {detailDraft.items.map((item) => {
                         const approvedQty = Number(item.approved_qty ?? item.requested_qty ?? 0);
                         const quotedCost = Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0);
                         const total = approvedQty * quotedCost;
 
                         return (
-                          <tr key={item.id}>
-                            <td className="px-4 py-3 font-medium text-slate-800">{item.product_name}</td>
+                          <tr key={item.id} className="dark:text-gray-300">
+                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{item.product_name}</td>
                             <td className="px-4 py-3 text-right">{item.requested_qty}</td>
                             <td className="px-4 py-3 text-right">{formatCurrency(item.reference_unit_cost)}</td>
                             <td className="px-4 py-3 text-right">
@@ -850,12 +903,11 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                                 value={item.quoted_unit_cost ?? ''}
                                 onChange={(event) =>
                                   updateDetailItem(item.id, {
-                                    quoted_unit_cost:
-                                      event.target.value === '' ? null : Number(event.target.value),
+                                    quoted_unit_cost: event.target.value === '' ? null : Number(event.target.value),
                                   })
                                 }
                                 disabled={detail.status === 'converted'}
-                                className="w-28 rounded-lg border px-2 py-1 text-right text-sm"
+                                className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 placeholder="0,00"
                               />
                             </td>
@@ -871,7 +923,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                                   })
                                 }
                                 disabled={detail.status === 'converted'}
-                                className="w-24 rounded-lg border px-2 py-1 text-right text-sm"
+                                className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                               />
                             </td>
                             <td className="px-4 py-3">
@@ -883,11 +935,11 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                                   })
                                 }
                                 disabled={detail.status === 'converted'}
-                                className="w-full rounded-lg border px-2 py-1 text-sm"
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 placeholder="Ex.: sem estoque, entrega parcial..."
                               />
                             </td>
-                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(total)}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-white">{formatCurrency(total)}</td>
                           </tr>
                         );
                       })}
@@ -897,12 +949,12 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
               </div>
 
               <label className="mt-4 block">
-                <div className="mb-2 text-xs font-semibold uppercase text-slate-500">Observações internas</div>
+                <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Observações internas</div>
                 <textarea
                   value={quotationNotes}
                   onChange={(event) => setQuotationNotes(event.target.value)}
                   disabled={detail.status === 'converted'}
-                  className="min-h-[90px] w-full rounded-2xl border bg-slate-50 p-4 text-sm text-slate-700"
+                  className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                   placeholder="Ex.: fornecedor confirmou entrega para sexta-feira..."
                 />
               </label>
@@ -919,51 +971,27 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
               )}
             </div>
 
-            <div className="flex flex-wrap justify-end gap-2 border-t p-5">
+            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 p-5 dark:border-gray-800">
               <button
                 type="button"
                 onClick={closeDetail}
-                className="rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
               >
                 Fechar
               </button>
 
               {detail.status !== 'converted' && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveResponse()}
-                    disabled={savingResponse}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
-                  >
-                    <Save className="h-4 w-4" />
-                    {savingResponse ? 'Salvando...' : 'Salvar resposta'}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleConvertToDraft()}
-                    disabled={convertingToDraft}
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    {convertingToDraft ? 'Convertendo...' : 'Converter em rascunho'}
-                  </button>
-                </>
-              )}
-
-              {detail.converted_purchase_document_id && (
                 <button
                   type="button"
-                  onClick={() =>
-                    navigate(`/admin/stock/purchase-documents?open=${detail.converted_purchase_document_id}`)
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  onClick={() => void handleSaveResponse()}
+                  disabled={savingResponse}
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
                 >
-                  <ExternalLink className="h-4 w-4" />
-                  Abrir compra
+                  <Save className="h-4 w-4" />
+                  {savingResponse ? 'Salvando...' : 'Salvar resposta'}
                 </button>
               )}
+
             </div>
           </div>
         </div>
