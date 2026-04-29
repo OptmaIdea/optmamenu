@@ -20,12 +20,12 @@ import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { useStockMovement } from '@/pages/private/admin/products/inventory/hooks/useStockMovement';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
-import type { StockMovement, StockMovementType, StockMovementFilters } from './types/inventory.types';
+import type { StockMovement, StockMovementType, StockMovementFilters, StockMovementOperationFilter } from './types/inventory.types';
 import PrintableStockMovements from '@/pages/private/admin/products/inventory/components/PrintableStockMovements';
 import { useReactToPrint } from 'react-to-print';
-import { timezoneUtils } from '@/utils/timezoneUtils';
 import { downloadCsv } from '@/utils/export/csv';
-import { formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
+import { formatDateTimePtBr, formatDateTimeForExportPtBr, formatDatePtBr, getLocalDateInputValue } from '@/utils/dateTime';
+import { formatNumberPtBr } from '@/utils/export/formatters';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { ManualStockAdjustmentModal } from './components/ManualStockAdjustmentModal';
 import {
@@ -41,12 +41,18 @@ import {
 const INITIAL_MOVEMENTS_LIMIT = 7;
 const MOVEMENTS_PAGE_SIZE = 50;
 
-const MOVEMENT_LABELS: Record<StockMovementType, { label: string; color: string }> = {
+const MOVEMENT_LABELS: Record<
+  Exclude<StockMovementOperationFilter, ''>,
+  { label: string; color: string }
+> = {
   entry: { label: 'Entrada', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   exit: { label: 'Saída', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
   reservation: { label: 'Reserva', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
   confirmation: { label: 'Baixa (Pedido)', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
   cancellation: { label: 'Cancelamento', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  transfer_all: { label: 'Transferência', color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' },
+  transfer_out: { label: 'Transferência enviada', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+  transfer_in: { label: 'Transferência recebida', color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' },
   clearance: { label: 'Zeramento', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
 };
 
@@ -65,6 +71,7 @@ export default function StockMovementsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [movementSearch, setMovementSearch] = useState('');
+  const [movementKind, setMovementKind] = useState<StockMovementOperationFilter>('');
   const [locationFilter, setLocationFilter] = useState('all');
   const [adjustmentModalOpen, setAdjustmentModalOpen] = useState(false);
   const [adjustmentLocations, setAdjustmentLocations] = useState<
@@ -176,9 +183,50 @@ export default function StockMovementsPage() {
   const totalPages = isSmartInitialLoad ? 1 : Math.ceil(total / MOVEMENTS_PAGE_SIZE);
   const canLoadMoreInitialMovements = isSmartInitialLoad && movements.length < total;
 
+  const effectiveMovementFilters = useMemo<StockMovementFilters>(() => {
+    const next: StockMovementFilters = {
+      ...filters,
+      type: undefined,
+      source: undefined,
+      reasonCode: undefined,
+    };
+
+    if (movementKind === 'transfer_all') {
+      return {
+        ...next,
+        source: 'stock_transfer',
+      };
+    }
+
+    if (movementKind === 'transfer_out') {
+      return {
+        ...next,
+        source: 'stock_transfer',
+        reasonCode: 'transfer_shipped',
+      };
+    }
+
+    if (movementKind === 'transfer_in') {
+      return {
+        ...next,
+        source: 'stock_transfer',
+        reasonCode: 'transfer_received',
+      };
+    }
+
+    if (movementKind) {
+      return {
+        ...next,
+        type: movementKind as StockMovementType,
+      };
+    }
+
+    return next;
+  }, [filters, movementKind]);
+
   useEffect(() => {
     void loadMovements();
-  }, [currentPage, filters, initialMovementsLimit]);
+  }, [currentPage, effectiveMovementFilters, initialMovementsLimit]);
 
   useEffect(() => {
     if (hasMovementQueryFilters) {
@@ -186,11 +234,13 @@ export default function StockMovementsPage() {
     }
   }, [hasMovementQueryFilters]);
 
+
+
   const loadMovements = async () => {
     setLoading(true);
     try {
       const page = isSmartInitialLoad ? 1 : currentPage;
-      const result = await fetchMovements(filters, page, currentPageSize);
+      const result = await fetchMovements(effectiveMovementFilters, page, currentPageSize);
       setMovements(result.movements);
       setTotal(result.total);
     } finally {
@@ -212,6 +262,7 @@ export default function StockMovementsPage() {
     setSelectedProductIds([]);
     setProductSearch('');
     setMovementSearch('');
+    setMovementKind('');
     setLocationFilter('all');
     setCurrentPage(1);
     setInitialMovementsLimit(INITIAL_MOVEMENTS_LIMIT);
@@ -286,13 +337,13 @@ export default function StockMovementsPage() {
 
   const formatQuantity = (qty: number) => (qty > 0 ? `+${Math.abs(qty)}` : `-${Math.abs(qty)}`);
 
-  const formatDate = (dateString: string) => timezoneUtils.formatBrazilDateTime(dateString);
-  const formatDateOnly = (dateString: string) => timezoneUtils.formatBrazilDate(dateString);
+  const formatDate = (dateString: string, display?: string | null) => display ?? formatDateTimePtBr(dateString);
+  const formatDateOnly = (dateString: string) => formatDatePtBr(dateString);
 
   const handleExportCsv = () => {
     const exportableMovements = movements;
     downloadCsv({
-      filename: `movimentacoes_estoque_${new Date().toISOString().slice(0, 10)}.csv`,
+      filename: `movimentacoes_estoque_${getLocalDateInputValue()}.csv`,
       headers: [
         'Data/Hora',
         'Produto',
@@ -308,13 +359,13 @@ export default function StockMovementsPage() {
         'Observação',
       ],
       rows: exportableMovements.map((movement) => [
-        formatDateTimePtBr(movement.created_at),
+        (movement.created_at_display ?? formatDateTimeForExportPtBr(movement.created_at)),
         movement.product_name ?? '',
         movement.location_name
           ? movement.location_name
           : movement.from_location_name || movement.to_location_name
-          ? `${movement.from_location_name ?? '—'} -> ${movement.to_location_name ?? '—'}`
-          : '',
+            ? `${movement.from_location_name ?? '—'} -> ${movement.to_location_name ?? '—'}`
+            : '',
         getMovementOperationLabel(movement),
         formatNumberPtBr(movement.quantity),
         formatNumberPtBr(movement.previous_stock),
@@ -476,63 +527,76 @@ export default function StockMovementsPage() {
               />
             </div>
 
-            <div className="lg:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                <Calendar size={16} />
-                Período
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-xs text-gray-500 mb-1 block">Data inicial</span>
-                  <input
-                    type="date"
-                    title="Data inicial (formato dd/mm/aaaa)"
-                    aria-label="Data inicial"
-                    value={filters.startDate || ''}
-                    onChange={(e) => {
-                      setFilters({ ...filters, startDate: e.target.value || undefined });
-                      setCurrentPage(1);
-                    }}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
-                  />
-                </div>
-                <div>
-                  <span className="text-xs text-gray-500 mb-1 block">Data final</span>
-                  <input
-                    type="date"
-                    title="Data final (formato dd/mm/aaaa)"
-                    aria-label="Data final"
-                    value={filters.endDate || ''}
-                    onChange={(e) => {
-                      setFilters({ ...filters, endDate: e.target.value || undefined });
-                      setCurrentPage(1);
-                    }}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
-                  />
-                </div>
+            <div className="xl:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Período - Data Inicial */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Calendar size={16} />
+                  Período
+                </label>
+                <span className="text-xs text-gray-500 mb-1 block">Data inicial</span>
+                <input
+                  type="date"
+                  title="Data inicial (formato dd/mm/aaaa)"
+                  aria-label="Data inicial"
+                  value={filters.startDate || ''}
+                  onChange={(e) => {
+                    setFilters({ ...filters, startDate: e.target.value || undefined });
+                    setCurrentPage(1);
+                  }}
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                />
               </div>
-              <p className="text-[11px] text-gray-400 mt-1">
-                Período no formato dd/mm/aaaa.
-              </p>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Tipo de Movimentação
-              </label>
-              <select
-                value={filters.type || ''}
-                onChange={(e) => {
-                  setFilters({ ...filters, type: (e.target.value as StockMovementType) || undefined });
-                  setCurrentPage(1);
-                }}
-                className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
-              >
-                <option value="">Todos os tipos</option>
-                {Object.entries(MOVEMENT_LABELS).map(([key, { label }]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
+              {/* Período - Data Final */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 invisible md:flex items-center gap-2">
+                  <Calendar size={16} />
+                  Período
+                </label>
+                <span className="text-xs text-gray-500 mb-1 block">Data final</span>
+                <input
+                  type="date"
+                  title="Data final (formato dd/mm/aaaa)"
+                  aria-label="Data final"
+                  value={filters.endDate || ''}
+                  onChange={(e) => {
+                    setFilters({ ...filters, endDate: e.target.value || undefined });
+                    setCurrentPage(1);
+                  }}
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                />
+              </div>
+
+              {/* Tipo de Movimentação */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Filter size={16} />
+                  Tipo de Movimentação
+                </label>
+                <span className="text-xs text-transparent mb-1 block select-none">Tipo</span>
+                <select
+                  value={movementKind}
+                  onChange={(e) => {
+                    setMovementKind(e.target.value as StockMovementOperationFilter);
+                    setCurrentPage(1);
+                  }}
+                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="">Todos os tipos</option>
+                  <option value="entry">Entrada</option>
+                  <option value="exit">Saída</option>
+
+                  <option value="transfer_all">Transferências</option>
+                  <option value="transfer_out">Transferência enviada</option>
+                  <option value="transfer_in">Transferência recebida</option>
+
+                  <option value="reservation">Reserva</option>
+                  <option value="confirmation">Baixa por pedido</option>
+                  <option value="cancellation">Cancelamento</option>
+                  <option value="clearance">Zeramento</option>
+                </select>
+              </div>
             </div>
 
             <div>
@@ -646,172 +710,172 @@ export default function StockMovementsPage() {
       ) : (
         <>
           <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 mb-6 print:mb-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-            <History size={20} />
-            <span className="font-medium">Total de movimentações: </span>
-            <span className="font-bold text-gray-900 dark:text-white">{total}</span>
-          </div>
-          {filters.startDate && filters.endDate && (
-            <div className="text-sm text-gray-500 dark:text-gray-400 print:block hidden">
-              Período: {formatDateOnly(filters.startDate)} até {formatDateOnly(filters.endDate)}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-lg print:shadow-none print:border-0">
-        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
-          <table className="min-w-[1180px] w-full text-left">
-            <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm font-medium print:bg-gray-100">
-              <tr>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Data/Hora</th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Produto</th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Local</th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center">Tipo</th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
-                  <div className="inline-flex items-center gap-1 justify-end">
-                    Quantidade
-                    <InfoTooltip text="Variação registrada na movimentação. Valores positivos indicam entrada; negativos indicam saída." />
-                  </div>
-                </th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
-                  <div className="inline-flex items-center gap-1 justify-end">
-                    Estoque Antes
-                    <InfoTooltip text="Saldo imediatamente antes da movimentação." />
-                  </div>
-                </th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
-                  <div className="inline-flex items-center gap-1 justify-end">
-                    Estoque Depois
-                    <InfoTooltip text="Saldo imediatamente após a movimentação." />
-                  </div>
-                </th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
-                  Origem/Destino
-                </th>
-                <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
-                  <div className="inline-flex items-center gap-1">
-                    Motivo
-                    <InfoTooltip text="Descrição operacional do que gerou a movimentação, como transferência, ajuste, reserva ou saída manual." />
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {loading ? (
-                <tr><td colSpan={9} className="p-8 text-center text-gray-500">Carregando...</td></tr>
-              ) : (
-                movements.map((movement) => {
-                  const config = MOVEMENT_LABELS[movement.type];
-                  const operationLabel = getMovementOperationLabel(movement);
-                  return (
-                    <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors print:hover:bg-transparent">
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at)}</td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 font-medium text-gray-900 dark:text-white">
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
-                          className="font-medium text-[#21A896] hover:underline text-left"
-                        >
-                          {movement.product_name || 'Produto removido'}
-                        </button>
-                      </td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">
-                        {movement.location_name ? (
-                          movement.location_name
-                        ) : movement.from_location_name || movement.to_location_name ? (
-                          <span>
-                            {movement.from_location_name ?? '—'} → {movement.to_location_name ?? '—'}
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{operationLabel}</span></td>
-                      <td className={`px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
-                        <div className="space-y-1">
-                          <div>
-                            <span className="font-semibold text-gray-500 dark:text-gray-400">Origem:</span>{' '}
-                            {getMovementOriginLabel(movement)}
-                          </div>
-
-                          <div>
-                            <span className="font-semibold text-gray-500 dark:text-gray-400">Destino:</span>{' '}
-                            {getMovementDestinationLabel(movement)}
-                          </div>
-
-                          <div className="text-xs text-gray-400">
-                            Ref.: {getMovementReferenceLabel(movement)}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
-                        <div className="space-y-1">
-                          <div>{getMovementHumanDescription(movement)}</div>
-                          {movement.reason && (
-                            <div className="text-xs text-gray-500">
-                              Obs.: {movement.reason}
-                            </div>
-                          )}
-                        </div>
-                        {Number(movement.divergence_qty ?? 0) > 0 && (
-                          <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                            <strong>Divergência:</strong>{' '}
-                            {Number(movement.divergence_qty)} un. não chegaram ao destino.{' '}
-                            <strong>Resolução:</strong>{' '}
-                            {getTransferDivergenceResolutionLabel(movement.divergence_resolution)}.{' '}
-                            <strong>Motivo:</strong>{' '}
-                            {getTransferDivergenceReasonLabel(movement.divergence_reason)}.
-                          </div>
-                        )}
-                        {movement.transfer_id && (
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/admin/transfers/${movement.transfer_id}`)}
-                            className="text-xs text-gray-500 hover:text-[#21A896] mt-0.5"
-                          >
-                            Ver transferência
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                <History size={20} />
+                <span className="font-medium">Total de movimentações: </span>
+                <span className="font-bold text-gray-900 dark:text-white">{total}</span>
+              </div>
+              {filters.startDate && filters.endDate && (
+                <div className="text-sm text-gray-500 dark:text-gray-400 print:block hidden">
+                  Período: {formatDateOnly(filters.startDate)} até {formatDateOnly(filters.endDate)}
+                </div>
               )}
-            </tbody>
-          </table>
-        </div>
-
-        {isSmartInitialLoad && canLoadMoreInitialMovements && (
-          <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Exibindo os {movements.length} lançamentos mais recentes de {total}
-            </p>
-            <button
-              type="button"
-              onClick={() => setInitialMovementsLimit((limit) => Math.min(limit + MOVEMENTS_PAGE_SIZE, total))}
-              disabled={loading}
-              className="h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              Carregar mais
-            </button>
-          </div>
-        )}
-
-        {!isSmartInitialLoad && totalPages > 1 && (
-          <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between print:hidden">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Página {currentPage} de {totalPages}</p>
-            <div className="flex gap-2">
-              <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"><ChevronLeft size={18} /></button>
-              <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"><ChevronRight size={18} /></button>
             </div>
           </div>
-        )}
-      </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg print:shadow-none print:border-0">
+            <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
+              <table className="min-w-[1180px] w-full text-left">
+                <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 text-sm font-medium print:bg-gray-100">
+                  <tr>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Data/Hora</th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Produto</th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2">Local</th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center">Tipo</th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        Quantidade
+                        <InfoTooltip text="Variação registrada na movimentação. Valores positivos indicam entrada; negativos indicam saída." />
+                      </div>
+                    </th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        Estoque Antes
+                        <InfoTooltip text="Saldo imediatamente antes da movimentação." />
+                      </div>
+                    </th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right">
+                      <div className="inline-flex items-center gap-1 justify-end">
+                        Estoque Depois
+                        <InfoTooltip text="Saldo imediatamente após a movimentação." />
+                      </div>
+                    </th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
+                      Origem/Destino
+                    </th>
+                    <th className="px-3 py-3 md:px-4 md:py-4 print:p-2 min-w-[220px]">
+                      <div className="inline-flex items-center gap-1">
+                        Motivo
+                        <InfoTooltip text="Descrição operacional do que gerou a movimentação, como transferência, ajuste, reserva ou saída manual." />
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {loading ? (
+                    <tr><td colSpan={9} className="p-8 text-center text-gray-500">Carregando...</td></tr>
+                  ) : (
+                    movements.map((movement) => {
+                      const config = MOVEMENT_LABELS[movement.type];
+                      const operationLabel = getMovementOperationLabel(movement);
+                      return (
+                        <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors print:hover:bg-transparent">
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at, movement.created_at_display)}</td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 font-medium text-gray-900 dark:text-white">
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
+                              className="font-medium text-[#21A896] hover:underline text-left"
+                            >
+                              {movement.product_name || 'Produto removido'}
+                            </button>
+                          </td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">
+                            {movement.location_name ? (
+                              movement.location_name
+                            ) : movement.from_location_name || movement.to_location_name ? (
+                              <span>
+                                {movement.from_location_name ?? '—'} → {movement.to_location_name ?? '—'}
+                              </span>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-center"><span className={`px-3 py-1 rounded-full text-xs font-bold ${config.color} print:border print:border-gray-300`}>{operationLabel}</span></td>
+                          <td className={`px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold ${movement.quantity > 0 ? 'text-green-600' : 'text-red-600'}`}>{formatQuantity(movement.quantity)}</td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right text-gray-600 dark:text-gray-400">{movement.previous_stock}</td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-right font-bold text-gray-900 dark:text-white">{movement.new_stock}</td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
+                            <div className="space-y-1">
+                              <div>
+                                <span className="font-semibold text-gray-500 dark:text-gray-400">Origem:</span>{' '}
+                                {getMovementOriginLabel(movement)}
+                              </div>
+
+                              <div>
+                                <span className="font-semibold text-gray-500 dark:text-gray-400">Destino:</span>{' '}
+                                {getMovementDestinationLabel(movement)}
+                              </div>
+
+                              <div className="text-xs text-gray-400">
+                                Ref.: {getMovementReferenceLabel(movement)}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400 min-w-[220px]">
+                            <div className="space-y-1">
+                              <div>{getMovementHumanDescription(movement)}</div>
+                              {movement.reason && (
+                                <div className="text-xs text-gray-500">
+                                  Obs.: {movement.reason}
+                                </div>
+                              )}
+                            </div>
+                            {Number(movement.divergence_qty ?? 0) > 0 && (
+                              <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                <strong>Divergência:</strong>{' '}
+                                {Number(movement.divergence_qty)} un. não chegaram ao destino.{' '}
+                                <strong>Resolução:</strong>{' '}
+                                {getTransferDivergenceResolutionLabel(movement.divergence_resolution)}.{' '}
+                                <strong>Motivo:</strong>{' '}
+                                {getTransferDivergenceReasonLabel(movement.divergence_reason)}.
+                              </div>
+                            )}
+                            {movement.transfer_id && (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/admin/transfers/${movement.transfer_id}`)}
+                                className="text-xs text-gray-500 hover:text-[#21A896] mt-0.5"
+                              >
+                                Ver transferência
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {isSmartInitialLoad && canLoadMoreInitialMovements && (
+              <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Exibindo os {movements.length} lançamentos mais recentes de {total}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setInitialMovementsLimit((limit) => Math.min(limit + MOVEMENTS_PAGE_SIZE, total))}
+                  disabled={loading}
+                  className="h-10 rounded-lg border border-gray-300 px-4 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Carregar mais
+                </button>
+              </div>
+            )}
+
+            {!isSmartInitialLoad && totalPages > 1 && (
+              <div className="border-t border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between print:hidden">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Página {currentPage} de {totalPages}</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"><ChevronLeft size={18} /></button>
+                  <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"><ChevronRight size={18} /></button>
+                </div>
+              </div>
+            )}
+          </div>
         </>
       )}
 

@@ -5,7 +5,8 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import TransferListTable from './components/TransferListTable';
 import { useStockTransfers } from './hooks/useStockTransfers';
 import { downloadCsv } from '@/utils/export/csv';
-import { formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
+import { formatNumberPtBr } from '@/utils/export/formatters';
+import { formatDateTimeForExportPtBr, toAppDate, getLocalDateInputValue } from '@/utils/dateTime';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { toast } from 'sonner';
@@ -145,7 +146,7 @@ export default function TransfersPage() {
 
   const toggleGroupSelection = (items: StockTransferSuggestion[]) => {
     const keysInGroup = items.map(getSuggestionKey);
-    
+
     setSelectedSuggestionKeys((current) => {
       const next = new Set(current);
       const allSelected = keysInGroup.every((k) => next.has(k));
@@ -340,11 +341,11 @@ export default function TransfersPage() {
     }
 
     if (dateFrom) {
-      result = result.filter((r) => new Date(r.requested_at) >= new Date(`${dateFrom}T00:00:00`));
+      result = result.filter((r) => (toAppDate(r.requested_at)?.getTime() ?? 0) >= new Date(`${dateFrom}T00:00:00`).getTime());
     }
 
     if (dateTo) {
-      result = result.filter((r) => new Date(r.requested_at) <= new Date(`${dateTo}T23:59:59`));
+      result = result.filter((r) => (toAppDate(r.requested_at)?.getTime() ?? 0) <= new Date(`${dateTo}T23:59:59`).getTime());
     }
 
     if (statusFilter !== 'all') {
@@ -381,7 +382,7 @@ export default function TransfersPage() {
 
   const handleExportCsv = () => {
     downloadCsv({
-      filename: `transferencias_${new Date().toISOString().slice(0, 10)}.csv`,
+      filename: `transferencias_${getLocalDateInputValue()}.csv`,
       headers: [
         'Código',
         'Origem',
@@ -401,9 +402,9 @@ export default function TransfersPage() {
         row.source_location_name ?? '',
         row.destination_location_name ?? '',
         getTransferStatusLabel(row.status),
-        formatDateTimePtBr(row.requested_at),
-        formatDateTimePtBr(row.shipped_at),
-        formatDateTimePtBr(row.received_at),
+        row.requested_at_display ?? formatDateTimeForExportPtBr(row.requested_at),
+        row.shipped_at_display ?? formatDateTimeForExportPtBr(row.shipped_at),
+        row.received_at_display ?? formatDateTimeForExportPtBr(row.received_at),
         formatNumberPtBr(row.items_count ?? 0),
         formatNumberPtBr(row.total_requested_qty ?? 0),
         formatNumberPtBr(row.total_shipped_qty ?? 0),

@@ -20,6 +20,7 @@ import type {
   PurchaseQuotationDetail,
   PurchaseQuotationSummary,
 } from '@/services/stockService';
+import { formatDateTimePtBr } from '@/utils/dateTime';
 
 type PurchaseQuotationsPanelProps = {
   storeId: string;
@@ -55,12 +56,7 @@ type SupplierContactRow = {
 };
 
 function formatDateTime(value?: string | null) {
-  if (!value) return '—';
-
-  return new Intl.DateTimeFormat('pt-BR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(new Date(value));
+  return formatDateTimePtBr(value, '—');
 }
 
 function formatCurrency(value: number | null | undefined) {
@@ -355,8 +351,8 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
     : null;
   const mailtoUrl = supplierContact.email
     ? `mailto:${supplierContact.email}?subject=${encodeURIComponent(
-        `Solicitação de cotação - ${detailDraft?.supplier_name ?? ''}`,
-      )}&body=${encodeURIComponent(quotationText)}`
+      `Solicitação de cotação - ${detailDraft?.supplier_name ?? ''}`,
+    )}&body=${encodeURIComponent(quotationText)}`
     : null;
 
   async function loadQuotations() {
@@ -633,7 +629,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                     </td>
                     <td className="px-4 py-3 text-right">{quotation.items_count}</td>
                     <td className="px-4 py-3 text-right">{formatCurrency(quotation.total_reference)}</td>
-                    <td className="px-4 py-3">{formatDateTime(quotation.requested_at)}</td>
+                    <td className="px-4 py-3">{quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
@@ -681,7 +677,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
               <div className="grid gap-3 md:grid-cols-4">
                 <div className="rounded-xl border bg-slate-50 p-3">
                   <div className="text-xs font-semibold uppercase text-slate-500">Criada em</div>
-                  <div className="mt-1 font-semibold">{formatDateTime(detail.requested_at)}</div>
+                  <div className="mt-1 font-semibold">{detail.requested_at_display ?? formatDateTime(detail.requested_at)}</div>
                 </div>
 
                 <label className="rounded-xl border bg-slate-50 p-3">

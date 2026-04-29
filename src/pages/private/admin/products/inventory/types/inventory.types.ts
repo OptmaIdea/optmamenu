@@ -21,12 +21,19 @@ export interface ProductStock {
 export type AdjustmentType = 'entry' | 'exit';
 
 export type StockMovementType =
-    | 'entry'           // Entrada manual (onEntry)
-    | 'exit'            // Saída/perda manual (onExit)
-    | 'reservation'     // Reserva por pedido
-    | 'confirmation'    // Baixa por confirmação de pedido
-    | 'cancellation'    // Cancelamento de pedido (devolve estoque)
-    | 'clearance';      // Zeramento por descontinuação
+    | 'entry'
+    | 'exit'
+    | 'reservation'
+    | 'confirmation'
+    | 'cancellation'
+    | 'clearance';
+
+export type StockMovementOperationFilter =
+    | ''
+    | StockMovementType
+    | 'transfer_all'
+    | 'transfer_out'
+    | 'transfer_in';
 
 export interface AdjustmentPayload {
     productId: string;
@@ -48,6 +55,7 @@ export interface StockMovement {
     previous_stock: number;
     new_stock: number;
     created_at: string;
+    created_at_display?: string | null;
     transfer_id?: string | null;
 
     location_id?: string | null;
@@ -75,6 +83,8 @@ export interface StockMovementFilters {
     productId?: string;
     productIds?: string[];
     type?: StockMovementType;
+    source?: string;
+    reasonCode?: string;
     startDate?: string;
     endDate?: string;
     locationId?: string;

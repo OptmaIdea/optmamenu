@@ -304,7 +304,17 @@ export const useStockMovement = () => {
             if (filters.productIds && filters.productIds.length > 0) {
                 query = query.in('product_id', filters.productIds);
             }
-            if (filters.type) query = query.eq('type', filters.type);
+            if (filters.type) {
+                query = query.eq('type', filters.type);
+            }
+
+            if (filters.source) {
+                query = query.eq('source', filters.source);
+            }
+
+            if (filters.reasonCode) {
+                query = query.eq('reason_code', filters.reasonCode);
+            }
 
             if (filters.locationId) {
                 query = query.or(
@@ -312,12 +322,14 @@ export const useStockMovement = () => {
                 );
             }
 
-            if (filters.startDate) query = query.gte('created_at', filters.startDate);
+            if (filters.startDate) {
+                const start = new Date(`${filters.startDate}T00:00:00-03:00`);
+                query = query.gte('created_at', start.toISOString());
+            }
 
             if (filters.endDate) {
-                const end = new Date(filters.endDate);
-                end.setDate(end.getDate() + 1);
-                query = query.lt('created_at', end.toISOString());
+                const end = new Date(`${filters.endDate}T23:59:59.999-03:00`);
+                query = query.lte('created_at', end.toISOString());
             }
 
             if (filters.search?.trim()) {

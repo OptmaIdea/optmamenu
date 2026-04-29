@@ -13,7 +13,8 @@ import { useProductTransitSummary } from './hooks/useProductTransitSummary';
 import { ProductTransitPanel } from './components/ProductTransitPanel';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { downloadCsv } from '@/utils/export/csv';
-import { formatCurrencyPtBr, formatDateTimePtBr, formatNumberPtBr } from '@/utils/export/formatters';
+import { formatCurrencyPtBr, formatNumberPtBr } from '@/utils/export/formatters';
+import { formatDateTimePtBr } from '@/utils/dateTime';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { ArrowLeft, History, MapPinned } from 'lucide-react';
@@ -339,23 +340,22 @@ export default function ProductLifecyclePage() {
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-2 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="w-full lg:w-auto overflow-x-auto">
           <div className="flex min-w-max gap-2 pb-1 lg:pb-0">
-          {tabs.map((tab) => {
-            const active = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setActiveTab(tab.key)}
-                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
-                  active
-                    ? 'bg-[#21A896] text-white'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                }`}
-              >
-                {tab.label}
-              </button>
-            );
-          })}
+            {tabs.map((tab) => {
+              const active = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`rounded-xl px-4 py-2 text-sm font-medium transition ${active
+                      ? 'bg-[#21A896] text-white'
+                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -482,10 +482,9 @@ export default function ProductLifecyclePage() {
                     <td className="px-4 py-3">{item.available}</td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          stockStatusClassMap[item.stock_status] ??
+                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${stockStatusClassMap[item.stock_status] ??
                           'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                        }`}
+                          }`}
                       >
                         {stockStatusLabelMap[item.stock_status] ?? item.stock_status}
                       </span>

@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  formatDateOnlyPtBr,
+  formatDateTimeForExportPtBr,
+  getLocalDateInputValue,
+} from '@/utils/dateTime';
+import {
   BarChart3,
   CheckCircle2,
   Download,
@@ -112,21 +117,9 @@ const shortId = (value?: string | null) => {
   return value.slice(0, 8);
 };
 
-const formatDatePtBr = (value?: string | null) => {
-  if (!value) return '';
+const formatDatePtBr = (value?: string | null) => formatDateOnlyPtBr(value, '');
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split('-');
-    return `${day}/${month}/${year}`;
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return new Intl.DateTimeFormat('pt-BR').format(date);
-};
-
-const formatDateTimePtBr = (value?: string | null) => {
+/* const formatDateTimePtBr = (value?: string | null) => {
   if (!value) return '';
 
   const date = new Date(value);
@@ -136,7 +129,7 @@ const formatDateTimePtBr = (value?: string | null) => {
     dateStyle: 'short',
     timeStyle: 'short',
   }).format(date);
-};
+}; */
 
 const getPurchaseDocumentStatusLabel = (status?: string | null) => {
   switch (status) {
@@ -174,7 +167,7 @@ export default function PurchaseDocumentsPage() {
 
   const [draftSupplierId, setDraftSupplierId] = useState<string>('');
   const [draftIssueDate, setDraftIssueDate] = useState<string>(() =>
-    new Date().toISOString().slice(0, 10),
+    getLocalDateInputValue(),
   );
   const [draftInvoiceNumber, setDraftInvoiceNumber] = useState<string>('');
   const [draftNotes, setDraftNotes] = useState<string>('');
@@ -295,8 +288,8 @@ export default function PurchaseDocumentsPage() {
         'Produto filtrado': filters.productId ? productName(filters.productId) : '',
         'Itens': productSummary,
         'Total (R$)': formatCsvNumberBR(doc.total_amount ?? 0),
-        'Criado em': formatDateTimePtBr(doc.created_at),
-        'Cancelado em': formatDateTimePtBr(doc.cancelled_at),
+        'Criado em': formatDateTimeForExportPtBr(doc.created_at),
+        'Cancelado em': formatDateTimeForExportPtBr(doc.cancelled_at),
         'Motivo do cancelamento': doc.cancel_reason ?? '',
         'Observações': doc.notes ?? '',
       };
@@ -317,7 +310,7 @@ export default function PurchaseDocumentsPage() {
       'Observações',
     ]);
 
-    const dateSuffix = new Date().toISOString().slice(0, 10);
+    const dateSuffix = getLocalDateInputValue();
     downloadCsv(`compras_e_entradas_${dateSuffix}.csv`, csv);
   }, [filteredDocuments, itemsByDocument, filters.productId, productName, supplierName]);
 
@@ -367,7 +360,7 @@ export default function PurchaseDocumentsPage() {
     setEditingReadOnly(false);
     setEditingStatus(null);
     setDraftSupplierId('');
-    setDraftIssueDate(new Date().toISOString().slice(0, 10));
+    setDraftIssueDate(getLocalDateInputValue());
     setDraftInvoiceNumber('');
     setDraftNotes('');
     setDraftItems([{ product_id: '', quantity: 1, unit_cost: null }]);
@@ -482,7 +475,7 @@ export default function PurchaseDocumentsPage() {
         setEditingReadOnly(doc.status === 'confirmed' || doc.status === 'cancelled' || readOnly);
         setDraftSupplierId(doc.supplier_id ?? '');
         setDraftIssueDate(
-          doc.issue_date ?? new Date().toISOString().slice(0, 10),
+          doc.issue_date ?? getLocalDateInputValue(),
         );
         setDraftInvoiceNumber(doc.invoice_number ?? '');
         setDraftNotes(doc.notes ?? '');
@@ -1421,7 +1414,7 @@ export default function PurchaseDocumentsPage() {
                     </div>
 
                     <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">
-                      {doc.issue_date || '—'}
+                      {formatDatePtBr(doc.issue_date) || '—'}
                     </div>
 
                     <div className="col-span-1">

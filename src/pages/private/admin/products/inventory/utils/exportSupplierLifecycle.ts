@@ -1,10 +1,9 @@
 import {
     formatCurrencyPtBr,
-    formatDatePtBr,
-    formatDateTimePtBr,
     formatNumberPtBr,
 } from '@/utils/export/formatters';
 
+import { formatDateTimePtBr, formatDateOnlyPtBr } from '@/utils/dateTime';
 import { downloadCsv } from '@/utils/export/csv';
 
 import type {
@@ -182,7 +181,7 @@ export function exportSupplierLifecycleCsv({
         Seção: 'Resumo',
         Campo: 'Última compra',
         Valor: summary.last_purchase_date
-            ? formatDatePtBr(summary.last_purchase_date)
+            ? formatDateOnlyPtBr(summary.last_purchase_date)
             : '',
     });
 
@@ -203,7 +202,7 @@ export function exportSupplierLifecycleCsv({
             Seção: 'Compras',
             Campo: purchase.invoice_number || purchase.purchase_document_id,
             Valor: [
-                `Emissão: ${purchase.issue_date ? formatDatePtBr(purchase.issue_date) : ''
+                `Emissão: ${purchase.issue_date ? formatDateOnlyPtBr(purchase.issue_date) : ''
                 }`,
                 `Status: ${purchaseStatusLabelMap[purchase.status] ?? purchase.status}`,
                 `Itens: ${formatNumberPtBr(purchase.items_count ?? 0)}`,
@@ -225,7 +224,7 @@ export function exportSupplierLifecycleCsv({
                 `Maior custo: ${formatCurrencyPtBr(product.max_unit_cost ?? 0)}`,
                 `Último custo: ${formatCurrencyPtBr(product.last_unit_cost ?? 0)}`,
                 `Última compra: ${product.last_purchase_date
-                    ? formatDatePtBr(product.last_purchase_date)
+                    ? formatDateOnlyPtBr(product.last_purchase_date)
                     : ''
                 }`,
             ].join(' | '),
@@ -238,7 +237,7 @@ export function exportSupplierLifecycleCsv({
             Campo: price.product_name,
             Valor: [
                 `Data: ${price.issue_date
-                    ? formatDatePtBr(price.issue_date)
+                    ? formatDateOnlyPtBr(price.issue_date)
                     : formatDateTimePtBr(price.effective_at)
                 }`,
                 `Custo unitário: ${formatCurrencyPtBr(price.unit_cost ?? 0)}`,

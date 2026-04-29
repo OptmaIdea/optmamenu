@@ -3,6 +3,7 @@ import type { StockTransferSummaryRow } from '@/services/stockService';
 import TransferStatusBadge from './TransferStatusBadge';
 import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
+import { formatDateTimePtBr } from '@/utils/dateTime';
 
 type Props = {
   rows: StockTransferSummaryRow[];
@@ -62,7 +63,7 @@ export default function TransferListTable({ rows, onClearFilters }: Props) {
                   {row.total_divergence_qty > 0 ? `⚠ ${row.total_divergence_qty}` : row.total_divergence_qty}
                 </td>
                 <td className="px-4 py-3">
-                  {new Date(row.created_at).toLocaleString('pt-BR')}
+                  {row.requested_at_display ?? formatDateTimePtBr(row.requested_at)}
                 </td>
                 <td className="px-4 py-3">
                   <button

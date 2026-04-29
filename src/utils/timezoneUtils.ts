@@ -16,15 +16,10 @@ export const timezoneUtils = {
 
         let date: Date;
         if (typeof dateInput === 'string') {
-            let cleanInput = dateInput;
-            // Force UTC interpretation for everyone
-            // 1. If it has timezone offset (e.g. -03:00), remove it
-            if (dateInput.match(/[+-]\d{2}:?\d{2}$/)) {
-                cleanInput = dateInput.replace(/[+-]\d{2}:?\d{2}$/, '');
-            }
-            // 2. If it doesn't end with Z, append Z
-            if (!cleanInput.endsWith('Z')) {
-                cleanInput += 'Z';
+            let cleanInput = dateInput.replace(' ', 'T');
+            // 1. If it doesn't have an explicit timezone, append Brazil's timezone
+            if (!cleanInput.includes('Z') && !cleanInput.match(/[+-]\d{2}:?\d{2}$/)) {
+                cleanInput += '-03:00';
             }
 
 
