@@ -459,7 +459,7 @@ export const useStockMovement = () => {
             const allTransferIds = Array.from(
                 new Set(
                     (data || [])
-                        .map((item: any) => item.transfer_id)
+                        .map((item: any) => item.transfer_id || (item.source === 'stock_transfer' ? item.source_id : null))
                         .filter(Boolean)
                 )
             );
@@ -536,8 +536,8 @@ export const useStockMovement = () => {
                     source: item.source ?? null,
                     source_label: getMovementSourceLabel(item.source),
                     source_id: item.source_id ?? null,
-                    transfer_code: item.transfer_id
-                        ? transferMap.get(item.transfer_id)?.transfer_code ?? item.transfer_id
+                    transfer_code: (item.transfer_id || (item.source === 'stock_transfer' ? item.source_id : null))
+                        ? transferMap.get(item.transfer_id || item.source_id)?.transfer_code ?? null
                         : null,
                     divergence_qty: item.divergence_qty ?? null,
                     divergence_resolution: item.divergence_resolution ?? null,

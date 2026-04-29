@@ -202,6 +202,7 @@ export type ProductStockMovementRow = {
   to_location_code: string | null;
   to_location_name: string | null;
   transfer_id: string | null;
+  transfer_code?: string | null;
 };
 
 export type ProductInventoryAuditRow = {
@@ -273,22 +274,50 @@ const getPurchaseDocumentMovementMap = async (sourceIds: Array<string | null | u
   );
 };
 
+const getTransferMovementMap = async (transferIds: Array<string | null | undefined>) => {
+  const ids = Array.from(
+    new Set(transferIds.filter((id): id is string => Boolean(id)))
+  );
+
+  if (ids.length === 0) {
+    return new Map<string, { transfer_code: string | null }>();
+  }
+
+  const { data, error } = await supabase
+    .from('stock_transfers')
+    .select('id, transfer_code')
+    .in('id', ids);
+
+  if (error) throw error;
+
+  return new Map(
+    (data ?? []).map((t: any) => [t.id, { transfer_code: t.transfer_code }] as const)
+  );
+};
+
 const enrichProductStockMovementsWithPurchaseDocuments = async (
   movements: ProductStockMovementRow[]
 ) => {
-  const purchaseDocMap = await getPurchaseDocumentMovementMap(
-    movements
-      .filter((movement) => movement.source === 'purchase_document')
-      .map((movement) => movement.source_id)
-  );
-
-  if (purchaseDocMap.size === 0) return movements;
+  const [purchaseDocMap, transferMap] = await Promise.all([
+    getPurchaseDocumentMovementMap(
+      movements
+        .filter((movement) => movement.source === 'purchase_document')
+        .map((movement) => movement.source_id)
+    ),
+    getTransferMovementMap(
+      movements
+        .map((movement) => movement.transfer_id || (movement.source === 'stock_transfer' ? movement.source_id : null))
+    )
+  ]);
 
   return movements.map((movement) => {
     const purchaseInfo =
       movement.source === 'purchase_document' && movement.source_id
         ? purchaseDocMap.get(movement.source_id)
         : null;
+
+    const transferId = movement.transfer_id || (movement.source === 'stock_transfer' ? movement.source_id : null);
+    const transferInfo = transferId ? transferMap.get(transferId) : null;
 
     return {
       ...movement,
@@ -298,6 +327,7 @@ const enrichProductStockMovementsWithPurchaseDocuments = async (
         movement.purchase_document_number ??
         purchaseInfo?.purchase_document_number ??
         null,
+      transfer_code: movement.transfer_code ?? transferInfo?.transfer_code ?? null,
     };
   });
 };

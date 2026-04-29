@@ -166,15 +166,17 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
   }
 
   if (source === 'stock_transfer') {
+    if (movement.transfer_code) return movement.transfer_code;
     return shortReference(
-      movement.transfer_code ?? movement.transfer_id ?? movement.source_id,
+      movement.transfer_id ?? movement.source_id,
       'Transferência',
     );
   }
 
   if (source === 'purchase_document') {
+    if (movement.purchase_document_number) return movement.purchase_document_number;
     return shortReference(
-      movement.purchase_document_number ?? movement.source_id,
+      movement.source_id,
       'Documento de compra',
     );
   }

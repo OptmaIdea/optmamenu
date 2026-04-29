@@ -535,7 +535,7 @@ export default function ProductLifecyclePage() {
 
                   <div className="text-left text-xs md:text-right">
                     <div className="font-semibold">
-                      Ref.: {shortReference(item.transfer_code ?? item.transfer_id, 'Transferência')}
+                      Ref.: {item.transfer_code || shortReference(item.transfer_id, 'Transferência')}
                     </div>
                     <div className="mt-1 opacity-80">
                       {item.source_location_name ?? 'Origem'} → {item.destination_location_name ?? 'Destino'}

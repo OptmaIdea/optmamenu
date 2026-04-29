@@ -10,6 +10,8 @@ import TransferItemsTable from './components/TransferItemsTable';
 import { useStockTransferDetail } from './hooks/useStockTransferDetail';
 import { stockService } from '@/services/stockService';
 import { downloadCsv } from '@/utils/export/csv';
+import OperationalTimeline from './components/OperationalTimeline';
+import { useOperationalTimeline } from './hooks/useOperationalTimeline';
 import {
     formatNumberPtBr,
     formatCurrencyPtBr,
@@ -45,6 +47,18 @@ export default function TransferDetailPage() {
 
     const transfer = data.header;
     const items = data.items;
+
+    const {
+        events: transferTimelineEvents,
+        loading: loadingTransferTimeline,
+        refetch: refetchTransferTimeline,
+    } = useOperationalTimeline({
+        enabled: Boolean(transfer?.id),
+        storeId: transfer?.store_id ?? null,
+        entityType: 'stock_transfer',
+        relatedStockTransferId: transfer?.id ?? null,
+        limit: 30,
+    });
 
     // Initialize receive form when items load
     useEffect(() => {
@@ -101,7 +115,7 @@ export default function TransferDetailPage() {
                 notes: 'Transferência enviada pela tela de detalhe.',
             });
             toast.success(`Transferência ${result.transfer_code} enviada com sucesso.`);
-            await refresh();
+            await Promise.all([refresh(), refetchTransferTimeline()]);
         } catch (error: any) {
             console.error('Erro ao enviar transferência:', error);
             toast.error(error?.message ?? 'Não foi possível enviar a transferência.');
@@ -124,7 +138,7 @@ export default function TransferDetailPage() {
                 reason,
             });
             toast.success(`Transferência ${result.transfer_code} cancelada.`);
-            await refresh();
+            await Promise.all([refresh(), refetchTransferTimeline()]);
         } catch (error: any) {
             console.error('Erro ao cancelar transferência:', error);
             toast.error(error?.message ?? 'Não foi possível cancelar a transferência.');
@@ -178,7 +192,7 @@ export default function TransferDetailPage() {
                     : 'Transferência recebida com sucesso.'
             );
             setShowReceiveForm(false);
-            await refresh();
+            await Promise.all([refresh(), refetchTransferTimeline()]);
         } catch (error: any) {
             console.error('Erro ao receber transferência:', error);
             toast.error(error?.message ?? 'Não foi possível receber a transferência.');
@@ -267,6 +281,18 @@ export default function TransferDetailPage() {
 
             <TransferDetailHeader header={transfer} />
 
+            <OperationalTimeline
+                compact
+                className="mt-6"
+                title="Andamento da transferência"
+                description="Histórico operacional desta transferência, incluindo criação, envio, recebimento e cancelamento."
+                emptyTitle="Nenhum andamento registrado"
+                emptyDescription="Os eventos desta transferência aparecerão aqui conforme o fluxo for executado."
+                events={transferTimelineEvents}
+                loading={loadingTransferTimeline}
+                onRefresh={() => void refetchTransferTimeline()}
+            />
+
             {/* Receive form */}
             {showReceiveForm && transfer.status === 'shipped' && (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
@@ -288,7 +314,6 @@ export default function TransferDetailPage() {
                             {actionLoading ? 'Recebendo...' : 'Confirmar recebimento'}
                         </button>
                     </div>
-
                     <div className="mt-4 overflow-x-auto">
                         <table className="min-w-[980px] w-full text-sm">
                             <thead>
