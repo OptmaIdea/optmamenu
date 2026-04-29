@@ -91,6 +91,22 @@ function getQuotationStatusLabel(status: string) {
   }
 }
 
+function getQuotationStatusClassName(status?: string | null) {
+  switch (status) {
+    case 'approved':
+    case 'converted':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'sent':
+    case 'answered':
+      return 'bg-blue-100 text-blue-700';
+    case 'rejected':
+    case 'cancelled':
+      return 'bg-red-100 text-red-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+}
+
 function getChannelLabel(channel?: string | null) {
   switch (channel) {
     case 'whatsapp':
@@ -611,7 +627,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                     </td>
                     <td className="px-4 py-3 text-slate-700">{quotation.supplier_name}</td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${getQuotationStatusClassName(quotation.status)}`}>
                         {getQuotationStatusLabel(quotation.status)}
                       </span>
                     </td>

@@ -107,6 +107,51 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   return fallback;
 };
 
+const shortId = (value?: string | null) => {
+  if (!value) return '—';
+  return value.slice(0, 8);
+};
+
+const formatDatePtBr = (value?: string | null) => {
+  if (!value) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-');
+    return `${day}/${month}/${year}`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat('pt-BR').format(date);
+};
+
+const formatDateTimePtBr = (value?: string | null) => {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
+};
+
+const getPurchaseDocumentStatusLabel = (status?: string | null) => {
+  switch (status) {
+    case 'draft':
+      return 'Rascunho';
+    case 'confirmed':
+      return 'Confirmado';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelado';
+    default:
+      return status || 'Não informado';
+  }
+};
+
 export default function PurchaseDocumentsPage() {
   const navigate = useNavigate();
 
@@ -238,43 +283,43 @@ export default function PurchaseDocumentsPage() {
     const rows = filteredDocuments.map((doc) => {
       const docItems = itemsByDocument.get(doc.id) ?? [];
       const productSummary = docItems
-        .map((item) => `${productName(item.product_id)} x ${formatCsvNumberBR(item.quantity ?? 0)}`)
+        .map((item) => `${productName(item.product_id)} x ${formatCsvNumberBR(item.quantity ?? 0, 0)}`)
         .join(' | ');
 
       return {
-        id: doc.id,
-        numero_documento: doc.invoice_number?.trim() || doc.id,
-        emissao: doc.issue_date ?? '',
-        status: doc.status ?? '',
-        fornecedor_id: doc.supplier_id ?? '',
-        fornecedor: suppliers.find((s) => s.id === doc.supplier_id)?.name ?? '',
-        produto_id_filtrado: filters.productId || '',
-        produto_filtrado: filters.productId ? productName(filters.productId) : '',
-        itens: productSummary,
-        total: formatCsvNumberBR(doc.total_amount ?? 0),
-        criado_em: doc.created_at ?? '',
-        observacoes: doc.notes ?? '',
+        'Nº interno': shortId(doc.id),
+        'Documento/Nota': doc.invoice_number?.trim() || shortId(doc.id),
+        'Emissão': formatDatePtBr(doc.issue_date),
+        'Status': getPurchaseDocumentStatusLabel(doc.status),
+        'Fornecedor': supplierName(doc.supplier_id),
+        'Produto filtrado': filters.productId ? productName(filters.productId) : '',
+        'Itens': productSummary,
+        'Total (R$)': formatCsvNumberBR(doc.total_amount ?? 0),
+        'Criado em': formatDateTimePtBr(doc.created_at),
+        'Cancelado em': formatDateTimePtBr(doc.cancelled_at),
+        'Motivo do cancelamento': doc.cancel_reason ?? '',
+        'Observações': doc.notes ?? '',
       };
     });
 
     const csv = buildCsv(rows, [
-      'id',
-      'numero_documento',
-      'emissao',
-      'status',
-      'fornecedor_id',
-      'fornecedor',
-      'produto_id_filtrado',
-      'produto_filtrado',
-      'itens',
-      'total',
-      'criado_em',
-      'observacoes',
+      'Nº interno',
+      'Documento/Nota',
+      'Emissão',
+      'Status',
+      'Fornecedor',
+      'Produto filtrado',
+      'Itens',
+      'Total (R$)',
+      'Criado em',
+      'Cancelado em',
+      'Motivo do cancelamento',
+      'Observações',
     ]);
 
     const dateSuffix = new Date().toISOString().slice(0, 10);
-    downloadCsv(`documentos_compra_${dateSuffix}.csv`, csv);
-  }, [filteredDocuments, suppliers, itemsByDocument, filters.productId, productName]);
+    downloadCsv(`compras_e_entradas_${dateSuffix}.csv`, csv);
+  }, [filteredDocuments, itemsByDocument, filters.productId, productName, supplierName]);
 
   const stats = useMemo(() => {
     const drafts = filteredDocuments.filter((d) => d.status === 'draft').length;

@@ -178,7 +178,7 @@ export default function PrivateLayout() {
             { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
             { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
-            { path: '/admin/cashbook/purchases', icon: History, label: 'Compras' },
+            { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentação' },
         ],

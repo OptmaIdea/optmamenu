@@ -42,8 +42,7 @@ const MODULE_ITEMS: NavItem[] = [
   { to: '/admin/products/lifecycle',       icon: <Activity size={18} />,       label: 'Vida do produto' },
   { to: '/admin/transfers',                icon: <ArrowRightLeft size={18} />, label: 'Transferências' },
   { to: '/admin/suppliers',                icon: <Truck size={18} />,          label: 'Fornecedores' },
-  { to: '/admin/stock/purchase-documents', icon: <FileText size={18} />,       label: 'Compras e Entradas' },
-  { to: '/admin/cashbook/purchases',       icon: <ShoppingBag size={18} />,    label: 'Compras (livro)' },
+  { to: '/admin/stock/purchase-documents', icon: <ShoppingBag size={18} />,    label: 'Compras' },
   { to: '/admin/stock/quotations',         icon: <FileText size={18} />,       label: 'Cotações' },
   { to: '/admin/stock-movements',          icon: <BarChart2 size={18} />,      label: 'Movimentações' },
 ];

@@ -1,15 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
+  CheckCircle2,
   Copy,
+  Download,
   Eye,
+  ExternalLink,
   FileText,
   Mail,
   MessageCircle,
+  Plus,
   Printer,
   RefreshCw,
+  Save,
   Search,
-  ShoppingCart,
   X,
+  XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -18,6 +24,9 @@ import EmptyState from '@/components/common/empty-state/EmptyState';
 import { supabase } from '@/lib/supabase';
 import { stockService } from '@/services/stockService';
 import type { PurchaseQuotationDetail, PurchaseQuotationSummary } from '@/services/stockService';
+import type { Supplier } from '@/pages/private/admin/products/suppliers/types/supplier.types';
+import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
+import { buildCsv, downloadCsv, formatCsvNumberBR } from '@/utils/csv';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 
 type StoreLike = { id: string };
@@ -25,9 +34,33 @@ type StoreLike = { id: string };
 type SupplierContact = {
   phone?: string | null;
   email?: string | null;
+  secondary_phone?: string | null;
   commercial_phone?: string | null;
   commercial_whatsapp?: string | null;
   commercial_email?: string | null;
+  financial_phone?: string | null;
+  financial_email?: string | null;
+  fiscal_phone?: string | null;
+  fiscal_email?: string | null;
+  metadata?: Record<string, unknown> | null;
+};
+
+type QuotationEditableStatus =
+  | 'draft'
+  | 'sent'
+  | 'answered'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled';
+
+type QuotationChannel = 'whatsapp' | 'email' | 'pdf' | 'manual' | 'other' | '';
+
+type InventoryProductLike = {
+  id: string;
+  name: string;
+  active?: boolean | null;
+  discontinued?: boolean | null;
+  is_discontinued?: boolean | null;
 };
 
 const statusOptions = [
@@ -92,6 +125,23 @@ function formatCurrency(value?: number | null) {
   }).format(Number(value ?? 0));
 }
 
+function shortId(value?: string | null) {
+  if (!value) return '—';
+  return value.slice(0, 8);
+}
+
+function formatDateTimeCsv(value?: string | null) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(date);
+}
+
 function normalizePhone(value?: string | null) {
   const digits = String(value ?? '').replace(/\D/g, '');
   if (!digits) return null;
@@ -107,102 +157,224 @@ function escapeHtml(value: unknown) {
     .replaceAll("'", '&#039;');
 }
 
-function buildFallbackMessage(detail: PurchaseQuotationDetail) {
+function asMetadataText(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getSupplierPhone(contact: SupplierContact | null) {
+  if (!contact) return null;
+
+  return (
+    contact.commercial_whatsapp ||
+    contact.commercial_phone ||
+    contact.phone ||
+    contact.secondary_phone ||
+    contact.financial_phone ||
+    contact.fiscal_phone ||
+    asMetadataText(contact.metadata, 'commercial_whatsapp') ||
+    asMetadataText(contact.metadata, 'commercial_phone') ||
+    asMetadataText(contact.metadata, 'whatsapp') ||
+    asMetadataText(contact.metadata, 'phone') ||
+    null
+  );
+}
+
+function getSupplierEmail(contact: SupplierContact | null) {
+  if (!contact) return null;
+
+  return (
+    contact.commercial_email ||
+    contact.email ||
+    contact.financial_email ||
+    contact.fiscal_email ||
+    asMetadataText(contact.metadata, 'commercial_email') ||
+    asMetadataText(contact.metadata, 'email') ||
+    asMetadataText(contact.metadata, 'financial_email') ||
+    asMetadataText(contact.metadata, 'fiscal_email') ||
+    null
+  );
+}
+
+function getChannelLabel(channel?: string | null) {
+  switch (channel) {
+    case 'whatsapp':
+      return 'WhatsApp';
+    case 'email':
+      return 'E-mail';
+    case 'pdf':
+      return 'PDF';
+    case 'manual':
+      return 'Manual';
+    case 'other':
+      return 'Outro';
+    default:
+      return 'Não informado';
+  }
+}
+
+function buildQuotationText(detail: PurchaseQuotationDetail) {
+  if (detail.message_body?.trim()) {
+    return detail.message_body;
+  }
+
+  const today = new Intl.DateTimeFormat('pt-BR').format(new Date());
   const lines = detail.items.map((item, index) => {
-    const unitCost = item.reference_unit_cost ? ` | referência: ${formatCurrency(item.reference_unit_cost)}` : '';
-    return `${index + 1}. ${item.product_name} — ${item.requested_qty} un.${unitCost}`;
+    const qty = Number(item.approved_qty ?? item.requested_qty ?? 0);
+    const cost = item.quoted_unit_cost ?? item.reference_unit_cost;
+    const costText = cost != null ? ` | referência/cotado: ${formatCurrency(cost)}` : '';
+
+    return `${index + 1}. ${item.product_name} — ${qty} un.${costText}`;
   });
 
   return [
     'Olá, tudo bem?',
     '',
-    'Solicito cotação para os itens abaixo.',
+    'Solicito cotação/retorno para os itens abaixo.',
     '',
     `Fornecedor: ${detail.supplier_name}`,
     `Cotação: ${detail.quotation_code}`,
-    `Data da solicitação: ${formatDateTime(detail.requested_at)}`,
+    `Data: ${today}`,
     '',
     'Produtos:',
     ...lines,
     '',
-    'Por gentileza, informar preço unitário, disponibilidade, prazo de entrega, condição de pagamento e validade da proposta.',
+    'Por gentileza, confirmar preço unitário, disponibilidade, prazo de entrega, condição de pagamento e validade da proposta.',
     '',
     'Obrigado.',
   ].join('\n');
 }
 
-function buildPrintHtml(detail: PurchaseQuotationDetail, message: string, contact: SupplierContact | null) {
+function buildQuotationPrintHtml(
+  detail: PurchaseQuotationDetail,
+  contact: SupplierContact | null,
+  totalQuoted: number,
+) {
   const rows = detail.items
-    .map(
-      (item, index) => `
+    .map((item, index) => {
+      const approvedQty = Number(item.approved_qty ?? item.requested_qty ?? 0);
+      const quotedCost = item.quoted_unit_cost ?? item.reference_unit_cost ?? null;
+      const total = approvedQty * Number(quotedCost ?? 0);
+
+      return `
         <tr>
           <td>${index + 1}</td>
           <td>${escapeHtml(item.product_name)}</td>
-          <td class="right">${item.requested_qty} un.</td>
+          <td class="right">${item.requested_qty}</td>
+          <td class="right">${approvedQty}</td>
           <td class="right">${formatCurrency(item.reference_unit_cost)}</td>
-          <td class="right">${item.quoted_unit_cost == null ? '' : formatCurrency(item.quoted_unit_cost)}</td>
-          <td>${escapeHtml(item.supplier_notes)}</td>
+          <td class="right">${quotedCost == null ? '—' : formatCurrency(quotedCost)}</td>
+          <td class="right">${formatCurrency(total)}</td>
+          <td>${escapeHtml(item.supplier_notes || '')}</td>
         </tr>
-      `,
-    )
+      `;
+    })
     .join('');
 
-  return `<!doctype html>
+  return `
+    <!doctype html>
     <html lang="pt-BR">
       <head>
         <meta charset="utf-8" />
-        <title>${escapeHtml(detail.quotation_code)}</title>
+        <title>${escapeHtml(detail.quotation_code)} - ${escapeHtml(detail.supplier_name)}</title>
         <style>
+          * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; color: #0f172a; margin: 32px; font-size: 13px; }
+          .header { border-bottom: 2px solid #0f766e; padding-bottom: 16px; margin-bottom: 24px; }
           h1 { margin: 0; font-size: 22px; }
-          .header { border-bottom: 2px solid #0f766e; padding-bottom: 16px; margin-bottom: 20px; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+          .subtitle { margin-top: 6px; color: #475569; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
           .box { border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px; }
           .label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: bold; margin-bottom: 4px; }
           table { width: 100%; border-collapse: collapse; margin-top: 16px; }
           th { background: #f1f5f9; text-align: left; font-size: 11px; text-transform: uppercase; color: #475569; }
           th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; }
           .right { text-align: right; }
-          pre { white-space: pre-wrap; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px; color: #334155; }
+          .notes { margin-top: 20px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px; color: #475569; }
+          .footer { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+          .signature { border-top: 1px solid #94a3b8; padding-top: 8px; text-align: center; color: #475569; }
+          @media print { body { margin: 20mm; } }
         </style>
       </head>
       <body>
         <div class="header">
-          <h1>Solicitação de cotação</h1>
-          <div>${escapeHtml(detail.quotation_code)}</div>
+          <h1>Retorno de cotação</h1>
+          <div class="subtitle">${escapeHtml(detail.quotation_code)} · ${escapeHtml(detail.supplier_name)}</div>
         </div>
         <div class="grid">
           <div class="box"><div class="label">Fornecedor</div><strong>${escapeHtml(detail.supplier_name)}</strong></div>
-          <div class="box"><div class="label">Status</div>${getStatusLabel(detail.status)}</div>
-          <div class="box"><div class="label">WhatsApp / telefone</div>${escapeHtml(contact?.commercial_whatsapp || contact?.commercial_phone || contact?.phone || 'Não informado')}</div>
-          <div class="box"><div class="label">E-mail</div>${escapeHtml(contact?.commercial_email || contact?.email || 'Não informado')}</div>
+          <div class="box"><div class="label">Status</div>${escapeHtml(getStatusLabel(detail.status))}</div>
+          <div class="box"><div class="label">Responsável</div>${escapeHtml(detail.responsible_name || 'Responsável pela cotação')}</div>
+          <div class="box"><div class="label">Canal</div>${escapeHtml(getChannelLabel(detail.sent_channel))}</div>
+          <div class="box"><div class="label">WhatsApp / telefone</div>${escapeHtml(getSupplierPhone(contact) || 'Não informado')}</div>
+          <div class="box"><div class="label">E-mail</div>${escapeHtml(getSupplierEmail(contact) || 'Não informado')}</div>
         </div>
         <table>
           <thead>
             <tr>
-              <th>#</th><th>Produto</th><th class="right">Quantidade</th><th class="right">Referência</th><th class="right">Cotado</th><th>Obs.</th>
+              <th>#</th>
+              <th>Produto</th>
+              <th class="right">Solicitado</th>
+              <th class="right">Aprovado</th>
+              <th class="right">Referência</th>
+              <th class="right">Cotado</th>
+              <th class="right">Total</th>
+              <th>Observações</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
         </table>
-        <h2>Mensagem</h2>
-        <pre>${escapeHtml(message)}</pre>
+        <div class="notes">
+          <strong>Total cotado estimado:</strong> ${formatCurrency(totalQuoted)}<br /><br />
+          ${escapeHtml(detail.notes || 'Sem observações internas.')}
+        </div>
+        <div class="footer">
+          <div class="signature">Responsável pela cotação</div>
+          <div class="signature">Fornecedor</div>
+        </div>
       </body>
-    </html>`;
+    </html>
+  `;
 }
 
 export default function PurchaseQuotationsPage() {
+  const navigate = useNavigate();
+  const { products: inventoryProducts } = useInventory();
   const [storeId, setStoreId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([]);
-  const [statusFilter, setStatusFilter] = useState('');
-  const [search, setSearch] = useState('');
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [quotationProductIds, setQuotationProductIds] = useState<Record<string, string[]>>({});
+  const [filters, setFilters] = useState({
+    dateFrom: '',
+    dateTo: '',
+    status: '',
+    supplierId: '',
+    productId: '',
+    document: '',
+  });
   const [detail, setDetail] = useState<PurchaseQuotationDetail | null>(null);
+  const [detailDraft, setDetailDraft] = useState<PurchaseQuotationDetail | null>(null);
   const [supplierContact, setSupplierContact] = useState<SupplierContact | null>(null);
   const [detailMessage, setDetailMessage] = useState('');
   const [openingDetail, setOpeningDetail] = useState(false);
-  const [creatingDraft, setCreatingDraft] = useState(false);
+  const [savingResponse, setSavingResponse] = useState(false);
+  const [convertingToDraft, setConvertingToDraft] = useState(false);
+  const [responseStatus, setResponseStatus] = useState<QuotationEditableStatus>('answered');
+  const [sentChannel, setSentChannel] = useState<QuotationChannel>('');
+  const [responsibleName, setResponsibleName] = useState('');
+  const [quotationNotes, setQuotationNotes] = useState('');
+
+  const products = useMemo(() => {
+    return ((inventoryProducts ?? []) as InventoryProductLike[])
+      .filter((product) => (
+        product.active !== false &&
+        product.discontinued !== true &&
+        product.is_discontinued !== true
+      ))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }, [inventoryProducts]);
 
   async function loadQuotations(nextStoreId = storeId, options?: { silent?: boolean }) {
     if (!nextStoreId) return;
@@ -211,7 +383,7 @@ export default function PurchaseQuotationsPage() {
       if (options?.silent) setRefreshing(true);
       else setLoading(true);
 
-      const data = await stockService.getPurchaseQuotationsByStore(nextStoreId, statusFilter || null);
+      const data = await stockService.getPurchaseQuotationsByStore(nextStoreId, null);
       setQuotations(data);
     } catch (error) {
       console.error('Erro ao carregar cotações:', error);
@@ -240,13 +412,79 @@ export default function PurchaseQuotationsPage() {
   useEffect(() => {
     if (!storeId) return;
     void loadQuotations(storeId);
-  }, [statusFilter, storeId]);
+  }, [storeId]);
+
+  useEffect(() => {
+    if (!storeId) return;
+
+    const run = async () => {
+      const { data, error } = await supabase
+        .from('suppliers')
+        .select('*')
+        .eq('store_id', storeId)
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar fornecedores:', error);
+        return;
+      }
+
+      setSuppliers((data as Supplier[]) ?? []);
+    };
+
+    void run();
+  }, [storeId]);
+
+  useEffect(() => {
+    if (!filters.productId || quotations.length === 0) return;
+
+    const missing = quotations.filter((quotation) => !quotationProductIds[quotation.id]);
+    if (missing.length === 0) return;
+
+    const run = async () => {
+      const entries = await Promise.all(
+        missing.map(async (quotation) => {
+          try {
+            const detail = await stockService.getPurchaseQuotationDetail(quotation.id);
+            return [quotation.id, detail.items.map((item) => item.product_id)] as const;
+          } catch (error) {
+            console.error('Erro ao carregar itens da cotação:', error);
+            return [quotation.id, []] as const;
+          }
+        }),
+      );
+
+      setQuotationProductIds((current) => ({ ...current, ...Object.fromEntries(entries) }));
+    };
+
+    void run();
+  }, [filters.productId, quotationProductIds, quotations]);
 
   const filteredQuotations = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    if (!term) return quotations;
-
     return quotations.filter((quotation) => {
+      const requestedAt = quotation.requested_at ? new Date(quotation.requested_at) : null;
+
+      if (filters.dateFrom) {
+        const from = new Date(`${filters.dateFrom}T00:00:00`);
+        if (!requestedAt || requestedAt < from) return false;
+      }
+
+      if (filters.dateTo) {
+        const to = new Date(`${filters.dateTo}T23:59:59`);
+        if (!requestedAt || requestedAt > to) return false;
+      }
+
+      if (filters.status && quotation.status !== filters.status) return false;
+      if (filters.supplierId && quotation.supplier_id !== filters.supplierId) return false;
+
+      if (filters.productId) {
+        const ids = quotationProductIds[quotation.id] ?? [];
+        if (!ids.includes(filters.productId)) return false;
+      }
+
+      if (!filters.document.trim()) return true;
+
+      const term = filters.document.trim().toLowerCase();
       return [
         quotation.quotation_code,
         quotation.supplier_name,
@@ -257,7 +495,7 @@ export default function PurchaseQuotationsPage() {
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(term));
     });
-  }, [quotations, search]);
+  }, [filters, quotationProductIds, quotations]);
 
   const totals = useMemo(() => {
     return {
@@ -267,16 +505,94 @@ export default function PurchaseQuotationsPage() {
     };
   }, [filteredQuotations]);
 
+  const clearFilters = useCallback(() => {
+    setFilters({
+      dateFrom: '',
+      dateTo: '',
+      status: '',
+      supplierId: '',
+      productId: '',
+      document: '',
+    });
+  }, []);
+
+  const productName = useCallback(
+    (id: string) => products.find((product) => product.id === id)?.name ?? id,
+    [products],
+  );
+
+  const exportFilteredQuotationsCsv = useCallback(() => {
+    if (!filteredQuotations.length) return;
+
+    const rows = filteredQuotations.map((quotation) => ({
+      'Nº interno': shortId(quotation.id),
+      'Cotação': quotation.quotation_code,
+      'Status': getStatusLabel(quotation.status),
+      'Fornecedor': quotation.supplier_name || '—',
+      'Itens': quotation.items_count,
+      'Total referência (R$)': formatCsvNumberBR(quotation.total_reference ?? 0),
+      'Total cotado (R$)': formatCsvNumberBR(quotation.total_quoted ?? 0),
+      'Criada em': formatDateTimeCsv(quotation.requested_at),
+      'Respondida em': formatDateTimeCsv(quotation.responded_at),
+      'Canal': getChannelLabel(quotation.sent_channel),
+      'Responsável': quotation.responsible_name || '—',
+      'Produto filtrado': filters.productId ? productName(filters.productId) : '',
+      'Compra gerada': shortId(quotation.converted_purchase_document_id),
+      'Observações': quotation.notes ?? '',
+    }));
+
+    const csv = buildCsv(rows, [
+      'Nº interno',
+      'Cotação',
+      'Status',
+      'Fornecedor',
+      'Itens',
+      'Total referência (R$)',
+      'Total cotado (R$)',
+      'Criada em',
+      'Respondida em',
+      'Canal',
+      'Responsável',
+      'Produto filtrado',
+      'Compra gerada',
+      'Observações',
+    ]);
+
+    const dateSuffix = new Date().toISOString().slice(0, 10);
+    downloadCsv(`cotacoes_compra_${dateSuffix}.csv`, csv);
+  }, [filteredQuotations, filters.productId, productName]);
+
   async function openDetail(quotationId: string) {
     try {
       setOpeningDetail(true);
       const data = await stockService.getPurchaseQuotationDetail(quotationId);
       setDetail(data);
-      setDetailMessage(data.message_body || buildFallbackMessage(data));
+      setDetailDraft(data);
+      setDetailMessage(data.message_body || buildQuotationText(data));
+      setResponseStatus(
+        ['draft', 'sent', 'answered', 'approved', 'rejected', 'cancelled'].includes(data.status)
+          ? (data.status as QuotationEditableStatus)
+          : 'answered',
+      );
+      setSentChannel((data.sent_channel as QuotationChannel) || '');
+      setResponsibleName(data.responsible_name || 'Responsável pela cotação');
+      setQuotationNotes(data.notes || '');
 
       const { data: supplierData, error } = await supabase
         .from('suppliers')
-        .select('phone, email, commercial_phone, commercial_whatsapp, commercial_email')
+        .select(`
+          phone,
+          email,
+          secondary_phone,
+          commercial_phone,
+          commercial_whatsapp,
+          commercial_email,
+          financial_phone,
+          financial_email,
+          fiscal_phone,
+          fiscal_email,
+          metadata
+        `)
         .eq('id', data.supplier_id)
         .maybeSingle();
 
@@ -301,7 +617,7 @@ export default function PurchaseQuotationsPage() {
   }
 
   function printDetail() {
-    if (!detail) return;
+    if (!detailDraft) return;
 
     const printWindow = window.open('', '_blank', 'width=900,height=700');
     if (!printWindow) {
@@ -310,7 +626,7 @@ export default function PurchaseQuotationsPage() {
     }
 
     printWindow.document.open();
-    printWindow.document.write(buildPrintHtml(detail, detailMessage, supplierContact));
+    printWindow.document.write(buildQuotationPrintHtml(detailDraft, supplierContact, getDetailTotalQuoted()));
     printWindow.document.close();
     printWindow.onload = () => {
       printWindow.focus();
@@ -318,36 +634,110 @@ export default function PurchaseQuotationsPage() {
     };
   }
 
-  async function createPurchaseDraftFromDetail() {
-    if (!detail) return;
+  function updateDetailItem(
+    itemId: string,
+    patch: Partial<PurchaseQuotationDetail['items'][number]>,
+  ) {
+    setDetailDraft((current) => {
+      if (!current) return current;
+
+      return {
+        ...current,
+        items: current.items.map((item) => (item.id === itemId ? { ...item, ...patch } : item)),
+      };
+    });
+  }
+
+  function getDetailTotalQuoted() {
+    if (!detailDraft) return 0;
+
+    return detailDraft.items.reduce((total, item) => {
+      const qty = Number(item.approved_qty ?? item.requested_qty ?? 0);
+      const cost = Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0);
+      return total + qty * cost;
+    }, 0);
+  }
+
+  function closeDetail() {
+    setDetail(null);
+    setDetailDraft(null);
+    setSupplierContact(null);
+    setDetailMessage('');
+  }
+
+  async function saveQuotationResponse() {
+    if (!detailDraft) return;
 
     try {
-      setCreatingDraft(true);
-      const result = await stockService.createPurchaseDocumentDraftBatch({
-        supplierId: detail.supplier_id,
-        items: detail.items.map((item) => ({
-          productId: item.product_id,
-          quantity: Number(item.approved_qty ?? item.requested_qty),
-          unitCost: Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0),
+      setSavingResponse(true);
+      await stockService.updatePurchaseQuotationResponse({
+        quotationId: detailDraft.id,
+        status: responseStatus,
+        sentChannel: sentChannel || null,
+        responsibleName,
+        notes: quotationNotes,
+        items: detailDraft.items.map((item) => ({
+          id: item.id,
+          quoted_unit_cost: item.quoted_unit_cost == null ? null : Number(item.quoted_unit_cost),
+          approved_qty:
+            item.approved_qty == null ? Number(item.requested_qty) : Number(item.approved_qty),
+          supplier_notes: item.supplier_notes ?? null,
         })),
-        notes: `Criado a partir da cotação ${detail.quotation_code}`,
       });
 
-      toast.success(`Rascunho de compra criado com ${result.items_count} item(ns).`);
+      toast.success('Resposta da cotação salva.');
+      const refreshed = await stockService.getPurchaseQuotationDetail(detailDraft.id);
+      setDetail(refreshed);
+      setDetailDraft(refreshed);
+      setDetailMessage(refreshed.message_body || buildQuotationText(refreshed));
+      await loadQuotations(storeId, { silent: true });
     } catch (error) {
-      console.error('Erro ao criar rascunho a partir da cotação:', error);
-      toast.error('Não foi possível criar o rascunho de compra.');
+      console.error('Erro ao salvar resposta da cotação:', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a resposta da cotação.');
     } finally {
-      setCreatingDraft(false);
+      setSavingResponse(false);
     }
   }
 
-  const email = supplierContact?.commercial_email || supplierContact?.email || null;
-  const whatsapp = normalizePhone(
-    supplierContact?.commercial_whatsapp ||
-      supplierContact?.commercial_phone ||
-      supplierContact?.phone,
-  );
+  async function createPurchaseDraftFromDetail() {
+    if (!detailDraft) return;
+
+    try {
+      setConvertingToDraft(true);
+      await stockService.updatePurchaseQuotationResponse({
+        quotationId: detailDraft.id,
+        status: responseStatus === 'draft' || responseStatus === 'sent' ? 'approved' : responseStatus,
+        sentChannel: sentChannel || null,
+        responsibleName,
+        notes: quotationNotes,
+        items: detailDraft.items.map((item) => ({
+          id: item.id,
+          quoted_unit_cost: item.quoted_unit_cost == null ? null : Number(item.quoted_unit_cost),
+          approved_qty:
+            item.approved_qty == null ? Number(item.requested_qty) : Number(item.approved_qty),
+          supplier_notes: item.supplier_notes ?? null,
+        })),
+      });
+
+      const result = await stockService.convertPurchaseQuotationToDraft({
+        quotationId: detailDraft.id,
+        notes: `Rascunho criado a partir da cotação ${detailDraft.quotation_code}.`,
+      });
+
+      toast.success('Rascunho de compra criado a partir da cotação.');
+      closeDetail();
+      await loadQuotations(storeId, { silent: true });
+      navigate(`/admin/stock/purchase-documents?open=${result.purchase_document_id}`);
+    } catch (error) {
+      console.error('Erro ao converter cotação em rascunho:', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível converter a cotação em rascunho.');
+    } finally {
+      setConvertingToDraft(false);
+    }
+  }
+
+  const email = getSupplierEmail(supplierContact);
+  const whatsapp = normalizePhone(getSupplierPhone(supplierContact));
 
   if (loading) return <LoadingSpinner />;
 
@@ -385,21 +775,44 @@ export default function PurchaseQuotationsPage() {
         </div>
       </div>
 
-      <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+      <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="text-sm text-gray-600 dark:text-gray-300">
+          Consulte cotações salvas, registre retornos e converta em rascunhos de compra.
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('/admin/stock/purchase-documents')}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+          >
+            <Plus className="h-4 w-4" />
+            Nova cotação
+          </button>
+
+          <button
+            type="button"
+            onClick={exportFilteredQuotationsCsv}
+            disabled={!filteredQuotations.length}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </button>
+          <div className="hidden">
           <label className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              value={filters.document}
+              onChange={(event) => setFilters((current) => ({ ...current, document: event.target.value }))}
               placeholder="Buscar por código, fornecedor, responsável ou observação"
               className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
             />
           </label>
 
           <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            value={filters.status}
+            onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           >
             {statusOptions.map((option) => (
@@ -408,6 +821,64 @@ export default function PurchaseQuotationsPage() {
               </option>
             ))}
           </select>
+          </div>
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-gray-900 dark:text-white">Filtros</div>
+            <div className="text-xs text-gray-500">Combine data, status, fornecedor, produto e cotação.</div>
+          </div>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+          >
+            <XCircle className="h-4 w-4" />
+            Limpar filtros
+          </button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-6">
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Data inicial</span>
+            <input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Data final</span>
+            <input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Status</span>
+            <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+              {statusOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.value ? option.label : 'Todos'}</option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Fornecedor</span>
+            <select value={filters.supplierId} onChange={(event) => setFilters((current) => ({ ...current, supplierId: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+              <option value="">Todos</option>
+              {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Produto</span>
+            <select value={filters.productId} onChange={(event) => setFilters((current) => ({ ...current, productId: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+              <option value="">Todos</option>
+              {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Documento / Cotação</span>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+              <input value={filters.document} onChange={(event) => setFilters((current) => ({ ...current, document: event.target.value }))} placeholder="Ex: COT-123" className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+            </div>
+          </label>
         </div>
       </div>
 
@@ -474,125 +945,307 @@ export default function PurchaseQuotationsPage() {
         </div>
       )}
 
-      {detail && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-gray-950">
-            <div className="flex items-start gap-4 border-b border-gray-100 p-5 dark:border-gray-800">
-              <div className="min-w-0">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">{detail.quotation_code}</h2>
-                <p className="mt-1 text-sm text-gray-500">
+      {detail && detailDraft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+          <div className="w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-950">
+            <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.quotation_code}</h3>
+                <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
                   {detail.supplier_name} · {getStatusLabel(detail.status)}
                 </p>
-              </div>
-
-              <div className="ml-auto flex flex-wrap justify-end gap-2">
-                <button type="button" onClick={() => void copyDetailMessage()} className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium">
-                  <Copy className="h-4 w-4" />
-                  Copiar
-                </button>
-                <button type="button" onClick={printDetail} className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium">
-                  <Printer className="h-4 w-4" />
-                  Imprimir
-                </button>
-                {email && (
-                  <a
-                    href={`mailto:${email}?subject=${encodeURIComponent(detail.message_subject || `Cotação ${detail.quotation_code}`)}&body=${encodeURIComponent(detailMessage)}`}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-medium"
-                  >
-                    <Mail className="h-4 w-4" />
-                    E-mail
-                  </a>
-                )}
-                {whatsapp && (
-                  <a
-                    href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(detailMessage)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-medium text-white hover:bg-emerald-700"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    WhatsApp
-                  </a>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void createPurchaseDraftFromDetail()}
-                  disabled={creatingDraft}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-700 px-3 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60"
-                >
-                  <ShoppingCart className="h-4 w-4" />
-                  {creatingDraft ? 'Criando...' : 'Criar compra'}
-                </button>
+                <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                  Total cotado estimado: {formatCurrency(getDetailTotalQuoted())}
+                </p>
               </div>
 
               <button
                 type="button"
-                onClick={() => {
-                  setDetail(null);
-                  setSupplierContact(null);
-                  setDetailMessage('');
-                }}
-                className="shrink-0 rounded-xl p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900"
+                onClick={closeDetail}
+                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                aria-label="Fechar"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="min-h-0 overflow-y-auto p-5">
+            <div className="max-h-[75vh] overflow-y-auto p-5">
               <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-xl border bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-                  <div className="text-xs font-semibold uppercase text-gray-500">Criada em</div>
-                  <div className="mt-1 font-semibold">{formatDateTime(detail.requested_at)}</div>
+                <div className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Criada em</div>
+                  <div className="mt-1 font-semibold dark:text-white">{formatDateTime(detail.requested_at)}</div>
                 </div>
-                <div className="rounded-xl border bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-                  <div className="text-xs font-semibold uppercase text-gray-500">Canal</div>
-                  <div className="mt-1 font-semibold">{detail.sent_channel || 'Não informado'}</div>
-                </div>
-                <div className="rounded-xl border bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-                  <div className="text-xs font-semibold uppercase text-gray-500">Itens</div>
-                  <div className="mt-1 font-semibold">{detail.items.length}</div>
-                </div>
-                <div className="rounded-xl border bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
-                  <div className="text-xs font-semibold uppercase text-gray-500">Responsável</div>
-                  <div className="mt-1 font-semibold">{detail.responsible_name || '—'}</div>
+
+                <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Status</div>
+                  <select
+                    value={responseStatus}
+                    onChange={(event) => setResponseStatus(event.target.value as QuotationEditableStatus)}
+                    disabled={detail.status === 'converted'}
+                    className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  >
+                    <option value="draft">Rascunho</option>
+                    <option value="sent">Enviada</option>
+                    <option value="answered">Respondida</option>
+                    <option value="approved">Aprovada</option>
+                    <option value="rejected">Rejeitada</option>
+                    <option value="cancelled">Cancelada</option>
+                  </select>
+                </label>
+
+                <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Canal</div>
+                  <select
+                    value={sentChannel}
+                    onChange={(event) => setSentChannel(event.target.value as QuotationChannel)}
+                    disabled={detail.status === 'converted'}
+                    className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  >
+                    <option value="">Não informado</option>
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="email">E-mail</option>
+                    <option value="pdf">PDF</option>
+                    <option value="manual">Manual</option>
+                    <option value="other">Outro</option>
+                  </select>
+                </label>
+
+                <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Responsável</div>
+                  <input
+                    value={responsibleName}
+                    onChange={(event) => setResponsibleName(event.target.value)}
+                    disabled={detail.status === 'converted'}
+                    className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    placeholder="Responsável pela cotação"
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-2xl border bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Contatos do fornecedor</div>
+                    <div className="mt-1 text-sm text-slate-700 dark:text-gray-300">
+                      WhatsApp/telefone: {getSupplierPhone(supplierContact) || 'não informado'} · E-mail:{' '}
+                      {getSupplierEmail(supplierContact) || 'não informado'}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void copyDetailMessage()}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <Copy className="h-4 w-4" />
+                      Copiar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={printDetail}
+                      className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <Printer className="h-4 w-4" />
+                      Imprimir/PDF
+                    </button>
+
+                    {email ? (
+                      <a
+                        href={`mailto:${email}?subject=${encodeURIComponent(
+                          detail.message_subject || `Cotação ${detail.quotation_code}`,
+                        )}&body=${encodeURIComponent(detailMessage)}`}
+                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
+                      >
+                        <Mail className="h-4 w-4" />
+                        E-mail
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        title="Fornecedor sem e-mail cadastrado"
+                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 opacity-70 dark:border-gray-700 dark:bg-gray-950"
+                      >
+                        <Mail className="h-4 w-4" />
+                        E-mail indisponível
+                      </button>
+                    )}
+
+                    {whatsapp ? (
+                      <a
+                        href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(detailMessage)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        WhatsApp
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        title="Fornecedor sem WhatsApp/telefone cadastrado"
+                        className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 opacity-70 dark:bg-gray-800 dark:text-gray-400"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        WhatsApp indisponível
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4 overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
-                <table className="min-w-[760px] w-full text-sm">
-                  <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-900/50">
-                    <tr>
-                      <th className="px-4 py-3">Produto</th>
-                      <th className="px-4 py-3 text-right">Solicitado</th>
-                      <th className="px-4 py-3 text-right">Referência</th>
-                      <th className="px-4 py-3 text-right">Cotado</th>
-                      <th className="px-4 py-3 text-right">Aprovado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                    {detail.items.map((item) => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3 font-medium">{item.product_name}</td>
-                        <td className="px-4 py-3 text-right">{item.requested_qty}</td>
-                        <td className="px-4 py-3 text-right">{formatCurrency(item.reference_unit_cost)}</td>
-                        <td className="px-4 py-3 text-right">{item.quoted_unit_cost == null ? '—' : formatCurrency(item.quoted_unit_cost)}</td>
-                        <td className="px-4 py-3 text-right">{item.approved_qty ?? item.requested_qty}</td>
+              <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[980px] text-sm">
+                    <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-gray-900">
+                      <tr>
+                        <th className="px-4 py-3">Produto</th>
+                        <th className="px-4 py-3 text-right">Solicitado</th>
+                        <th className="px-4 py-3 text-right">Referência</th>
+                        <th className="px-4 py-3 text-right">Preço cotado</th>
+                        <th className="px-4 py-3 text-right">Qtd. aprovada</th>
+                        <th className="px-4 py-3">Obs. fornecedor</th>
+                        <th className="px-4 py-3 text-right">Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                      {detailDraft.items.map((item) => {
+                        const approvedQty = Number(item.approved_qty ?? item.requested_qty ?? 0);
+                        const quotedCost = Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0);
+                        const total = approvedQty * quotedCost;
+
+                        return (
+                          <tr key={item.id} className="dark:text-gray-300">
+                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{item.product_name}</td>
+                            <td className="px-4 py-3 text-right">{item.requested_qty}</td>
+                            <td className="px-4 py-3 text-right">{formatCurrency(item.reference_unit_cost)}</td>
+                            <td className="px-4 py-3 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.quoted_unit_cost ?? ''}
+                                onChange={(event) =>
+                                  updateDetailItem(item.id, {
+                                    quoted_unit_cost:
+                                      event.target.value === '' ? null : Number(event.target.value),
+                                  })
+                                }
+                                disabled={detail.status === 'converted'}
+                                className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950"
+                                placeholder="0,00"
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={item.approved_qty ?? item.requested_qty}
+                                onChange={(event) =>
+                                  updateDetailItem(item.id, {
+                                    approved_qty: event.target.value === '' ? 0 : Number(event.target.value),
+                                  })
+                                }
+                                disabled={detail.status === 'converted'}
+                                className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <input
+                                value={item.supplier_notes ?? ''}
+                                onChange={(event) =>
+                                  updateDetailItem(item.id, {
+                                    supplier_notes: event.target.value,
+                                  })
+                                }
+                                disabled={detail.status === 'converted'}
+                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                placeholder="Ex.: sem estoque, entrega parcial..."
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(total)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
 
               <label className="mt-4 block">
-                <span className="mb-2 block text-xs font-semibold uppercase text-gray-500">
-                  Mensagem para envio
-                </span>
+                <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Observações internas</div>
                 <textarea
-                  value={detailMessage}
-                  onChange={(event) => setDetailMessage(event.target.value)}
-                  className="min-h-[240px] w-full resize-y rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700 outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                  value={quotationNotes}
+                  onChange={(event) => setQuotationNotes(event.target.value)}
+                  disabled={detail.status === 'converted'}
+                  className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                  placeholder="Ex.: fornecedor confirmou entrega para sexta-feira..."
                 />
               </label>
+
+              {detail.message_body && (
+                <div className="mt-4">
+                  <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Mensagem salva</div>
+                  <textarea
+                    readOnly
+                    value={detail.message_body}
+                    className="min-h-[180px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 p-5 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={closeDetail}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+              >
+                Fechar
+              </button>
+
+              {detail.status !== 'converted' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void saveQuotationResponse()}
+                    disabled={savingResponse}
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    <Save className="h-4 w-4" />
+                    {savingResponse ? 'Salvando...' : 'Salvar resposta'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void createPurchaseDraftFromDetail()}
+                    disabled={convertingToDraft}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    {convertingToDraft ? 'Convertendo...' : 'Converter em rascunho'}
+                  </button>
+                </>
+              )}
+
+              {detail.converted_purchase_document_id && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(`/admin/stock/purchase-documents?open=${detail.converted_purchase_document_id}`)
+                  }
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir compra
+                </button>
+              )}
             </div>
           </div>
         </div>
