@@ -87,9 +87,9 @@ export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) 
   if (isPurchaseDocumentCancelMovement(movement)) {
     return asText(
       movement.from_location_name ??
-      movement.location_name ??
-      getMetadataText(movement.metadata, 'from_location_name') ??
-      getMetadataText(movement.metadata, 'location_name'),
+        movement.location_name ??
+        getMetadataText(movement.metadata, 'from_location_name') ??
+        getMetadataText(movement.metadata, 'location_name'),
       'Local não identificado',
     );
   }
@@ -264,9 +264,9 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
   if (isPurchaseDocumentCancelMovement(movement)) {
     const origin = asText(
       movement.from_location_name ??
-      movement.location_name ??
-      getMetadataText(movement.metadata, 'from_location_name') ??
-      getMetadataText(movement.metadata, 'location_name'),
+        movement.location_name ??
+        getMetadataText(movement.metadata, 'from_location_name') ??
+        getMetadataText(movement.metadata, 'location_name'),
       'Local não identificado',
     );
     const reference = getMovementReferenceLabel(movement);
@@ -357,7 +357,7 @@ export function getMovementToneClass(movement: ProductMovementNarrativeInput) {
 
   switch (tone) {
     case 'purchase_cancel':
-      return 'border-purple-300 bg-purple-50 text-purple-950 dark:border-purple-700 dark:bg-purple-950/30 dark:text-purple-100';
+      return 'border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100';
     case 'danger':
       return 'border-red-200 bg-red-50 text-red-800';
     case 'transfer':

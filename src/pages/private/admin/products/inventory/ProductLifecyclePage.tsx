@@ -28,11 +28,42 @@ import {
   getMovementStockPath,
   getMovementToneClass,
   getTransferDivergenceReasonLabel,
+  isPurchaseDocumentCancelMovement,
   getTransferDivergenceResolutionLabel,
   shortReference,
 } from './utils/productMovementNarrative';
 
 type LifecycleTab = 'summary' | 'locations' | 'movements' | 'audit';
+
+type MovementOperationFilter =
+  | 'all'
+  | 'purchase'
+  | 'purchase_cancel'
+  | 'transfer'
+  | 'transfer_divergence'
+  | 'adjustment'
+  | 'entry'
+  | 'exit';
+
+type MovementSortOption = 'newest' | 'oldest' | 'quantity_desc' | 'quantity_asc';
+
+const movementOperationFilterOptions: Array<{ value: MovementOperationFilter; label: string }> = [
+  { value: 'all', label: 'Todos os tipos' },
+  { value: 'purchase', label: 'Compras confirmadas' },
+  { value: 'purchase_cancel', label: 'Compras canceladas' },
+  { value: 'transfer', label: 'Transferências' },
+  { value: 'transfer_divergence', label: 'Divergências de transferência' },
+  { value: 'adjustment', label: 'Ajustes e baixas' },
+  { value: 'entry', label: 'Entradas' },
+  { value: 'exit', label: 'Saídas' },
+];
+
+const movementSortOptions: Array<{ value: MovementSortOption; label: string }> = [
+  { value: 'newest', label: 'Mais recentes primeiro' },
+  { value: 'oldest', label: 'Mais antigas primeiro' },
+  { value: 'quantity_desc', label: 'Maior quantidade' },
+  { value: 'quantity_asc', label: 'Menor quantidade' },
+];
 
 const auditActionLabelMap: Record<string, string> = {
   reservation: 'Reserva',
@@ -56,6 +87,11 @@ const stockStatusClassMap: Record<string, string> = {
 export default function ProductLifecyclePage() {
   const { id } = useParams();
   const [activeTab, setActiveTab] = useState<LifecycleTab>('summary');
+  const [movementSearch, setMovementSearch] = useState('');
+  const [movementOperationFilter, setMovementOperationFilter] =
+    useState<MovementOperationFilter>('all');
+  const [movementLocationFilter, setMovementLocationFilter] = useState('all');
+  const [movementSort, setMovementSort] = useState<MovementSortOption>('newest');
 
   const {
     row,
@@ -96,6 +132,216 @@ export default function ProductLifecyclePage() {
     ],
     []
   );
+
+  const getTransferDivergenceDate = (item: (typeof transferDivergences)[number]) => (
+    item.received_at ?? item.created_at ?? ''
+  );
+
+  const getMovementSortRank = (movement: (typeof movementRows)[number]) => {
+    const source = String(movement.source ?? '').toLowerCase();
+    const type = String(movement.type ?? '').toLowerCase();
+
+    if (source === 'stock_transfer' && type === 'exit') return 10;
+    if (source === 'stock_transfer' && type === 'entry') return 30;
+
+    return 20;
+  };
+
+
+  const movementLocationOptions = useMemo(() => {
+    const locations = new Map<string, string>();
+
+    movementRows.forEach((movement) => {
+      [movement.location_name, movement.from_location_name, movement.to_location_name]
+        .filter((value): value is string => Boolean(value && value.trim().length > 0))
+        .forEach((value) => locations.set(value, value));
+    });
+
+    transferDivergences.forEach((item) => {
+      [item.source_location_name, item.destination_location_name]
+        .filter((value): value is string => Boolean(value && value.trim().length > 0))
+        .forEach((value) => locations.set(value, value));
+    });
+
+    return Array.from(locations.values()).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [movementRows, transferDivergences]);
+
+  const filteredMovementRows = useMemo(() => {
+    const normalizedSearch = movementSearch.trim().toLowerCase();
+
+    const matchesOperationFilter = (movement: (typeof movementRows)[number]) => {
+      const type = String(movement.type ?? '').toLowerCase();
+      const source = String(movement.source ?? '').toLowerCase();
+
+      if (movementOperationFilter === 'all') return true;
+      if (movementOperationFilter === 'purchase_cancel') return isPurchaseDocumentCancelMovement(movement);
+      if (movementOperationFilter === 'purchase') return source === 'purchase_document';
+      if (movementOperationFilter === 'transfer') return source === 'stock_transfer';
+      if (movementOperationFilter === 'transfer_divergence') return false;
+      if (movementOperationFilter === 'entry') return type === 'entry';
+      if (movementOperationFilter === 'exit') return type === 'exit';
+
+      if (movementOperationFilter === 'adjustment') {
+        return (
+          source === 'manual_adjustment' ||
+          source === 'physical_count_adjustment' ||
+          type === 'clearance'
+        );
+      }
+
+      return true;
+    };
+
+    return [...movementRows]
+      .filter((movement) => {
+        const locationMatches =
+          movementLocationFilter === 'all' ||
+          movement.location_name === movementLocationFilter ||
+          movement.from_location_name === movementLocationFilter ||
+          movement.to_location_name === movementLocationFilter;
+
+        if (!locationMatches || !matchesOperationFilter(movement)) return false;
+
+        if (!normalizedSearch) return true;
+
+        const haystack = [
+          getMovementOperationLabel(movement),
+          getMovementDirectionLabel(movement),
+          getMovementHumanDescription(movement),
+          getMovementOriginLabel(movement),
+          getMovementDestinationLabel(movement),
+          getMovementReferenceLabel(movement),
+          movement.location_name,
+          movement.from_location_name,
+          movement.to_location_name,
+          movement.reason,
+          movement.transfer_code,
+          movement.purchase_document_number,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return haystack.includes(normalizedSearch);
+      })
+      .sort((a, b) => {
+        if (movementSort === 'oldest') {
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        }
+
+        if (movementSort === 'quantity_desc') {
+          return Math.abs(Number(b.quantity ?? 0)) - Math.abs(Number(a.quantity ?? 0));
+        }
+
+        if (movementSort === 'quantity_asc') {
+          return Math.abs(Number(a.quantity ?? 0)) - Math.abs(Number(b.quantity ?? 0));
+        }
+
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }, [movementLocationFilter, movementOperationFilter, movementRows, movementSearch, movementSort]);
+
+  const filteredTransferDivergences = useMemo(() => {
+    const normalizedSearch = movementSearch.trim().toLowerCase();
+
+    return transferDivergences.filter((item) => {
+      if (
+        movementOperationFilter !== 'all' &&
+        movementOperationFilter !== 'transfer' &&
+        movementOperationFilter !== 'transfer_divergence'
+      ) {
+        return false;
+      }
+
+      const locationMatches =
+        movementLocationFilter === 'all' ||
+        item.source_location_name === movementLocationFilter ||
+        item.destination_location_name === movementLocationFilter;
+
+      if (!locationMatches) return false;
+
+      if (!normalizedSearch) return true;
+
+      const haystack = [
+        'Divergência na transferência',
+        'Divergência de transferência',
+        item.transfer_code,
+        item.transfer_id,
+        item.source_location_name,
+        item.destination_location_name,
+        getTransferDivergenceResolutionLabel(item.divergence_resolution),
+        getTransferDivergenceReasonLabel(item.divergence_reason),
+        item.divergence_notes,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [
+    movementLocationFilter,
+    movementOperationFilter,
+    movementSearch,
+    transferDivergences,
+  ]);
+
+  const displayMovementItems = useMemo(() => {
+    const items = [
+      ...filteredMovementRows.map((movement) => ({
+        kind: 'movement' as const,
+        id: movement.id,
+        date: movement.created_at ?? '',
+        quantity: Math.abs(Number(movement.quantity ?? 0)),
+        rank: getMovementSortRank(movement),
+        movement,
+      })),
+      ...filteredTransferDivergences.map((divergence) => ({
+        kind: 'divergence' as const,
+        id: divergence.id,
+        date: getTransferDivergenceDate(divergence),
+        quantity: Math.abs(Number(divergence.divergence_qty ?? 0)),
+        rank: 20,
+        divergence,
+      })),
+    ];
+
+    return items.sort((a, b) => {
+      if (movementSort === 'quantity_desc') {
+        return b.quantity - a.quantity;
+      }
+
+      if (movementSort === 'quantity_asc') {
+        return a.quantity - b.quantity;
+      }
+
+      const aTime = new Date(a.date).getTime();
+      const bTime = new Date(b.date).getTime();
+      const safeATime = Number.isNaN(aTime) ? 0 : aTime;
+      const safeBTime = Number.isNaN(bTime) ? 0 : bTime;
+
+      if (safeATime !== safeBTime) {
+        return movementSort === 'oldest'
+          ? safeATime - safeBTime
+          : safeBTime - safeATime;
+      }
+
+      return a.rank - b.rank;
+    });
+  }, [filteredMovementRows, filteredTransferDivergences, movementSort]);
+
+  const hasMovementFilters =
+    movementSearch.trim().length > 0 ||
+    movementOperationFilter !== 'all' ||
+    movementLocationFilter !== 'all' ||
+    movementSort !== 'newest';
+
+  const clearMovementFilters = () => {
+    setMovementSearch('');
+    setMovementOperationFilter('all');
+    setMovementLocationFilter('all');
+    setMovementSort('newest');
+  };
 
   const handleExportSummaryCsv = () => {
     if (!row) return;
@@ -179,7 +425,7 @@ export default function ProductLifecyclePage() {
           'Descrição',
           'Motivo',
         ],
-        ...movementRows.map((movement) => [
+        ...filteredMovementRows.map((movement) => [
           formatDateTimePtBr(movement.created_at),
           row.product_name ?? '',
           getMovementOperationLabel(movement),
@@ -210,7 +456,7 @@ export default function ProductLifecyclePage() {
           'Falta aceita',
           'Observação',
         ],
-        ...transferDivergences.map((item) => [
+        ...filteredTransferDivergences.map((item) => [
           formatDateTimePtBr(item.received_at ?? item.created_at),
           item.transfer_code ?? item.transfer_id ?? '',
           item.source_location_name ?? '',
@@ -507,132 +753,236 @@ export default function ProductLifecyclePage() {
 
       {activeTab === 'movements' && (movementRows.length > 0 || transferDivergences.length > 0) && (
         <div className="space-y-4">
-          <div className="flex items-center">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Movimentações físicas</h2>
+          <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="font-semibold text-gray-900 dark:text-white">Movimentações físicas</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {displayMovementItems.length} de {movementRows.length + transferDivergences.length} eventos exibidos
+                </p>
+              </div>
+
+              {hasMovementFilters && (
+                <button
+                  type="button"
+                  onClick={clearMovementFilters}
+                  className="self-start rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700 md:self-auto"
+                >
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Buscar
+                <input
+                  value={movementSearch}
+                  onChange={(event) => setMovementSearch(event.target.value)}
+                  placeholder="Ref., local, motivo..."
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-teal-900/40"
+                />
+              </label>
+
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Tipo
+                <select
+                  value={movementOperationFilter}
+                  onChange={(event) =>
+                    setMovementOperationFilter(event.target.value as MovementOperationFilter)
+                  }
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-teal-900/40"
+                >
+                  {movementOperationFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Local
+                <select
+                  value={movementLocationFilter}
+                  onChange={(event) => setMovementLocationFilter(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-teal-900/40"
+                >
+                  <option value="all">Todos os locais</option>
+                  {movementLocationOptions.map((location) => (
+                    <option key={location} value={location}>
+                      {location}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
+                Ordenar
+                <select
+                  value={movementSort}
+                  onChange={(event) => setMovementSort(event.target.value as MovementSortOption)}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:focus:ring-teal-900/40"
+                >
+                  {movementSortOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
 
           <div className="space-y-3">
-            {transferDivergences.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm"
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold">
-                        Divergência na transferência
-                      </span>
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
-                        {Number(item.divergence_qty ?? 0)} un.
-                      </span>
+            {displayMovementItems.length === 0 && (movementRows.length > 0 || transferDivergences.length > 0) && (
+              <EmptyState
+                icon={<History className="h-5 w-5" />}
+                title="Nenhuma movimentação encontrada com os filtros atuais"
+                description="Ajuste os filtros, a busca ou a ordenação para voltar a visualizar os eventos físicos deste produto."
+              />
+            )}
+
+            {displayMovementItems.map((item) => {
+              if (item.kind === 'divergence') {
+                const divergence = item.divergence;
+
+                return (
+                  <div
+                    key={`divergence-${divergence.id}`}
+                    className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-sm"
+                  >
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-bold">
+                            Divergência na transferência
+                          </span>
+                          <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
+                            Divergência
+                          </span>
+                          <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
+                            {Number(divergence.divergence_qty ?? 0)} un.
+                          </span>
+                        </div>
+
+                        <p className="mt-2 text-sm leading-relaxed">
+                          {Number(divergence.divergence_qty ?? 0)} un. não chegaram ao destino conforme o enviado.
+                        </p>
+                      </div>
+
+                      <div className="text-left text-xs md:text-right">
+                        <div className="font-semibold">
+                          Ref.: {divergence.transfer_code || shortReference(divergence.transfer_id, 'Transferência')}
+                        </div>
+                        <div className="mt-1 opacity-80">
+                          Ocorrência: {formatDateTimePtBr(getTransferDivergenceDate(divergence))}
+                        </div>
+                        <div className="mt-1 opacity-80">
+                          {divergence.source_location_name ?? 'Origem'} → {divergence.destination_location_name ?? 'Destino'}
+                        </div>
+                      </div>
                     </div>
 
-                    <p className="mt-2 text-sm leading-relaxed">
-                      {Number(item.divergence_qty ?? 0)} un. não chegaram ao destino conforme o enviado.
-                    </p>
-                  </div>
+                    <div className="mt-3 grid gap-2 text-xs md:grid-cols-4">
+                      <div className="rounded-xl bg-white/70 p-2">
+                        <div className="font-semibold opacity-70">Local afetado</div>
+                        <div>{divergence.source_location_name ?? 'Origem não identificada'}</div>
+                      </div>
 
-                  <div className="text-left text-xs md:text-right">
-                    <div className="font-semibold">
-                      Ref.: {item.transfer_code || shortReference(item.transfer_id, 'Transferência')}
+                      <div className="rounded-xl bg-white/70 p-2">
+                        <div className="font-semibold opacity-70">Resolução</div>
+                        <div>{getTransferDivergenceResolutionLabel(divergence.divergence_resolution)}</div>
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 p-2">
+                        <div className="font-semibold opacity-70">Motivo</div>
+                        <div>{getTransferDivergenceReasonLabel(divergence.divergence_reason)}</div>
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 p-2">
+                        <div className="font-semibold opacity-70">Impacto</div>
+                        <div>
+                          Perda: {Number(divergence.loss_qty ?? 0)} · Retorno: {Number(divergence.returned_to_origin_qty ?? 0)} · Falta aceita: {Number(divergence.accepted_shortage_qty ?? 0)}
+                        </div>
+                      </div>
                     </div>
-                    <div className="mt-1 opacity-80">
-                      {item.source_location_name ?? 'Origem'} → {item.destination_location_name ?? 'Destino'}
-                    </div>
-                  </div>
-                </div>
 
-                <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
-                  <div className="rounded-xl bg-white/70 p-2">
-                    <div className="font-semibold opacity-70">Resolução</div>
-                    <div>{getTransferDivergenceResolutionLabel(item.divergence_resolution)}</div>
+                    {divergence.divergence_notes && (
+                      <p className="mt-3 text-xs opacity-80">
+                        Observação: {divergence.divergence_notes}
+                      </p>
+                    )}
                   </div>
+                );
+              }
 
-                  <div className="rounded-xl bg-white/70 p-2">
-                    <div className="font-semibold opacity-70">Motivo</div>
-                    <div>{getTransferDivergenceReasonLabel(item.divergence_reason)}</div>
-                  </div>
+              const movement = item.movement;
 
-                  <div className="rounded-xl bg-white/70 p-2">
-                    <div className="font-semibold opacity-70">Impacto</div>
+              return (
+                <div
+                  key={`movement-${movement.id}`}
+                  className={`rounded-2xl border p-4 shadow-sm ${getMovementToneClass(movement)}`}
+                >
+                  <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div>
-                      Perda: {Number(item.loss_qty ?? 0)} · Retorno: {Number(item.returned_to_origin_qty ?? 0)} · Falta aceita: {Number(item.accepted_shortage_qty ?? 0)}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold">
+                          {getMovementOperationLabel(movement)}
+                        </span>
+
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
+                          {getMovementDirectionLabel(movement)}
+                        </span>
+
+                        <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">
+                          {Math.abs(Number(movement.quantity ?? 0))} un.
+                        </span>
+                      </div>
+
+                      <p className="mt-2 text-sm leading-relaxed">
+                        {getMovementHumanDescription(movement)}
+                      </p>
+                    </div>
+
+                    <div className="text-left text-xs md:text-right">
+                      <div className="font-semibold">
+                        Saldo no local: {getMovementStockPath(movement)}
+                      </div>
+                      <div className="mt-1 opacity-80">
+                        Ocorrência: {formatDateTimePtBr(movement.created_at)}
+                      </div>
+                      <div className="mt-1 opacity-80">
+                        Ref.: {getMovementReferenceLabel(movement)}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {item.divergence_notes && (
-                  <p className="mt-3 text-xs opacity-80">
-                    Observação: {item.divergence_notes}
-                  </p>
-                )}
-              </div>
-            ))}
-
-            {movementRows.map((movement) => (
-              <div
-                key={movement.id}
-                className={`rounded-2xl border p-4 shadow-sm ${getMovementToneClass(movement)}`}
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-bold">
-                        {getMovementOperationLabel(movement)}
-                      </span>
-
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs font-semibold">
-                        {getMovementDirectionLabel(movement)}
-                      </span>
-
-                      <span className="rounded-full bg-white/70 px-2 py-0.5 text-xs">
-                        {Math.abs(Number(movement.quantity ?? 0))} un.
-                      </span>
+                  <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
+                    <div className="rounded-xl bg-white/70 p-2">
+                      <div className="font-semibold opacity-70">Local afetado</div>
+                      <div>{movement.location_name ?? '—'}</div>
                     </div>
 
-                    <p className="mt-2 text-sm leading-relaxed">
-                      {getMovementHumanDescription(movement)}
+                    <div className="rounded-xl bg-white/70 p-2">
+                      <div className="font-semibold opacity-70">Origem</div>
+                      <div>{getMovementOriginLabel(movement)}</div>
+                    </div>
+
+                    <div className="rounded-xl bg-white/70 p-2">
+                      <div className="font-semibold opacity-70">Destino</div>
+                      <div>{getMovementDestinationLabel(movement)}</div>
+                    </div>
+                  </div>
+
+                  {movement.reason && (
+                    <p className="mt-3 text-xs opacity-80">
+                      Motivo/observação: {movement.reason}
                     </p>
-                  </div>
-
-                  <div className="text-left text-xs md:text-right">
-                    <div className="font-semibold">
-                      Saldo no local: {getMovementStockPath(movement)}
-                    </div>
-                    <div className="mt-1 opacity-80">
-                      Ocorrência: {formatDateTimePtBr(movement.created_at)}
-                    </div>
-                    <div className="mt-1 opacity-80">
-                      Ref.: {getMovementReferenceLabel(movement)}
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                <div className="mt-3 grid gap-2 text-xs md:grid-cols-3">
-                  <div className="rounded-xl bg-white/70 p-2">
-                    <div className="font-semibold opacity-70">Local afetado</div>
-                    <div>{movement.location_name ?? '—'}</div>
-                  </div>
-
-                  <div className="rounded-xl bg-white/70 p-2">
-                    <div className="font-semibold opacity-70">Origem</div>
-                    <div>{getMovementOriginLabel(movement)}</div>
-                  </div>
-
-                  <div className="rounded-xl bg-white/70 p-2">
-                    <div className="font-semibold opacity-70">Destino</div>
-                    <div>{getMovementDestinationLabel(movement)}</div>
-                  </div>
-                </div>
-
-                {movement.reason && (
-                  <p className="mt-3 text-xs opacity-80">
-                    Motivo/observação: {movement.reason}
-                  </p>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
