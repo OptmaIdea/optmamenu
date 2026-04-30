@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
@@ -9,6 +10,8 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { stockService } from '@/services/stockService';
 
 import type {
   ProductLifecycleSourceLocation,
@@ -105,6 +108,19 @@ function getBestSource(
   return row.source_locations.find((src) => src.location_id !== row.location_id);
 }
 
+function getLocationAvailableLabel(row: ProductStockManagementRow | undefined) {
+  if (!row) return '';
+
+  return `Disponível: ${formatNumberPtBr(row.available ?? 0)}`;
+}
+
+type ManualTransferDraftState = {
+  sourceLocationId: string;
+  destinationLocationId: string;
+  quantity: number;
+  notes: string;
+};
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export function ProductStockManagementCards({
@@ -114,6 +130,22 @@ export function ProductStockManagementCards({
   error,
 }: ProductStockManagementCardsProps) {
   const navigate = useNavigate();
+  const [manualTransferDraft, setManualTransferDraft] =
+    useState<ManualTransferDraftState | null>(null);
+  const [creatingManualTransfer, setCreatingManualTransfer] = useState(false);
+
+  const activeLocationRows = useMemo(
+    () => locationRows.filter((row) => row.location_active),
+    [locationRows]
+  );
+
+  const sourceLocation = manualTransferDraft
+    ? activeLocationRows.find((row) => row.location_id === manualTransferDraft.sourceLocationId)
+    : undefined;
+
+  const destinationLocation = manualTransferDraft
+    ? activeLocationRows.find((row) => row.location_id === manualTransferDraft.destinationLocationId)
+    : undefined;
 
   const handleCreateTransfer = (
     row: ProductStockManagementRow,
@@ -142,6 +174,83 @@ export function ProductStockManagementCards({
     });
 
     navigate(`/admin/transfers?${params.toString()}`);
+  };
+
+  const openManualTransferDraft = (row: ProductStockManagementRow) => {
+    const hasAvailableAtCurrentLocation = Number(row.available ?? 0) > 0;
+    const fallbackSource = activeLocationRows
+      .filter((location) => location.location_id !== row.location_id)
+      .sort((a, b) => Number(b.available ?? 0) - Number(a.available ?? 0))[0];
+    const fallbackDestination = activeLocationRows.find(
+      (location) => location.location_id !== row.location_id
+    );
+
+    const source = hasAvailableAtCurrentLocation ? row : fallbackSource ?? row;
+    const destination = hasAvailableAtCurrentLocation
+      ? fallbackDestination ?? activeLocationRows.find((location) => location.location_id !== source.location_id)
+      : row;
+
+    setManualTransferDraft({
+      sourceLocationId: source.location_id,
+      destinationLocationId: destination?.location_id ?? '',
+      quantity: 1,
+      notes: 'Rascunho manual criado pela Vida do Produto.',
+    });
+  };
+
+  const updateManualTransferDraft = (patch: Partial<ManualTransferDraftState>) => {
+    setManualTransferDraft((current) => (current ? { ...current, ...patch } : current));
+  };
+
+  const handleCreateManualTransferDraft = async () => {
+    if (!globalSummary || !manualTransferDraft) return;
+
+    if (!manualTransferDraft.sourceLocationId || !manualTransferDraft.destinationLocationId) {
+      toast.warning('Informe origem e destino da transferência.');
+      return;
+    }
+
+    if (manualTransferDraft.sourceLocationId === manualTransferDraft.destinationLocationId) {
+      toast.warning('Origem e destino precisam ser locais diferentes.');
+      return;
+    }
+
+    if (!Number.isFinite(manualTransferDraft.quantity) || manualTransferDraft.quantity <= 0) {
+      toast.warning('Informe uma quantidade maior que zero.');
+      return;
+    }
+
+    if (sourceLocation && Number(sourceLocation.available ?? 0) < manualTransferDraft.quantity) {
+      toast.warning('A origem não possui saldo disponível suficiente para esta transferência.');
+      return;
+    }
+
+    try {
+      setCreatingManualTransfer(true);
+
+      const result = await stockService.createStockTransferDraftBatch({
+        sourceLocationId: manualTransferDraft.sourceLocationId,
+        destinationLocationId: manualTransferDraft.destinationLocationId,
+        items: [
+          {
+            productId: globalSummary.product_id,
+            quantity: manualTransferDraft.quantity,
+          },
+        ],
+        notes:
+          manualTransferDraft.notes.trim() ||
+          'Rascunho manual criado pela Vida do Produto.',
+      });
+
+      toast.success(`Rascunho ${result.transfer_code} criado com sucesso.`);
+      setManualTransferDraft(null);
+      navigate(`/admin/transfers/${result.transfer_id}`);
+    } catch (err) {
+      console.error('Erro ao criar transferência manual pela Vida do Produto:', err);
+      toast.error('Não foi possível criar a transferência manual.');
+    } finally {
+      setCreatingManualTransfer(false);
+    }
   };
 
   if (loading) {
@@ -298,6 +407,20 @@ export function ProductStockManagementCards({
                 <span className="text-[11px] text-gray-500">
                   Mín. local: {formatNumberPtBr(row.provisional_location_min_stock ?? 0)}
                 </span>
+
+                <span className="text-[11px] text-gray-500">
+                  Máx. local: {formatNumberPtBr(row.provisional_location_max_stock ?? 0)}
+                </span>
+
+                {activeLocationRows.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => openManualTransferDraft(row)}
+                    className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-950/30 dark:text-blue-300 dark:hover:bg-blue-900/40"
+                  >
+                    Transferir manual
+                  </button>
+                )}
               </div>
 
               {/* Origem sugerida para transferência */}
@@ -339,6 +462,130 @@ export function ProductStockManagementCards({
           );
         })}
       </div>
+
+      {manualTransferDraft && globalSummary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-2xl rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                  Transferência manual do produto
+                </h3>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Crie um rascunho de transferência mesmo quando não houver sugestão gerencial.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setManualTransferDraft(null)}
+                disabled={creatingManualTransfer}
+                className="text-sm text-gray-500 hover:text-gray-900 disabled:opacity-60 dark:text-gray-400 dark:hover:text-gray-100"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+              <div className="font-semibold">{globalSummary.product_name}</div>
+              <div className="mt-1 text-xs">
+                O rascunho não movimenta estoque. A baixa e a entrada só acontecem nos fluxos de envio e recebimento.
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Origem
+                <select
+                  value={manualTransferDraft.sourceLocationId}
+                  onChange={(event) => updateManualTransferDraft({ sourceLocationId: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                >
+                  <option value="">Selecione a origem</option>
+                  {activeLocationRows.map((location) => (
+                    <option key={location.location_id} value={location.location_id}>
+                      {location.location_name} · {getLocationAvailableLabel(location)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Destino
+                <select
+                  value={manualTransferDraft.destinationLocationId}
+                  onChange={(event) => updateManualTransferDraft({ destinationLocationId: event.target.value })}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                >
+                  <option value="">Selecione o destino</option>
+                  {activeLocationRows.map((location) => (
+                    <option key={location.location_id} value={location.location_id}>
+                      {location.location_name} · {getLocationAvailableLabel(location)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Quantidade
+                <input
+                  type="number"
+                  min={1}
+                  value={manualTransferDraft.quantity}
+                  onChange={(event) => {
+                    const value = Number(event.target.value);
+                    updateManualTransferDraft({
+                      quantity: Number.isFinite(value) && value > 0 ? value : 1,
+                    });
+                  }}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                />
+                {sourceLocation && (
+                  <span className="mt-1 block text-xs text-gray-500">
+                    {getLocationAvailableLabel(sourceLocation)} na origem.
+                  </span>
+                )}
+              </label>
+
+              <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Observação
+                <textarea
+                  value={manualTransferDraft.notes}
+                  onChange={(event) => updateManualTransferDraft({ notes: event.target.value })}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                />
+              </label>
+            </div>
+
+            {destinationLocation && sourceLocation && sourceLocation.location_id !== destinationLocation.location_id && (
+              <div className="mt-3 rounded-xl bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                Fluxo: <b>{sourceLocation.location_name}</b> → <b>{destinationLocation.location_name}</b>
+              </div>
+            )}
+
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setManualTransferDraft(null)}
+                disabled={creatingManualTransfer}
+                className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCreateManualTransferDraft}
+                disabled={creatingManualTransfer}
+                className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {creatingManualTransfer ? 'Criando...' : 'Criar rascunho'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

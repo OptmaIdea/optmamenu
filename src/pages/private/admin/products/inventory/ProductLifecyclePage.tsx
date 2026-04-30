@@ -487,15 +487,33 @@ export default function ProductLifecyclePage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+      <div className="sticky top-0 z-30 rounded-2xl border border-gray-100 bg-white/95 p-4 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[#21A896] dark:text-[#37d0bb]">
               Vida do produto
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Visão 360º do item no estoque, movimentações e auditoria.
-            </p>
+            </div>
+
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <h1 className="max-w-full truncate text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
+                {row.product_name}
+              </h1>
+
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.active
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                  }`}
+              >
+                {row.active ? 'Ativo' : 'Inativo'}
+              </span>
+            </div>
+
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+              <span>Visão 360º do item no estoque, movimentações e auditoria.</span>
+              <span>Preço atual: {row.price != null ? formatCurrencyPtBr(row.price) : '—'}</span>
+              <span>Estoque global: {formatNumberPtBr(row.total_on_hand)}</span>
+            </div>
           </div>
 
           {/* Barra de nav: botão Voltar + atalhos do módulo */}
@@ -503,7 +521,7 @@ export default function ProductLifecyclePage() {
             extra={
               <Link
                 to="/admin/products/lifecycle"
-                className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-[#21A896] hover:border-[#21A896]/40 transition-colors text-sm font-medium"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-500 transition-colors hover:border-[#21A896]/40 hover:text-[#21A896] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
                 title="Voltar para Vida do produto"
               >
                 <ArrowLeft size={16} />
@@ -512,50 +530,42 @@ export default function ProductLifecyclePage() {
             }
           />
         </div>
+      </div>
 
-        <div className="mt-6 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
-            <div className="text-sm text-gray-500 flex items-center gap-1">
+      <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
+            <div className="flex items-center gap-1 text-sm text-gray-500">
               Estoque total
               <InfoTooltip text="Quantidade física total do produto somando todos os locais." />
             </div>
             <div className="text-2xl font-bold">{row.total_on_hand}</div>
           </div>
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
-            <div className="text-sm text-gray-500 flex items-center gap-1">
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
+            <div className="flex items-center gap-1 text-sm text-gray-500">
               Reservado
               <InfoTooltip text="Quantidade comprometida com pedidos ou operações em andamento." />
             </div>
             <div className="text-2xl font-bold">{row.total_reserved}</div>
           </div>
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
-            <div className="text-sm text-gray-500 flex items-center gap-1">
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
+            <div className="flex items-center gap-1 text-sm text-gray-500">
               Disponível
               <InfoTooltip text="Quantidade utilizável no momento, considerando o saldo físico menos reservas." />
             </div>
             <div className="text-2xl font-bold">{row.total_available}</div>
           </div>
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="text-sm text-gray-500">Transferências</div>
             <div className="text-2xl font-bold">{row.transfer_count ?? 0}</div>
           </div>
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="text-sm text-gray-500">Mínimo</div>
             <div className="text-2xl font-bold">{row.min_stock ?? '—'}</div>
           </div>
-          <div className="rounded-2xl bg-gray-50 dark:bg-gray-900/40 p-4">
+          <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="text-sm text-gray-500">Máximo</div>
             <div className="text-2xl font-bold">{row.max_stock ?? '—'}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Nome do produto + nav ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-white">{row.product_name}</div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            Preço atual: {row.price ? `R$ ${Number(row.price).toFixed(2)}` : '—'}
           </div>
         </div>
       </div>

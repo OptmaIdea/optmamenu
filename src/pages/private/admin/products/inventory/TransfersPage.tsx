@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowRightLeft, CheckCircle2, Search, X, Boxes, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Search, X, Boxes, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import TransferListTable from './components/TransferListTable';
 import { useStockTransfers } from './hooks/useStockTransfers';
@@ -11,9 +11,11 @@ import EmptyState from '@/components/common/empty-state/EmptyState';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { toast } from 'sonner';
 import { stockService } from '@/services/stockService';
+import type { InventoryPositionRow } from '@/services/stockService';
 import { supabase } from '@/lib/supabase';
 import { useStockTransferSuggestions } from './hooks/useStockTransferSuggestions';
 import { useInventoryTransit } from './hooks/useInventoryTransit';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import type { StockTransferSuggestion } from './types/transferSuggestion.types';
 
 const STATUS_OPTIONS = [
@@ -46,10 +48,21 @@ const getTransferStatusLabel = (status: string | null | undefined) => {
   }
 };
 
+type ManualBatchTransferItem = {
+  productId: string;
+  quantity: number;
+};
+
+const createEmptyManualBatchItem = (): ManualBatchTransferItem => ({
+  productId: '',
+  quantity: 1,
+});
+
 export default function TransfersPage() {
   const { rows, loading, refresh } = useStockTransfers();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { storeId, loading: loadingStore } = useCurrentStore();
 
   const {
     suggestions: allSuggestions,
@@ -58,14 +71,25 @@ export default function TransfersPage() {
     refresh: refreshSuggestions,
   } = useStockTransferSuggestions();
 
-  // Obtém storeId a partir da primeira transferência disponível (ou undefined)
-  const storeIdForTransit = rows[0]?.store_id ?? undefined;
+  // Obtém storeId a partir da loja atual ou da primeira transferência disponível.
+  const storeIdForTransit = storeId ?? rows[0]?.store_id ?? undefined;
   const { rows: transitRows } = useInventoryTransit(storeIdForTransit);
 
   const [showSuggestionsPanel, setShowSuggestionsPanel] = useState(false);
   const [selectedSuggestionKeys, setSelectedSuggestionKeys] = useState<Set<string>>(new Set());
   const [suggestionQuantities, setSuggestionQuantities] = useState<Record<string, number>>({});
   const [creatingBatchDraft, setCreatingBatchDraft] = useState(false);
+
+  const [showManualBatchModal, setShowManualBatchModal] = useState(false);
+  const [loadingManualInventory, setLoadingManualInventory] = useState(false);
+  const [creatingManualBatchDraft, setCreatingManualBatchDraft] = useState(false);
+  const [manualInventoryRows, setManualInventoryRows] = useState<InventoryPositionRow[]>([]);
+  const [manualSourceLocationId, setManualSourceLocationId] = useState('');
+  const [manualDestinationLocationId, setManualDestinationLocationId] = useState('');
+  const [manualBatchItems, setManualBatchItems] = useState<ManualBatchTransferItem[]>([
+    createEmptyManualBatchItem(),
+  ]);
+  const [manualBatchNotes, setManualBatchNotes] = useState('');
 
   const getSuggestionKey = (suggestion: StockTransferSuggestion) => {
     return `${suggestion.source_location_id}:${suggestion.destination_location_id}:${suggestion.product_id}`;
@@ -127,6 +151,198 @@ export default function TransfersPage() {
       }, {});
     });
   }, [suggestions]);
+
+
+  const manualLocationOptions = useMemo(() => {
+    const map = new Map<string, { id: string; code: string; name: string }>();
+
+    manualInventoryRows.forEach((row) => {
+      if (!row.location_active) return;
+
+      map.set(row.location_id, {
+        id: row.location_id,
+        code: row.location_code,
+        name: row.location_name,
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [manualInventoryRows]);
+
+  const manualProductOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; available: number }>();
+
+    manualInventoryRows.forEach((row) => {
+      if (!row.product_active) return;
+
+      const current = map.get(row.product_id);
+      const available = Number(row.available ?? 0);
+
+      map.set(row.product_id, {
+        id: row.product_id,
+        name: row.product_name,
+        available: (current?.available ?? 0) + available,
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [manualInventoryRows]);
+
+  const getManualSourceProductAvailable = (productId: string) => {
+    if (!productId || !manualSourceLocationId) return null;
+
+    const row = manualInventoryRows.find(
+      (item) => item.location_id === manualSourceLocationId && item.product_id === productId
+    );
+
+    return Number(row?.available ?? 0);
+  };
+
+  const openManualBatchModal = async () => {
+    setShowManualBatchModal(true);
+
+    if (!storeId) return;
+
+    try {
+      setLoadingManualInventory(true);
+      const inventory = await stockService.getInventoryPositionByStore(storeId);
+      setManualInventoryRows(inventory);
+
+      const activeLocations = Array.from(
+        new Map(
+          inventory
+            .filter((row) => row.location_active)
+            .map((row) => [row.location_id, row] as const)
+        ).values()
+      );
+
+      const nextSourceLocationId = manualSourceLocationId || activeLocations[0]?.location_id || '';
+
+      if (!manualSourceLocationId && nextSourceLocationId) {
+        setManualSourceLocationId(nextSourceLocationId);
+      }
+
+      if (!manualDestinationLocationId) {
+        const defaultDestination = activeLocations.find(
+          (location) => location.location_id !== nextSourceLocationId
+        );
+        if (defaultDestination) setManualDestinationLocationId(defaultDestination.location_id);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados para transferência manual:', error);
+      toast.error('Não foi possível carregar produtos e locais para transferência manual.');
+    } finally {
+      setLoadingManualInventory(false);
+    }
+  };
+
+  const closeManualBatchModal = () => {
+    if (creatingManualBatchDraft) return;
+    setShowManualBatchModal(false);
+  };
+
+  const updateManualBatchItem = (
+    index: number,
+    updates: Partial<ManualBatchTransferItem>
+  ) => {
+    setManualBatchItems((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, ...updates } : item
+      )
+    );
+  };
+
+  const addManualBatchItem = () => {
+    setManualBatchItems((current) => [...current, createEmptyManualBatchItem()]);
+  };
+
+  const removeManualBatchItem = (index: number) => {
+    setManualBatchItems((current) =>
+      current.length <= 1
+        ? [createEmptyManualBatchItem()]
+        : current.filter((_, itemIndex) => itemIndex !== index)
+    );
+  };
+
+  const handleCreateManualBatchDraft = async () => {
+    if (!storeId) {
+      toast.error('Loja atual não identificada. Atualize a página e tente novamente.');
+      return;
+    }
+
+    if (!manualSourceLocationId || !manualDestinationLocationId) {
+      toast.warning('Informe origem e destino da transferência.');
+      return;
+    }
+
+    if (manualSourceLocationId === manualDestinationLocationId) {
+      toast.warning('Origem e destino precisam ser locais diferentes.');
+      return;
+    }
+
+    const normalizedItems = manualBatchItems
+      .map((item) => ({
+        productId: item.productId,
+        quantity: Number(item.quantity),
+      }))
+      .filter((item) => item.productId && Number.isFinite(item.quantity) && item.quantity > 0);
+
+    if (!normalizedItems.length) {
+      toast.warning('Adicione ao menos um produto com quantidade válida.');
+      return;
+    }
+
+    const duplicatedProductId = normalizedItems.find((item, index) =>
+      normalizedItems.some((other, otherIndex) => other.productId === item.productId && otherIndex !== index)
+    )?.productId;
+
+    if (duplicatedProductId) {
+      toast.warning('Há produtos repetidos na transferência. Mantenha uma única linha por produto.');
+      return;
+    }
+
+    const unavailableItem = normalizedItems.find((item) => {
+      const available = getManualSourceProductAvailable(item.productId);
+      return available !== null && item.quantity > available;
+    });
+
+    if (unavailableItem) {
+      const productName = manualProductOptions.find((product) => product.id === unavailableItem.productId)?.name;
+      toast.warning(
+        `Quantidade maior que o disponível na origem${productName ? ` para ${productName}` : ''}.`
+      );
+      return;
+    }
+
+    try {
+      setCreatingManualBatchDraft(true);
+
+      const result = await stockService.createStockTransferDraftBatch({
+        sourceLocationId: manualSourceLocationId,
+        destinationLocationId: manualDestinationLocationId,
+        items: normalizedItems,
+        notes:
+          manualBatchNotes.trim() ||
+          'Rascunho manual em lote criado pela tela de transferências.',
+      });
+
+      toast.success(
+        `Rascunho ${result.transfer_code} criado com ${result.items_count} item(ns).`
+      );
+
+      setShowManualBatchModal(false);
+      setManualBatchItems([createEmptyManualBatchItem()]);
+      setManualBatchNotes('');
+      await refresh();
+      await refreshSuggestions();
+      navigate(`/admin/transfers/${result.transfer_id}`);
+    } catch (error) {
+      console.error('Erro ao criar transferência manual em lote:', error);
+      toast.error('Não foi possível criar a transferência manual em lote.');
+    } finally {
+      setCreatingManualBatchDraft(false);
+    }
+  };
 
   const toggleSuggestion = (suggestion: StockTransferSuggestion) => {
     const key = getSuggestionKey(suggestion);
@@ -414,7 +630,7 @@ export default function TransfersPage() {
     });
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading || loadingStore) return <LoadingSpinner />;
 
   const total = rows.length;
   const divergent = rows.filter((r) => r.status === 'divergent').length;
@@ -433,6 +649,16 @@ export default function TransfersPage() {
               Gestão de transferências entre locais de estoque.
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={openManualBatchModal}
+            disabled={!storeId}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
+          >
+            <Plus size={15} />
+            Nova transferência manual
+          </button>
         </div>
         <EmptyState
           icon={<ArrowRightLeft className="h-5 w-5" />}
@@ -454,6 +680,15 @@ export default function TransfersPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <InventoryQuickNav />
+          <button
+            type="button"
+            onClick={openManualBatchModal}
+            disabled={!storeId}
+            className="inline-flex items-center h-10 gap-2 px-3 rounded-xl bg-[#21A896] text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60 transition whitespace-nowrap shrink-0"
+          >
+            <Plus size={15} />
+            Nova transferência manual
+          </button>
           <button
             type="button"
             onClick={handleExportCsv}
@@ -830,6 +1065,184 @@ export default function TransfersPage() {
           </div>
         )}
       </div>
+
+
+
+      {showManualBatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-3 py-6">
+          <div className="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
+            <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Nova transferência manual em lote
+                </h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Monte um rascunho com um ou vários produtos, sem depender de sugestão gerencial.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeManualBatchModal}
+                disabled={creatingManualBatchDraft}
+                className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-60 dark:hover:bg-gray-800"
+                aria-label="Fechar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {loadingManualInventory ? (
+              <div className="flex min-h-48 items-center justify-center">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Origem</label>
+                    <select
+                      value={manualSourceLocationId}
+                      onChange={(event) => setManualSourceLocationId(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      <option value="">Selecione a origem</option>
+                      {manualLocationOptions.map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.name} {location.code ? `(${location.code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Destino</label>
+                    <select
+                      value={manualDestinationLocationId}
+                      onChange={(event) => setManualDestinationLocationId(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      <option value="">Selecione o destino</option>
+                      {manualLocationOptions.map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.name} {location.code ? `(${location.code})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/40">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Itens</h3>
+                      <p className="text-xs text-gray-500">O rascunho não movimenta estoque. O estoque só muda no envio e recebimento.</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={addManualBatchItem}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      <Plus size={14} />
+                      Adicionar item
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {manualBatchItems.map((item, index) => {
+                      const available = getManualSourceProductAvailable(item.productId);
+
+                      return (
+                        <div
+                          key={`${index}-${item.productId || 'empty'}`}
+                          className="grid grid-cols-1 gap-2 rounded-xl bg-white p-3 dark:bg-gray-900 md:grid-cols-[minmax(0,1fr)_140px_120px_44px] md:items-end"
+                        >
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">Produto</label>
+                            <select
+                              value={item.productId}
+                              onChange={(event) => updateManualBatchItem(index, { productId: event.target.value })}
+                              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                            >
+                              <option value="">Selecione um produto</option>
+                              {manualProductOptions.map((product) => (
+                                <option key={product.id} value={product.id}>{product.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-medium text-gray-500">Quantidade</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={item.quantity}
+                              onChange={(event) => {
+                                const value = Number(event.target.value);
+                                updateManualBatchItem(index, { quantity: Number.isFinite(value) && value > 0 ? value : 1 });
+                              }}
+                              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                            />
+                          </div>
+
+                          <div className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-950">
+                            <div>Disponível origem</div>
+                            <div className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                              {available === null ? '—' : formatNumberPtBr(available)}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeManualBatchItem(index)}
+                            className="inline-flex h-10 items-center justify-center rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
+                            aria-label="Remover item"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Observação</label>
+                  <textarea
+                    value={manualBatchNotes}
+                    onChange={(event) => setManualBatchNotes(event.target.value)}
+                    rows={3}
+                    placeholder="Ex.: transferência preventiva para abastecimento da loja."
+                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex flex-col-reverse gap-2 border-t border-gray-100 pt-4 dark:border-gray-800 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={closeManualBatchModal}
+                    disabled={creatingManualBatchDraft}
+                    className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleCreateManualBatchDraft}
+                    disabled={creatingManualBatchDraft || loadingManualInventory}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
+                  >
+                    <CheckCircle2 size={15} />
+                    {creatingManualBatchDraft ? 'Criando...' : 'Criar rascunho'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <TransferListTable rows={filteredRows} onClearFilters={hasFilters ? clearFilters : undefined} />
     </div>

@@ -281,7 +281,7 @@ export default function PrivateLayout() {
                                 const IconComponent = item.icon;
                                 const isActive =
                                     pathname === item.path ||
-                                    (item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
+                                    (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
 
                                 return (
                                     <Link

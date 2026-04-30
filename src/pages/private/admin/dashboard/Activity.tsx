@@ -1,726 +1,672 @@
-// src/pages/private/admin/dashboard/Activity.tsx
-import { useState, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  ShoppingBag,
-  Package,
-  Users,
-  CreditCard,
-  Heart,
-  MessageCircle,
-  TrendingUp,
-  Clock,
-  Filter,
-  Search,
+  AlertTriangle,
+  ArrowRightLeft,
+  CheckCircle2,
   Download,
-  ArrowLeft,
-  DollarSign,
-  Star,
-  Award,
-  RefreshCw
+  FileText,
+  Filter,
+  Info,
+  Package,
+  RefreshCw,
+  Search,
+  ShoppingBag,
+  Truck,
+  X,
+  XCircle,
 } from 'lucide-react';
-import PageContainer from '@/components/common/PageContainer';
+import LoadingSpinner from '@/components/common/LoadingSpinner';
+import EmptyState from '@/components/common/empty-state/EmptyState';
+import { supabase } from '@/lib/supabase';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { downloadCsv } from '@/utils/export/csv';
+import { formatDateTimePtBr, getLocalDateInputValue, toAppDate } from '@/utils/dateTime';
+import type { OperationalTimelineEvent } from '@/pages/private/admin/products/inventory/types/operationalTimeline.types';
 
-// Tipos de atividades
-type ActivityType =
-  | 'order'
-  | 'product'
-  | 'customer'
-  | 'payment'
-  | 'loyalty'
-  | 'inventory'
-  | 'message'
-  | 'settings'
-  | 'auth'; // Login/Logout
+type EntityFilter =
+  | 'all'
+  | 'purchase_quotation'
+  | 'purchase_document'
+  | 'stock_transfer'
+  | 'stock_movement'
+  | 'supplier'
+  | 'product';
 
-interface Activity {
-  id: string;
-  type: ActivityType;
-  title: string;
-  description: string;
-  user: {
-    name: string;
-    avatar?: string;
-    role?: string;
-  };
-  timestamp: Date;
-  amount?: number;
-  status?: 'success' | 'pending' | 'cancelled' | 'warning';
-  metadata?: Record<string, any>;
-  link?: string;
-}
+type SeverityFilter = 'all' | 'info' | 'success' | 'warning' | 'danger' | 'critical';
+type StatusFilter = 'all' | 'open' | 'done' | 'cancelled' | 'archived';
+type PeriodFilter = 'today' | '7d' | '30d' | 'all' | 'custom';
 
-export default function Activity() {
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTypes, setSelectedTypes] = useState<ActivityType[]>([]);
-  const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month'>('today');
-  const [showFilters, setShowFilters] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+const ENTITY_OPTIONS: Array<{ value: EntityFilter; label: string }> = [
+  { value: 'all', label: 'Todas as entidades' },
+  { value: 'purchase_quotation', label: 'Cotações' },
+  { value: 'purchase_document', label: 'Compras' },
+  { value: 'stock_transfer', label: 'Transferências' },
+  { value: 'stock_movement', label: 'Movimentações' },
+  { value: 'supplier', label: 'Fornecedores' },
+  { value: 'product', label: 'Produtos' },
+];
 
-  // Dados de fallback - Simulam um dia de operação
-  const mockActivities: Activity[] = [
-    // VENDAS / PEDIDOS
-    {
-      id: '1',
-      type: 'order',
-      title: 'Novo pedido recebido',
-      description: 'Pedido #1234 - Pizza Margherita + Coca-Cola',
-      user: { name: 'João Silva' },
-      timestamp: new Date(Date.now() - 5 * 60000),
-      amount: 89.90,
-      status: 'pending',
-      link: '/admin/orders/1234'
-    },
-    {
-      id: '2',
-      type: 'order',
-      title: 'Pedido entregue',
-      description: 'Pedido #1230 - Hamburguer Artesanal',
-      user: { name: 'Maria Santos' },
-      timestamp: new Date(Date.now() - 25 * 60000),
-      amount: 45.50,
-      status: 'success',
-      link: '/admin/orders/1230'
-    },
-    {
-      id: '3',
-      type: 'order',
-      title: 'Pedido cancelado',
-      description: 'Pedido #1228 - Salada Caesar',
-      user: { name: 'Carlos Lima' },
-      timestamp: new Date(Date.now() - 45 * 60000),
-      amount: 32.90,
-      status: 'cancelled',
-      link: '/admin/orders/1228'
-    },
+const SEVERITY_OPTIONS: Array<{ value: SeverityFilter; label: string }> = [
+  { value: 'all', label: 'Todas as severidades' },
+  { value: 'info', label: 'Informação' },
+  { value: 'success', label: 'Sucesso' },
+  { value: 'warning', label: 'Atenção' },
+  { value: 'danger', label: 'Crítico' },
+  { value: 'critical', label: 'Crítico severo' },
+];
 
-    // ESTOQUE / PRODUTOS
-    {
-      id: '4',
-      type: 'inventory',
-      title: 'Estoque reabastecido',
-      description: 'Líquido 13 - 50 unidades adicionadas',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 55 * 60000),
-      status: 'success',
-      link: '/admin/products/456'
-    },
-    {
-      id: '5',
-      type: 'product',
-      title: 'Produto atualizado',
-      description: 'Preço do Mapa Verde alterado de R$ 15,90 para R$ 17,90',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 75 * 60000),
-      link: '/admin/products/789'
-    },
-    {
-      id: '6',
-      type: 'product',
-      title: 'Novo produto cadastrado',
-      description: 'Suco Detox Limão - R$ 12,90',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 120 * 60000),
-      status: 'success',
-      link: '/admin/products/new'
-    },
+const STATUS_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
+  { value: 'all', label: 'Todos os status' },
+  { value: 'done', label: 'Concluído' },
+  { value: 'open', label: 'Aberto' },
+  { value: 'cancelled', label: 'Cancelado' },
+  { value: 'archived', label: 'Arquivado' },
+];
 
-    // CLIENTES
-    {
-      id: '7',
-      type: 'customer',
-      title: 'Novo cliente cadastrado',
-      description: 'Ana Paula Rodrigues - anap@email.com',
-      user: { name: 'Sistema' },
-      timestamp: new Date(Date.now() - 130 * 60000),
-      link: '/admin/customers/7890'
-    },
-    {
-      id: '8',
-      type: 'customer',
-      title: 'Cliente completou 10 pedidos',
-      description: 'Pedro Augusto - Cliente VIP',
-      user: { name: 'Sistema' },
-      timestamp: new Date(Date.now() - 150 * 60000),
-      metadata: { orders: 10, total: 1250.00 },
-      link: '/admin/customers/4567'
-    },
+const PERIOD_OPTIONS: Array<{ value: PeriodFilter; label: string }> = [
+  { value: 'today', label: 'Hoje' },
+  { value: '7d', label: 'Últimos 7 dias' },
+  { value: '30d', label: 'Últimos 30 dias' },
+  { value: 'all', label: 'Tudo carregado' },
+  { value: 'custom', label: 'Período personalizado' },
+];
 
-    // PAGAMENTOS
-    {
-      id: '9',
-      type: 'payment',
-      title: 'Pagamento confirmado',
-      description: 'Pedido #1234 - Cartão de crédito',
-      user: { name: 'Sistema' },
-      timestamp: new Date(Date.now() - 160 * 60000),
-      amount: 89.90,
-      status: 'success',
-      link: '/admin/payments/987'
-    },
-    {
-      id: '10',
-      type: 'payment',
-      title: 'Reembolso processado',
-      description: 'Pedido #1228 - Estorno via PIX',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 180 * 60000),
-      amount: 32.90,
-      status: 'success',
-      link: '/admin/payments/986'
-    },
+function getEventIcon(event: OperationalTimelineEvent) {
+  const isCancelled = event.status === 'cancelled';
 
-    // FIDELIDADE / PONTUAÇÃO
-    {
-      id: '11',
-      type: 'loyalty',
-      title: 'Pontos creditados',
-      description: 'João Silva ganhou 89 pontos',
-      user: { name: 'Sistema' },
-      timestamp: new Date(Date.now() - 200 * 60000),
-      metadata: { points: 89, program: 'Clube Optma' },
-      link: '/admin/loyalty'
-    },
-    {
-      id: '12',
-      type: 'loyalty',
-      title: 'Prêmio resgatado',
-      description: 'Maria Santos resgatou "Café Grátis" (150 pontos)',
-      user: { name: 'Maria Santos' },
-      timestamp: new Date(Date.now() - 220 * 60000),
-      status: 'success',
-      link: '/admin/loyalty/rewards'
-    },
-    {
-      id: '13',
-      type: 'loyalty',
-      title: 'Meta de fidelidade atingida',
-      description: '10 clientes atingiram o nível Ouro este mês',
-      user: { name: 'Sistema' },
-      timestamp: new Date(Date.now() - 240 * 60000),
-      status: 'success',
-    },
-
-    // MENSAGENS
-    {
-      id: '14',
-      type: 'message',
-      title: 'Nova mensagem de cliente',
-      description: 'Carlos: "O pedido chegou rápido, parabéns!"',
-      user: { name: 'Carlos Lima' },
-      timestamp: new Date(Date.now() - 260 * 60000),
-      status: 'pending',
-      link: '/admin/messages-admin'
-    },
-
-    // CONFIGURAÇÕES
-    {
-      id: '15',
-      type: 'settings',
-      title: 'Horário de funcionamento alterado',
-      description: 'Abertura aos domingos: 18h às 23h',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 300 * 60000),
-      link: '/admin/hours'
-    },
-    {
-      id: '16',
-      type: 'settings',
-      title: 'Método de pagamento adicionado',
-      description: 'PIX agora disponível',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 350 * 60000),
-      status: 'success',
-      link: '/admin/payments'
-    },
-
-    // ACESSOS / AUTH
-    {
-      id: '17',
-      type: 'auth',
-      title: 'Login realizado',
-      description: 'Usuário acessou o sistema',
-      user: { name: 'Você', role: 'Admin' },
-      timestamp: new Date(Date.now() - 60 * 60000),
-      status: 'success'
-    },
-    {
-      id: '18',
-      type: 'auth',
-      title: 'Login de usuário',
-      description: 'Funcionário acessou o painel',
-      user: { name: 'Funcionário', role: 'Staff' },
-      timestamp: new Date(Date.now() - 120 * 60000),
-      status: 'success'
-    }
-  ];
-
-  useEffect(() => {
-    // Simula carregamento de dados
-    const loadActivities = async () => {
-      setLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setActivities(mockActivities);
-      setLastUpdated(new Date());
-      setLoading(false);
-    };
-    loadActivities();
-  }, []);
-
-  // Filtros
-  const filteredActivities = useMemo(() => {
-    return activities.filter(activity => {
-      // Filtro por tipo
-      if (selectedTypes.length > 0 && !selectedTypes.includes(activity.type)) {
-        return false;
-      }
-
-      // Filtro por data
-      const now = new Date();
-      const activityDate = new Date(activity.timestamp);
-
-      switch (dateRange) {
-        case 'today':
-          if (activityDate.toDateString() !== now.toDateString()) return false;
-          break;
-        case 'yesterday':
-          const yesterday = new Date(now);
-          yesterday.setDate(yesterday.getDate() - 1);
-          if (activityDate.toDateString() !== yesterday.toDateString()) return false;
-          break;
-        case 'week':
-          const weekAgo = new Date(now);
-          weekAgo.setDate(weekAgo.getDate() - 7);
-          if (activityDate < weekAgo) return false;
-          break;
-        case 'month':
-          const monthAgo = new Date(now);
-          monthAgo.setMonth(monthAgo.getMonth() - 1);
-          if (activityDate < monthAgo) return false;
-          break;
-      }
-
-      // Filtro por busca
-      if (searchTerm) {
-        const search = searchTerm.toLowerCase();
-        return (
-          activity.title.toLowerCase().includes(search) ||
-          activity.description.toLowerCase().includes(search) ||
-          activity.user.name.toLowerCase().includes(search)
-        );
-      }
-
-      return true;
-    }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }, [activities, selectedTypes, dateRange, searchTerm]);
-
-  // Agrupar por data
-  const groupedActivities = useMemo(() => {
-    const groups: { [key: string]: Activity[] } = {};
-
-    filteredActivities.forEach(activity => {
-      const date = activity.timestamp.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      });
-
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(activity);
-    });
-
-    return groups;
-  }, [filteredActivities]);
-
-  const getActivityIcon = (type: ActivityType) => {
-    const iconClass = "w-5 h-5";
-
-    switch (type) {
-      case 'order':
-        return <ShoppingBag className={`${iconClass} text-[#21A896]`} />;
-      case 'product':
-        return <Package className={`${iconClass} text-[#F26541]`} />;
-      case 'customer':
-        return <Users className={`${iconClass} text-purple-500`} />;
-      case 'payment':
-        return <CreditCard className={`${iconClass} text-green-500`} />;
-      case 'loyalty':
-        return <Heart className={`${iconClass} text-pink-500`} />;
-      case 'inventory':
-        return <Package className={`${iconClass} text-blue-500`} />;
-      case 'message':
-        return <MessageCircle className={`${iconClass} text-indigo-500`} />;
-      case 'settings':
-        return <Clock className={`${iconClass} text-gray-500`} />;
-      case 'auth':
-        return <Users className={`${iconClass} text-orange-500`} />;
-      default:
-        return <Clock className={`${iconClass} text-gray-400`} />;
-    }
-  };
-
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'success':
-        return <span className="px-2 py-1 bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 rounded-full text-xs font-bold">Concluído</span>;
-      case 'pending':
-        return <span className="px-2 py-1 bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400 rounded-full text-xs font-bold">Pendente</span>;
-      case 'cancelled':
-        return <span className="px-2 py-1 bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 rounded-full text-xs font-bold">Cancelado</span>;
-      case 'warning':
-        return <span className="px-2 py-1 bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400 rounded-full text-xs font-bold">Atenção</span>;
-      default:
-        return null;
-    }
-  };
-
-  const toggleType = (type: ActivityType) => {
-    setSelectedTypes(prev =>
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    );
-  };
-
-  const handleRefresh = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setActivities(mockActivities);
-      setLastUpdated(new Date());
-      setLoading(false);
-    }, 500);
-  };
-
-  const clearFilters = () => {
-    setSelectedTypes([]);
-    setDateRange('today');
-    setSearchTerm('');
-  };
-
-  // Estatísticas
-  const stats = useMemo(() => {
-    return {
-      total: filteredActivities.length,
-      orders: filteredActivities.filter(a => a.type === 'order').length,
-      sales: filteredActivities
-        .filter(a => a.type === 'order' && a.amount)
-        .reduce((acc, curr) => acc + (curr.amount || 0), 0),
-      points: filteredActivities
-        .filter(a => a.type === 'loyalty')
-        .reduce((acc, curr) => acc + (curr.metadata?.points || 0), 0)
-    };
-  }, [filteredActivities]);
-
-  if (loading) {
+  if (isCancelled && event.entity_type === 'purchase_document') {
     return (
-      <div className="min-h-[50vh] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#21A896] mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300 font-candara">Carregando atividades...</p>
-        </div>
+      <div className="relative">
+        <ShoppingBag className="h-4 w-4" />
+        <X className="absolute -right-1 -top-1 h-2.5 w-2.5 stroke-[3] text-red-600 dark:text-red-400" />
       </div>
     );
   }
 
-  return (
-    <PageContainer
-      title="Central de Atividades"
-      subtitle="Acompanhe tudo o que acontece no seu negócio em tempo real"
-      lastUpdated={lastUpdated}
-      onRefresh={handleRefresh}
-      action={
-        <Link
-          to="/admin"
-          className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all font-candara"
-        >
-          <ArrowLeft size={18} />
-          <span className="hidden sm:inline">Voltar ao Dashboard</span>
-        </Link>
+  if (isCancelled) {
+    return <XCircle className="h-4 w-4" />;
+  }
+
+  switch (event.entity_type) {
+    case 'purchase_quotation':
+      return <FileText className="h-4 w-4" />;
+    case 'purchase_document':
+      return <ShoppingBag className="h-4 w-4" />;
+    case 'stock_transfer':
+      return <ArrowRightLeft className="h-4 w-4" />;
+    case 'stock_movement':
+      return <Package className="h-4 w-4" />;
+    case 'supplier':
+      return <Truck className="h-4 w-4" />;
+    default:
+      if (event.severity === 'warning') return <AlertTriangle className="h-4 w-4" />;
+      if (event.severity === 'danger' || event.severity === 'critical') return <XCircle className="h-4 w-4" />;
+      if (event.severity === 'success') return <CheckCircle2 className="h-4 w-4" />;
+      return <Info className="h-4 w-4" />;
+  }
+}
+
+function getEventToneClass(event: OperationalTimelineEvent) {
+  if (event.status === 'cancelled' || event.severity === 'danger' || event.severity === 'critical') {
+    return 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200';
+  }
+
+  if (event.severity === 'success') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200';
+  }
+
+  if (event.severity === 'warning') {
+    return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200';
+  }
+
+  return 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-200';
+}
+
+function getEntityTypeBadgeClass(type: string) {
+  switch (type) {
+    case 'purchase_quotation':
+      return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+    case 'purchase_document':
+      return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300';
+    case 'stock_transfer':
+      return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    case 'stock_movement':
+      return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300';
+    case 'supplier':
+      return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300';
+    case 'product':
+      return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300';
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+  }
+}
+
+function getStatusBadgeClass(status: string) {
+  switch (status) {
+    case 'done':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+    case 'open':
+      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    case 'cancelled':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+    case 'archived':
+      return 'bg-slate-100 text-slate-700 dark:bg-slate-900/30 dark:text-slate-300';
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+  }
+}
+
+function getSeverityBadgeClass(severity: string) {
+  switch (severity) {
+    case 'success':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+    case 'warning':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+    case 'danger':
+    case 'critical':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+    case 'info':
+      return 'bg-blue-50 text-blue-600 dark:bg-blue-950/30 dark:text-blue-400';
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300';
+  }
+}
+
+function getEventLink(event: OperationalTimelineEvent) {
+  if (event.related_stock_transfer_id) {
+    return `/admin/transfers/${event.related_stock_transfer_id}`;
+  }
+
+  if (event.related_purchase_document_id) {
+    return `/admin/stock/purchase-documents?open=${event.related_purchase_document_id}`;
+  }
+
+  if (event.related_purchase_quotation_id) {
+    return `/admin/stock/quotations?open=${event.related_purchase_quotation_id}`;
+  }
+
+  if (event.related_product_id) {
+    return `/admin/products/${event.related_product_id}/lifecycle`;
+  }
+
+  if (event.related_supplier_id) {
+    return `/admin/suppliers/${event.related_supplier_id}/lifecycle`;
+  }
+
+  if (event.entity_type === 'stock_movement') {
+    return '/admin/stock-movements';
+  }
+
+  return null;
+}
+
+function getPeriodStart(period: PeriodFilter, customFrom: string) {
+  if (period === 'all') return null;
+
+  if (period === 'custom') {
+    return customFrom ? new Date(`${customFrom}T00:00:00`) : null;
+  }
+
+  const now = new Date();
+
+  if (period === 'today') {
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  const days = period === '7d' ? 7 : 30;
+  return new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+}
+
+function getPeriodEnd(period: PeriodFilter, customTo: string) {
+  if (period !== 'custom' || !customTo) return null;
+  return new Date(`${customTo}T23:59:59`);
+}
+
+function getMetadataValue(event: OperationalTimelineEvent, key: string) {
+  const metadataValue = event.metadata?.[key];
+  const newDataValue = event.new_data?.[key];
+  const oldDataValue = event.old_data?.[key];
+
+  const value = metadataValue ?? newDataValue ?? oldDataValue;
+  return typeof value === 'string' || typeof value === 'number' ? String(value) : null;
+}
+
+function buildEventSubtitle(event: OperationalTimelineEvent) {
+  return [
+    event.reference_label ? `Ref.: ${event.reference_label}` : null,
+    event.supplier_name ? `Fornecedor: ${event.supplier_name}` : null,
+    event.product_name ? `Produto: ${event.product_name}` : null,
+    event.channel_label ? `Canal: ${event.channel_label}` : null,
+    event.responsible_name ? `Resp.: ${event.responsible_name}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+export default function Activity() {
+  const { storeId, loading: loadingStore } = useCurrentStore();
+
+  const [events, setEvents] = useState<OperationalTimelineEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState('');
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>('all');
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('7d');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [showFilters, setShowFilters] = useState(true);
+
+  const fetchEvents = useCallback(async () => {
+    if (!storeId) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      let query = supabase
+        .from('v_operational_timeline_events')
+        .select('*')
+        .eq('store_id', storeId)
+        .order('occurred_at', { ascending: false })
+        .limit(250);
+
+      if (entityFilter !== 'all') {
+        query = query.eq('entity_type', entityFilter);
       }
-    >
-      {/* Stats Rápidas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#21A896]/10 rounded-lg">
-              <ShoppingBag size={20} className="text-[#21A896]" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-candara">Atividades</p>
-              <p className="text-xl font-bold text-gray-800 dark:text-white font-candara-bold">
-                {stats.total}
-              </p>
-            </div>
-          </div>
+
+      if (severityFilter !== 'all') {
+        query = query.eq('severity', severityFilter);
+      }
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      const start = getPeriodStart(periodFilter, dateFrom);
+      const end = getPeriodEnd(periodFilter, dateTo);
+
+      if (start) {
+        query = query.gte('occurred_at', start.toISOString());
+      }
+
+      if (end) {
+        query = query.lte('occurred_at', end.toISOString());
+      }
+
+      const { data, error: queryError } = await query;
+      if (queryError) throw queryError;
+
+      setEvents((data ?? []) as OperationalTimelineEvent[]);
+    } catch (caughtError) {
+      console.error('Erro ao carregar atividades recentes:', caughtError);
+      setEvents([]);
+      setError('Não foi possível carregar as atividades recentes.');
+    } finally {
+      setLoading(false);
+    }
+  }, [dateFrom, dateTo, entityFilter, periodFilter, severityFilter, statusFilter, storeId]);
+
+  useEffect(() => {
+    void fetchEvents();
+  }, [fetchEvents]);
+
+  const filteredEvents = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    if (!normalizedSearch) return events;
+
+    return events.filter((event) => {
+      const haystack = [
+        event.entity_type_label,
+        event.event_type_label,
+        event.title,
+        event.description,
+        event.reference_label,
+        event.supplier_name,
+        event.product_name,
+        event.quotation_code,
+        event.purchase_invoice_number,
+        event.transfer_code,
+        event.status_label,
+        event.severity_label,
+        event.channel_label,
+        getMetadataValue(event, 'document_code'),
+        getMetadataValue(event, 'supplier_name'),
+        getMetadataValue(event, 'product_name'),
+        getMetadataValue(event, 'transfer_code'),
+        getMetadataValue(event, 'quotation_code'),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
+
+      return haystack.includes(normalizedSearch);
+    });
+  }, [events, search]);
+
+  const stats = useMemo(() => {
+    return {
+      total: filteredEvents.length,
+      purchases: filteredEvents.filter((event) => event.entity_type === 'purchase_document').length,
+      transfers: filteredEvents.filter((event) => event.entity_type === 'stock_transfer').length,
+      warnings: filteredEvents.filter((event) => ['warning', 'danger', 'critical'].includes(event.severity)).length,
+    };
+  }, [filteredEvents]);
+
+  const hasFilters =
+    search.trim().length > 0 ||
+    entityFilter !== 'all' ||
+    severityFilter !== 'all' ||
+    statusFilter !== 'all' ||
+    periodFilter !== '7d' ||
+    dateFrom !== '' ||
+    dateTo !== '';
+
+  const clearFilters = () => {
+    setSearch('');
+    setEntityFilter('all');
+    setSeverityFilter('all');
+    setStatusFilter('all');
+    setPeriodFilter('7d');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const handleExportCsv = () => {
+    downloadCsv({
+      filename: `atividades_operacionais_${getLocalDateInputValue()}.csv`,
+      headers: [
+        'Data/Hora',
+        'Entidade',
+        'Evento',
+        'Referência',
+        'Descrição',
+        'Fornecedor',
+        'Produto',
+        'Severidade',
+        'Status',
+        'Canal',
+        'Responsável',
+      ],
+      rows: filteredEvents.map((event) => [
+        formatDateTimePtBr(event.occurred_at, ''),
+        event.entity_type_label ?? event.entity_type,
+        event.event_type_label ?? event.title,
+        event.reference_label ?? '',
+        event.description ?? '',
+        event.supplier_name ?? '',
+        event.product_name ?? '',
+        event.severity_label ?? event.severity,
+        event.status_label ?? event.status,
+        event.channel_label ?? event.channel ?? '',
+        event.responsible_name ?? event.actor_email ?? '',
+      ]),
+    });
+  };
+
+  if (loadingStore) return <LoadingSpinner />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#21A896] dark:text-[#37d0bb]">
+            Linha do tempo operacional
+          </p>
+          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
+            Atividades recentes
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
+            Acompanhe cotações, compras, transferências, movimentações e eventos de fornecedores em uma visão única.
+          </p>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-[#F26541]/10 rounded-lg">
-              <TrendingUp size={20} className="text-[#F26541]" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-candara">Vendas</p>
-              <p className="text-xl font-bold text-gray-800 dark:text-white font-candara-bold">
-                {stats.orders}
-              </p>
-            </div>
-          </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFilters((value) => !value)}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <Filter size={15} />
+            {showFilters ? 'Ocultar filtros' : 'Mostrar filtros'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void fetchEvents()}
+            disabled={loading}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            disabled={filteredEvents.length === 0}
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#21A896] px-3 text-sm font-semibold text-white transition hover:bg-[#1b8f80] disabled:opacity-60"
+          >
+            <Download size={15} />
+            Exportar CSV
+          </button>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500/10 rounded-lg">
-              <DollarSign size={20} className="text-green-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-candara">Faturamento</p>
-              <p className="text-xl font-bold text-gray-800 dark:text-white font-candara-bold">
-                {stats.sales.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-              </p>
-            </div>
-          </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="text-sm text-gray-500">Eventos exibidos</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-pink-500/10 rounded-lg">
-              <Award size={20} className="text-pink-500" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 font-candara">Pontos</p>
-              <p className="text-xl font-bold text-gray-800 dark:text-white font-candara-bold">
-                {stats.points}
-              </p>
-            </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="text-sm text-gray-500">Compras</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{stats.purchases}</div>
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="text-sm text-gray-500">Transferências</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{stats.transfers}</div>
+        </div>
+        <div className={`rounded-2xl border p-4 shadow-sm ${stats.warnings > 0 ? 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30' : 'border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
+          <div className="text-sm text-gray-500">Alertas/Atenções</div>
+          <div className={`mt-1 text-2xl font-bold ${stats.warnings > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-900 dark:text-white'}`}>
+            {stats.warnings}
           </div>
         </div>
       </div>
 
-      {/* Barra de Pesquisa e Filtros */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm mb-6">
-        <div className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Busca */}
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+      {showFilters && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
+            <div className="relative xl:col-span-2">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
-                type="text"
-                placeholder="Buscar atividades, clientes, pedidos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por ref., fornecedor, produto..."
+                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
               />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
 
-            {/* Filtro de Data */}
-            <div className="flex gap-2">
-              <select
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value as any)}
-                className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
-              >
-                <option value="today">Hoje</option>
-                <option value="yesterday">Ontem</option>
-                <option value="week">Últimos 7 dias</option>
-                <option value="month">Últimos 30 dias</option>
-              </select>
+            <select
+              value={periodFilter}
+              onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            >
+              {PERIOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className={`px-4 py-3 rounded-xl border transition-colors flex items-center gap-2 font-candara ${showFilters || selectedTypes.length > 0
-                  ? 'bg-[#21A896] text-white border-[#21A896]'
-                  : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600'
-                  }`}
-              >
-                <Filter size={18} />
-                <span className="hidden sm:inline">Filtros</span>
-                {selectedTypes.length > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-white text-[#21A896] rounded-full text-xs font-bold">
-                    {selectedTypes.length}
-                  </span>
-                )}
-              </button>
+            <select
+              value={entityFilter}
+              onChange={(event) => setEntityFilter(event.target.value as EntityFilter)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            >
+              {ENTITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
 
-              <button
-                onClick={clearFilters}
-                className="px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors font-candara"
-                title="Limpar filtros"
-              >
-                <RefreshCw size={18} />
-              </button>
-            </div>
+            <select
+              value={severityFilter}
+              onChange={(event) => setSeverityFilter(event.target.value as SeverityFilter)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            >
+              {SEVERITY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            >
+              {STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
           </div>
 
-          {/* Filtros por Tipo */}
-          {showFilters && (
-            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 animate-slideDown">
-              <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 font-candara">
-                Filtrar por tipo de atividade:
+          {periodFilter === 'custom' && (
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                aria-label="Data inicial"
+              />
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                aria-label="Data final"
+              />
+            </div>
+          )}
+
+          {hasFilters && (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-sm text-red-600 transition hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+              >
+                <X size={14} />
+                Limpar filtros
+              </button>
+
+              <p className="text-xs text-gray-400">
+                {filteredEvents.length} de {events.length} evento(s) exibido(s)
               </p>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { type: 'order', label: 'Pedidos', icon: ShoppingBag, color: 'text-[#21A896]' },
-                  { type: 'product', label: 'Produtos', icon: Package, color: 'text-[#F26541]' },
-                  { type: 'inventory', label: 'Estoque', icon: Package, color: 'text-blue-500' },
-                  { type: 'customer', label: 'Clientes', icon: Users, color: 'text-purple-500' },
-                  { type: 'payment', label: 'Pagamentos', icon: CreditCard, color: 'text-green-500' },
-                  { type: 'loyalty', label: 'Fidelidade', icon: Heart, color: 'text-pink-500' },
-                  { type: 'message', label: 'Mensagens', icon: MessageCircle, color: 'text-indigo-500' },
-                  { type: 'settings', label: 'Configurações', icon: Clock, color: 'text-gray-500' },
-                  { type: 'auth', label: 'Acessos', icon: Users, color: 'text-orange-500' }
-                ].map(({ type, label, icon: Icon, color }) => (
-                  <button
-                    key={type}
-                    onClick={() => toggleType(type as ActivityType)}
-                    className={`
-                      flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all
-                      ${selectedTypes.includes(type as ActivityType)
-                        ? 'bg-[#21A896] text-white'
-                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }
-                    `}
-                  >
-                    <Icon size={16} className={selectedTypes.includes(type as ActivityType) ? 'text-white' : color} />
-                    {label}
-                  </button>
-                ))}
-              </div>
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Timeline de Atividades */}
-      <div className="space-y-8">
-        {Object.entries(groupedActivities).map(([date, activities]) => (
-          <div key={date}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="px-3 py-1.5 bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm">
-                <span className="text-sm font-bold text-gray-700 dark:text-gray-300 font-candara">
-                  {date === new Date().toLocaleDateString('pt-BR')
-                    ? 'Hoje'
-                    : date === new Date(Date.now() - 86400000).toLocaleDateString('pt-BR')
-                      ? 'Ontem'
-                      : date
-                  }
-                </span>
-              </div>
-              <div className="flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent dark:from-gray-700"></div>
-            </div>
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
+          {error}
+        </div>
+      )}
 
-            <div className="space-y-4">
-              {activities.map((activity) => (
-                <div
-                  key={activity.id}
-                  className="group bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 hover:shadow-md transition-all duration-300"
-                >
-                  <div className="flex items-start gap-4">
-                    {/* Ícone */}
-                    <div className="flex-shrink-0">
-                      <div className="w-12 h-12 rounded-xl bg-gray-50 dark:bg-gray-700 flex items-center justify-center border border-gray-100 dark:border-gray-600 group-hover:border-[#21A896]/30 transition-colors">
-                        {getActivityIcon(activity.type)}
-                      </div>
+      {loading ? (
+        <div className="flex min-h-[220px] items-center justify-center rounded-2xl border border-gray-100 bg-white dark:border-gray-700 dark:bg-gray-800">
+          <LoadingSpinner />
+        </div>
+      ) : filteredEvents.length === 0 ? (
+        <EmptyState
+          icon={<Info className="h-5 w-5" />}
+          title="Nenhuma atividade encontrada"
+          description="Ajuste os filtros ou aguarde novos eventos operacionais de cotações, compras e transferências."
+        />
+      ) : (
+        <div className="space-y-3">
+          {filteredEvents.map((event) => {
+            const link = getEventLink(event);
+            const subtitle = buildEventSubtitle(event);
+            const date = toAppDate(event.occurred_at);
+
+            const content = (
+              <article className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-[#21A896]/30 dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div className="flex min-w-0 gap-3">
+                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${getEventToneClass(event)}`}>
+                      {getEventIcon(event)}
                     </div>
 
-                    {/* Conteúdo */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-bold text-gray-800 dark:text-white font-candara-bold">
-                            {activity.title}
-                          </h4>
-                          {getStatusBadge(activity.status)}
-                        </div>
-                        <span className="text-xs text-gray-400 font-candara flex items-center whitespace-nowrap">
-                          <Clock size={12} className="mr-1" />
-                          {activity.timestamp.toLocaleTimeString('pt-BR', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </span>
-                      </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {event.event_type_label || event.title}
+                        </h2>
 
-                      <p className="text-sm text-gray-600 dark:text-gray-400 font-candara mb-2">
-                        {activity.description}
-                      </p>
-
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-500 dark:text-gray-500">
-                            {activity.user.name}
+                        {event.reference_label && (
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                            {event.reference_label}
                           </span>
-                          {activity.user.role && (
-                            <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
-                              {activity.user.role}
-                            </span>
-                          )}
-                          {activity.amount && (
-                            <span className="text-xs font-bold text-[#21A896] bg-[#21A896]/10 px-2 py-0.5 rounded-full">
-                              {activity.amount.toLocaleString('pt-BR', {
-                                style: 'currency',
-                                currency: 'BRL'
-                              })}
-                            </span>
-                          )}
-                          {activity.metadata?.points && (
-                            <span className="text-xs font-bold text-pink-500 bg-pink-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                              <Star size={10} />
-                              {activity.metadata.points} pts
-                            </span>
-                          )}
-                        </div>
-
-                        {activity.link && (
-                          <Link
-                            to={activity.link}
-                            className="text-xs font-bold text-[#21A896] hover:text-[#1a867a] transition-colors opacity-0 group-hover:opacity-100"
-                          >
-                            Ver detalhes →
-                          </Link>
                         )}
                       </div>
+
+                      {event.description && (
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                          {event.description}
+                        </p>
+                      )}
+
+                      {subtitle && (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          {subtitle}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 text-left text-xs text-gray-500 dark:text-gray-400 md:text-right">
+                    <div className="font-medium text-gray-700 dark:text-gray-200">
+                      {formatDateTimePtBr(date)}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1 md:justify-end">
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${getEntityTypeBadgeClass(event.entity_type)}`}>
+                        {event.entity_type_label || event.entity_type}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${getStatusBadgeClass(event.status)}`}>
+                        {event.status_label || event.status}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 font-medium ${getSeverityBadgeClass(event.severity)}`}>
+                        {event.severity_label || event.severity}
+                      </span>
                     </div>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        ))}
+              </article>
+            );
 
-        {filteredActivities.length === 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-12 text-center">
-            <div className="flex flex-col items-center">
-              <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4">
-                <Clock size={40} className="text-gray-400" />
-              </div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white font-candara-bold mb-2">
-                Nenhuma atividade encontrada
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-candara mb-6 max-w-md">
-                Tente ajustar seus filtros ou buscar por outros termos.
-              </p>
-              <button
-                onClick={clearFilters}
-                className="px-6 py-3 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-xl font-bold transition-colors font-candara"
-              >
-                Limpar todos os filtros
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Rodapé com ações */}
-      {filteredActivities.length > 0 && (
-        <div className="mt-8 flex justify-end">
-          <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors font-candara">
-            <Download size={18} />
-            Exportar relatório
-          </button>
+            return link ? (
+              <Link key={event.id} to={link} className="block">
+                {content}
+              </Link>
+            ) : (
+              <div key={event.id}>{content}</div>
+            );
+          })}
         </div>
       )}
-    </PageContainer>
+    </div>
   );
 }
