@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  /* CheckCircle2, */
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Copy,
+  ExternalLink,
   Eye,
   FileText,
   Mail,
@@ -609,6 +610,33 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
     }
   }
 
+  async function handleConvertToDraftFromList(quotationId: string) {
+    const confirmed = window.confirm(
+      'Deseja converter esta cotação aprovada em rascunho de compra agora?',
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const result = await stockService.convertPurchaseQuotationToDraft({
+        quotationId,
+        notes: 'Rascunho criado a partir da lista de cotações recentes.',
+      });
+
+      toast.success('Rascunho de compra criado a partir da cotação.');
+      await loadQuotations();
+      navigate(`/admin/stock/purchase-documents?open=${result.purchase_document_id}`);
+    } catch (error) {
+      console.error('Erro ao converter cotação em rascunho:', error);
+      toast.error(
+        error instanceof Error ? error.message : 'Não foi possível converter a cotação em rascunho.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section className="rounded-2xl border bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -678,15 +706,43 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                       <td className="px-4 py-3 text-right">{formatCurrency(quotation.total_reference)}</td>
                       <td className="px-4 py-3">{quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}</td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          disabled={openingDetail}
-                          onClick={() => void handleOpenDetail(quotation.id)}
-                          className="inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-white"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          Abrir
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            disabled={openingDetail}
+                            onClick={() => void handleOpenDetail(quotation.id)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 hover:bg-white"
+                            title="Abrir cotação"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </button>
+
+                          {quotation.status === 'approved' && (
+                            <button
+                              type="button"
+                              onClick={() => void handleConvertToDraftFromList(quotation.id)}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                              title="Converter em rascunho de compra"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                          )}
+
+                          {quotation.status === 'converted' && quotation.converted_purchase_document_id && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                navigate(
+                                  `/admin/stock/purchase-documents?open=${quotation.converted_purchase_document_id}`,
+                                )
+                              }
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50"
+                              title="Abrir compra"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}

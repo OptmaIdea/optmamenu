@@ -44,11 +44,38 @@ function asText(value: unknown, fallback = '—'): string {
   return text.length > 0 ? text : fallback;
 }
 
+function getMetadataText(
+  metadata: AnyRecord | null | undefined,
+  key: string,
+): string | null {
+  const value = metadata?.[key];
+
+  if (typeof value !== 'string') return null;
+
+  const text = value.trim();
+
+  return text.length > 0 ? text : null;
+}
+
+export function isPurchaseDocumentCancelMovement(movement: ProductMovementNarrativeInput) {
+  const source = String(movement.source ?? '').toLowerCase();
+  const reasonCode = String(movement.reason_code ?? '').toLowerCase();
+  const metadataOrigin = String(movement.metadata?.origin ?? '').toLowerCase();
+
+  return (
+    source === 'purchase_document_cancel' ||
+    reasonCode === 'purchase_document_cancelled' ||
+    metadataOrigin === 'purchase_document_cancel'
+  );
+}
+
 export function shortReference(value?: string | null, fallback = '—') {
   const text = String(value ?? '').trim();
 
   if (!text) return fallback;
-  if (text.startsWith('TRF-')) return text;
+  if (text.startsWith('TRF-') || text.startsWith('ENT-') || text.startsWith('COT-')) {
+    return text;
+  }
   if (text.length > 8) return text.slice(0, 8);
 
   return text;
@@ -56,6 +83,16 @@ export function shortReference(value?: string | null, fallback = '—') {
 
 export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) {
   const source = String(movement.source ?? '').toLowerCase();
+
+  if (isPurchaseDocumentCancelMovement(movement)) {
+    return asText(
+      movement.from_location_name ??
+      movement.location_name ??
+      getMetadataText(movement.metadata, 'from_location_name') ??
+      getMetadataText(movement.metadata, 'location_name'),
+      'Local não identificado',
+    );
+  }
 
   if (source === 'purchase_document') {
     return asText(movement.supplier_name, 'Fornecedor não informado');
@@ -71,6 +108,13 @@ export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) 
 export function getMovementDestinationLabel(movement: ProductMovementNarrativeInput) {
   const source = String(movement.source ?? '').toLowerCase();
 
+  if (isPurchaseDocumentCancelMovement(movement)) {
+    return asText(
+      getMetadataText(movement.metadata, 'destination_label'),
+      'Cancelamento da compra',
+    );
+  }
+
   if (source === 'purchase_document') {
     return asText(movement.location_name ?? movement.to_location_name, 'Local de entrada não identificado');
   }
@@ -85,6 +129,10 @@ export function getMovementDestinationLabel(movement: ProductMovementNarrativeIn
 export function getMovementOperationLabel(movement: ProductMovementNarrativeInput) {
   const type = String(movement.type ?? '').toLowerCase();
   const source = String(movement.source ?? '').toLowerCase();
+
+  if (isPurchaseDocumentCancelMovement(movement)) {
+    return 'Compra cancelada';
+  }
 
   if (source === 'physical_count_adjustment') {
     return 'Ajuste por contagem física';
@@ -144,6 +192,8 @@ export function getMovementOperationLabel(movement: ProductMovementNarrativeInpu
 export function getMovementDirectionLabel(movement: ProductMovementNarrativeInput) {
   const type = String(movement.type ?? '').toLowerCase();
 
+  if (isPurchaseDocumentCancelMovement(movement)) return 'Cancelamento';
+
   if (type === 'entry') return 'Entrada';
   if (type === 'exit') return 'Saída';
   if (type === 'clearance') return 'Baixa';
@@ -156,6 +206,15 @@ export function getMovementDirectionLabel(movement: ProductMovementNarrativeInpu
 
 export function getMovementReferenceLabel(movement: ProductMovementNarrativeInput) {
   const source = String(movement.source ?? '').toLowerCase();
+
+  if (isPurchaseDocumentCancelMovement(movement)) {
+    return (
+      getMetadataText(movement.metadata, 'document_code') ??
+      getMetadataText(movement.metadata, 'reference') ??
+      movement.purchase_document_number ??
+      shortReference(movement.source_id, 'Compra')
+    );
+  }
 
   if (source === 'physical_count_adjustment') {
     return 'Contagem física';
@@ -174,7 +233,16 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
   }
 
   if (source === 'purchase_document') {
+    const metadata = movement.metadata ?? {};
+    const documentCode =
+      typeof metadata.document_code === 'string' ? metadata.document_code : null;
+    const invoiceNumber =
+      typeof metadata.invoice_number === 'string' ? metadata.invoice_number : null;
+
+    if (documentCode) return documentCode;
     if (movement.purchase_document_number) return movement.purchase_document_number;
+    if (invoiceNumber) return invoiceNumber;
+
     return shortReference(
       movement.source_id,
       'Documento de compra',
@@ -192,6 +260,19 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
   const location = asText(movement.location_name, 'Local não identificado');
   const fromLocation = asText(movement.from_location_name, 'origem não identificada');
   const toLocation = asText(movement.to_location_name, 'destino não identificado');
+
+  if (isPurchaseDocumentCancelMovement(movement)) {
+    const origin = asText(
+      movement.from_location_name ??
+      movement.location_name ??
+      getMetadataText(movement.metadata, 'from_location_name') ??
+      getMetadataText(movement.metadata, 'location_name'),
+      'Local não identificado',
+    );
+    const reference = getMovementReferenceLabel(movement);
+
+    return `${origin} teve saída de ${qty} un. por cancelamento da compra ${reference}.`;
+  }
 
   if (source === 'physical_count_adjustment') {
     const signedQty = asNumber(movement.quantity);
@@ -258,6 +339,7 @@ export function getMovementTone(movement: ProductMovementNarrativeInput) {
   const type = String(movement.type ?? '').toLowerCase();
   const source = String(movement.source ?? '').toLowerCase();
 
+  if (isPurchaseDocumentCancelMovement(movement)) return 'purchase_cancel';
   if (source === 'physical_count_adjustment') return 'neutral';
   if (source === 'manual_adjustment' && type === 'clearance') return 'danger';
   if (source === 'manual_adjustment') return 'neutral';
@@ -274,6 +356,8 @@ export function getMovementToneClass(movement: ProductMovementNarrativeInput) {
   const tone = getMovementTone(movement);
 
   switch (tone) {
+    case 'purchase_cancel':
+      return 'border-purple-300 bg-purple-50 text-purple-950 dark:border-purple-700 dark:bg-purple-950/30 dark:text-purple-100';
     case 'danger':
       return 'border-red-200 bg-red-50 text-red-800';
     case 'transfer':

@@ -348,8 +348,8 @@ export default function ProductLifecyclePage() {
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
                   className={`rounded-xl px-4 py-2 text-sm font-medium transition ${active
-                      ? 'bg-[#21A896] text-white'
-                      : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                    ? 'bg-[#21A896] text-white'
+                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                     }`}
                 >
                   {tab.label}
@@ -400,7 +400,7 @@ export default function ProductLifecyclePage() {
               <div className="text-gray-500">Última entrada</div>
               <div className="font-semibold">
                 {row.last_entry_at ? (
-                  new Date(row.last_entry_at).toLocaleString('pt-BR')
+                  formatDateTimePtBr(row.last_entry_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
                     — <span className="text-xs font-normal">Ainda sem histórico</span>
@@ -412,7 +412,7 @@ export default function ProductLifecyclePage() {
               <div className="text-gray-500">Última saída</div>
               <div className="font-semibold">
                 {row.last_exit_at ? (
-                  new Date(row.last_exit_at).toLocaleString('pt-BR')
+                  formatDateTimePtBr(row.last_exit_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
                     — <span className="text-xs font-normal">Ainda sem histórico</span>
@@ -424,7 +424,7 @@ export default function ProductLifecyclePage() {
               <div className="text-gray-500">Última movimentação</div>
               <div className="font-semibold">
                 {row.last_movement_at ? (
-                  new Date(row.last_movement_at).toLocaleString('pt-BR')
+                  formatDateTimePtBr(row.last_movement_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
                     — <span className="text-xs font-normal">Ainda sem histórico</span>
@@ -436,7 +436,7 @@ export default function ProductLifecyclePage() {
               <div className="text-gray-500">Última transferência</div>
               <div className="font-semibold">
                 {row.last_transfer_at ? (
-                  new Date(row.last_transfer_at).toLocaleString('pt-BR')
+                  formatDateTimePtBr(row.last_transfer_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
                     — <span className="text-xs font-normal">Ainda sem histórico</span>
@@ -599,6 +599,9 @@ export default function ProductLifecyclePage() {
                   <div className="text-left text-xs md:text-right">
                     <div className="font-semibold">
                       Saldo no local: {getMovementStockPath(movement)}
+                    </div>
+                    <div className="mt-1 opacity-80">
+                      Ocorrência: {formatDateTimePtBr(movement.created_at)}
                     </div>
                     <div className="mt-1 opacity-80">
                       Ref.: {getMovementReferenceLabel(movement)}

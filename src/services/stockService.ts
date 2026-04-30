@@ -224,6 +224,8 @@ const normalizeRows = <T>(data: unknown): T[] => {
 
 type PurchaseDocumentMovementInfo = {
   purchase_document_number: string | null;
+  document_code: string | null;
+  invoice_number: string | null;
   supplier_id: string | null;
   supplier_name: string | null;
 };
@@ -248,6 +250,8 @@ const getPurchaseDocumentMovementMap = async (sourceIds: Array<string | null | u
     .from('purchase_documents')
     .select(`
       id,
+      document_code,
+      invoice_number,
       supplier_id,
       supplier:suppliers (
         id,
@@ -265,7 +269,9 @@ const getPurchaseDocumentMovementMap = async (sourceIds: Array<string | null | u
       return [
         doc.id,
         {
-          purchase_document_number: null,
+          purchase_document_number: doc.document_code ?? doc.invoice_number ?? null,
+          document_code: doc.document_code ?? null,
+          invoice_number: doc.invoice_number ?? null,
           supplier_id: doc.supplier_id ?? supplier?.id ?? null,
           supplier_name: supplier?.name ?? null,
         },
@@ -327,6 +333,17 @@ const enrichProductStockMovementsWithPurchaseDocuments = async (
         movement.purchase_document_number ??
         purchaseInfo?.purchase_document_number ??
         null,
+      metadata: {
+        ...(movement.metadata ?? {}),
+        document_code:
+          (movement.metadata ?? {}).document_code ??
+          purchaseInfo?.document_code ??
+          null,
+        invoice_number:
+          (movement.metadata ?? {}).invoice_number ??
+          purchaseInfo?.invoice_number ??
+          null,
+      },
       transfer_code: movement.transfer_code ?? transferInfo?.transfer_code ?? null,
     };
   });

@@ -22,7 +22,10 @@ export type ProductSupplierSummaryRow = {
     max_unit_cost: number;
     last_unit_cost: number | null;
     last_purchase_date: string | null;
+    last_effective_at: string | null;
     last_purchase_document_id: string | null;
+    last_document_code: string | null;
+    last_invoice_number: string | null;
 
     days_since_last_purchase: number | null;
 };
@@ -39,6 +42,7 @@ export type ProductPurchaseCostHistoryRow = {
 
     purchase_document_id: string | null;
     purchase_document_item_id: string | null;
+    document_code: string | null;
     invoice_number: string | null;
 
     unit_cost: number;

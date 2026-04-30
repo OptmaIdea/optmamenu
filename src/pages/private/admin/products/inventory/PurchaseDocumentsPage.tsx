@@ -35,6 +35,8 @@ import { isSupplierPurchaseEligible } from './utils/supplierStatusUtils';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
 import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
 import { PurchaseSuggestionsPanel } from '@/pages/private/admin/products/inventory/components/PurchaseSuggestionsPanel';
+import OperationalTimeline from './components/OperationalTimeline';
+import { useOperationalTimeline } from './hooks/useOperationalTimeline';
 
 type PurchaseDocumentStatus = 'draft' | 'confirmed' | 'canceled' | 'cancelled';
 
@@ -183,6 +185,18 @@ export default function PurchaseDocumentsPage() {
   const [cancelMasterPassword, setCancelMasterPassword] = useState('');
   const [showCancelPassword, setShowCancelPassword] = useState(false);
   const [autoOpenedDocId, setAutoOpenedDocId] = useState<string | null>(null);
+
+  const {
+    events: purchaseDocumentTimelineEvents,
+    loading: loadingPurchaseDocumentTimeline,
+    refetch: refetchPurchaseDocumentTimeline,
+  } = useOperationalTimeline({
+    enabled: Boolean(draftOpen && editingDocId),
+    storeId,
+    entityType: 'purchase_document',
+    relatedPurchaseDocumentId: editingDocId,
+    limit: 30,
+  });
 
   const [filters, setFilters] = useState({
     dateFrom: '',
@@ -634,6 +648,7 @@ export default function PurchaseDocumentsPage() {
       setDraftOpen(false);
       resetDraft();
       await fetchAll();
+      await refetchPurchaseDocumentTimeline();
     } catch (e: unknown) {
       console.error('Error saving purchase document:', e);
       const message = getErrorMessage(e, 'Erro ao salvar documento');
@@ -653,6 +668,7 @@ export default function PurchaseDocumentsPage() {
     draftItems,
     fetchAll,
     resetDraft,
+    refetchPurchaseDocumentTimeline,
   ]);
 
   const confirmDocument = useCallback(
@@ -690,6 +706,7 @@ export default function PurchaseDocumentsPage() {
         setDraftOpen(false);
         resetDraft();
         await fetchAll();
+        await refetchPurchaseDocumentTimeline();
       } catch (e: unknown) {
         console.error('Error confirming purchase document:', e);
         const message = getErrorMessage(e, 'Erro ao confirmar documento');
@@ -698,7 +715,7 @@ export default function PurchaseDocumentsPage() {
         setSaving(false);
       }
     },
-    [fetchAll, resetDraft],
+    [fetchAll, resetDraft, refetchPurchaseDocumentTimeline],
   );
 
   const cancelConfirmedDocument = useCallback(async () => {
@@ -738,6 +755,7 @@ export default function PurchaseDocumentsPage() {
       setDraftOpen(false);
       resetDraft();
       await fetchAll();
+      await refetchPurchaseDocumentTimeline();
     } catch (e: unknown) {
       console.error('Error cancelling purchase document:', e);
       const message = getErrorMessage(e, 'Erro ao cancelar documento');
@@ -745,7 +763,7 @@ export default function PurchaseDocumentsPage() {
     } finally {
       setSaving(false);
     }
-  }, [cancelMasterPassword, cancelReason, cancelTarget, fetchAll, resetDraft]);
+  }, [cancelMasterPassword, cancelReason, cancelTarget, fetchAll, resetDraft, refetchPurchaseDocumentTimeline]);
 
   const deleteDraft = useCallback(
     async (docId: string) => {
@@ -771,6 +789,7 @@ export default function PurchaseDocumentsPage() {
         }
 
         await fetchAll();
+        await refetchPurchaseDocumentTimeline();
       } catch (e: unknown) {
         console.error('Error deleting document:', e);
         const message = getErrorMessage(e, 'Erro ao remover documento');
@@ -779,7 +798,7 @@ export default function PurchaseDocumentsPage() {
         setSaving(false);
       }
     },
-    [editingDocId, fetchAll, resetDraft],
+    [editingDocId, fetchAll, resetDraft, refetchPurchaseDocumentTimeline],
   );
 
   return (
@@ -1030,7 +1049,7 @@ export default function PurchaseDocumentsPage() {
 
           {draftOpen ? (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-              <div className="w-full max-w-4xl rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
+              <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                     {editingReadOnly
@@ -1115,6 +1134,20 @@ export default function PurchaseDocumentsPage() {
                     />
                   </div>
                 </div>
+
+                {editingDocId ? (
+                  <OperationalTimeline
+                    compact
+                    className="mt-4"
+                    title="Andamento da compra"
+                    description="Histórico operacional desta compra, incluindo criação, confirmação, aplicação ao estoque, cancelamento e exclusão de rascunho."
+                    emptyTitle="Nenhum andamento registrado"
+                    emptyDescription="Os eventos desta compra aparecerão aqui conforme o fluxo for executado."
+                    events={purchaseDocumentTimelineEvents}
+                    loading={loadingPurchaseDocumentTimeline}
+                    onRefresh={() => void refetchPurchaseDocumentTimeline()}
+                  />
+                ) : null}
 
                 <div className="mt-4">
                   <div className="mb-2 flex items-center justify-between">

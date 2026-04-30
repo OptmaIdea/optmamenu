@@ -14,6 +14,7 @@ import {
     formatCurrencyPtBr,
     formatNumberPtBr,
 } from '@/utils/export/formatters';
+import { formatDateTimePtBr } from '@/utils/dateTime';
 
 import type {
     ProductPurchaseCostHistoryRow,
@@ -71,6 +72,16 @@ export function ProductSupplierCostPanel({
 
     const mainSupplier = suppliers[0] ?? null;
     const lastCost = costHistory[0] ?? null;
+
+    const formatDateOnlyPtBr = (value?: string | null) => {
+        if (!value) return '—';
+
+        const [year, month, day] = value.split('-');
+
+        if (!year || !month || !day) return value;
+
+        return `${day}/${month}/${year}`;
+    };
 
     return (
         <section className="space-y-4">
@@ -143,7 +154,7 @@ export function ProductSupplierCostPanel({
                                 <th className="py-2 pr-3">Custo médio</th>
                                 <th className="py-2 pr-3">Menor/Maior</th>
                                 <th className="py-2 pr-3">Último custo</th>
-                                <th className="py-2 pr-3">Última compra</th>
+                                <th className="py-2 pr-3">Última entrada</th>
                             </tr>
                         </thead>
 
@@ -194,9 +205,27 @@ export function ProductSupplierCostPanel({
                                     </td>
                                     <td className="py-2 pr-3">{formatCurrencyPtBr(supplier.last_unit_cost ?? 0)}</td>
                                     <td className="py-2 pr-3">
-                                        {supplier.last_purchase_date
-                                            ? new Date(supplier.last_purchase_date).toLocaleDateString('pt-BR')
-                                            : '—'}
+                                        {supplier.last_effective_at ? (
+                                            <div>
+                                                <div className="font-medium">
+                                                    {formatDateTimePtBr(supplier.last_effective_at)}
+                                                </div>
+
+                                                {supplier.last_purchase_date && (
+                                                    <div className="text-xs text-gray-500">
+                                                        Doc.: {formatDateOnlyPtBr(supplier.last_purchase_date)}
+                                                    </div>
+                                                )}
+
+                                                {(supplier.last_document_code || supplier.last_invoice_number) && (
+                                                    <div className="text-xs text-gray-500">
+                                                        Ref.: {supplier.last_document_code || supplier.last_invoice_number}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            '—'
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -217,7 +246,7 @@ export function ProductSupplierCostPanel({
                     <table className="min-w-[900px] w-full text-sm">
                         <thead>
                             <tr className="text-left text-xs uppercase tracking-wide text-gray-500">
-                                <th className="py-2 pr-3">Data</th>
+                                <th className="py-2 pr-3">Data operacional</th>
                                 <th className="py-2 pr-3">Fornecedor</th>
                                 <th className="py-2 pr-3">Documento</th>
                                 <th className="py-2 pr-3">Custo unitário</th>
@@ -239,9 +268,15 @@ export function ProductSupplierCostPanel({
                                         className="border-t border-gray-100 dark:border-gray-700"
                                     >
                                         <td className="py-2 pr-3">
-                                            {row.issue_date
-                                                ? new Date(row.issue_date).toLocaleDateString('pt-BR')
-                                                : new Date(row.effective_at).toLocaleDateString('pt-BR')}
+                                            <div className="font-medium">
+                                                {formatDateTimePtBr(row.effective_at)}
+                                            </div>
+
+                                            {row.issue_date && (
+                                                <div className="text-xs text-gray-500">
+                                                    Doc.: {formatDateOnlyPtBr(row.issue_date)}
+                                                </div>
+                                            )}
                                         </td>
 
                                         <td className="py-2 pr-3">
@@ -253,7 +288,23 @@ export function ProductSupplierCostPanel({
                                             </Link>
                                         </td>
 
-                                        <td className="py-2 pr-3">{row.invoice_number || '—'}</td>
+                                        <td className="py-2 pr-3">
+                                            {row.document_code || row.invoice_number ? (
+                                                <div>
+                                                    <div className="font-medium">
+                                                        {row.document_code || row.invoice_number}
+                                                    </div>
+
+                                                    {row.document_code && row.invoice_number && (
+                                                        <div className="text-xs text-gray-500">
+                                                            Nota: {row.invoice_number}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                '—'
+                                            )}
+                                        </td>
 
                                         <td className="py-2 pr-3 font-semibold">
                                             {formatCurrencyPtBr(row.unit_cost ?? 0)}
@@ -265,10 +316,10 @@ export function ProductSupplierCostPanel({
                                             ) : (
                                                 <span
                                                     className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${isUp
-                                                            ? 'bg-red-100 text-red-700'
-                                                            : isDown
-                                                                ? 'bg-emerald-100 text-emerald-700'
-                                                                : 'bg-gray-100 text-gray-700'
+                                                        ? 'bg-red-100 text-red-700'
+                                                        : isDown
+                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                            : 'bg-gray-100 text-gray-700'
                                                         }`}
                                                 >
                                                     {isUp && <ArrowUp size={12} />}
