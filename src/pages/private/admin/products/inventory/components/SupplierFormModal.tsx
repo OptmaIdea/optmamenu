@@ -9,6 +9,7 @@ import {
     UserRound,
     X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import type { SupplierFormValues } from '../types/supplierForm.types';
 import {
@@ -119,13 +120,26 @@ export function SupplierFormModal({
     };
 
     const handleSubmit = async () => {
-        if (!values.name.trim()) return;
+        if (!values.name.trim()) {
+            toast.warning('Informe o nome do fornecedor.');
+            setActiveSection('basic');
+            return;
+        }
+
+        if (values.blocked && !values.blocked_reason.trim()) {
+            toast.warning('Informe o motivo do bloqueio do fornecedor.');
+            setActiveSection('status');
+            return;
+        }
 
         setSaving(true);
 
         try {
             await onSubmit(supplierFormValuesToPayload(values));
             onClose();
+        } catch (error) {
+            console.error('Erro ao salvar fornecedor:', error);
+            toast.error('Não foi possível salvar o fornecedor.');
         } finally {
             setSaving(false);
         }

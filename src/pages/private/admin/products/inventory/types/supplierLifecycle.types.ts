@@ -42,6 +42,7 @@ export type SupplierPurchaseHistoryRow = {
   purchase_document_id: string;
   store_id: string;
   supplier_id: string;
+  document_code: string | null;
   invoice_number: string | null;
   issue_date: string | null;
   status: string;
@@ -89,6 +90,37 @@ export type SupplierPriceEvolutionRow = {
   issue_date: string | null;
   effective_at: string;
   source: string | null;
+
+  // Campos enriquecidos para leitura gerencial
+  document_code: string | null;
+  invoice_number: string | null;
+  is_active: boolean;
+  cancelled_at: string | null;
+  cancelled_reason: string | null;
+};
+
+export type SupplierQuotationHistoryRow = {
+  quotation_id: string;
+  store_id: string;
+  supplier_id: string;
+  quotation_code: string;
+  status: string;
+  requested_at: string;
+  responded_at: string | null;
+  expires_at: string | null;
+  sent_channel: string | null;
+  responsible_name: string | null;
+  notes: string | null;
+  converted_purchase_document_id: string | null;
+  converted_document_code: string | null;
+  converted_invoice_number: string | null;
+  items_count: number;
+  products_count: number;
+  requested_qty: number;
+  approved_qty: number;
+  reference_total: number;
+  quoted_total: number;
+  approved_total: number;
 };
 
 export type SupplierRelationshipTimelineRow = {
@@ -134,6 +166,7 @@ export type SupplierLifecycleData = {
   purchases: SupplierPurchaseHistoryRow[];
   products: SupplierSuppliedProductRow[];
   prices: SupplierPriceEvolutionRow[];
+  quotations: SupplierQuotationHistoryRow[];
   timeline: SupplierRelationshipTimelineRow[];
   contacts: SupplierContactRow[];
 };

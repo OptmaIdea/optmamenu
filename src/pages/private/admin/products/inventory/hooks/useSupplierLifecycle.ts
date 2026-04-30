@@ -5,6 +5,7 @@ import type {
   SupplierContactRow,
   SupplierLifecycleData,
   SupplierPriceEvolutionRow,
+  SupplierQuotationHistoryRow,
   SupplierPurchaseHistoryRow,
   SupplierRelationshipTimelineRow,
   SupplierSuppliedProductRow,
@@ -23,6 +24,7 @@ export function useSupplierLifecycle(
   const [purchases, setPurchases] = useState<SupplierPurchaseHistoryRow[]>([]);
   const [products, setProducts] = useState<SupplierSuppliedProductRow[]>([]);
   const [prices, setPrices] = useState<SupplierPriceEvolutionRow[]>([]);
+  const [quotations, setQuotations] = useState<SupplierQuotationHistoryRow[]>([]);
   const [timeline, setTimeline] = useState<SupplierRelationshipTimelineRow[]>([]);
   const [contacts, setContacts] = useState<SupplierContactRow[]>([]);
 
@@ -35,6 +37,7 @@ export function useSupplierLifecycle(
       setPurchases([]);
       setProducts([]);
       setPrices([]);
+      setQuotations([]);
       setTimeline([]);
       setContacts([]);
       return;
@@ -49,6 +52,7 @@ export function useSupplierLifecycle(
         purchasesResult,
         productsResult,
         pricesResult,
+        quotationsResult,
         timelineResult,
         contactsResult,
       ] = await Promise.all([
@@ -68,6 +72,10 @@ export function useSupplierLifecycle(
           p_product_id: null,
           p_limit: 300,
         }),
+        supabase.rpc('get_supplier_quotation_history', {
+          p_supplier_id: supplierId,
+          p_limit: 100,
+        }),
         supabase.rpc('get_supplier_relationship_timeline', {
           p_supplier_id: supplierId,
           p_limit: 100,
@@ -82,6 +90,7 @@ export function useSupplierLifecycle(
         purchasesResult.error ||
         productsResult.error ||
         pricesResult.error ||
+        quotationsResult.error ||
         timelineResult.error ||
         contactsResult.error;
 
@@ -93,6 +102,7 @@ export function useSupplierLifecycle(
       setPurchases((purchasesResult.data ?? []) as SupplierPurchaseHistoryRow[]);
       setProducts((productsResult.data ?? []) as SupplierSuppliedProductRow[]);
       setPrices((pricesResult.data ?? []) as SupplierPriceEvolutionRow[]);
+      setQuotations((quotationsResult.data ?? []) as SupplierQuotationHistoryRow[]);
       setTimeline((timelineResult.data ?? []) as SupplierRelationshipTimelineRow[]);
       setContacts((contactsResult.data ?? []) as SupplierContactRow[]);
     } catch (err: any) {
@@ -112,6 +122,7 @@ export function useSupplierLifecycle(
     purchases,
     products,
     prices,
+    quotations,
     timeline,
     contacts,
     loading,

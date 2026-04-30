@@ -22,6 +22,7 @@ export default function SupplierLifecyclePage() {
     purchases,
     products,
     prices,
+    quotations,
     timeline,
     contacts,
     loading,
@@ -687,6 +688,7 @@ export default function SupplierLifecyclePage() {
         purchases={purchases}
         products={products}
         prices={prices}
+        quotations={quotations}
         timeline={timeline}
         contacts={contacts}
       />

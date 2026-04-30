@@ -200,7 +200,10 @@ export function exportSupplierLifecycleCsv({
     purchases.forEach((purchase) => {
         rows.push({
             Seção: 'Compras',
-            Campo: purchase.invoice_number || purchase.purchase_document_id,
+            Campo:
+                purchase.document_code ||
+                purchase.invoice_number ||
+                purchase.purchase_document_id,
             Valor: [
                 `Emissão: ${purchase.issue_date ? formatDateOnlyPtBr(purchase.issue_date) : ''
                 }`,

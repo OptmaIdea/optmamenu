@@ -214,9 +214,10 @@ export function supplierFormValuesToPayload(values: SupplierFormValues) {
         preferred_supplier: values.preferred_supplier,
         blocked: values.blocked,
         blocked_reason: values.blocked ? nullIfBlank(values.blocked_reason) : null,
-        blocked_at: values.blocked ? new Date().toISOString() : null,
-        relationship_notes: nullIfBlank(values.relationship_notes),
-        tags: values.tags_text
+        ...(values.blocked
+            ? {}
+            : { blocked_at: null }),
+        relationship_notes: nullIfBlank(values.relationship_notes), tags: values.tags_text
             .split(',')
             .map((tag) => tag.trim())
             .filter(Boolean),
