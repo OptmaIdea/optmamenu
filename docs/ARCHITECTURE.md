@@ -39,6 +39,21 @@ Origem -> Solicitação -> Envio -> Recebimento -> Divergência eventual
 ### Vida do produto
 Resumo -> Estoque por local -> Movimentações -> Auditoria/relacionamentos
 
+### Vida do fornecedor
+Resumo -> Compras -> Cotações -> Produtos -> Preços -> Contatos -> Relacionamento -> Linha do tempo unificada
+
+## Timeline Operacional (Cross-cutting)
+### Conceito
+Sistema central de rastreabilidade que consolida eventos automáticos do sistema e registros manuais de relacionamento.
+
+### Entidades suportadas
+- Fornecedores
+- Produtos
+- Documentos de compra
+- Cotações
+- Transferências
+- Movimentações de estoque
+
 ## Legado ainda existente
 - products.stock_quantity permanece como compatibilidade histórica
 - mínimos e máximos ainda são globais por produto
