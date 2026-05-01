@@ -103,7 +103,112 @@ Representa a transferência de estoque entre locais.
 *(A documentar)*
 
 ### suppliers
-*(A documentar)*
+**Objetivo**
+Cadastro principal de fornecedores da loja.
+
+**Campos importantes**
+- id
+- store_id
+- name
+- legal_name
+- trade_name
+- document
+- phone
+- email
+- active
+- homologation_status
+- preferred_supplier
+- blocked
+- blocked_reason
+- commercial_contact_name
+- commercial_phone
+- commercial_whatsapp
+- commercial_email
+- financial_contact_name
+- financial_phone
+- financial_email
+- fiscal_contact_name
+- fiscal_phone
+- fiscal_email
+- payment_terms
+- average_payment_days
+- minimum_order_value
+- freight_policy
+- delivery_days
+- lead_time_days
+- relationship_notes
+- tags
+- metadata
+
+**Observações**
+- É a entidade central da área Fornecedor 360º.
+- Bloqueio e homologação impactam elegibilidade em compras/cotações.
+- Contatos principais podem ser consolidados com `supplier_contacts`.
+
+### supplier_contacts
+**Objetivo**
+Contatos estruturados do fornecedor.
+
+**Campos importantes**
+- supplier_id
+- name
+- role
+- department
+- phone
+- whatsapp
+- email
+- is_primary
+- active
+
+### supplier_relationship_events
+**Objetivo**
+Eventos manuais da relação com o fornecedor.
+
+**Campos importantes**
+- supplier_id
+- event_type
+- title
+- description
+- event_at
+- severity
+- status
+- related_purchase_document_id
+- related_product_id
+- created_by_email
+
+### supplier_price_history
+**Objetivo**
+Histórico de custos por fornecedor/produto.
+
+**Observações**
+- Registros cancelados permanecem para rastreabilidade.
+- O custo ativo deve ser interpretado considerando `is_active` e `cancelled_at`.
+
+### purchase_quotations
+**Objetivo**
+Cabeçalho de cotações de compra.
+
+**Campos importantes**
+- quotation_code
+- supplier_id
+- status
+- requested_at
+- responded_at
+- sent_channel
+- responsible_name
+- converted_purchase_document_id
+
+### purchase_quotation_items
+**Objetivo**
+Itens de cotações de compra.
+
+**Campos importantes**
+- quotation_id
+- product_id
+- requested_qty
+- reference_unit_cost
+- quoted_unit_cost
+- approved_qty
 
 ---
 

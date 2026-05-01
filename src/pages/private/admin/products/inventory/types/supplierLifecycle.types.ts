@@ -161,6 +161,30 @@ export type SupplierContactRow = {
   updated_at: string;
 };
 
+export type SupplierUnifiedTimelineRow = {
+  id: string;
+  source_kind: string;
+  store_id: string;
+  supplier_id: string;
+  event_type: string;
+  title: string;
+  description: string | null;
+  severity: string;
+  status: string;
+  event_at: string;
+  created_at: string;
+  channel: string | null;
+  reference_label: string | null;
+  related_product_id: string | null;
+  related_purchase_document_id: string | null;
+  related_purchase_quotation_id: string | null;
+  related_stock_transfer_id: string | null;
+  related_stock_movement_id: string | null;
+  actor_email: string | null;
+  created_by_email: string | null;
+  metadata: Record<string, unknown> | null;
+};
+
 export type SupplierLifecycleData = {
   summary: Supplier360Summary | null;
   purchases: SupplierPurchaseHistoryRow[];
@@ -169,4 +193,5 @@ export type SupplierLifecycleData = {
   quotations: SupplierQuotationHistoryRow[];
   timeline: SupplierRelationshipTimelineRow[];
   contacts: SupplierContactRow[];
+  unifiedTimeline: SupplierUnifiedTimelineRow[];
 };

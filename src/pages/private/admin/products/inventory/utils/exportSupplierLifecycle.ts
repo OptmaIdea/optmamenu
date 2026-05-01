@@ -11,8 +11,10 @@ import type {
     SupplierContactRow,
     SupplierPriceEvolutionRow,
     SupplierPurchaseHistoryRow,
+    SupplierQuotationHistoryRow,
     SupplierRelationshipTimelineRow,
     SupplierSuppliedProductRow,
+    SupplierUnifiedTimelineRow,
 } from '../types/supplierLifecycle.types';
 
 const homologationLabelMap: Record<string, string> = {
@@ -84,8 +86,10 @@ type ExportSupplierLifecycleInput = {
     purchases: SupplierPurchaseHistoryRow[];
     products: SupplierSuppliedProductRow[];
     prices: SupplierPriceEvolutionRow[];
+    quotations: SupplierQuotationHistoryRow[];
     contacts: SupplierContactRow[];
     timeline: SupplierRelationshipTimelineRow[];
+    unifiedTimeline: SupplierUnifiedTimelineRow[];
 };
 
 export function exportSupplierLifecycleCsv({
@@ -93,8 +97,10 @@ export function exportSupplierLifecycleCsv({
     purchases,
     products,
     prices,
+    quotations,
     contacts,
     timeline,
+    unifiedTimeline,
 }: ExportSupplierLifecycleInput) {
     const filenameBase = `vida_fornecedor_${safeFilePart(
         summary.trade_name || summary.name
@@ -215,6 +221,35 @@ export function exportSupplierLifecycleCsv({
         });
     });
 
+    rows.push({
+        Seção: 'Cotações',
+        Campo: '',
+        Valor: '',
+        Observação: '',
+    });
+
+    quotations.forEach((quotation) => {
+        rows.push({
+            Seção: 'Cotações',
+            Campo: quotation.quotation_code,
+            Valor: quotation.status,
+            Observação: [
+                `Canal: ${quotation.sent_channel || '—'}`,
+                `Responsável: ${quotation.responsible_name || '—'}`,
+                `Itens: ${quotation.items_count ?? 0}`,
+                `Qtd. solicitada: ${quotation.requested_qty ?? 0}`,
+                `Qtd. aprovada: ${quotation.approved_qty ?? 0}`,
+                `Total cotado: ${formatCurrencyPtBr(quotation.quoted_total ?? 0)}`,
+                `Total aprovado: ${formatCurrencyPtBr(quotation.approved_total ?? 0)}`,
+                quotation.converted_document_code
+                    ? `Compra gerada: ${quotation.converted_document_code}`
+                    : '',
+            ]
+                .filter(Boolean)
+                .join(' | '),
+        });
+    });
+
     products.forEach((product) => {
         rows.push({
             Seção: 'Produtos fornecidos',
@@ -286,7 +321,37 @@ export function exportSupplierLifecycleCsv({
         });
     });
 
-    const headers = ['Seção', 'Campo', 'Valor'];
+    rows.push({
+        Seção: 'Linha do tempo',
+        Campo: '',
+        Valor: '',
+        Observação: '',
+    });
+
+    unifiedTimeline.forEach((event) => {
+        rows.push({
+            Seção: 'Linha do tempo',
+            Campo: event.title,
+            Valor: event.reference_label || event.event_type,
+            Observação: [
+                `Origem: ${event.source_kind}`,
+                `Severidade: ${event.severity}`,
+                `Status: ${event.status}`,
+                `Data: ${event.event_at}`,
+                event.description ? `Descrição: ${event.description}` : '',
+                event.related_purchase_document_id
+                    ? `Compra ID: ${event.related_purchase_document_id}`
+                    : '',
+                event.related_purchase_quotation_id
+                    ? `Cotação ID: ${event.related_purchase_quotation_id}`
+                    : '',
+            ]
+                .filter(Boolean)
+                .join(' | '),
+        });
+    });
+
+    const headers = ['Seção', 'Campo', 'Valor', 'Observação'];
     downloadCsv({
         filename: `${filenameBase}.csv`,
         headers,

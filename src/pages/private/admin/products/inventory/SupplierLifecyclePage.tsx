@@ -25,6 +25,7 @@ export default function SupplierLifecyclePage() {
     quotations,
     timeline,
     contacts,
+    unifiedTimeline,
     loading,
     error,
     refresh,
@@ -276,8 +277,10 @@ export default function SupplierLifecyclePage() {
       purchases,
       products,
       prices,
+      quotations,
       contacts,
       timeline,
+      unifiedTimeline,
     });
 
     toast.success('Vida do fornecedor exportada com sucesso.');
@@ -691,6 +694,7 @@ export default function SupplierLifecyclePage() {
         quotations={quotations}
         timeline={timeline}
         contacts={contacts}
+        unifiedTimeline={unifiedTimeline}
       />
     </div>
   );

@@ -1,3 +1,4 @@
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -26,6 +27,11 @@ import {
   UserRound,
   XCircle,
   Archive,
+  Activity,
+  CircleDot,
+  FileCheck2,
+  RefreshCcw,
+  Search,
 } from 'lucide-react';
 
 import {
@@ -42,6 +48,7 @@ import type {
   SupplierPurchaseHistoryRow,
   SupplierRelationshipTimelineRow,
   SupplierSuppliedProductRow,
+  SupplierUnifiedTimelineRow,
 } from '../types/supplierLifecycle.types';
 
 type SupplierLifecycleTabsProps = {
@@ -53,6 +60,7 @@ type SupplierLifecycleTabsProps = {
   quotations: SupplierQuotationHistoryRow[];
   timeline: SupplierRelationshipTimelineRow[];
   contacts: SupplierContactRow[];
+  unifiedTimeline: SupplierUnifiedTimelineRow[];
 };
 
 const tabs = [
@@ -62,6 +70,7 @@ const tabs = [
   { id: 'prices', label: 'Preços', icon: TrendingUp },
   { id: 'contacts', label: 'Contatos', icon: Phone },
   { id: 'relationship', label: 'Relacionamento', icon: Clock },
+  { id: 'timeline', label: 'Linha do tempo', icon: Activity },
 ];
 
 const statusLabelMap: Record<string, string> = {
@@ -89,9 +98,35 @@ const eventTypeLabelMap: Record<string, string> = {
   other: 'Outro',
 };
 
+const unifiedEventTypeLabelMap: Record<string, string> = {
+  quotation_created: 'Cotação criada',
+  quotation_channel_defined: 'Canal da cotação definido',
+  quotation_channel_changed: 'Canal da cotação alterado',
+  quotation_responsible_changed: 'Responsável pela cotação alterado',
+  quotation_approved: 'Cotação aprovada',
+  quotation_converted_to_purchase_document: 'Cotação convertida em compra',
+  quotation_rejected: 'Cotação rejeitada',
+  quotation_linked_purchase_cancelled: 'Compra vinculada cancelada',
+  purchase_document_created: 'Compra criada',
+  purchase_document_confirmed: 'Compra confirmada',
+  purchase_document_applied_to_inventory: 'Compra aplicada ao estoque',
+  purchase_document_cancelled: 'Compra cancelada',
+  purchase_document_draft_deleted: 'Rascunho de compra excluído',
+  stock_transfer_created: 'Transferência criada',
+  stock_transfer_shipped: 'Transferência enviada',
+  stock_transfer_received: 'Transferência recebida',
+};
+
 const severityLabelMap: Record<string, string> = {
-  high: 'Alta', medium: 'Média', low: 'Baixa',
-  critical: 'Crítico', info: 'Informativo',
+  info: 'Informativo',
+  success: 'Sucesso',
+  warning: 'Alerta',
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
+  critical: 'Crítica',
+  error: 'Erro',
+  danger: 'Erro',
 };
 
 const eventStatusLabelMap: Record<string, string> = {
@@ -363,14 +398,26 @@ function getRelationshipEventIcon(eventType?: string | null) {
 
 function getRelationshipSeverityClass(severity?: string | null) {
   switch (severity) {
+    case 'success':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+
+    case 'warning':
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+
+    case 'error':
+    case 'danger':
     case 'critical':
       return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+
     case 'high':
       return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+
     case 'medium':
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300';
+      return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300';
+
     case 'low':
       return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+
     case 'info':
     default:
       return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
@@ -411,6 +458,229 @@ function getRelationshipStatusIcon(status?: string | null) {
   }
 }
 
+function getRelationshipEventIconClass(eventType?: string | null) {
+  switch (eventType) {
+    case 'call':
+    case 'email':
+    case 'meeting':
+    case 'contact':
+    case 'follow_up':
+      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300';
+    case 'approval':
+    case 'approve':
+    case 'unblock':
+    case 'homologation':
+      return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300';
+    case 'rejection':
+    case 'reject':
+    case 'block':
+    case 'incident':
+    case 'complaint':
+      return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300';
+    case 'purchase':
+    case 'negotiation':
+      return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300';
+    default:
+      return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
+  }
+}
+
+function getUnifiedTimelineIcon(eventType?: string | null, sourceKind?: string | null) {
+  if (sourceKind === 'relationship') {
+    return MessageSquare;
+  }
+
+  switch (eventType) {
+    case 'quotation_created':
+    case 'quotation_channel_defined':
+    case 'quotation_channel_changed':
+    case 'quotation_responsible_changed':
+      return ClipboardList;
+
+    case 'quotation_approved':
+    case 'quotation_converted_to_purchase_document':
+      return ClipboardCheck;
+
+    case 'quotation_rejected':
+    case 'quotation_linked_purchase_cancelled':
+      return XCircle;
+
+    case 'purchase_document_created':
+      return FileText;
+
+    case 'purchase_document_confirmed':
+    case 'purchase_document_applied_to_inventory':
+      return FileCheck2;
+
+    case 'purchase_document_cancelled':
+    case 'purchase_document_draft_deleted':
+      return Ban;
+
+    case 'stock_transfer_created':
+    case 'stock_transfer_shipped':
+    case 'stock_transfer_received':
+      return RefreshCcw;
+
+    default:
+      return CircleDot;
+  }
+}
+
+function getUnifiedTimelineIconClass(eventType?: string | null, sourceKind?: string | null) {
+  if (sourceKind === 'relationship') {
+    return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300';
+  }
+
+  switch (eventType) {
+    case 'quotation_created':
+    case 'quotation_channel_defined':
+    case 'quotation_channel_changed':
+    case 'quotation_responsible_changed':
+    case 'purchase_document_created':
+      return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300';
+
+    case 'quotation_approved':
+    case 'quotation_converted_to_purchase_document':
+    case 'purchase_document_confirmed':
+    case 'purchase_document_applied_to_inventory':
+      return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300';
+
+    case 'quotation_rejected':
+    case 'quotation_linked_purchase_cancelled':
+    case 'purchase_document_cancelled':
+    case 'purchase_document_draft_deleted':
+      return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-300';
+
+    case 'stock_transfer_created':
+    case 'stock_transfer_shipped':
+    case 'stock_transfer_received':
+      return 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300';
+
+    default:
+      return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400';
+  }
+}
+
+function getUnifiedTimelineProcessStatusLabel(event: SupplierUnifiedTimelineRow) {
+  switch (event.event_type) {
+    case 'purchase_document_created':
+      return 'Criada';
+
+    case 'purchase_document_confirmed':
+      return 'Confirmada';
+
+    case 'purchase_document_applied_to_inventory':
+      return 'Aplicada ao estoque';
+
+    case 'purchase_document_cancelled':
+      return 'Cancelada';
+
+    case 'purchase_document_draft_deleted':
+      return 'Rascunho excluído';
+
+    case 'purchase_document_created_from_quotation':
+      return 'Criada pela cotação';
+
+    case 'quotation_created':
+      return 'Criada';
+
+    case 'quotation_channel_defined':
+      return 'Canal definido';
+
+    case 'quotation_channel_changed':
+      return 'Canal alterado';
+
+    case 'quotation_responsible_changed':
+      return 'Responsável alterado';
+
+    case 'quotation_approved':
+      return 'Aprovada';
+
+    case 'quotation_rejected':
+      return 'Rejeitada';
+
+    case 'quotation_converted_to_purchase_document':
+      return 'Convertida em compra';
+
+    case 'quotation_linked_purchase_cancelled':
+      return 'Compra vinculada cancelada';
+
+    case 'stock_transfer_created':
+      return 'Criada';
+
+    case 'stock_transfer_shipped':
+      return 'Enviada';
+
+    case 'stock_transfer_received':
+      return 'Recebida';
+
+    case 'stock_transfer_cancelled':
+      return 'Cancelada';
+
+    default:
+      return eventStatusLabelMap[event.status] ?? event.status ?? 'Registrado';
+  }
+}
+
+function getUnifiedTimelineProcessStatusClass(event: SupplierUnifiedTimelineRow) {
+  switch (event.event_type) {
+    case 'purchase_document_created':
+    case 'purchase_document_created_from_quotation':
+    case 'quotation_created':
+    case 'quotation_channel_defined':
+    case 'quotation_channel_changed':
+    case 'quotation_responsible_changed':
+    case 'stock_transfer_created':
+      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+
+    case 'purchase_document_confirmed':
+    case 'quotation_approved':
+    case 'quotation_converted_to_purchase_document':
+    case 'stock_transfer_shipped':
+      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+
+    case 'purchase_document_applied_to_inventory':
+    case 'stock_transfer_received':
+      return 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300';
+
+    case 'purchase_document_cancelled':
+    case 'purchase_document_draft_deleted':
+    case 'quotation_rejected':
+    case 'quotation_linked_purchase_cancelled':
+    case 'stock_transfer_cancelled':
+      return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+
+    default:
+      return getRelationshipStatusClass(event.status);
+  }
+}
+
+function getUnifiedTimelineSourceLabel(sourceKind?: string | null) {
+  switch (sourceKind) {
+    case 'relationship':
+      return 'Relacionamento';
+    case 'operational':
+      return 'Operacional';
+    default:
+      return sourceKind || 'Evento';
+  }
+}
+
+function getUnifiedTimelineSourceClass(sourceKind?: string | null) {
+  switch (sourceKind) {
+    case 'relationship':
+      return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300';
+    case 'operational':
+      return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    default:
+      return 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300';
+  }
+}
+
+function getUnifiedTimelineReferenceLabel(event: SupplierUnifiedTimelineRow) {
+  return event.reference_label || '—';
+}
+
 
 export function SupplierLifecycleTabs({
   activeTab,
@@ -421,7 +691,52 @@ export function SupplierLifecycleTabs({
   quotations,
   timeline,
   contacts,
+  unifiedTimeline,
 }: SupplierLifecycleTabsProps) {
+  const [timelineSearch, setTimelineSearch] = useState('');
+  const [timelineSourceFilter, setTimelineSourceFilter] = useState<'all' | 'relationship' | 'operational'>('all');
+  const [timelineSort, setTimelineSort] = useState<'newest' | 'oldest'>('newest');
+
+  const filteredUnifiedTimeline = useMemo(() => {
+    const normalizedSearch = timelineSearch.trim().toLowerCase();
+
+    return [...unifiedTimeline]
+      .filter((event) => {
+        const matchesSource = timelineSourceFilter === 'all' || event.source_kind === timelineSourceFilter;
+        if (!matchesSource) return false;
+
+        if (!normalizedSearch) return true;
+
+        const haystack = [
+          event.title,
+          event.description,
+          event.event_type,
+          unifiedEventTypeLabelMap[event.event_type],
+          event.actor_email,
+          event.created_by_email,
+          event.reference_label,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return haystack.includes(normalizedSearch);
+      })
+      .sort((a, b) => {
+        const dateA = new Date(a.event_at).getTime();
+        const dateB = new Date(b.event_at).getTime();
+        return timelineSort === 'newest' ? dateB - dateA : dateA - dateB;
+      });
+  }, [unifiedTimeline, timelineSearch, timelineSourceFilter, timelineSort]);
+
+  const hasTimelineFilters = timelineSearch.trim().length > 0 || timelineSourceFilter !== 'all' || timelineSort !== 'newest';
+
+  const clearTimelineFilters = () => {
+    setTimelineSearch('');
+    setTimelineSourceFilter('all');
+    setTimelineSort('newest');
+  };
+
   const getPurchaseDocumentLabel = (row: SupplierPurchaseHistoryRow) => {
     return (
       row.document_code ||
@@ -1111,7 +1426,9 @@ export function SupplierLifecycleTabs({
             </div>
 
             {timeline.length > 0 ? (
-              <div className="space-y-3">
+              <div className="relative space-y-4">
+                <div className="absolute left-4 top-2 h-[calc(100%-1rem)] w-px bg-gray-200 dark:bg-gray-800" />
+
                 {timeline.map((event) => {
                   const EventIcon = getRelationshipEventIcon(event.event_type);
                   const StatusIcon = getRelationshipStatusIcon(event.status);
@@ -1119,15 +1436,15 @@ export function SupplierLifecycleTabs({
                   return (
                     <article
                       key={event.id}
-                      className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
+                      className="relative flex gap-4"
                     >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-950/20 dark:text-purple-300">
-                              <EventIcon size={17} />
-                            </div>
+                      <div className={`z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ring-4 ring-white dark:ring-gray-900 ${getRelationshipEventIconClass(event.event_type)}`}>
+                        <EventIcon size={17} />
+                      </div>
 
+                      <div className="min-w-0 flex-1 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1">
                             <div className="min-w-0">
                               <h3 className="font-semibold text-gray-900 dark:text-white">
                                 {event.title}
@@ -1136,9 +1453,8 @@ export function SupplierLifecycleTabs({
                                 {getRelationshipEventTypeLabel(event.event_type)}
                               </p>
                             </div>
-                          </div>
 
-                          <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-3 flex flex-wrap gap-2">
                             <span
                               className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${getRelationshipSeverityClass(
                                 event.severity,
@@ -1203,7 +1519,8 @@ export function SupplierLifecycleTabs({
                           </p>
                         </div>
                       </div>
-                    </article>
+                    </div>
+                  </article>
                   );
                 })}
               </div>
@@ -1218,6 +1535,219 @@ export function SupplierLifecycleTabs({
                 <p className="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
                   Use “Registrar evento” para criar anotações, negociações, incidentes,
                   bloqueios, reuniões ou follow-ups deste fornecedor.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'timeline' && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-900/30 dark:text-slate-300">
+              <div className="flex items-start gap-2">
+                <Activity size={18} className="mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-semibold">Linha do tempo unificada</p>
+                  <p className="mt-1 text-xs leading-relaxed">
+                    Reúne eventos manuais de relacionamento e eventos operacionais de
+                    compras, cotações, cancelamentos e demais processos vinculados ao
+                    fornecedor.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Linha do tempo unificada</h3>
+                  <p className="text-xs text-gray-500">
+                    {filteredUnifiedTimeline.length} de {unifiedTimeline.length} eventos encontrados
+                  </p>
+                </div>
+
+                {hasTimelineFilters && (
+                  <button
+                    type="button"
+                    onClick={clearTimelineFilters}
+                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    Limpar filtros
+                  </button>
+                )}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={timelineSearch}
+                    onChange={(e) => setTimelineSearch(e.target.value)}
+                    placeholder="Buscar eventos..."
+                    className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <select
+                  value={timelineSourceFilter}
+                  onChange={(e) => setTimelineSourceFilter(e.target.value as any)}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                >
+                  <option value="all">Todas as origens</option>
+                  <option value="operational">Operacional</option>
+                  <option value="relationship">Relacionamento</option>
+                </select>
+
+                <select
+                  value={timelineSort}
+                  onChange={(e) => setTimelineSort(e.target.value as any)}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                >
+                  <option value="newest">Mais recentes primeiro</option>
+                  <option value="oldest">Mais antigos primeiro</option>
+                </select>
+              </div>
+            </div>
+
+            {filteredUnifiedTimeline.length > 0 ? (
+              <div className="relative space-y-4">
+                <div className="absolute left-4 top-2 h-[calc(100%-1rem)] w-px bg-gray-200 dark:bg-gray-800" />
+
+                {filteredUnifiedTimeline.map((event: SupplierUnifiedTimelineRow) => {
+                  const EventIcon = getUnifiedTimelineIcon(
+                    event.event_type,
+                    event.source_kind,
+                  );
+
+                  return (
+                    <article
+                      key={event.id}
+                      className="relative flex gap-4"
+                    >
+                      <div className={`z-10 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl shadow-sm ring-4 ring-white dark:ring-gray-900 ${getUnifiedTimelineIconClass(
+                        event.event_type,
+                        event.source_kind,
+                      )}`}>
+                        <EventIcon size={17} />
+                      </div>
+
+                      <div className="min-w-0 flex-1 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="min-w-0">
+                              <h3 className="font-semibold text-gray-900 dark:text-white">
+                                {event.title}
+                              </h3>
+                              <p className="text-xs text-gray-500">
+                                {unifiedEventTypeLabelMap[event.event_type] ?? event.event_type}
+                              </p>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${getUnifiedTimelineSourceClass(
+                                event.source_kind,
+                              )}`}
+                            >
+                              {getUnifiedTimelineSourceLabel(event.source_kind)}
+                            </span>
+
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${getRelationshipSeverityClass(
+                                event.severity,
+                              )}`}
+                            >
+                              {severityLabelMap[event.severity] ?? event.severity}
+                            </span>
+
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold ${getUnifiedTimelineProcessStatusClass(
+                                event,
+                              )}`}
+                            >
+                              {getUnifiedTimelineProcessStatusLabel(event)}
+                            </span>
+
+                            {event.reference_label && (
+                              <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+                                {getUnifiedTimelineReferenceLabel(event)}
+                              </span>
+                            )}
+                          </div>
+
+                          {event.description && (
+                            <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                              {event.description}
+                            </p>
+                          )}
+
+                          <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
+                            {event.related_purchase_quotation_id && (
+                              <Link
+                                to={`/admin/stock/purchase-quotations?open=${event.related_purchase_quotation_id}`}
+                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                              >
+                                <ClipboardList size={13} />
+                                Abrir cotação
+                              </Link>
+                            )}
+
+                            {event.related_purchase_document_id && (
+                              <Link
+                                to={`/admin/stock/purchase-documents?open=${event.related_purchase_document_id}`}
+                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                              >
+                                <FileText size={13} />
+                                Abrir compra
+                              </Link>
+                            )}
+
+                            {event.related_product_id && (
+                              <Link
+                                to={`/admin/products/${event.related_product_id}/lifecycle`}
+                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                              >
+                                <Tags size={13} />
+                                Abrir produto
+                              </Link>
+                            )}
+
+                            {(event.actor_email || event.created_by_email) && (
+                              <span className="inline-flex items-center gap-1">
+                                <UserRound size={13} />
+                                {event.actor_email || event.created_by_email}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-900/40 dark:text-gray-400 lg:text-right">
+                          <div className="flex items-center gap-1 lg:justify-end">
+                            <CalendarClock size={13} />
+                            {formatDateTimeDisplayPtBr(event.event_at)}
+                          </div>
+                          <p className="mt-1">
+                            Criado em {formatDateTimeDisplayPtBr(event.created_at)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-600 dark:bg-slate-900/40 dark:text-slate-300">
+                  <Activity size={22} />
+                </div>
+                <h3 className="mt-4 font-semibold text-gray-900 dark:text-white">
+                  Nenhum evento encontrado na linha do tempo
+                </h3>
+                <p className="mx-auto mt-2 max-w-md text-sm text-gray-500 dark:text-gray-400">
+                  Eventos de compras, cotações, cancelamentos e relacionamento aparecerão
+                  aqui conforme a operação do fornecedor evoluir.
                 </p>
               </div>
             )}

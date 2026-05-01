@@ -5,10 +5,11 @@ import type {
   SupplierContactRow,
   SupplierLifecycleData,
   SupplierPriceEvolutionRow,
-  SupplierQuotationHistoryRow,
   SupplierPurchaseHistoryRow,
+  SupplierQuotationHistoryRow,
   SupplierRelationshipTimelineRow,
   SupplierSuppliedProductRow,
+  SupplierUnifiedTimelineRow,
 } from '../types/supplierLifecycle.types';
 
 type UseSupplierLifecycleResult = SupplierLifecycleData & {
@@ -18,7 +19,7 @@ type UseSupplierLifecycleResult = SupplierLifecycleData & {
 };
 
 export function useSupplierLifecycle(
-  supplierId: string | undefined
+  supplierId: string | undefined,
 ): UseSupplierLifecycleResult {
   const [summary, setSummary] = useState<Supplier360Summary | null>(null);
   const [purchases, setPurchases] = useState<SupplierPurchaseHistoryRow[]>([]);
@@ -27,6 +28,7 @@ export function useSupplierLifecycle(
   const [quotations, setQuotations] = useState<SupplierQuotationHistoryRow[]>([]);
   const [timeline, setTimeline] = useState<SupplierRelationshipTimelineRow[]>([]);
   const [contacts, setContacts] = useState<SupplierContactRow[]>([]);
+  const [unifiedTimeline, setUnifiedTimeline] = useState<SupplierUnifiedTimelineRow[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,7 @@ export function useSupplierLifecycle(
       setQuotations([]);
       setTimeline([]);
       setContacts([]);
+      setUnifiedTimeline([]);
       return;
     }
 
@@ -55,6 +58,7 @@ export function useSupplierLifecycle(
         quotationsResult,
         timelineResult,
         contactsResult,
+        unifiedTimelineResult,
       ] = await Promise.all([
         supabase.rpc('get_supplier_360_summary', {
           p_supplier_id: supplierId,
@@ -83,6 +87,10 @@ export function useSupplierLifecycle(
         supabase.rpc('get_supplier_contacts', {
           p_supplier_id: supplierId,
         }),
+        supabase.rpc('get_supplier_unified_timeline', {
+          p_supplier_id: supplierId,
+          p_limit: 150,
+        }),
       ]);
 
       const firstError =
@@ -92,7 +100,8 @@ export function useSupplierLifecycle(
         pricesResult.error ||
         quotationsResult.error ||
         timelineResult.error ||
-        contactsResult.error;
+        contactsResult.error ||
+        unifiedTimelineResult.error;
 
       if (firstError) {
         throw firstError;
@@ -105,6 +114,7 @@ export function useSupplierLifecycle(
       setQuotations((quotationsResult.data ?? []) as SupplierQuotationHistoryRow[]);
       setTimeline((timelineResult.data ?? []) as SupplierRelationshipTimelineRow[]);
       setContacts((contactsResult.data ?? []) as SupplierContactRow[]);
+      setUnifiedTimeline((unifiedTimelineResult.data ?? []) as SupplierUnifiedTimelineRow[]);
     } catch (err: any) {
       console.error('Erro ao carregar Vida do Fornecedor:', err);
       setError(err?.message ?? 'Erro ao carregar Vida do Fornecedor.');
@@ -125,6 +135,7 @@ export function useSupplierLifecycle(
     quotations,
     timeline,
     contacts,
+    unifiedTimeline,
     loading,
     error,
     refresh,
