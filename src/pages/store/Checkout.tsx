@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, QrCode, Store, Copy, CheckCircle2, Send, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, QrCode, Store, Copy, CheckCircle2, Send, ShoppingBag, Trash2 } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 
 export default function Checkout() {
@@ -10,6 +10,14 @@ export default function Checkout() {
     const [clientName, setClientName] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'pix' | 'retirada'>('pix');
     const [loading, setLoading] = useState(false);
+
+    const handleClearCart = () => {
+        if (window.confirm("Deseja realmente limpar seu carrinho?")) {
+            clearCart();
+            alert("Carrinho limpo com sucesso!");
+            navigate('/s/gelinharessjn');
+        }
+    };
 
     // Redirect if cart is empty
     useEffect(() => {
@@ -76,7 +84,7 @@ export default function Checkout() {
             <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
                 <ShoppingBag size={64} className="text-gray-300 mb-4" />
                 <p className="text-gray-500 mb-6 font-medium">Seu carrinho está vazio.</p>
-                <Link to="/" className="bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-green-700 transition uppercase text-sm tracking-wide">
+                <Link to="/s/gelinharessjn" className="bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-green-700 transition uppercase text-sm tracking-wide">
                     Voltar ao Cardápio
                 </Link>
             </div>
@@ -86,7 +94,7 @@ export default function Checkout() {
     return (
         <div className="min-h-screen bg-gray-50 pb-32 font-sans">
             <header className="bg-white p-4 sticky top-0 z-40 border-b flex items-center gap-4">
-                <Link to="/" className="p-2 hover:bg-gray-100 rounded-full transition">
+                <Link to="/s/gelinharessjn" className="p-2 hover:bg-gray-100 rounded-full transition">
                     <ArrowLeft className="w-6 h-6 text-gray-700" />
                 </Link>
                 <h1 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Finalizar Pedido</h1>
@@ -95,7 +103,17 @@ export default function Checkout() {
             <main className="max-w-2xl mx-auto px-4 mt-6">
 
                 <section className="mb-8">
-                    <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 italic">Seu Carrinho</h2>
+                    <div className="flex items-center justify-between mb-3">
+                        <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Seu Carrinho</h2>
+                        <button
+                            onClick={handleClearCart}
+                            className="text-[10px] font-bold text-red-500 hover:text-red-600 transition flex items-center gap-1.5 active:scale-95 uppercase tracking-widest"
+                            title="Limpar Carrinho"
+                        >
+                            <Trash2 size={12} className="opacity-70" />
+                            Limpar Carrinho
+                        </button>
+                    </div>
                     <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
                         {items.map((item, index) => (
                             <div

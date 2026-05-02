@@ -50,11 +50,14 @@ const Customers = lazy(() => import('@/pages/private/admin/commercial/customers/
 const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
 const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
+const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
+const PaymentMethodsPage = lazy(() => import('@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage'));
 const Marketing = lazy(() => import('@/pages/private/admin/marketing/Marketing'));
 const Payments = lazy(() => import('@/pages/private/admin/payments/Payments'));
 const Delivery = lazy(() => import('@/pages/private/admin/delivery/Delivery'));
 const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
 const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
+const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -79,6 +82,8 @@ export default function AppRoutes() {
         {/* Store Routes - Also public */}
         <Route element={<StoreLayout><Outlet /></StoreLayout>}>
           <Route path="/s/:storeSlug" element={<Catalog />} />
+          <Route path="/loja/:storeSlug" element={<Catalog />} />
+          <Route path="/cardapio/:storeSlug" element={<Catalog />} />
           <Route path="/checkout" element={<Checkout />} />
         </Route>
 
@@ -91,6 +96,8 @@ export default function AppRoutes() {
             <Route path="/admin/alerts" element={<Alerts />} />
             <Route path="/admin/reports" element={<Reports />} />
             <Route path="/admin/settings" element={<Settings />} />
+            <Route path="/admin/sales-channels" element={<SalesChannelsPage />} />
+            <Route path="/admin/payment-methods" element={<PaymentMethodsPage />} />
             <Route path="/admin/orders" element={<Orders />} />
             <Route path="/admin/customers" element={<Customers />} />
             <Route path="/admin/products" element={<Products />} />
@@ -111,6 +118,7 @@ export default function AppRoutes() {
             <Route path="/admin/stock/purchase-documents" element={<PurchaseDocumentsPage />} />
             <Route path="/admin/stock/quotations" element={<PurchaseQuotationsPage />} />
             <Route path="/admin/stock/purchase-insights" element={<PurchaseInsightsPage />} />
+            <Route path="/admin/cashbook" element={<CashbookPage />} />
             <Route path="/admin/cashbook/purchases" element={<PurchasesLedger />} />
 
             <Route path="/admin/suppliers" element={<Suppliers />} />

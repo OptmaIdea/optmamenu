@@ -32,8 +32,10 @@ import {
     Lock,
     MessageSquare,
     Truck,
+    RadioTower,
     Activity,
     ArrowRightLeft,
+    WalletCards,
 } from 'lucide-react';
 
 export default function PrivateLayout() {
@@ -52,6 +54,7 @@ export default function PrivateLayout() {
     const [openSections, setOpenSections] = useState<Record<string, boolean>>({
         dashboard: true,
         commercial: false,
+        financial: true,
         products: true,
         settings: false,
         support: false,
@@ -166,10 +169,15 @@ export default function PrivateLayout() {
         ],
         commercial: [
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
+            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
+            { path: '/admin/payment-methods', icon: WalletCards, label: 'Pagamentos' },
             { path: '/admin/customers', icon: Users, label: 'Clientes' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
             { path: '/admin/marketing', icon: BarChart2, label: 'Promoções' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
+        ],
+        financial: [
+            { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário' },
         ],
         products: [
             { path: '/admin/products', icon: Package, label: 'Produtos' },
@@ -270,6 +278,7 @@ export default function PrivateLayout() {
                                     <span>
                                         {section === 'dashboard' && 'Dashboard'}
                                         {section === 'commercial' && 'Comercial'}
+                                        {section === 'financial' && 'Financeiro'}
                                         {section === 'products' && 'Produtos'}
                                         {section === 'settings' && 'Configurações'}
                                         {section === 'support' && 'Suporte'}

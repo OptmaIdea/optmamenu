@@ -8,9 +8,15 @@ import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { AuthService } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
-import { CartDrawer } from '@/pages/store/components/CartDrawer';
+/* import { CartDrawer } from '@/pages/store/components/CartDrawer'; */
 import CustomerProfile from '@/pages/store/components/CustomerProfile';
+import {
+    PublicStorefrontService,
+    type PublicPaymentMethod,
+} from '@/services/publicStorefrontService';
+import { PublicOrderService } from '@/services/publicOrderService';
 import { timezoneUtils } from '@/utils/timezoneUtils';
+import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import {
     Search,
     User,
@@ -36,6 +42,20 @@ interface Store {
     id: string;
     name: string;
     slug: string;
+    description?: string;
+    logo_url?: string;
+    phone_number?: string;
+    minimum_order_value?: number;
+    reservation_time_minutes?: number;
+    public_catalog_enabled?: boolean;
+    privacy_policy_text?: string;
+    terms_of_use_text?: string;
+    cookie_policy_text?: string;
+    whatsapp?: {
+        raw?: string;
+        digits?: string;
+        enabled?: boolean;
+    };
     contacts?: {
         whatsapp_business?: string;
     };
@@ -44,7 +64,15 @@ interface Store {
 
 export default function Catalog() {
     const { storeSlug } = useParams();
-    const { addToCart, setCategoryRules } = useCartStore();
+    const {
+        items: cartItems,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        clearCart,
+        setCategoryRules,
+    } = useCartStore();
+
     const { isAuthenticated, customer, logout } = useCustomerAuth();
 
     const [isDark, setIsDark] = useState(false);
@@ -78,6 +106,29 @@ export default function Catalog() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
 
+    const [customerName, setCustomerName] = useState('');
+    const [customerPhone, setCustomerPhone] = useState('');
+    const [fulfillmentType, setFulfillmentType] = useState<'pickup' | 'delivery'>('pickup');
+    const [deliveryAddress, setDeliveryAddress] = useState({
+        street: '',
+        number: '',
+        complement: '',
+        district: '',
+        city: 'São João Nepomuceno',
+        state: 'MG',
+        reference: '',
+    });
+    const [orderLoading, setOrderLoading] = useState(false);
+    const [orderError, setOrderError] = useState<string | null>(null);
+    const [orderSuccess, setOrderSuccess] = useState<{
+        order_code: string;
+        total: number;
+        whatsapp_url?: string;
+    } | null>(null);
+
+    const [paymentMethods, setPaymentMethods] = useState<PublicPaymentMethod[]>([]);
+    const [selectedPaymentMethodCode, setSelectedPaymentMethodCode] = useState('pending');
+
     const [storeHours, setStoreHours] = useState<any[]>([]);
     const [storeExceptions, setStoreExceptions] = useState<any[]>([]);
     const [storeStatus, setStoreStatus] = useState<{
@@ -88,46 +139,180 @@ export default function Catalog() {
     }>({ isOpen: false, canOrder: false, message: null, isClosingSoon: false });
 
     useEffect(() => {
-        async function fetchStore() {
+        async function fetchPublicStorefront() {
             if (!storeSlug) return;
+
             setLoadingStore(true);
+            setLoadingProducts(true);
+
             try {
-                const { data, error } = await supabase.rpc(
-                    'get_store_by_slug',
-                    { p_slug: storeSlug }
+                const storefront = await PublicStorefrontService.getStorefrontBySlug(storeSlug);
+
+                if (!storefront.ok || !storefront.store) {
+                    setStore(null);
+                    setCategories([]);
+                    setProducts([]);
+                    return;
+                }
+
+                const mappedStore = PublicStorefrontService.toCatalogStore(storefront.store);
+                setStore(mappedStore);
+
+                setStoreHours(storefront.store.hours || []);
+                setStoreExceptions([]);
+
+                const catalog = await PublicStorefrontService.getCatalogBySlug(storeSlug);
+
+                if (!catalog.ok || !catalog.catalog_enabled) {
+                    setCategories([]);
+                    setProducts([]);
+                    setCategoryRules([]);
+                    return;
+                }
+
+                const normalizedCategories = catalog.categories || [];
+                const normalizedProducts = normalizedCategories.flatMap((category) =>
+                    (category.products || []).map((product) => ({
+                        ...product,
+                        category_id: product.category_id || category.id,
+                    }))
                 );
-                if (error) {
-                    console.error('Error fetching store:', error);
-                } else if (data) {
-                    const storeData = Array.isArray(data) ? data[0] : data;
-                    const [hoursRes, exceptionsRes, loyaltyRes] = await Promise.all([
-                        supabase.from('store_hours').select('*').eq('store_id', storeData.id),
-                        supabase.from('store_schedules_exceptions').select('*').eq('store_id', storeData.id),
-                        supabase.from('fidelity_programs').select('is_active').eq('store_id', storeData.id).maybeSingle()
-                    ]);
 
-                    if (hoursRes.data) setStoreHours(hoursRes.data);
-                    if (exceptionsRes.data) setStoreExceptions(exceptionsRes.data);
+                setCategories(normalizedCategories);
+                setCategoryRules(normalizedCategories);
+                setProducts(normalizedProducts);
 
-                    if (storeData.config) {
-                        storeData.config.loyalty_active = loyaltyRes.data?.is_active ?? false;
-                    }
-                    setStore(storeData);
-                    fetchCatalogData(storeData.id);
+                const paymentMethodsResult =
+                    await PublicStorefrontService.getPublicPaymentMethodsBySlug(storeSlug);
+
+                if (paymentMethodsResult.ok) {
+                    const methods = paymentMethodsResult.payment_methods || [];
+                    setPaymentMethods(methods);
+
+                    const hasPending = methods.some((method) => method.code === 'pending');
+                    const firstMethod = methods[0]?.code;
+
+                    setSelectedPaymentMethodCode(hasPending ? 'pending' : firstMethod || 'pending');
+                } else {
+                    setPaymentMethods([]);
+                    setSelectedPaymentMethodCode('pending');
                 }
             } catch (err) {
-                console.error('Exception fetching store:', err);
+                console.error('Erro ao carregar loja pública:', err);
+                setStore(null);
+                setCategories([]);
+                setProducts([]);
             } finally {
                 setLoadingStore(false);
+                setLoadingProducts(false);
             }
         }
-        fetchStore();
-    }, [storeSlug]);
+
+        fetchPublicStorefront();
+    }, [storeSlug, setCategoryRules]);
 
     const refreshCustomerData = () => {
         if (customer?.id) {
             CustomerService.getAddresses(customer.id).then(setCustomerAddresses).catch(console.error);
             CustomerService.getNotifications(customer.id).then(setNotifications).catch(console.error);
+        }
+    };
+
+    const cartSubtotal = cartItems.reduce(
+        (sum, item) => sum + Number(item.price || 0) * item.quantity,
+        0
+    );
+
+    const deliveryMinimum = Number(store?.minimum_order_value || 0);
+
+    const isDeliveryBelowMinimum =
+        fulfillmentType === 'delivery' &&
+        deliveryMinimum > 0 &&
+        cartSubtotal < deliveryMinimum;
+
+    const handleCreatePublicOrder = async () => {
+        if (!storeSlug) return;
+
+        if (cartItems.length === 0) {
+            setOrderError('Adicione pelo menos um item ao carrinho.');
+            return;
+        }
+
+        if (!customerPhone.trim()) {
+            setOrderError('Informe seu WhatsApp para continuar.');
+            return;
+        }
+
+        if (fulfillmentType === 'delivery') {
+            if (!deliveryAddress.street.trim() || !deliveryAddress.number.trim() || !deliveryAddress.district.trim()) {
+                setOrderError('Informe endereço, número e bairro para entrega.');
+                return;
+            }
+
+            if (isDeliveryBelowMinimum) {
+                setOrderError(
+                    `Para entrega, o pedido mínimo é R$ ${deliveryMinimum.toFixed(2).replace('.', ',')}. Para retirada, não há pedido mínimo.`
+                );
+                return;
+            }
+        }
+
+        try {
+            setOrderLoading(true);
+            setOrderError(null);
+            setOrderSuccess(null);
+
+            const result = await PublicOrderService.createPublicOrder({
+                slug: storeSlug,
+                customer_name: customerName,
+                customer_phone: customerPhone,
+                fulfillment_type: fulfillmentType,
+                sales_channel: 'public_store',
+                payment_method_code: selectedPaymentMethodCode,
+                items: cartItems.map((item) => ({
+                    product_id: item.id,
+                    quantity: item.quantity,
+                })),
+                delivery_address: fulfillmentType === 'delivery' ? deliveryAddress : {},
+                notes: null,
+            });
+
+            if (!result.ok || !result.order) {
+                const errorLabels: Record<string, string> = {
+                    minimum_order_not_reached: 'Pedido mínimo para entrega não atingido.',
+                    insufficient_stock: `Estoque insuficiente para ${result.product_name || 'um dos itens'}.`,
+                    product_unavailable: 'Um dos produtos não está disponível para venda.',
+                    payment_method_disabled: 'Forma de pagamento indisponível para esta loja.',
+                    sales_channel_disabled: 'Canal de venda indisponível para esta loja.',
+                    sales_location_not_configured: 'Local de venda não configurado.',
+                    invalid_customer_phone: 'WhatsApp do cliente inválido.',
+                    empty_cart: 'Carrinho vazio.',
+                };
+
+                setOrderError(
+                    errorLabels[result.error || ''] ||
+                    result.message ||
+                    `Não foi possível criar o pedido. Código: ${result.error || 'erro_desconhecido'}`
+                );
+                return;
+            }
+
+            setOrderSuccess({
+                order_code: result.order.order_code,
+                total: Number(result.order.total || 0),
+                whatsapp_url: result.whatsapp?.url || undefined,
+            });
+
+            clearCart();
+
+            if (result.whatsapp?.url) {
+                window.open(result.whatsapp.url, '_blank', 'noopener,noreferrer');
+            }
+        } catch (err: any) {
+            console.error('Erro ao criar pedido público:', err);
+            setOrderError(err?.message || 'Erro ao criar pedido.');
+        } finally {
+            setOrderLoading(false);
         }
     };
 
@@ -248,11 +433,23 @@ export default function Catalog() {
         return () => clearInterval(timer);
     }, [store, storeHours, storeExceptions]);
 
+    /*     const getProductWhatsappUrl = (product: Product) => {
+            if (!store || !whatsappEnabled) return '';
+    
+            const message = [
+                `Olá! Vim pelo cardápio online da ${store.name}.`,
+                '',
+                `Tenho interesse neste item:`,
+                `• ${product.name}`,
+                `• Valor: R$ ${Number(product.price || 0).toFixed(2).replace('.', ',')}`,
+                '',
+                `Cardápio: ${publicStoreUrl}`,
+            ].join('\n');
+    
+            return buildWhatsappUrl(whatsappPhone, message);
+        }; */
+
     const handleAddToCart = (product: Product, quantity = 1) => {
-        if (!storeStatus.canOrder) {
-            alert(storeStatus.message || "A loja está fechada no momento.");
-            return;
-        }
         addToCart(product, quantity);
     };
 
@@ -267,28 +464,53 @@ export default function Catalog() {
         setLoginLoading(false);
     };
 
-    async function fetchCatalogData(id: string) {
-        try {
-            setLoadingProducts(true);
-            const { data: catData } = await supabase.from('categories').select('*').eq('store_id', id).eq('active', true).order('sort_order', { ascending: true });
-            if (catData) {
-                const normalizedCategories = catData.map((cat: any) => ({ ...cat, price_rules: typeof cat.price_rules === 'string' ? JSON.parse(cat.price_rules) : (cat.price_rules || []) }));
-                setCategories(normalizedCategories);
-                setCategoryRules(normalizedCategories);
-            }
-            const { data: prodData } = await supabase.from('products').select('*').eq('store_id', id).eq('active', true).order('created_at', { ascending: false });
-            if (prodData) {
-                const parsedProducts = prodData.map((p: any) => {
-                    let parsedImages = p.images;
-                    if (typeof p.images === 'string') {
-                        try { parsedImages = p.images.startsWith('{') ? p.images.replace(/^{|}$/g, '').split(',') : JSON.parse(p.images); } catch (e) { parsedImages = []; }
-                    }
-                    return { ...p, images: Array.isArray(parsedImages) ? parsedImages : [] };
-                });
-                setProducts(parsedProducts);
-            }
-        } catch (error) { console.error('Error fetching data:', error); } finally { setLoadingProducts(false); }
-    }
+    const handleDecreaseCartItem = (productId: string, currentQuantity: number) => {
+        const nextQuantity = currentQuantity - 1;
+
+        if (nextQuantity <= 0) {
+            removeFromCart(productId);
+            return;
+        }
+
+        updateQuantity(productId, nextQuantity);
+    };
+
+    const handleIncreaseCartItem = (productId: string, currentQuantity: number) => {
+        updateQuantity(productId, currentQuantity + 1);
+    };
+
+    const handleRemoveCartItem = (productId: string) => {
+        removeFromCart(productId);
+    };
+
+    const handleClearCart = () => {
+        clearCart();
+        setOrderError(null);
+        setOrderSuccess(null);
+    };
+
+    /*     async function fetchCatalogData(id: string) {
+            try {
+                setLoadingProducts(true);
+                const { data: catData } = await supabase.from('categories').select('*').eq('store_id', id).eq('active', true).order('sort_order', { ascending: true });
+                if (catData) {
+                    const normalizedCategories = catData.map((cat: any) => ({ ...cat, price_rules: typeof cat.price_rules === 'string' ? JSON.parse(cat.price_rules) : (cat.price_rules || []) }));
+                    setCategories(normalizedCategories);
+                    setCategoryRules(normalizedCategories);
+                }
+                const { data: prodData } = await supabase.from('products').select('*').eq('store_id', id).eq('active', true).order('created_at', { ascending: false });
+                if (prodData) {
+                    const parsedProducts = prodData.map((p: any) => {
+                        let parsedImages = p.images;
+                        if (typeof p.images === 'string') {
+                            try { parsedImages = p.images.startsWith('{') ? p.images.replace(/^{|}$/g, '').split(',') : JSON.parse(p.images); } catch (e) { parsedImages = []; }
+                        }
+                        return { ...p, images: Array.isArray(parsedImages) ? parsedImages : [] };
+                    });
+                    setProducts(parsedProducts);
+                }
+            } catch (error) { console.error('Error fetching data:', error); } finally { setLoadingProducts(false); }
+        } */
 
     const pendingTasks = useMemo(() => {
         const tasks = [];
@@ -302,6 +524,34 @@ export default function Catalog() {
         }
         return tasks;
     }, [customer, customerAddresses, store]);
+
+    const publicStoreUrl =
+        typeof window !== 'undefined'
+            ? `${window.location.origin}/loja/${storeSlug}`
+            : `/loja/${storeSlug}`;
+
+    const whatsappPhone =
+        store?.whatsapp?.digits ||
+        store?.contacts?.whatsapp_business ||
+        store?.phone_number ||
+        '';
+
+    const whatsappEnabled = canOpenWhatsapp(whatsappPhone);
+
+    const whatsappMessage = store
+        ? [
+            `Olá! Vim pelo cardápio online da ${store.name}.`,
+            '',
+            `Gostaria de fazer um pedido ou tirar uma dúvida.`,
+            '',
+            `Cardápio: ${publicStoreUrl}`,
+        ].join('\n')
+        : '';
+
+    const whatsappUrl =
+        whatsappEnabled && store
+            ? buildWhatsappUrl(whatsappPhone, whatsappMessage)
+            : '';
 
     const handleLoginPassword = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -450,6 +700,314 @@ export default function Catalog() {
                 </div>
             )}
 
+            {store && (
+                <div className="max-w-5xl mx-auto mt-4 px-4">
+                    <div className="rounded-2xl border border-green-200 bg-green-50 px-4 py-4 shadow-sm dark:border-green-900/40 dark:bg-green-950/30">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm font-semibold text-green-950 dark:text-green-100">
+                                    Atendimento pelo WhatsApp
+                                </p>
+                                <p className="mt-1 text-sm text-green-800 dark:text-green-200">
+                                    Chame a loja para tirar dúvidas ou iniciar seu pedido.
+                                </p>
+                            </div>
+
+                            {whatsappEnabled ? (
+                                <a
+                                    href={whatsappUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center justify-center rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+                                >
+                                    Chamar no WhatsApp
+                                </a>
+                            ) : (
+                                <button
+                                    type="button"
+                                    disabled
+                                    className="inline-flex items-center justify-center rounded-xl bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                                >
+                                    WhatsApp indisponível
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {Number(store.minimum_order_value || 0) > 0 && (
+                <div className="max-w-5xl mx-auto mt-4 px-4">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+                        Pedido mínimo: <strong>R$ {Number(store.minimum_order_value).toFixed(2).replace('.', ',')}</strong>
+                    </div>
+                </div>
+            )}
+
+            {store && cartItems.length > 0 && (
+                <div className="max-w-5xl mx-auto mt-4 px-4">
+                    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                    Seu carrinho
+                                </p>
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    {cartItems.length} item(ns) • Total R$ {cartSubtotal.toFixed(2).replace('.', ',')}
+                                </p>
+                            </div>
+
+                            {fulfillmentType === 'delivery' && deliveryMinimum > 0 && (
+                                <div className={`rounded-xl px-3 py-2 text-sm ${isDeliveryBelowMinimum
+                                    ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-100'
+                                    : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100'
+                                    }`}>
+                                    Pedido mínimo para entrega: R$ {deliveryMinimum.toFixed(2).replace('.', ',')}
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <label className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
+                                <input
+                                    type="radio"
+                                    name="fulfillment_type"
+                                    value="pickup"
+                                    checked={fulfillmentType === 'pickup'}
+                                    onChange={() => setFulfillmentType('pickup')}
+                                    className="mr-2"
+                                />
+                                Retirada na loja
+                                <span className="ml-2 text-xs text-gray-500">
+                                    sem pedido mínimo
+                                </span>
+                            </label>
+
+                            <label className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
+                                <input
+                                    type="radio"
+                                    name="fulfillment_type"
+                                    value="delivery"
+                                    checked={fulfillmentType === 'delivery'}
+                                    onChange={() => setFulfillmentType('delivery')}
+                                    className="mr-2"
+                                />
+                                Entrega
+                                <span className="ml-2 text-xs text-gray-500">
+                                    mínimo R$ {deliveryMinimum.toFixed(2).replace('.', ',')}
+                                </span>
+                            </label>
+                        </div>
+
+                        <div className="mt-4 divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-gray-50 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950/40">
+                            {cartItems.map((item) => (
+                                <div
+                                    key={item.id}
+                                    className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between"
+                                >
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                            {item.name}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                            R$ {Number(item.price || 0).toFixed(2).replace('.', ',')} cada
+                                        </p>
+                                        <p className="mt-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                            Subtotal: R$ {(Number(item.price || 0) * item.quantity).toFixed(2).replace('.', ',')}
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center justify-between gap-2 sm:justify-end">
+                                        <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDecreaseCartItem(item.id, item.quantity)}
+                                                className="px-3 py-2 text-sm font-black text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                aria-label={`Diminuir quantidade de ${item.name}`}
+                                            >
+                                                −
+                                            </button>
+
+                                            <span className="min-w-10 px-3 py-2 text-center text-sm font-bold text-gray-900 dark:text-white">
+                                                {item.quantity}
+                                            </span>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => handleIncreaseCartItem(item.id, item.quantity)}
+                                                className="px-3 py-2 text-sm font-black text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                aria-label={`Aumentar quantidade de ${item.name}`}
+                                            >
+                                                +
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveCartItem(item.id)}
+                                            className="rounded-xl border border-red-200 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30"
+                                        >
+                                            Remover
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-3 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleClearCart}
+                                className="text-sm font-semibold text-gray-500 underline-offset-4 hover:text-red-600 hover:underline dark:text-gray-400 dark:hover:text-red-300"
+                            >
+                                Limpar carrinho
+                            </button>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <input
+                                value={customerName}
+                                onChange={(event) => setCustomerName(event.target.value)}
+                                placeholder="Seu nome"
+                                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                            />
+
+                            <input
+                                value={customerPhone}
+                                onChange={(event) => setCustomerPhone(event.target.value)}
+                                placeholder="Seu WhatsApp"
+                                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                            />
+                        </div>
+
+                        {paymentMethods.length > 0 && (
+                            <div className="mt-4">
+                                <p className="mb-2 text-sm font-bold text-gray-900 dark:text-white">
+                                    Forma de pagamento
+                                </p>
+
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    {paymentMethods.map((method) => (
+                                        <label
+                                            key={method.code}
+                                            className={`cursor-pointer rounded-xl border p-3 text-sm transition ${selectedPaymentMethodCode === method.code
+                                                ? 'border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'
+                                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900'
+                                                }`}
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="payment_method"
+                                                value={method.code}
+                                                checked={selectedPaymentMethodCode === method.code}
+                                                onChange={() => setSelectedPaymentMethodCode(method.code)}
+                                                className="mr-2"
+                                            />
+
+                                            <span className="font-semibold">{method.name}</span>
+
+                                            {method.requires_proof && (
+                                                <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                                                    comprovante
+                                                </span>
+                                            )}
+
+                                            {method.requires_change_for && (
+                                                <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-700 dark:bg-green-900/30 dark:text-green-200">
+                                                    troco
+                                                </span>
+                                            )}
+
+                                            {method.description && (
+                                                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    {method.description}
+                                                </p>
+                                            )}
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {fulfillmentType === 'delivery' && (
+                            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <input
+                                    value={deliveryAddress.street}
+                                    onChange={(event) =>
+                                        setDeliveryAddress((prev) => ({ ...prev, street: event.target.value }))
+                                    }
+                                    placeholder="Rua"
+                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                />
+
+                                <input
+                                    value={deliveryAddress.number}
+                                    onChange={(event) =>
+                                        setDeliveryAddress((prev) => ({ ...prev, number: event.target.value }))
+                                    }
+                                    placeholder="Número"
+                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                />
+
+                                <input
+                                    value={deliveryAddress.district}
+                                    onChange={(event) =>
+                                        setDeliveryAddress((prev) => ({ ...prev, district: event.target.value }))
+                                    }
+                                    placeholder="Bairro"
+                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                />
+
+                                <input
+                                    value={deliveryAddress.complement}
+                                    onChange={(event) =>
+                                        setDeliveryAddress((prev) => ({ ...prev, complement: event.target.value }))
+                                    }
+                                    placeholder="Complemento"
+                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                />
+
+                                <input
+                                    value={deliveryAddress.reference}
+                                    onChange={(event) =>
+                                        setDeliveryAddress((prev) => ({ ...prev, reference: event.target.value }))
+                                    }
+                                    placeholder="Referência"
+                                    className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 sm:col-span-2"
+                                />
+                            </div>
+                        )}
+
+                        {orderError && (
+                            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-100">
+                                {orderError}
+                            </div>
+                        )}
+
+                        {orderSuccess && (
+                            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
+                                Pedido {orderSuccess.order_code} criado com sucesso. Total R$ {orderSuccess.total.toFixed(2).replace('.', ',')}.
+                            </div>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={handleCreatePublicOrder}
+                            disabled={orderLoading || isDeliveryBelowMinimum}
+                            className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {orderLoading ? 'Criando pedido...' : 'Finalizar pelo WhatsApp'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            <div className="max-w-5xl mx-auto mt-4 px-4">
+                <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
+                    Cardápio público em modo de visualização. Em breve você poderá montar o pedido por aqui e finalizar pelo WhatsApp.
+                </div>
+            </div>
+
             <main className="max-w-5xl mx-auto px-4 mt-8">
                 <div className="flex gap-2 mb-6">
                     <div className="relative flex-1">
@@ -483,7 +1041,7 @@ export default function Catalog() {
                 )}
             </main>
 
-            <CartDrawer store={store as any} isOrderingAllowed={storeStatus.canOrder} />
+            {/* <CartDrawer store={store as any} isOrderingAllowed={storeStatus.canOrder} /> */}
             <ProductModal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} product={selectedProduct} onAddToCart={handleAddToCart} />
 
             {showLoginModal && (

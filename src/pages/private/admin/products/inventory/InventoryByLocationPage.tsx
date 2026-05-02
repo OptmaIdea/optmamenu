@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useInventoryByLocation } from './hooks/useInventoryByLocation';
@@ -16,6 +16,8 @@ import {
   AlertTriangle,
   Archive,
   Truck,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 
@@ -103,6 +105,19 @@ export default function InventoryByLocationPage() {
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [selectedAction, setSelectedAction] = useState('all');
+  const [groupBy, setGroupBy] = useState<'none' | 'product' | 'location'>('none');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  const [showInactives, setShowInactives] = useState(false);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        return null; // Volta ao estado original
+      }
+      return { key, direction: 'asc' };
+    });
+  };
 
   const locations = useMemo(() => {
     const unique = new Map<string, string>();
@@ -128,9 +143,64 @@ export default function InventoryByLocationPage() {
       const matchesAction =
         selectedAction === 'all' || row.recommended_action === selectedAction;
 
-      return matchesSearch && matchesLocation && matchesStatus && matchesAction;
+      const isInactive =
+        row.location_status === 'inactive' ||
+        row.location_status === 'location_inactive' ||
+        row.stock_status === 'inactive' ||
+        row.stock_status === 'product_inactive' ||
+        row.global_status === 'product_inactive';
+
+      const matchesInactives = showInactives || !isInactive;
+
+      return matchesSearch && matchesLocation && matchesStatus && matchesAction && matchesInactives;
     });
-  }, [rows, search, selectedLocation, selectedStatus, selectedAction]);
+  }, [rows, search, selectedLocation, selectedStatus, selectedAction, showInactives]);
+
+  const sortedRows = useMemo(() => {
+    const data = [...filteredRows];
+    if (!sortConfig) return data;
+
+    return data.sort((a: any, b: any) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      if (aValue === bValue) {
+        // Se empatou no critério principal e for Local, secundário é Produto
+        if (sortConfig.key === 'location_name') {
+          return a.product_name.localeCompare(b.product_name);
+        }
+        return 0;
+      }
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+
+      const modifier = sortConfig.direction === 'asc' ? 1 : -1;
+
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        return aValue.localeCompare(bValue) * modifier;
+      }
+
+      return (aValue < bValue ? -1 : 1) * modifier;
+    });
+  }, [filteredRows, sortConfig]);
+
+  const groupedRows = useMemo(() => {
+    if (groupBy === 'none') return null;
+
+    const groups = new Map<string, { label: string; rows: any[] }>();
+
+    sortedRows.forEach((row) => {
+      const key = groupBy === 'product' ? row.product_id : row.location_id;
+      const label = groupBy === 'product' ? row.product_name : row.location_name;
+
+      if (!groups.has(key)) {
+        groups.set(key, { label, rows: [] });
+      }
+      groups.get(key)!.rows.push(row);
+    });
+
+    return Array.from(groups.values());
+  }, [sortedRows, groupBy]);
 
   const filteredSummary = useMemo(() => {
     const buyProducts = new Set<string>();
@@ -191,13 +261,18 @@ export default function InventoryByLocationPage() {
     search.trim() !== '' ||
     selectedLocation !== 'all' ||
     selectedStatus !== 'all' ||
-    selectedAction !== 'all';
+    selectedAction !== 'all' ||
+    groupBy !== 'none' ||
+    sortConfig !== null;
 
   const clearFilters = () => {
     setSearch('');
     setSelectedLocation('all');
     setSelectedStatus('all');
     setSelectedAction('all');
+    setGroupBy('none');
+    setSortConfig(null);
+    setShowInactives(false);
   };
 
   const handleExportCsv = () => {
@@ -448,7 +523,7 @@ export default function InventoryByLocationPage() {
 
       {/* Filtros */}
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
           <input
             type="text"
             placeholder="Buscar por produto ou local"
@@ -496,16 +571,59 @@ export default function InventoryByLocationPage() {
             <option value="ok">OK</option>
           </select>
 
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as any)}
+            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
+          >
+            <option value="none">Sem agrupamento</option>
+            <option value="product">Agrupar por Produto</option>
+            <option value="location">Agrupar por Local</option>
+          </select>
+
+          <select
+            value={sortConfig?.key || 'none'}
+            onChange={(e) => {
+              if (e.target.value === 'none') setSortConfig(null);
+              else handleSort(e.target.value);
+            }}
+            className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm outline-none"
+          >
+            <option value="none">Ordenar por...</option>
+            <option value="product_name">Produto (A-Z)</option>
+            <option value="location_name">Local (A-Z)</option>
+            <option value="available">Estoque Disponível</option>
+            <option value="on_hand">Estoque Físico</option>
+          </select>
+        </div>
+
+        <div className="flex items-center gap-4 pt-1">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <div className="relative flex items-center">
+              <input
+                type="checkbox"
+                checked={showInactives}
+                onChange={(e) => setShowInactives(e.target.checked)}
+                className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-[#21A896] checked:bg-[#21A896] hover:border-[#21A896]"
+              />
+              <svg className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-1/2 -translate-x-1/2 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-200 transition-colors">
+              Mostrar inativos
+            </span>
+          </label>
+
           {hasFilters && (
             <button
               type="button"
               onClick={clearFilters}
-              className="w-full xl:w-auto rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/30 transition"
+              className="rounded-lg px-3 py-1 text-xs font-semibold text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 transition"
             >
-              Limpar filtros
+              Limpar todos os filtros
             </button>
           )}
         </div>
+
         {hasFilters && (
           <p className="text-xs text-gray-400">
             {filteredRows.length} de {rows.length} posição{rows.length !== 1 ? 'ões' : ''} exibida{filteredRows.length !== 1 ? 's' : ''}
@@ -525,11 +643,61 @@ export default function InventoryByLocationPage() {
           <table className="min-w-[1300px] w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900/40">
               <tr>
-                <th className="text-left px-4 py-3">Local</th>
-                <th className="text-left px-4 py-3">Produto</th>
-                <th className="text-left px-4 py-3">Físico</th>
-                <th className="text-left px-4 py-3">Reservado</th>
-                <th className="text-left px-4 py-3">Disponível</th>
+                <th 
+                  className="text-left px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  onClick={() => handleSort('location_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Local
+                    <div className={`transition-opacity ${sortConfig?.key === 'location_name' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                      {sortConfig?.key === 'location_name' && sortConfig.direction === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th 
+                  className="text-left px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  onClick={() => handleSort('product_name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Produto
+                    <div className={`transition-opacity ${sortConfig?.key === 'product_name' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                      {sortConfig?.key === 'product_name' && sortConfig.direction === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th 
+                  className="text-left px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  onClick={() => handleSort('on_hand')}
+                >
+                  <div className="flex items-center gap-1">
+                    Físico
+                    <div className={`transition-opacity ${sortConfig?.key === 'on_hand' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                      {sortConfig?.key === 'on_hand' && sortConfig.direction === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th 
+                  className="text-left px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  onClick={() => handleSort('reserved')}
+                >
+                  <div className="flex items-center gap-1">
+                    Reservado
+                    <div className={`transition-opacity ${sortConfig?.key === 'reserved' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                      {sortConfig?.key === 'reserved' && sortConfig.direction === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    </div>
+                  </div>
+                </th>
+                <th 
+                  className="text-left px-4 py-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  onClick={() => handleSort('available')}
+                >
+                  <div className="flex items-center gap-1">
+                    Disponível
+                    <div className={`transition-opacity ${sortConfig?.key === 'available' ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                      {sortConfig?.key === 'available' && sortConfig.direction === 'desc' ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                    </div>
+                  </div>
+                </th>
                 <th className="text-left px-4 py-3">Entrando</th>
                 <th className="text-left px-4 py-3">Saindo</th>
                 <th className="text-left px-4 py-3">Mín. local</th>
@@ -540,147 +708,167 @@ export default function InventoryByLocationPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row) => {
-                const sourceLocations = Array.isArray(row.source_locations)
-                  ? row.source_locations
-                  : [];
+              {(() => {
+                const renderRow = (row: any) => {
+                  const sourceLocations = Array.isArray(row.source_locations)
+                    ? row.source_locations
+                    : [];
 
-                const bestSource = sourceLocations.find(
-                  (source) => source.location_id !== row.location_id
-                );
+                  const bestSource = sourceLocations.find(
+                    (source: any) => source.location_id !== row.location_id
+                  );
 
-                return (
-                  <tr
-                    key={`${row.location_id}-${row.product_id}-${row.variant_id ?? 'base'}`}
-                    className="border-t border-gray-100 dark:border-gray-700"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{row.location_name}</div>
-                      <div className="text-xs text-gray-400">{row.location_code}</div>
-                    </td>
+                  return (
+                    <tr
+                      key={`${row.location_id}-${row.product_id}-${row.variant_id ?? 'base'}`}
+                      className="border-t border-gray-100 dark:border-gray-700"
+                    >
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{row.location_name}</div>
+                        <div className="text-xs text-gray-400">{row.location_code}</div>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{row.product_name}</div>
-                      <Link
-                        to={`/admin/products/${row.product_id}/lifecycle`}
-                        className="text-xs text-[#21A896] hover:underline"
-                      >
-                        Ver vida do produto
-                      </Link>
-                    </td>
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{row.product_name}</div>
+                        <Link
+                          to={`/admin/products/${row.product_id}/lifecycle`}
+                          className="text-xs text-[#21A896] hover:underline"
+                        >
+                          Ver vida do produto
+                        </Link>
+                      </td>
 
-                    <td className="px-4 py-3">{formatNumberPtBr(row.on_hand)}</td>
-                    <td className="px-4 py-3">{formatNumberPtBr(row.reserved)}</td>
+                      <td className="px-4 py-3">{formatNumberPtBr(row.on_hand)}</td>
+                      <td className="px-4 py-3">{formatNumberPtBr(row.reserved)}</td>
 
-                    <td className="px-4 py-3">
-                      <span className="font-semibold">
-                        {formatNumberPtBr(row.available)}
-                      </span>
-                    </td>
+                      <td className="px-4 py-3">
+                        <span className="font-semibold">
+                          {formatNumberPtBr(row.available)}
+                        </span>
+                      </td>
 
-                    <td className="px-4 py-3">
-                      {Number((row as any).in_transit_in ?? 0) > 0 ? (
-                        <div className="space-y-1">
-                          <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
-                            +{formatNumberPtBr((row as any).in_transit_in)} em trânsito
-                          </span>
-                          {Array.isArray((row as any).incoming_transfers) &&
-                            (row as any).incoming_transfers.slice(0, 1).map((transfer: any) => (
-                              <div key={transfer.transfer_id} className="text-xs text-blue-600">
-                                {transfer.transfer_code}
-                              </div>
-                            ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {Number((row as any).in_transit_out ?? 0) > 0 ? (
-                        <div className="space-y-1">
-                          <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
-                            -{formatNumberPtBr((row as any).in_transit_out)} em trânsito
-                          </span>
-                          {Array.isArray((row as any).outgoing_transfers) &&
-                            (row as any).outgoing_transfers.slice(0, 1).map((transfer: any) => (
-                              <div key={transfer.transfer_id} className="text-xs text-amber-600">
-                                {transfer.transfer_code}
-                              </div>
-                            ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">—</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {formatNumberPtBr(row.provisional_location_min_stock ?? row.min_stock ?? 0)}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          statusClassMap[row.location_status] ??
-                          statusClassMap[row.stock_status] ??
-                          'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                        }`}
-                      >
-                        {statusLabelMap[row.location_status] ??
-                          statusLabelMap[row.stock_status] ??
-                          row.stock_status}
-                      </span>
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {(() => {
-                        const action = getTransitAwareAction(row);
-                        return (
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                              actionClassMap[action] ??
-                              'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
-                            }`}
-                          >
-                            {actionLabelMap[action] ?? action}
-                          </span>
-                        );
-                      })()}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      <div className="text-xs">
-                        {globalStatusLabelMap[row.global_status] ?? row.global_status}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Disp.: {formatNumberPtBr(row.global_available ?? 0)}
-                      </div>
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {row.recommended_action === 'transfer' && bestSource ? (
-                        <div className="text-xs space-y-1">
-                          <div className="font-medium text-blue-600 dark:text-blue-300">
-                            {bestSource.location_name}
+                      <td className="px-4 py-3">
+                        {Number((row as any).in_transit_in ?? 0) > 0 ? (
+                          <div className="space-y-1">
+                            <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-700">
+                              +{formatNumberPtBr((row as any).in_transit_in)} em trânsito
+                            </span>
+                            {Array.isArray((row as any).incoming_transfers) &&
+                              (row as any).incoming_transfers.slice(0, 1).map((transfer: any) => (
+                                <div key={transfer.transfer_id} className="text-xs text-blue-600">
+                                  {transfer.transfer_code}
+                                </div>
+                              ))}
                           </div>
-                          <div className="text-gray-400">
-                            Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {Number((row as any).in_transit_out ?? 0) > 0 ? (
+                          <div className="space-y-1">
+                            <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                              -{formatNumberPtBr((row as any).in_transit_out)} em trânsito
+                            </span>
+                            {Array.isArray((row as any).outgoing_transfers) &&
+                              (row as any).outgoing_transfers.slice(0, 1).map((transfer: any) => (
+                                <div key={transfer.transfer_id} className="text-xs text-amber-600">
+                                  {transfer.transfer_code}
+                                </div>
+                              ))}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => handleCreateTransferFromRow(row)}
-                            className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                          >
-                            Criar transferência
-                          </button>
+                        ) : (
+                          <span className="text-gray-400">—</span>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {formatNumberPtBr(row.provisional_location_min_stock ?? row.min_stock ?? 0)}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                            statusClassMap[row.location_status] ??
+                            statusClassMap[row.stock_status] ??
+                            'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {statusLabelMap[row.location_status] ??
+                            statusLabelMap[row.stock_status] ??
+                            row.stock_status}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {(() => {
+                          const action = getTransitAwareAction(row);
+                          return (
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                actionClassMap[action] ??
+                                'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200'
+                              }`}
+                            >
+                              {actionLabelMap[action] ?? action}
+                            </span>
+                          );
+                        })()}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="text-xs">
+                          {globalStatusLabelMap[row.global_status] ?? row.global_status}
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+                        <div className="text-xs text-gray-400">
+                          Disp.: {formatNumberPtBr(row.global_available ?? 0)}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {row.recommended_action === 'transfer' && bestSource ? (
+                          <div className="text-xs space-y-1">
+                            <div className="font-medium text-blue-600 dark:text-blue-300">
+                              {bestSource.location_name}
+                            </div>
+                            <div className="text-gray-400">
+                              Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleCreateTransferFromRow(row)}
+                              className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                            >
+                              Criar transferência
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                };
+
+                if (groupBy === 'none') {
+                  return sortedRows.map(renderRow);
+                }
+
+                return groupedRows?.map((group) => (
+                  <Fragment key={group.label}>
+                    <tr className="bg-gray-50/50 dark:bg-gray-900/20">
+                      <td colSpan={12} className="px-4 py-2 font-bold text-[#21A896] border-y border-gray-100 dark:border-gray-700">
+                        {groupBy === 'product' ? 'Produto: ' : 'Local: '}{group.label}
+                        <span className="ml-2 font-normal text-xs text-gray-400">
+                          ({group.rows.length} posiç{group.rows.length === 1 ? 'ão' : 'ões'})
+                        </span>
+                      </td>
+                    </tr>
+                    {group.rows.map(renderRow)}
+                  </Fragment>
+                ));
+              })()}
 
               {!hasAnyData && (
                 <EmptyTableState
