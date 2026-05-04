@@ -34,6 +34,7 @@ export interface CreatePublicOrderInput {
     fulfillment_type: PublicFulfillmentType;
     sales_channel: PublicSalesChannel;
     payment_method_code?: string;
+    delivery_method_code?: string;
     items: PublicOrderItemInput[];
     delivery_address?: PublicDeliveryAddressInput;
     table_code?: string | null;
@@ -51,10 +52,14 @@ export interface CreatePublicOrderResponse {
     order?: {
         id: string;
         order_code: string;
+        subtotal?: number;
+        delivery_fee?: number;
         total: number;
         status: string;
         sales_channel: PublicSalesChannel;
         fulfillment_type: PublicFulfillmentType;
+        delivery_method_code?: string;
+        delivery_method_name?: string;
         expires_at: string;
         reservation_minutes: number;
         public_order_token: string;
@@ -75,6 +80,7 @@ export const PublicOrderService = {
             p_fulfillment_type: input.fulfillment_type,
             p_sales_channel: input.sales_channel,
             p_payment_method_code: input.payment_method_code || 'pending',
+            p_delivery_method_code: input.delivery_method_code || null,
             p_items: input.items,
             p_delivery_address: input.delivery_address || {},
             p_table_code: input.table_code || null,

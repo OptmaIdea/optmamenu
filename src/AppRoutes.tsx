@@ -84,6 +84,8 @@ export default function AppRoutes() {
           <Route path="/s/:storeSlug" element={<Catalog />} />
           <Route path="/loja/:storeSlug" element={<Catalog />} />
           <Route path="/cardapio/:storeSlug" element={<Catalog />} />
+          <Route path="/q/:storeSlug/:tableCode" element={<Catalog />} />
+          <Route path="/mesa/:storeSlug/:tableCode" element={<Catalog />} />
           <Route path="/checkout" element={<Checkout />} />
         </Route>
 

@@ -13,6 +13,7 @@ import CustomerProfile from '@/pages/store/components/CustomerProfile';
 import {
     PublicStorefrontService,
     type PublicPaymentMethod,
+    type PublicDeliveryMethod,
 } from '@/services/publicStorefrontService';
 import { PublicOrderService } from '@/services/publicOrderService';
 import { timezoneUtils } from '@/utils/timezoneUtils';
@@ -63,7 +64,8 @@ interface Store {
 }
 
 export default function Catalog() {
-    const { storeSlug } = useParams();
+    const { storeSlug, tableCode } = useParams();
+    const isQrTableMode = Boolean(tableCode);
     const {
         items: cartItems,
         addToCart,
@@ -108,7 +110,7 @@ export default function Catalog() {
 
     const [customerName, setCustomerName] = useState('');
     const [customerPhone, setCustomerPhone] = useState('');
-    const [fulfillmentType, setFulfillmentType] = useState<'pickup' | 'delivery'>('pickup');
+    const [fulfillmentType, setFulfillmentType] = useState<'pickup' | 'delivery' | 'qr_table'>('pickup');
     const [deliveryAddress, setDeliveryAddress] = useState({
         street: '',
         number: '',
@@ -128,6 +130,9 @@ export default function Catalog() {
 
     const [paymentMethods, setPaymentMethods] = useState<PublicPaymentMethod[]>([]);
     const [selectedPaymentMethodCode, setSelectedPaymentMethodCode] = useState('pending');
+
+    const [deliveryMethods, setDeliveryMethods] = useState<PublicDeliveryMethod[]>([]);
+    const [selectedDeliveryMethodCode, setSelectedDeliveryMethodCode] = useState('pickup');
 
     const [storeHours, setStoreHours] = useState<any[]>([]);
     const [storeExceptions, setStoreExceptions] = useState<any[]>([]);
@@ -197,6 +202,41 @@ export default function Catalog() {
                     setPaymentMethods([]);
                     setSelectedPaymentMethodCode('pending');
                 }
+
+                const deliveryMethodsResult =
+                    await PublicStorefrontService.getPublicDeliveryMethodsBySlug(storeSlug);
+
+                if (deliveryMethodsResult.ok) {
+                    const methods = deliveryMethodsResult.delivery_methods || [];
+                    setDeliveryMethods(methods);
+
+                    const qrMethod = methods.find((method) => method.code === 'qr_table');
+                    const hasPickup = methods.some((method) => method.code === 'pickup');
+                    const firstMethod = methods[0]?.code;
+
+                    const selectedCode =
+                        isQrTableMode && qrMethod
+                            ? 'qr_table'
+                            : hasPickup
+                                ? 'pickup'
+                                : firstMethod || 'pickup';
+
+                    setSelectedDeliveryMethodCode(selectedCode);
+
+                    const initialMethod = methods.find((method) => method.code === selectedCode);
+
+                    if (initialMethod?.fulfillment_type === 'delivery') {
+                        setFulfillmentType('delivery');
+                    } else if (initialMethod?.fulfillment_type === 'qr_table') {
+                        setFulfillmentType('qr_table');
+                    } else {
+                        setFulfillmentType('pickup');
+                    }
+                } else {
+                    setDeliveryMethods([]);
+                    setSelectedDeliveryMethodCode('pickup');
+                    setFulfillmentType('pickup');
+                }
             } catch (err) {
                 console.error('Erro ao carregar loja pública:', err);
                 setStore(null);
@@ -223,12 +263,27 @@ export default function Catalog() {
         0
     );
 
-    const deliveryMinimum = Number(store?.minimum_order_value || 0);
+    const selectedDeliveryMethod = deliveryMethods.find(
+        (method) => method.code === selectedDeliveryMethodCode
+    );
 
-    const isDeliveryBelowMinimum =
-        fulfillmentType === 'delivery' &&
-        deliveryMinimum > 0 &&
-        cartSubtotal < deliveryMinimum;
+    const selectedFulfillmentType =
+        selectedDeliveryMethod?.fulfillment_type || fulfillmentType;
+
+    const selectedDeliveryFee = Number(selectedDeliveryMethod?.delivery_fee || 0);
+
+    const selectedDeliveryMinimum = Number(
+        selectedDeliveryMethod?.minimum_order_value || 0
+    );
+
+    const requiresAddress = Boolean(selectedDeliveryMethod?.requires_address);
+    const requiresTable = Boolean(selectedDeliveryMethod?.requires_table);
+
+    const cartTotalWithDelivery = cartSubtotal + selectedDeliveryFee;
+
+    const isBelowSelectedDeliveryMinimum =
+        selectedDeliveryMinimum > 0 && cartSubtotal < selectedDeliveryMinimum;
+
 
     const handleCreatePublicOrder = async () => {
         if (!storeSlug) return;
@@ -243,18 +298,30 @@ export default function Catalog() {
             return;
         }
 
-        if (fulfillmentType === 'delivery') {
+        if (isQrTableMode && !tableCode) {
+            setOrderError('Mesa/comanda não identificada.');
+            return;
+        }
+
+        if (requiresAddress) {
             if (!deliveryAddress.street.trim() || !deliveryAddress.number.trim() || !deliveryAddress.district.trim()) {
                 setOrderError('Informe endereço, número e bairro para entrega.');
                 return;
             }
+        }
 
-            if (isDeliveryBelowMinimum) {
-                setOrderError(
-                    `Para entrega, o pedido mínimo é R$ ${deliveryMinimum.toFixed(2).replace('.', ',')}. Para retirada, não há pedido mínimo.`
-                );
-                return;
-            }
+        if (requiresTable && !tableCode) {
+            setOrderError('Mesa/comanda não identificada.');
+            return;
+        }
+
+        if (isBelowSelectedDeliveryMinimum) {
+            setOrderError(
+                `Para ${selectedDeliveryMethod?.name || 'esta forma de entrega'}, o pedido mínimo é R$ ${selectedDeliveryMinimum
+                    .toFixed(2)
+                    .replace('.', ',')}.`
+            );
+            return;
         }
 
         try {
@@ -266,14 +333,16 @@ export default function Catalog() {
                 slug: storeSlug,
                 customer_name: customerName,
                 customer_phone: customerPhone,
-                fulfillment_type: fulfillmentType,
-                sales_channel: 'public_store',
+                fulfillment_type: selectedFulfillmentType,
+                sales_channel: isQrTableMode ? 'qr_table' : 'public_store',
                 payment_method_code: selectedPaymentMethodCode,
+                delivery_method_code: selectedDeliveryMethodCode,
+                table_code: isQrTableMode ? tableCode || null : null,
                 items: cartItems.map((item) => ({
                     product_id: item.id,
                     quantity: item.quantity,
                 })),
-                delivery_address: fulfillmentType === 'delivery' ? deliveryAddress : {},
+                delivery_address: requiresAddress ? deliveryAddress : {},
                 notes: null,
             });
 
@@ -487,6 +556,26 @@ export default function Catalog() {
         clearCart();
         setOrderError(null);
         setOrderSuccess(null);
+    };
+
+    const handleSelectDeliveryMethod = (method: PublicDeliveryMethod) => {
+        if (isQrTableMode && method.code !== 'qr_table') {
+            return;
+        }
+
+        setSelectedDeliveryMethodCode(method.code);
+
+        if (method.fulfillment_type === 'delivery') {
+            setFulfillmentType('delivery');
+            return;
+        }
+
+        if (method.fulfillment_type === 'qr_table') {
+            setFulfillmentType('qr_table');
+            return;
+        }
+
+        setFulfillmentType('pickup');
     };
 
     /*     async function fetchCatalogData(id: string) {
@@ -736,6 +825,14 @@ export default function Catalog() {
                 </div>
             )}
 
+            {isQrTableMode && tableCode && (
+                <div className="max-w-5xl mx-auto mt-4 px-4">
+                    <div className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-900 shadow-sm dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-100">
+                        Você está fazendo um pedido para a mesa/comanda <strong>{tableCode}</strong>.
+                    </div>
+                </div>
+            )}
+
             {Number(store.minimum_order_value || 0) > 0 && (
                 <div className="max-w-5xl mx-auto mt-4 px-4">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100">
@@ -752,52 +849,93 @@ export default function Catalog() {
                                 <p className="text-sm font-bold text-gray-900 dark:text-white">
                                     Seu carrinho
                                 </p>
+                                {isQrTableMode && tableCode && (
+                                    <div className="mt-2 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2 text-xs text-purple-900 dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-100">
+                                        Pedido da mesa/comanda: <strong>{tableCode}</strong>
+                                    </div>
+                                )}
                                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                                    {cartItems.length} item(ns) • Total R$ {cartSubtotal.toFixed(2).replace('.', ',')}
+                                    {cartItems.length} item(ns) • Total R$ {cartTotalWithDelivery.toFixed(2).replace('.', ',')}
                                 </p>
+                                {selectedDeliveryFee > 0 && (
+                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                        Subtotal R$ {cartSubtotal.toFixed(2).replace('.', ',')} + entrega R$ {selectedDeliveryFee.toFixed(2).replace('.', ',')}
+                                    </p>
+                                )}
                             </div>
 
-                            {fulfillmentType === 'delivery' && deliveryMinimum > 0 && (
-                                <div className={`rounded-xl px-3 py-2 text-sm ${isDeliveryBelowMinimum
+                            {selectedDeliveryMinimum > 0 && (
+                                <div className={`rounded-xl px-3 py-2 text-sm ${isBelowSelectedDeliveryMinimum
                                     ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-100'
                                     : 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100'
                                     }`}>
-                                    Pedido mínimo para entrega: R$ {deliveryMinimum.toFixed(2).replace('.', ',')}
+                                    Pedido mínimo para {selectedDeliveryMethod?.name || 'entrega'}: R$ {selectedDeliveryMinimum.toFixed(2).replace('.', ',')}
                                 </div>
                             )}
                         </div>
 
-                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <label className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
-                                <input
-                                    type="radio"
-                                    name="fulfillment_type"
-                                    value="pickup"
-                                    checked={fulfillmentType === 'pickup'}
-                                    onChange={() => setFulfillmentType('pickup')}
-                                    className="mr-2"
-                                />
-                                Retirada na loja
-                                <span className="ml-2 text-xs text-gray-500">
-                                    sem pedido mínimo
-                                </span>
-                            </label>
+                        {deliveryMethods.length > 0 && (
+                            <div className="mt-4">
+                                <p className="mb-2 text-sm font-bold text-gray-900 dark:text-white">
+                                    Forma de entrega
+                                </p>
 
-                            <label className="rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
-                                <input
-                                    type="radio"
-                                    name="fulfillment_type"
-                                    value="delivery"
-                                    checked={fulfillmentType === 'delivery'}
-                                    onChange={() => setFulfillmentType('delivery')}
-                                    className="mr-2"
-                                />
-                                Entrega
-                                <span className="ml-2 text-xs text-gray-500">
-                                    mínimo R$ {deliveryMinimum.toFixed(2).replace('.', ',')}
-                                </span>
-                            </label>
-                        </div>
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    {deliveryMethods
+                                        .filter((method) => !isQrTableMode || method.code === 'qr_table')
+                                        .map((method) => {
+                                        const fee = Number(method.delivery_fee || 0);
+                                        const minimum = Number(method.minimum_order_value || 0);
+
+                                        return (
+                                            <label
+                                                key={method.code}
+                                                className={`cursor-pointer rounded-xl border p-3 text-sm transition ${selectedDeliveryMethodCode === method.code
+                                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'
+                                                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900'
+                                                    }`}
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="delivery_method"
+                                                    value={method.code}
+                                                    checked={selectedDeliveryMethodCode === method.code}
+                                                    onChange={() => handleSelectDeliveryMethod(method)}
+                                                    className="mr-2"
+                                                />
+
+                                                <span className="font-semibold">{method.name}</span>
+
+                                                {minimum > 0 && (
+                                                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                                                        mín. R$ {minimum.toFixed(2).replace('.', ',')}
+                                                    </span>
+                                                )}
+
+                                                {fee > 0 && (
+                                                    <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                                                        taxa R$ {fee.toFixed(2).replace('.', ',')}
+                                                    </span>
+                                                )}
+
+                                                {method.description && (
+                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        {method.description}
+                                                    </p>
+                                                )}
+
+                                                {(method.estimated_minutes_min || method.estimated_minutes_max) && (
+                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        Estimativa: {method.estimated_minutes_min || '?'}–
+                                                        {method.estimated_minutes_max || '?'} min
+                                                    </p>
+                                                )}
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="mt-4 divide-y divide-gray-100 rounded-2xl border border-gray-100 bg-gray-50 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950/40">
                             {cartItems.map((item) => (
@@ -993,7 +1131,7 @@ export default function Catalog() {
                         <button
                             type="button"
                             onClick={handleCreatePublicOrder}
-                            disabled={orderLoading || isDeliveryBelowMinimum}
+                            disabled={orderLoading || isBelowSelectedDeliveryMinimum}
                             className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-green-600 px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {orderLoading ? 'Criando pedido...' : 'Finalizar pelo WhatsApp'}
