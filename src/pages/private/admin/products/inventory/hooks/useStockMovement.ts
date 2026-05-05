@@ -10,7 +10,7 @@ interface RegisterMovementParams {
     reason?: string;
     orderId?: string;
     supplierId?: string;
-    meta?: Record<string, any>;
+    meta?: Record<string, unknown>;
 }
 
 interface FetchMovementsResult {
@@ -21,8 +21,85 @@ interface FetchMovementsResult {
 
 type StoreLike = { id: string };
 
-const isCheckConstraintSignError = (err: any) => {
-    const msg = String(err?.message ?? err ?? '');
+type UnknownRecord = Record<string, unknown>;
+
+interface StockMovementRpcItem {
+    id: string;
+    product_id: string;
+    product_name?: string | null;
+    order_id?: string | null;
+    quantity: number;
+    type: StockMovementType;
+    reason?: string | null;
+    reason_code?: string | null;
+    user_id?: string | null;
+    created_by?: string | null;
+    previous_stock: number;
+    new_stock: number;
+    created_at: string;
+    transfer_id?: string | null;
+    location_id?: string | null;
+    from_location_id?: string | null;
+    to_location_id?: string | null;
+    supplier_id?: string | null;
+    supplier_name?: string | null;
+    purchase_document_number?: string | null;
+    source?: string | null;
+    source_id?: string | null;
+    divergence_qty?: number | null;
+    divergence_resolution?: string | null;
+    divergence_reason?: string | null;
+    products?: { name?: string | null };
+}
+
+interface StockMovementsRpcResult {
+    ok?: boolean;
+    error?: string;
+    items?: StockMovementRpcItem[];
+    total?: number;
+}
+
+interface StockMovementMetadataRow {
+    id?: string | null;
+    metadata?: Record<string, unknown> | null;
+}
+
+interface StockLocationRow {
+    id: string;
+    name: string;
+    code: string;
+}
+
+interface SupplierRow {
+    id: string;
+    name: string;
+}
+
+interface PurchaseDocumentRow {
+    id: string;
+    supplier_id: string | null;
+    supplier?: SupplierRow | SupplierRow[] | null;
+}
+
+interface StockTransferRow {
+    id: string;
+    transfer_code: string | null;
+}
+
+const isRecord = (value: unknown): value is UnknownRecord =>
+    typeof value === 'object' && value !== null;
+
+const getStringProperty = (value: unknown, property: string): string | null => {
+    if (!isRecord(value)) return null;
+    const propertyValue = value[property];
+    return typeof propertyValue === 'string' ? propertyValue : null;
+};
+
+const getErrorMessage = (error: unknown) =>
+    isRecord(error) && typeof error.message === 'string' ? error.message : String(error ?? '');
+
+const isCheckConstraintSignError = (err: unknown) => {
+    const msg = getErrorMessage(err);
     return msg.includes('check_quantity_sign') || msg.includes('violates check constraint');
 };
 
@@ -51,19 +128,21 @@ const getMovementSourceLabel = (source: string | null | undefined) => {
     }
 };
 
-const normalizeStore = (storeData: any): StoreLike | null => {
+const normalizeStore = (storeData: unknown): StoreLike | null => {
     if (!storeData) return null;
     if (Array.isArray(storeData)) return storeData[0] ?? null;
-    return storeData;
+    if (isRecord(storeData) && typeof storeData.id === 'string') return { id: storeData.id };
+    return null;
 };
 
-const extractSuggestedRpcName = (err: any): string | null => {
-    const hint = String(err?.hint ?? '');
+const extractSuggestedRpcName = (err: unknown): string | null => {
+    const hint = isRecord(err) && typeof err.hint === 'string' ? err.hint : '';
     const match = hint.match(/function public\.([a-zA-Z0-9_]+)/);
     return match?.[1] ?? null;
 };
 
-const isMissingRpcError = (err: any) => String(err?.code ?? '') === 'PGRST202';
+const isMissingRpcError = (err: unknown) =>
+    isRecord(err) && String(err.code ?? '') === 'PGRST202';
 
 
 /**
@@ -123,24 +202,62 @@ const callApplyStockMovementDelta = async (args: {
     return supabase.rpc('apply_stock_movement_delta', payloadBase);
 };
 
-const extractMovementId = (data: any): string | null => {
+const extractMovementId = (data: unknown): string | null => {
     if (!data) return null;
     if (typeof data === 'string') return data;
 
     if (Array.isArray(data) && data.length > 0) {
         const first = data[0];
         if (typeof first === 'string') return first;
-        if (first && typeof first.id === 'string') return first.id;
-        if (first && typeof first.movement_id === 'string') return first.movement_id;
+        const id = getStringProperty(first, 'id');
+        if (id) return id;
+        const movementId = getStringProperty(first, 'movement_id');
+        if (movementId) return movementId;
         return null;
     }
 
-    if (typeof data === 'object') {
-        if (typeof (data as any).id === 'string') return (data as any).id;
-        if (typeof (data as any).movement_id === 'string') return (data as any).movement_id;
-    }
+    const id = getStringProperty(data, 'id');
+    if (id) return id;
+    const movementId = getStringProperty(data, 'movement_id');
+    if (movementId) return movementId;
 
     return null;
+};
+
+const matchesMovementFilters = (item: StockMovementRpcItem, filters: StockMovementFilters) => {
+    if (filters.productId && item.product_id !== filters.productId) return false;
+    if (filters.productIds?.length && !filters.productIds.includes(item.product_id)) return false;
+    if (filters.type && item.type !== filters.type) return false;
+    if (filters.source && item.source !== filters.source) return false;
+    if (filters.reasonCode && item.reason_code !== filters.reasonCode && item.reason !== filters.reasonCode) return false;
+    if (filters.locationId) {
+        const locationMatches =
+            item.location_id === filters.locationId ||
+            item.from_location_id === filters.locationId ||
+            item.to_location_id === filters.locationId;
+        if (!locationMatches) return false;
+    }
+    if (filters.startDate && item.created_at < filters.startDate) return false;
+    if (filters.endDate && item.created_at > filters.endDate) return false;
+    if (filters.search?.trim()) {
+        const term = filters.search.trim().toLowerCase();
+        const haystack = [
+            item.product_name,
+            item.products?.name,
+            item.reason,
+            item.reason_code,
+            item.supplier_name,
+            item.purchase_document_number,
+            item.source,
+        ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+        if (!haystack.includes(term)) return false;
+    }
+
+    return true;
 };
 
 export const useStockMovement = () => {
@@ -212,7 +329,7 @@ export const useStockMovement = () => {
             // A RPC pode (ou não) retornar o id; então fazemos fallback pelo último movimento do produto.
             if (params.supplierId || params.meta) {
                 let movementId = extractMovementId(data);
-                let currentMeta: any = null;
+                let currentMeta: Record<string, unknown> | null = null;
 
                 if (!movementId) {
                     const { data: latest, error: latestErr } = await supabase
@@ -227,7 +344,7 @@ export const useStockMovement = () => {
 
                     if (!latestErr) {
                         movementId = latest?.id ?? null;
-                        currentMeta = (latest as any)?.metadata ?? null;
+                        currentMeta = (latest as StockMovementMetadataRow | null)?.metadata ?? null;
                     }
                 } else {
                     const { data: row, error: rowErr } = await supabase
@@ -236,7 +353,7 @@ export const useStockMovement = () => {
                         .eq('id', movementId)
                         .maybeSingle();
 
-                    if (!rowErr) currentMeta = (row as any)?.metadata ?? null;
+                    if (!rowErr) currentMeta = (row as StockMovementMetadataRow | null)?.metadata ?? null;
                 }
 
                 if (movementId) {
@@ -245,7 +362,7 @@ export const useStockMovement = () => {
                             ? { ...(currentMeta ?? {}), ...(params.meta ?? {}) }
                             : currentMeta;
 
-                    const updatePayload: Record<string, any> = {};
+                    const updatePayload: Record<string, unknown> = {};
                     if (params.supplierId) updatePayload.supplier_id = params.supplierId;
                     if (params.meta) updatePayload.metadata = nextMeta;
 
@@ -261,11 +378,12 @@ export const useStockMovement = () => {
             }
 
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro no registro de movimentação:', error);
+            const message = getErrorMessage(error);
             toast.error(
-                error.message?.includes('Estoque insuficiente')
-                    ? error.message
+                message.includes('Estoque insuficiente')
+                    ? message
                     : 'Erro ao registrar movimentação de estoque'
             );
             return false;
@@ -299,28 +417,32 @@ export const useStockMovement = () => {
                 throw error;
             }
 
-            if (!result?.ok) {
-                throw new Error(result?.error || 'Erro ao buscar movimentações.');
+            const rpcResult = result as StockMovementsRpcResult | null;
+
+            if (!rpcResult?.ok) {
+                throw new Error(rpcResult?.error || 'Erro ao buscar movimentações.');
             }
 
-            const data = (result.items || []).map((item: any) => ({
-                ...item,
-                products: {
-                    name: item.product_name,
-                },
-            }));
+            const data: StockMovementRpcItem[] = (rpcResult.items || [])
+                .filter((item) => matchesMovementFilters(item, filters))
+                .map((item) => ({
+                    ...item,
+                    products: {
+                        name: item.product_name,
+                    },
+                }));
 
-            const count = Number(result.total || 0);
+            const count = Number(rpcResult.total || 0);
 
             const allLocationIds = Array.from(
                 new Set(
-                    (data || [])
-                        .flatMap((item: any) => [
+                    data
+                        .flatMap((item) => [
                             item.location_id,
                             item.from_location_id,
                             item.to_location_id,
                         ])
-                        .filter(Boolean)
+                        .filter((locationId): locationId is string => Boolean(locationId))
                 )
             );
 
@@ -335,7 +457,7 @@ export const useStockMovement = () => {
                 if (locationsError) throw locationsError;
 
                 locationMap = new Map(
-                    (locationsData || []).map((loc: any) => [
+                    ((locationsData || []) as StockLocationRow[]).map((loc) => [
                         loc.id,
                         { name: loc.name, code: loc.code },
                     ])
@@ -344,9 +466,9 @@ export const useStockMovement = () => {
 
             const allSupplierIds = Array.from(
                 new Set(
-                    (data || [])
-                        .map((item: any) => item.supplier_id)
-                        .filter(Boolean)
+                    data
+                        .map((item) => item.supplier_id)
+                        .filter((supplierId): supplierId is string => Boolean(supplierId))
                 )
             );
 
@@ -361,7 +483,7 @@ export const useStockMovement = () => {
                 if (suppliersError) throw suppliersError;
 
                 supplierMap = new Map(
-                    (suppliersData || []).map((supplier: any) => [
+                    ((suppliersData || []) as SupplierRow[]).map((supplier) => [
                         supplier.id,
                         { name: supplier.name },
                     ])
@@ -370,9 +492,10 @@ export const useStockMovement = () => {
 
             const purchaseDocumentIds = Array.from(
                 new Set(
-                    (data || [])
-                        .filter((item: any) => item.source === 'purchase_document' && item.source_id)
-                        .map((item: any) => item.source_id)
+                    data
+                        .filter((item) => item.source === 'purchase_document' && item.source_id)
+                        .map((item) => item.source_id)
+                        .filter((sourceId): sourceId is string => Boolean(sourceId))
                 )
             );
 
@@ -401,7 +524,7 @@ export const useStockMovement = () => {
                 if (purchaseDocsError) throw purchaseDocsError;
 
                 purchaseDocMap = new Map(
-                    (purchaseDocs || []).map((doc: any) => {
+                    ((purchaseDocs || []) as PurchaseDocumentRow[]).map((doc) => {
                         const supplier = Array.isArray(doc.supplier) ? doc.supplier[0] : doc.supplier;
 
                         return [
@@ -418,9 +541,9 @@ export const useStockMovement = () => {
 
             const allTransferIds = Array.from(
                 new Set(
-                    (data || [])
-                        .map((item: any) => item.transfer_id || (item.source === 'stock_transfer' ? item.source_id : null))
-                        .filter(Boolean)
+                    data
+                        .map((item) => item.transfer_id || (item.source === 'stock_transfer' ? item.source_id : null))
+                        .filter((transferId): transferId is string => Boolean(transferId))
                 )
             );
 
@@ -435,24 +558,25 @@ export const useStockMovement = () => {
                 if (transfersError) throw transfersError;
 
                 transferMap = new Map(
-                    (transfersData || []).map((transfer: any) => [
+                    ((transfersData || []) as StockTransferRow[]).map((transfer) => [
                         transfer.id,
                         { transfer_code: transfer.transfer_code ?? null },
                     ])
                 );
             }
 
-            const movements: StockMovement[] = (data || []).map((item: any) => {
+            const movements: StockMovement[] = data.map((item) => {
                 const purchaseInfo =
                     item.source === 'purchase_document' && item.source_id
                         ? purchaseDocMap.get(item.source_id)
                         : null;
                 const supplierId = item.supplier_id ?? purchaseInfo?.supplier_id ?? null;
+                const transferId = item.transfer_id || (item.source === 'stock_transfer' ? item.source_id : null);
 
                 return {
                     id: item.id,
                     product_id: item.product_id,
-                    product_name: item.products?.name,
+                    product_name: item.products?.name ?? undefined,
                     order_id: item.order_id ?? item.source_id ?? null,
                     quantity: item.quantity,
                     type: item.type,
@@ -496,8 +620,8 @@ export const useStockMovement = () => {
                     source: item.source ?? null,
                     source_label: getMovementSourceLabel(item.source),
                     source_id: item.source_id ?? null,
-                    transfer_code: (item.transfer_id || (item.source === 'stock_transfer' ? item.source_id : null))
-                        ? transferMap.get(item.transfer_id || item.source_id)?.transfer_code ?? null
+                    transfer_code: transferId
+                        ? transferMap.get(transferId)?.transfer_code ?? null
                         : null,
                     divergence_qty: item.divergence_qty ?? null,
                     divergence_resolution: item.divergence_resolution ?? null,
@@ -509,7 +633,7 @@ export const useStockMovement = () => {
             const hasMore = total > page * pageSize;
 
             return { movements, total, hasMore };
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao buscar movimentações:', error);
             toast.error('Erro ao carregar histórico de movimentações');
             return { movements: [], total: 0, hasMore: false };
@@ -537,7 +661,7 @@ export const useStockMovement = () => {
             if (error) throw error;
 
             return (data || []) as unknown as StockMovement[];
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao buscar movimentações do produto:', error);
             return [];
         }
@@ -559,7 +683,7 @@ export const useStockMovement = () => {
 
             if (error) throw error;
             return data || false;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao verificar movimentações:', error);
             const movements = await getProductMovements(productId);
             return movements.length > 0;

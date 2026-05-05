@@ -167,9 +167,8 @@ export default function CustomerLifecyclePage() {
 
                     <button
                         type="button"
-                        disabled
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black text-gray-400 dark:border-gray-700"
-                        title="Edição completa será refinada no próximo passo"
+                        onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}
+                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
                         <Edit3 size={18} />
                         Editar

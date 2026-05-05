@@ -25,10 +25,11 @@ const Activity = lazy(() => import('@/pages/private/admin/dashboard/Activity'));
 const Alerts = lazy(() => import('@/pages/private/admin/dashboard/Alerts'));
 const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 
-// Commercial Section
+// Commercial e Customer Section
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
 const Customers = lazy(() => import('@/pages/private/admin/customers/Customers'));
 const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
+const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
 const CustomerLifecyclePage = lazy(() => import('@/pages/private/admin/customers/CustomerLifecyclePage'));
 const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
@@ -132,6 +133,7 @@ export default function AppRoutes() {
             // Customers Section
             <Route path="/admin/customers" element={<Customers />} />
             <Route path="/admin/customers/new" element={<CustomerFormPage />} />
+            <Route path="/admin/customers/:customerId/edit" element={<CustomerEditPage />} />
             <Route path="/admin/customers/:customerId" element={<CustomerLifecyclePage />} />
 
             // Financial Section
