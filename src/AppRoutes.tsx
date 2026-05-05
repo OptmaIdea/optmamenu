@@ -27,7 +27,9 @@ const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 
 // Commercial Section
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
-const Customers = lazy(() => import('@/pages/private/admin/commercial/customers/Customers'));
+const Customers = lazy(() => import('@/pages/private/admin/customers/Customers'));
+const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
+const CustomerLifecyclePage = lazy(() => import('@/pages/private/admin/customers/CustomerLifecyclePage'));
 const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
 const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
@@ -126,6 +128,11 @@ export default function AppRoutes() {
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
             <Route path="/admin/messages-admin" element={<AdminMessages />} />
             <Route path="/admin/marketing" element={<Marketing />} />
+
+            // Customers Section
+            <Route path="/admin/customers" element={<Customers />} />
+            <Route path="/admin/customers/new" element={<CustomerFormPage />} />
+            <Route path="/admin/customers/:customerId" element={<CustomerLifecyclePage />} />
 
             // Financial Section
             <Route path="/admin/cashbook" element={<CashbookPage />} />
