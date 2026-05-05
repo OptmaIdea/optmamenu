@@ -65,16 +65,18 @@ export interface CashbookSummary {
 
 export const CashbookService = {
     async listByStore(storeId: string): Promise<CashbookEntry[]> {
-        const { data, error } = await supabase
-            .from('cashbook_entries')
-            .select('*, order:orders(customer_name)')
-            .eq('store_id', storeId)
-            .order('occurred_at', { ascending: false })
-            .limit(100);
+        const { data: result, error } = await supabase.rpc('get_cashbook_entries_safe', {
+            p_store_id: storeId,
+            p_limit: 100,
+        });
 
         if (error) throw error;
 
-        return (data || []) as CashbookEntry[];
+        if (!result?.ok) {
+            throw new Error(result?.error || 'Erro ao buscar lançamentos do livro de caixa.');
+        }
+
+        return (result.entries || []) as CashbookEntry[];
     },
 
     async create(input: CreateCashbookEntryInput) {

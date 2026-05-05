@@ -46,31 +46,20 @@ export default function LoyaltyConfig() {
 
             setStoreId(store.id);
 
-            // Get Program
-            let { data: prog, error: progError } = await supabase
-                .from('fidelity_programs')
-                .select('*')
-                .eq('store_id', store.id)
-                .maybeSingle();
+            const { data: result, error: loyaltyError } = await supabase.rpc('get_admin_loyalty_safe', {
+                p_store_id: store.id,
+            });
 
-            if (progError && progError.code === 'PGRST116') {
-                // Program doesn't exist, create default
-                const { data: newProg, error: createError } = await supabase
-                    .from('fidelity_programs')
-                    .insert([{ store_id: store.id, name: 'Clube de Vantagens' }])
-                    .select()
-                    .maybeSingle();
-
-                if (createError) throw createError;
-                prog = newProg;
-            } else if (progError) {
-                throw progError;
+            if (loyaltyError) {
+                console.error('Error fetching loyalty data:', loyaltyError);
+                throw loyaltyError;
             }
 
-            setProgram(prog);
+            if (!result?.ok) {
+                throw new Error(result?.error || 'Erro ao buscar dados de fidelidade.');
+            }
 
-            // Get Rewards
-
+            setProgram(result.program || null);
 
         } catch (error: any) {
             console.error('Error fetching loyalty data:', error);

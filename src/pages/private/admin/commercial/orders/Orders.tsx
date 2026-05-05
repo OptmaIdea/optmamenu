@@ -144,28 +144,22 @@ export default function Orders() {
 
             setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
 
-            let query = supabase
-                .from('orders')
-                .select(`
-                    *,
-                    order_items (
-                        id,
-                        quantity,
-                        unit_price,
-                        product:products (name, price)
-                    ),
-                    stock_reservations (expires_at)
-                `)
-                .eq('store_id', store.id)
-                .order('created_at', { ascending: false });
+            const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
+                p_store_id: store.id,
+                p_status: filterStatus === 'all' ? 'all' : filterStatus,
+                p_limit: 200,
+            });
 
-            if (filterStatus !== 'all') {
-                query = query.eq('status', filterStatus);
+            if (error) {
+                console.error('Error fetching orders:', error);
+                throw error;
             }
 
-            const { data: ordersData, error: ordersError } = await query;
-            if (ordersError) throw ordersError;
-            setOrders(ordersData || []);
+            if (!result?.ok) {
+                throw new Error(result?.error || 'Erro ao buscar pedidos.');
+            }
+
+            setOrders(result.orders || []);
 
         } catch (error) {
             console.error('Error fetching orders:', error);

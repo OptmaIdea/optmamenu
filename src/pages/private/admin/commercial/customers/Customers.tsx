@@ -75,15 +75,21 @@ export default function Customers() {
             const store = Array.isArray(storeData) ? storeData[0] : storeData;
             if (!store?.id) return;
 
-            const { data: customersData, error: customersError } = await supabase
-                .from('customers')
-                .select('*')
-                .eq('store_id', store.id)
-                .order('created_at', { ascending: false });
+            const { data: result, error } = await supabase.rpc('get_admin_customers_safe', {
+                p_store_id: store.id,
+                p_limit: 500,
+            });
 
-            if (customersError) throw customersError;
+            if (error) {
+                console.error('Error fetching customers:', error);
+                throw error;
+            }
 
-            setCustomers((customersData as CustomerRow[]) || []);
+            if (!result?.ok) {
+                throw new Error(result?.error || 'Erro ao buscar clientes.');
+            }
+
+            setCustomers((result.customers as CustomerRow[]) || []);
         } catch (err) {
             console.error('Error fetching customers:', err);
             toast.error('Erro ao carregar clientes');
