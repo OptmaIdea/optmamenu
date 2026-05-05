@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useLayoutEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -22,6 +22,7 @@ import {
     AlertCircle,
     Heart,
     History,
+    SlidersHorizontal,
     MessageCircle,
     UserCircle,
     Smartphone,
@@ -44,7 +45,7 @@ export default function PrivateLayout() {
     const navigate = useNavigate();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
-    const [isDark, setIsDark] = useState(false);
+    const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
     const attentionCount = useInventoryAttentionCount();
@@ -52,13 +53,24 @@ export default function PrivateLayout() {
     const [loadingStore, setLoadingStore] = useState(true);
 
     const SIDEBAR_GROUPS_STORAGE_KEY = 'optmamenu.sidebar.groups';
-    const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    const defaultOpenSections = {
         dashboard: true,
         commercial: false,
         financial: true,
         products: true,
         settings: false,
         support: false,
+    };
+    const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+        try {
+            const raw = localStorage.getItem(SIDEBAR_GROUPS_STORAGE_KEY);
+            if (raw) {
+                return { ...defaultOpenSections, ...JSON.parse(raw) };
+            }
+        } catch {
+            // noop
+        }
+        return defaultOpenSections;
     });
 
     useEffect(() => {
@@ -99,11 +111,6 @@ export default function PrivateLayout() {
 
         initialize();
 
-        // Dark Mode Check
-        if (document.documentElement.classList.contains('dark')) {
-            setIsDark(true);
-        }
-
         // Favicon Logic - Force reload to avoid cache issues on tablets
         const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
         if (link) {
@@ -118,21 +125,10 @@ export default function PrivateLayout() {
     useOrderMonitor(storeId || undefined);
 
     // Close mobile menu on route change
-    useEffect(() => {
+    useLayoutEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsMobileOpen(false);
     }, [pathname]);
-
-    // Load sidebar group state from localStorage
-    useEffect(() => {
-        try {
-            const raw = localStorage.getItem(SIDEBAR_GROUPS_STORAGE_KEY);
-            if (raw) {
-                setOpenSections((prev) => ({ ...prev, ...JSON.parse(raw) }));
-            }
-        } catch {
-            // noop
-        }
-    }, []);
 
     // Persist sidebar group state to localStorage
     useEffect(() => {
@@ -192,6 +188,7 @@ export default function PrivateLayout() {
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentação' },
+            { path: '/admin/stock-settings', icon: SlidersHorizontal, label: 'Configurações de Estoque' },
         ],
         settings: [
             { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },
@@ -319,7 +316,7 @@ export default function PrivateLayout() {
 
                                                 {item.path === '/admin/inventory' && attentionCount > 0 && (
                                                     <span
-                                                        className="ml-2 inline-flex items-center justify-center min-w-[22px] h-5 px-2 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                                                        className="ml-2 inline-flex items-center justify-center min-w-5.5 h-5 px-2 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
                                                         title="Itens com estoque baixo ou zerado"
                                                     >
                                                         {attentionCount}

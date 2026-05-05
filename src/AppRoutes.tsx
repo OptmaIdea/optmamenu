@@ -54,6 +54,7 @@ const PurchaseInsightsPage = lazy(() => import('@/pages/private/admin/products/i
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
 const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
+const StockSettingsPage = lazy(() => import('@/pages/private/admin/stock/settings/StockSettingsPage'));
 
 // Users Section
 const Users = lazy(() => import('@/pages/private/admin/users/Users'));
@@ -147,6 +148,7 @@ export default function AppRoutes() {
             <Route path="/admin/stock-movements" element={<StockMovements />} />
             <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
             <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
+            <Route path="/admin/stock-settings" element={<StockSettingsPage />} />
             <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
 
 
