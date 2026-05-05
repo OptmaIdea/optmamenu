@@ -37,6 +37,7 @@ import {
     Activity,
     ArrowRightLeft,
     WalletCards,
+    Sparkles,
     Settings
 } from 'lucide-react';
 
@@ -172,6 +173,7 @@ export default function PrivateLayout() {
             { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
             { path: '/admin/customers', icon: Users, label: 'Clientes' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
+            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
             { path: '/admin/marketing', icon: BarChart2, label: 'Promoções' },
         ],

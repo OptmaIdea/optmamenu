@@ -32,6 +32,7 @@ const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/Cust
 const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
 const CustomerLifecyclePage = lazy(() => import('@/pages/private/admin/customers/CustomerLifecyclePage'));
 const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
+const LoyaltyAdvancedPage = lazy(() => import('@/pages/private/admin/loyalty/LoyaltyAdvancedPage'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
 const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
 const PaymentMethodsPage = lazy(() => import('@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage'));
@@ -127,6 +128,7 @@ export default function AppRoutes() {
             <Route path="/admin/commercial-settings" element={<CommercialSettingsPage />} />
             <Route path="/admin/customers" element={<Customers />} />
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
+            <Route path="/admin/loyalty/advanced" element={<LoyaltyAdvancedPage />} />
             <Route path="/admin/messages-admin" element={<AdminMessages />} />
             <Route path="/admin/marketing" element={<Marketing />} />
 
