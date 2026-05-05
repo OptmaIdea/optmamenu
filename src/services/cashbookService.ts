@@ -48,6 +48,16 @@ export interface CreateCashbookEntryInput {
     metadata?: Record<string, unknown>;
 }
 
+export interface UpdateCashbookEntryInput {
+    entry_id: string;
+    store_id: string;
+    description: string;
+    amount?: number;
+    payment_method_code?: string | null;
+    notes?: string | null;
+    occurred_at?: string;
+}
+
 export interface CashbookSummary {
     start_date: string;
     end_date: string;
@@ -95,6 +105,52 @@ export const CashbookService = {
         if (error) throw error;
 
         return data;
+    },
+
+    async update(input: UpdateCashbookEntryInput) {
+        const payload: Record<string, unknown> = {
+            description: input.description,
+            updated_at: new Date().toISOString(),
+        };
+
+        if (input.amount !== undefined) payload.amount = input.amount;
+        if (input.payment_method_code !== undefined) payload.payment_method_code = input.payment_method_code;
+        if (input.notes !== undefined) payload.notes = input.notes;
+        if (input.occurred_at !== undefined) {
+            payload.occurred_at = input.occurred_at;
+            payload.entry_date = input.occurred_at.slice(0, 10);
+        }
+
+        const { data, error } = await supabase
+            .from('cashbook_entries')
+            .update(payload)
+            .eq('id', input.entry_id)
+            .eq('store_id', input.store_id)
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+
+        return data as CashbookEntry | null;
+    },
+
+    async cancel(storeId: string, entryId: string) {
+        const { data, error } = await supabase
+            .from('cashbook_entries')
+            .update({
+                status: 'cancelled',
+                affects_balance: false,
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', entryId)
+            .eq('store_id', storeId)
+            .neq('type', 'sale')
+            .select()
+            .maybeSingle();
+
+        if (error) throw error;
+
+        return data as CashbookEntry | null;
     },
 
     async getSummary(storeId: string, startDate: string, endDate: string): Promise<CashbookSummary> {

@@ -90,6 +90,50 @@ export interface LoyaltyAdvancedSettings {
     benefit_rules: CustomerBenefitRule[];
 }
 
+export interface UpsertLoyaltyPointRuleInput {
+    storeId: string;
+    ruleId?: string | null;
+    code?: string | null;
+    name: string;
+    description?: string | null;
+    triggerEvent: string;
+    ruleType: string;
+    pointsMode: string;
+    pointsValue: number;
+    priority: number;
+    stackable: boolean;
+    active: boolean;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    conditions?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+}
+
+export interface UpsertCustomerBenefitRuleInput {
+    storeId: string;
+    ruleId?: string | null;
+    code?: string | null;
+    name: string;
+    description?: string | null;
+    benefitType: string;
+    targetType: string;
+    targetTierId?: string | null;
+    targetCustomerId?: string | null;
+    targetTag?: string | null;
+    discountPercent?: number | null;
+    discountAmount?: number | null;
+    bonusPoints?: number | null;
+    freeDelivery: boolean;
+    minimumOrderValue: number;
+    maxUsesTotal?: number | null;
+    maxUsesPerCustomer?: number | null;
+    active: boolean;
+    startsAt?: string | null;
+    endsAt?: string | null;
+    conditions?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+}
+
 export const LoyaltyAdvancedService = {
     async getSettings(storeId: string): Promise<LoyaltyAdvancedSettings> {
         const { data, error } = await supabase.rpc('get_loyalty_advanced_settings_safe', {
@@ -107,6 +151,74 @@ export const LoyaltyAdvancedService = {
             tiers: data.tiers || [],
             point_rules: data.point_rules || [],
             benefit_rules: data.benefit_rules || [],
+        };
+    },
+
+    async upsertPointRule(input: UpsertLoyaltyPointRuleInput) {
+        const { data, error } = await supabase.rpc('upsert_loyalty_point_rule_safe', {
+            p_store_id: input.storeId,
+            p_rule_id: input.ruleId || null,
+            p_code: input.code || null,
+            p_name: input.name,
+            p_description: input.description || null,
+            p_trigger_event: input.triggerEvent,
+            p_rule_type: input.ruleType,
+            p_points_mode: input.pointsMode,
+            p_points_value: input.pointsValue,
+            p_priority: input.priority,
+            p_stackable: input.stackable,
+            p_active: input.active,
+            p_starts_at: input.startsAt || null,
+            p_ends_at: input.endsAt || null,
+            p_conditions: input.conditions || {},
+            p_metadata: input.metadata || {},
+        });
+
+        if (error) throw error;
+
+        return data as {
+            ok: boolean;
+            error?: string;
+            message?: string;
+            rule_id?: string;
+            code?: string;
+        };
+    },
+
+    async upsertBenefitRule(input: UpsertCustomerBenefitRuleInput) {
+        const { data, error } = await supabase.rpc('upsert_customer_benefit_rule_safe', {
+            p_store_id: input.storeId,
+            p_rule_id: input.ruleId || null,
+            p_code: input.code || null,
+            p_name: input.name,
+            p_description: input.description || null,
+            p_benefit_type: input.benefitType,
+            p_target_type: input.targetType,
+            p_target_tier_id: input.targetTierId || null,
+            p_target_customer_id: input.targetCustomerId || null,
+            p_target_tag: input.targetTag || null,
+            p_discount_percent: input.discountPercent ?? null,
+            p_discount_amount: input.discountAmount ?? null,
+            p_bonus_points: input.bonusPoints ?? null,
+            p_free_delivery: input.freeDelivery,
+            p_minimum_order_value: input.minimumOrderValue,
+            p_max_uses_total: input.maxUsesTotal ?? null,
+            p_max_uses_per_customer: input.maxUsesPerCustomer ?? null,
+            p_active: input.active,
+            p_starts_at: input.startsAt || null,
+            p_ends_at: input.endsAt || null,
+            p_conditions: input.conditions || {},
+            p_metadata: input.metadata || {},
+        });
+
+        if (error) throw error;
+
+        return data as {
+            ok: boolean;
+            error?: string;
+            message?: string;
+            benefit_rule_id?: string;
+            code?: string;
         };
     },
 };

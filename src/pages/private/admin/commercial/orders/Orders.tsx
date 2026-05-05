@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Filter, RefreshCw, ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
-import type { Order, StoreConfig } from '@/types';
+import type { Order, OrderStatus, StoreConfig } from '@/types';
 
 
 export default function Orders() {
@@ -72,9 +72,10 @@ export default function Orders() {
             if (error) throw error;
             alert('Reserva prorrogada com sucesso!');
             fetchOrders();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Extension error:', error);
-            alert('Erro ao prorrogar: ' + error.message);
+            const message = error instanceof Error ? error.message : 'Erro desconhecido';
+            alert('Erro ao prorrogar: ' + message);
         }
     }
 
@@ -186,28 +187,30 @@ export default function Orders() {
     }, [filterStatus]);
 
     // Update Status
-    async function updateStatus(orderId: string, newStatus: string) {
+    async function updateStatus(orderId: string, newStatus: OrderStatus) {
         try {
             if (newStatus === 'confirmed') {
-                const { error } = await supabase.rpc('confirm_order_payment', { p_order_id: orderId });
+                const { data, error } = await supabase.rpc('confirm_order_payment', { p_order_id: orderId });
                 if (error) throw error;
+                if (data?.ok === false) throw new Error(data?.error || 'Erro ao confirmar pedido.');
             } else if (newStatus === 'cancelled') {
-                // Use RPC for cancellation to ensure reservations are cleared
-                const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId });
+                const { data, error } = await supabase.rpc('admin_cancel_public_order_safe', {
+                    p_order_id: orderId,
+                    p_reason: 'Cancelado pelo painel administrativo',
+                });
                 if (error) throw error;
+                if (data?.ok === false) throw new Error(data?.error || 'Erro ao cancelar pedido.');
             } else if (newStatus === 'completed') {
-                // Use RPC for completion (bypass RLS)
-                const { error } = await supabase.rpc('complete_order', { p_order_id: orderId });
+                const { data, error } = await supabase.rpc('admin_complete_public_order_safe', {
+                    p_order_id: orderId,
+                });
                 if (error) throw error;
+                if (data?.ok === false) throw new Error(data?.error || 'Erro ao finalizar pedido.');
             } else {
-                const { error } = await supabase
-                    .from('orders')
-                    .update({ status: newStatus })
-                    .eq('id', orderId);
-                if (error) throw error;
+                throw new Error(`Status não suportado: ${newStatus}`);
             }
             // Optimistic update
-            setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus as any } : o));
+            setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
         } catch (error) {
             console.error('Error updating status:', error);
             alert('Erro ao atualizar status');
