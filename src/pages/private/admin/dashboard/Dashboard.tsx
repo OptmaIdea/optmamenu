@@ -25,6 +25,29 @@ type StoreRow = {
   config?: any;
 };
 
+type DashboardOrdersSummary = {
+  orders_count?: number | string;
+  total_sales?: number | string;
+  completed_count?: number | string;
+  reserved_count?: number | string;
+  cancelled_count?: number | string;
+};
+
+type DashboardRecentOrder = {
+  id: string;
+  order_code?: string | null;
+  total: number | string;
+  created_at: string;
+  status?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+};
+
+function toNumber(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState({
     ordersToday: 0,
@@ -32,7 +55,7 @@ export default function Dashboard() {
     activeProducts: 0,
 
     // Estoque
-    criticalStockCount: 0, // = zero + low
+    criticalStockCount: 0,
     lowStockCount: 0,
     zeroStockCount: 0,
     excessStockCount: 0,
@@ -45,11 +68,17 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [storeId, setStoreId] = useState<string | null>(null);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
+  const [fatalError, setFatalError] = useState<string | null>(null);
 
   const stockAlerts = useStockAlerts(storeId || undefined, { autoRefreshMs: 5 * 60 * 1000 });
 
+  const zeroStockProducts: StockAlertProduct[] = stockAlerts.lists.zero;
+  const lowStockProducts: StockAlertProduct[] = stockAlerts.lists.low;
+
   useEffect(() => {
     if (stockAlerts.loading) return;
+
     setStats((prev) => ({
       ...prev,
       activeProducts: stockAlerts.summary.activeCount,
@@ -58,11 +87,14 @@ export default function Dashboard() {
       zeroStockCount: stockAlerts.summary.zeroCount,
       excessStockCount: stockAlerts.summary.excessCount,
     }));
-  }, [stockAlerts.loading, stockAlerts.summary.activeCount, stockAlerts.summary.criticalCount, stockAlerts.summary.lowCount, stockAlerts.summary.zeroCount, stockAlerts.summary.excessCount]);
-  const zeroStockProducts: StockAlertProduct[] = stockAlerts.lists.zero;
-  const lowStockProducts: StockAlertProduct[] = stockAlerts.lists.low;
-  const [recentActivities, setRecentActivities] = useState<any[]>([]);
-  const [fatalError, setFatalError] = useState<string | null>(null);
+  }, [
+    stockAlerts.loading,
+    stockAlerts.summary.activeCount,
+    stockAlerts.summary.criticalCount,
+    stockAlerts.summary.lowCount,
+    stockAlerts.summary.zeroCount,
+    stockAlerts.summary.excessCount,
+  ]);
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -79,12 +111,13 @@ export default function Dashboard() {
         setFatalError('Erro ao obter usuário autenticado.');
         return;
       }
+
       if (!user) {
         setFatalError('Usuário não autenticado.');
         return;
       }
 
-      // ✅ Buscar store via RPC (evita recursion/stack depth por RLS em stores)
+      // Buscar store via RPC evita recursion/stack depth por RLS em stores.
       const { data: storeData, error: storeError } = await supabase.rpc('get_user_store_by_id', {
         p_user_id: user.id,
       });
@@ -106,68 +139,82 @@ export default function Dashboard() {
 
       setStoreId(store.id);
 
-      // Data de hoje
+      // Janela do dia em horário local do navegador.
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
       const todayISO = today.toISOString();
       const tomorrowISO = tomorrow.toISOString();
 
-      // 1) PEDIDOS DE HOJE
-      const { data: orders, error: ordersError } = await supabase
-        .from('orders')
-        .select('total')
-        .eq('store_id', store.id)
-        .gte('created_at', todayISO)
-        .lt('created_at', tomorrowISO);
+      let ordersToday = 0;
+      let salesToday = 0;
 
-      if (ordersError) console.error('Error fetching orders:', ordersError);
+      // Pedidos de hoje via RPC SECURITY DEFINER, evitando REST direto em orders.
+      const { data: ordersSummaryResult, error: ordersError } = await supabase.rpc(
+        'get_dashboard_orders_summary',
+        {
+          p_store_id: store.id,
+          p_start_at: todayISO,
+          p_end_at: tomorrowISO,
+        }
+      );
 
-      const ordersToday = orders?.length || 0;
-      const salesToday = orders?.reduce((acc, curr) => acc + (curr.total || 0), 0) || 0;
+      if (ordersError) {
+        console.error('Error fetching orders summary:', ordersError);
+      } else if (ordersSummaryResult?.ok) {
+        const summary = ordersSummaryResult.summary as DashboardOrdersSummary;
+        ordersToday = toNumber(summary.orders_count, 0);
+        salesToday = toNumber(summary.total_sales, 0);
+      }
 
-      // 2) ESTOQUE: calculado via hook useStockAlerts (evita duplicação de query aqui)
+      // Pedidos recentes também via RPC para evitar stack depth/RLS recursion no REST direto.
+      const { data: recentOrdersResult, error: recentError } = await supabase.rpc(
+        'get_dashboard_recent_orders',
+        {
+          p_store_id: store.id,
+          p_limit: 5,
+        }
+      );
 
-      // 3) PEDIDOS RECENTES
-      const { data: recentOrders, error: recentError } = await supabase
-        .from('orders')
-        .select('id, total, created_at, status, customer_name, customer_phone')
-        .eq('store_id', store.id)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      if (recentError) {
+        console.error('Error fetching recent orders:', recentError);
+        setRecentActivities([]);
+      } else if (recentOrdersResult?.ok) {
+        const recentOrders = (recentOrdersResult.orders || []) as DashboardRecentOrder[];
 
-      if (recentError) console.error('Error fetching recent orders:', recentError);
-
-      // 4) MENSAGENS (mock por enquanto)
-      const mockMessages = 2;
-
-      setStats((prev) => ({
-        ...prev,
-        ordersToday,
-        salesToday,
-        newCustomers: 3, // Mock
-        pendingMessages: mockMessages,
-      }));
-
-      if (recentOrders) {
         const activities = recentOrders.map((order) => ({
           id: order.id,
           type: 'order' as const,
           user: {
             name: order.customer_name || 'Cliente',
           },
-          action: 'fez um pedido de',
-          target: order.total.toLocaleString('pt-BR', {
+          action: order.order_code
+            ? `fez o pedido ${order.order_code} de`
+            : 'fez um pedido de',
+          target: toNumber(order.total, 0).toLocaleString('pt-BR', {
             style: 'currency',
             currency: 'BRL',
           }),
           timestamp: new Date(order.created_at),
-          status: order.status,
+          status: order.status || 'reserved',
         }));
+
         setRecentActivities(activities);
       }
+
+      // Mensagens ainda ficam mockadas até a central real entrar nessa etapa.
+      const mockMessages = 2;
+
+      setStats((prev) => ({
+        ...prev,
+        ordersToday,
+        salesToday,
+        newCustomers: 3,
+        pendingMessages: mockMessages,
+      }));
 
       setLastUpdated(new Date());
     } catch (error) {
@@ -179,14 +226,26 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    fetchDashboardData();
-    const interval = setInterval(() => {
-      if (!fatalError) fetchDashboardData();
+    let cancelled = false;
+
+    async function run() {
+      if (cancelled) return;
+      await fetchDashboardData();
+    }
+
+    run();
+
+    const interval = window.setInterval(() => {
+      if (!cancelled) {
+        fetchDashboardData();
+      }
     }, 300000);
 
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchDashboardData, fatalError]);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [fetchDashboardData]);
 
   if (loading) {
     return (
@@ -212,6 +271,7 @@ export default function Dashboard() {
             {fatalError}
           </p>
           <button
+            type="button"
             onClick={fetchDashboardData}
             className="px-4 py-2 rounded-xl font-bold bg-[#21A896] text-white hover:brightness-110"
           >
@@ -393,7 +453,7 @@ export default function Dashboard() {
             max={2000}
             color="green"
             icon={<TrendingUp size={20} />}
-            subtitle={`Faltam R$ ${(2000 - stats.salesToday).toFixed(2)} para a meta`}
+            subtitle={`Faltam R$ ${Math.max(0, 2000 - stats.salesToday).toFixed(2)} para a meta`}
           />
         </div>
 

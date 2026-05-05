@@ -3,11 +3,11 @@ import { lazy, Suspense } from 'react';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import CreateStore from '@/pages/CreateStore';
 
-// Lazy load layouts
+// Layouts
 const PublicLayout = lazy(() => import('@/components/layouts/PublicLayout'));
 const PrivateLayout = lazy(() => import('@/components/layouts/PrivateLayout'));
 
-// Lazy load public routes
+// Initial pages
 const Landing = lazy(() => import('@/pages/initial/home/Landing'));
 const Login = lazy(() => import('@/pages/initial/auth/Login'));
 const Signup = lazy(() => import('@/pages/initial/auth/SignUp'));
@@ -19,22 +19,31 @@ const Catalog = lazy(() => import('@/pages/store/Catalog'));
 const Checkout = lazy(() => import('@/pages/store/Checkout'));
 const StoreLayout = lazy(() => import('@/components/layouts/StoreLayout').then(m => ({ default: m.StoreLayout })));
 
-// Lazy load private routes
+// Dashboard Section
 const Dashboard = lazy(() => import('@/pages/private/admin/dashboard/Dashboard'));
 const Activity = lazy(() => import('@/pages/private/admin/dashboard/Activity'));
 const Alerts = lazy(() => import('@/pages/private/admin/dashboard/Alerts'));
 const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
-const Settings = lazy(() => import('@/pages/private/admin/settings/storeSettings/StoreSettings'));
-const Products = lazy(() => import('@/pages/private/admin/products/Products'));
-const Users = lazy(() => import('@/pages/private/admin/users/Users'));
-const Categories = lazy(() => import('@/pages/private/admin/products/Categories'));
-const Legal = lazy(() => import('@/pages/private/admin/support/Legal'));
-const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));
-const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/Appearance'));
+
+// Commercial Section
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
+const Customers = lazy(() => import('@/pages/private/admin/commercial/customers/Customers'));
+const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
+const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
+const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
+const PaymentMethodsPage = lazy(() => import('@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage'));
+const CommercialSettingsPage = lazy(() => import('@/pages/private/admin/commercial/settings/CommercialSettingsPage'));
+
+// Cashbook/Payments/Financial Section
+const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
+const Payments = lazy(() => import('@/pages/private/admin/payments/Payments'));
+
+// Products/Inventory/Suppliers/Purchases Section
+const Products = lazy(() => import('@/pages/private/admin/products/Products'));
 const InventoryByLocationPage = lazy(() => import('@/pages/private/admin/products/inventory/InventoryByLocationPage'));
 const TransfersPage = lazy(() => import('@/pages/private/admin/products/inventory/TransfersPage'));
 const TransferDetailPage = lazy(() => import('@/pages/private/admin/products/inventory/TransferDetailPage'));
+const Categories = lazy(() => import('@/pages/private/admin/products/Categories'));
 const ProductLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/ProductLifecyclePage'));
 const ProductLifecycleSelectorPage = lazy(() => import('@/pages/private/admin/products/inventory/ProductLifecycleSelectorPage'));
 const StockMovements = lazy(() => import('@/pages/private/admin/products/inventory/StockMovements'));
@@ -43,21 +52,27 @@ const PurchaseDocumentsPage = lazy(() => import('@/pages/private/admin/products/
 const PurchaseQuotationsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseQuotationsPage'));
 const PurchaseInsightsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseInsightsPage'));
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
+const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
+const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
+
+// Users Section
+const Users = lazy(() => import('@/pages/private/admin/users/Users'));
+
+// Legal/Support/Setting Section
+const Legal = lazy(() => import('@/pages/private/admin/support/Legal'));
+const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));
+const Settings = lazy(() => import('@/pages/private/admin/settings/storeSettings/StoreSettings'));
 const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
 const Security = lazy(() => import('@/pages/private/admin/settings/security/Security'));
-const Customers = lazy(() => import('@/pages/private/admin/commercial/customers/Customers'));
+const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/Appearance'));
 const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
-const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
-const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
-const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
-const PaymentMethodsPage = lazy(() => import('@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage'));
+
+// Marketing Section
 const Marketing = lazy(() => import('@/pages/private/admin/marketing/Marketing'));
-const Payments = lazy(() => import('@/pages/private/admin/payments/Payments'));
+
+// Delivery Section
 const Delivery = lazy(() => import('@/pages/private/admin/delivery/Delivery'));
-const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
-const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
-const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -93,47 +108,61 @@ export default function AppRoutes() {
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/create-store" element={<CreateStore />} />
           <Route element={<PrivateLayout />}>
+            // Dashboard Section
             <Route path="/admin" element={<Dashboard />} />
             <Route path="/admin/activity" element={<Activity />} />
             <Route path="/admin/alerts" element={<Alerts />} />
             <Route path="/admin/reports" element={<Reports />} />
-            <Route path="/admin/settings" element={<Settings />} />
+
+            // Commercial Section
+            <Route path="/admin/orders" element={<Orders />} />
             <Route path="/admin/sales-channels" element={<SalesChannelsPage />} />
             <Route path="/admin/payment-methods" element={<PaymentMethodsPage />} />
-            <Route path="/admin/orders" element={<Orders />} />
+            <Route path="/admin/payments" element={<Payments />} />
+            <Route path="/admin/delivery" element={<Delivery />} />
+            <Route path="/admin/commercial-settings" element={<CommercialSettingsPage />} />
             <Route path="/admin/customers" element={<Customers />} />
+            <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
+            <Route path="/admin/messages-admin" element={<AdminMessages />} />
+            <Route path="/admin/marketing" element={<Marketing />} />
+
+            // Financial Section
+            <Route path="/admin/cashbook" element={<CashbookPage />} />
+
+            // Products Section
             <Route path="/admin/products" element={<Products />} />
             <Route path="/admin/categories" element={<Categories />} />
-            <Route path="/admin/users" element={<Users />} />
-            <Route path="/admin/legal" element={<Legal />} />
-            <Route path="/admin/faq" element={<FAQ />} />
-            <Route path="/admin/config" element={<Appearance />} />
             <Route path="/admin/inventory" element={<InventoryByLocationPage />} />
-            <Route path="/admin/transfers" element={<TransfersPage />} />
-            <Route path="/admin/transfers/:id" element={<TransferDetailPage />} />
             <Route path="/admin/products/lifecycle" element={<ProductLifecycleSelectorPage />} />
             <Route path="/admin/products/:id/lifecycle" element={<ProductLifecyclePage />} />
+            <Route path="/admin/transfers" element={<TransfersPage />} />
+            <Route path="/admin/transfers/:id" element={<TransferDetailPage />} />
+            <Route path="/admin/suppliers" element={<Suppliers />} />
+            <Route path="/admin/suppliers/:supplierId/lifecycle" element={<SupplierLifecyclePage />} />
+            <Route path="/admin/suppliers/:id" element={<SupplierDetailPage />} />
+            <Route path="/admin/cashbook/purchases" element={<PurchasesLedger />} />
+            <Route path="/admin/stock/purchase-documents" element={<PurchaseDocumentsPage />} />
+            <Route path="/admin/stock/purchase-insights" element={<PurchaseInsightsPage />} />
+            <Route path="/admin/stock/quotations" element={<PurchaseQuotationsPage />} />
             <Route path="/admin/stock-movements" element={<StockMovements />} />
             <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
             <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
             <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
-            <Route path="/admin/stock/purchase-documents" element={<PurchaseDocumentsPage />} />
-            <Route path="/admin/stock/quotations" element={<PurchaseQuotationsPage />} />
-            <Route path="/admin/stock/purchase-insights" element={<PurchaseInsightsPage />} />
-            <Route path="/admin/cashbook" element={<CashbookPage />} />
-            <Route path="/admin/cashbook/purchases" element={<PurchasesLedger />} />
 
-            <Route path="/admin/suppliers" element={<Suppliers />} />
-            <Route path="/admin/suppliers/:id" element={<SupplierDetailPage />} />
-            <Route path="/admin/suppliers/:supplierId/lifecycle" element={<SupplierLifecyclePage />} />
+
+            //Users Section
+            <Route path="/admin/users" element={<Users />} />
+
+            //Settings Section
+            <Route path="/admin/config" element={<Appearance />} />
+            <Route path="/admin/settings" element={<Settings />} />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
-            <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
-            <Route path="/admin/messages-admin" element={<AdminMessages />} />
-            <Route path="/admin/marketing" element={<Marketing />} />
-            <Route path="/admin/payments" element={<Payments />} />
-            <Route path="/admin/delivery" element={<Delivery />} />
             <Route path="/admin/security" element={<Security />} />
+
+            //Help Section
+            <Route path="/admin/legal" element={<Legal />} />
+            <Route path="/admin/faq" element={<FAQ />} />
             <Route path="/admin/docs" element={<Documentation />} />
           </Route>
         </Route>

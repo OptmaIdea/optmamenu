@@ -146,7 +146,16 @@ export default function CashbookPage() {
                                             {new Date(entry.occurred_at).toLocaleDateString('pt-BR')}
                                         </td>
                                         <td className="px-6 py-4">
-                                            <div className="font-bold text-gray-900 dark:text-white tracking-tight">{entry.description}</div>
+                                            <div className="font-bold text-gray-900 dark:text-white tracking-tight">
+                                                {entry.type === 'sale' ? (
+                                                    <>
+                                                        Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}
+                                                        {entry.order?.customer_name ? ` para ${entry.order.customer_name}` : ''}
+                                                    </>
+                                                ) : (
+                                                    entry.description
+                                                )}
+                                            </div>
                                             {entry.payment_method && (
                                                 <div className="text-[10px] text-gray-400 uppercase font-black tracking-tighter">{entry.payment_method}</div>
                                             )}

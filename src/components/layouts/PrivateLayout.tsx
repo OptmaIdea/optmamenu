@@ -36,6 +36,7 @@ import {
     Activity,
     ArrowRightLeft,
     WalletCards,
+    Settings
 } from 'lucide-react';
 
 export default function PrivateLayout() {
@@ -171,10 +172,12 @@ export default function PrivateLayout() {
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
             { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
             { path: '/admin/payment-methods', icon: WalletCards, label: 'Pagamentos' },
+            { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
+            { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
             { path: '/admin/customers', icon: Users, label: 'Clientes' },
+            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
             { path: '/admin/marketing', icon: BarChart2, label: 'Promoções' },
-            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário' },
@@ -197,7 +200,6 @@ export default function PrivateLayout() {
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
             { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
-            { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
             { path: '/admin/security', icon: Lock, label: 'Senhas e Acesso' },
         ],
         support: [

@@ -287,70 +287,30 @@ export const useStockMovement = () => {
             const ctx = await getUserAndStore();
             if (!ctx) return { movements: [], total: 0, hasMore: false };
 
-            let query = supabase
-                .from('stock_movements')
-                .select(
-                    `
-                    *,
-                    products!inner (
-                        name
-                    )
-                `,
-                    { count: 'exact' }
-                )
-                .eq('store_id', ctx.store.id);
+            const offset = (page - 1) * pageSize;
+            const { data: result, error } = await supabase.rpc('get_stock_movements_safe', {
+                p_store_id: ctx.store.id,
+                p_limit: pageSize,
+                p_offset: offset,
+            });
 
-            if (filters.productId) query = query.eq('product_id', filters.productId);
-            if (filters.productIds && filters.productIds.length > 0) {
-                query = query.in('product_id', filters.productIds);
-            }
-            if (filters.type) {
-                query = query.eq('type', filters.type);
+            if (error) {
+                console.error('Erro ao buscar movimentações:', error);
+                throw error;
             }
 
-            if (filters.source) {
-                query = query.eq('source', filters.source);
+            if (!result?.ok) {
+                throw new Error(result?.error || 'Erro ao buscar movimentações.');
             }
 
-            if (filters.reasonCode) {
-                query = query.eq('reason_code', filters.reasonCode);
-            }
+            const data = (result.items || []).map((item: any) => ({
+                ...item,
+                products: {
+                    name: item.product_name,
+                },
+            }));
 
-            if (filters.locationId) {
-                query = query.or(
-                    `location_id.eq.${filters.locationId},from_location_id.eq.${filters.locationId},to_location_id.eq.${filters.locationId}`
-                );
-            }
-
-            if (filters.startDate) {
-                const start = new Date(`${filters.startDate}T00:00:00-03:00`);
-                query = query.gte('created_at', start.toISOString());
-            }
-
-            if (filters.endDate) {
-                const end = new Date(`${filters.endDate}T23:59:59.999-03:00`);
-                query = query.lte('created_at', end.toISOString());
-            }
-
-            if (filters.search?.trim()) {
-                const searchTerm = filters.search.trim();
-                query = query.or(
-                    [
-                        `reason.ilike.%${searchTerm}%`,
-                        `reason_code.ilike.%${searchTerm}%`,
-                        `source.ilike.%${searchTerm}%`,
-                    ].join(',')
-                );
-            }
-
-            const from = (page - 1) * pageSize;
-            const to = from + pageSize - 1;
-
-            const { data, error, count } = await query
-                .order('created_at', { ascending: false })
-                .range(from, to);
-
-            if (error) throw error;
+            const count = Number(result.total || 0);
 
             const allLocationIds = Array.from(
                 new Set(

@@ -18,6 +18,7 @@ import {
 import { PublicOrderService } from '@/services/publicOrderService';
 import { timezoneUtils } from '@/utils/timezoneUtils';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
+import { PublicLoyaltyService, type PublicLoyaltyResponse } from '@/services/publicLoyaltyService';
 import {
     Search,
     User,
@@ -142,6 +143,10 @@ export default function Catalog() {
         message: string | null;
         isClosingSoon: boolean;
     }>({ isOpen: false, canOrder: false, message: null, isClosingSoon: false });
+    const [loyaltyPhone, setLoyaltyPhone] = useState('');
+    const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+    const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
+    const [loyaltyResult, setLoyaltyResult] = useState<PublicLoyaltyResponse | null>(null);
 
     useEffect(() => {
         async function fetchPublicStorefront() {
@@ -284,6 +289,15 @@ export default function Catalog() {
     const isBelowSelectedDeliveryMinimum =
         selectedDeliveryMinimum > 0 && cartSubtotal < selectedDeliveryMinimum;
 
+    const loyaltyData =
+        loyaltyResult?.found && loyaltyResult.loyalty ? loyaltyResult.loyalty : null;
+
+    const recentLoyaltyTransactions = loyaltyData?.recent_transactions ?? [];
+
+    const loyaltyCustomerName = loyaltyData?.customer?.name?.trim() || '';
+
+    const loyaltyNotFoundMessage =
+        loyaltyResult?.message || 'Ainda não encontramos pontos para este WhatsApp.';
 
     const handleCreatePublicOrder = async () => {
         if (!storeSlug) return;
@@ -382,6 +396,30 @@ export default function Catalog() {
             setOrderError(err?.message || 'Erro ao criar pedido.');
         } finally {
             setOrderLoading(false);
+        }
+    };
+
+    const handleCheckLoyalty = async () => {
+        if (!storeSlug) return;
+
+        setLoyaltyLoading(true);
+        setLoyaltyError(null);
+        setLoyaltyResult(null);
+
+        try {
+            const result = await PublicLoyaltyService.getByPhone(storeSlug, loyaltyPhone);
+
+            if (!result.ok) {
+                setLoyaltyError(result.error || 'Não foi possível consultar seus pontos.');
+                return;
+            }
+
+            setLoyaltyResult(result);
+        } catch (err: any) {
+            console.error('Erro ao consultar fidelidade:', err);
+            setLoyaltyError(err?.message || 'Erro ao consultar fidelidade.');
+        } finally {
+            setLoyaltyLoading(false);
         }
     };
 
@@ -825,6 +863,116 @@ export default function Catalog() {
                 </div>
             )}
 
+            {store && (
+                <div className="max-w-5xl mx-auto mt-4 px-4">
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 shadow-sm dark:border-amber-900/40 dark:bg-amber-950/30">
+                        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="flex-1">
+                                <p className="text-sm font-bold text-amber-950 dark:text-amber-100">
+                                    {store.name} Fidelidade
+                                </p>
+
+                                <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                                    Consulte seus pontos pelo WhatsApp cadastrado.
+                                </p>
+
+                                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                                    <input
+                                        value={loyaltyPhone}
+                                        onChange={(event) => setLoyaltyPhone(event.target.value)}
+                                        placeholder="Seu WhatsApp"
+                                        className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400 dark:border-amber-900/60 dark:bg-gray-950 dark:text-white"
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={handleCheckLoyalty}
+                                        disabled={loyaltyLoading || loyaltyPhone.trim().length < 8}
+                                        className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {loyaltyLoading ? 'Consultando...' : 'Ver pontos'}
+                                    </button>
+                                </div>
+
+                                {loyaltyData && loyaltyCustomerName && (
+                                    <div className="mt-3">
+                                        <label className="mb-1 block text-xs font-bold uppercase text-amber-800 dark:text-amber-200">
+                                            Cliente encontrado
+                                        </label>
+
+                                        <input
+                                            value={loyaltyCustomerName}
+                                            readOnly
+                                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm font-semibold text-amber-950 outline-none dark:border-amber-900/60 dark:bg-gray-950 dark:text-amber-100"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {loyaltyData && (
+                                <div className="rounded-2xl bg-white px-4 py-3 text-sm shadow-sm dark:bg-gray-950 lg:min-w-40">
+                                    <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                                        Seus pontos
+                                    </p>
+
+                                    <p className="mt-1 text-2xl font-black text-amber-700 dark:text-amber-300">
+                                        {loyaltyData.points}
+                                    </p>
+
+                                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                        Nível: {loyaltyData.current_tier?.name || 'Bronze'}
+                                    </p>
+
+                                    {loyaltyData.next_tier && (
+                                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                            Faltam {loyaltyData.next_tier.points_to_next_tier} pontos para{' '}
+                                            {loyaltyData.next_tier.name}.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {loyaltyError && (
+                            <p className="mt-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-200">
+                                {loyaltyError}
+                            </p>
+                        )}
+
+                        {loyaltyResult?.found === false && (
+                            <p className="mt-3 rounded-xl bg-white px-3 py-2 text-sm text-amber-800 dark:bg-gray-950 dark:text-amber-100">
+                                {loyaltyNotFoundMessage}
+                            </p>
+                        )}
+
+                        {recentLoyaltyTransactions.length > 0 && (
+                            <div className="mt-3 rounded-xl bg-white p-3 text-sm dark:bg-gray-950">
+                                <p className="mb-2 text-xs font-bold uppercase text-gray-500 dark:text-gray-400">
+                                    Últimos movimentos
+                                </p>
+
+                                <div className="space-y-2">
+                                    {recentLoyaltyTransactions.slice(0, 3).map((transaction) => (
+                                        <div
+                                            key={transaction.id}
+                                            className="flex items-center justify-between gap-3 text-xs"
+                                        >
+                                            <span className="text-gray-600 dark:text-gray-300">
+                                                {transaction.description || transaction.type}
+                                            </span>
+
+                                            <span className="font-bold text-emerald-600 dark:text-emerald-300">
+                                                +{transaction.points} pts
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
             {isQrTableMode && tableCode && (
                 <div className="max-w-5xl mx-auto mt-4 px-4">
                     <div className="rounded-2xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm text-purple-900 shadow-sm dark:border-purple-900/40 dark:bg-purple-950/30 dark:text-purple-100">
@@ -884,55 +1032,55 @@ export default function Catalog() {
                                     {deliveryMethods
                                         .filter((method) => !isQrTableMode || method.code === 'qr_table')
                                         .map((method) => {
-                                        const fee = Number(method.delivery_fee || 0);
-                                        const minimum = Number(method.minimum_order_value || 0);
+                                            const fee = Number(method.delivery_fee || 0);
+                                            const minimum = Number(method.minimum_order_value || 0);
 
-                                        return (
-                                            <label
-                                                key={method.code}
-                                                className={`cursor-pointer rounded-xl border p-3 text-sm transition ${selectedDeliveryMethodCode === method.code
-                                                    ? 'border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'
-                                                    : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900'
-                                                    }`}
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="delivery_method"
-                                                    value={method.code}
-                                                    checked={selectedDeliveryMethodCode === method.code}
-                                                    onChange={() => handleSelectDeliveryMethod(method)}
-                                                    className="mr-2"
-                                                />
+                                            return (
+                                                <label
+                                                    key={method.code}
+                                                    className={`cursor-pointer rounded-xl border p-3 text-sm transition ${selectedDeliveryMethodCode === method.code
+                                                        ? 'border-emerald-400 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-100'
+                                                        : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-900'
+                                                        }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="delivery_method"
+                                                        value={method.code}
+                                                        checked={selectedDeliveryMethodCode === method.code}
+                                                        onChange={() => handleSelectDeliveryMethod(method)}
+                                                        className="mr-2"
+                                                    />
 
-                                                <span className="font-semibold">{method.name}</span>
+                                                    <span className="font-semibold">{method.name}</span>
 
-                                                {minimum > 0 && (
-                                                    <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-                                                        mín. R$ {minimum.toFixed(2).replace('.', ',')}
-                                                    </span>
-                                                )}
+                                                    {minimum > 0 && (
+                                                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+                                                            mín. R$ {minimum.toFixed(2).replace('.', ',')}
+                                                        </span>
+                                                    )}
 
-                                                {fee > 0 && (
-                                                    <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
-                                                        taxa R$ {fee.toFixed(2).replace('.', ',')}
-                                                    </span>
-                                                )}
+                                                    {fee > 0 && (
+                                                        <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                                                            taxa R$ {fee.toFixed(2).replace('.', ',')}
+                                                        </span>
+                                                    )}
 
-                                                {method.description && (
-                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                        {method.description}
-                                                    </p>
-                                                )}
+                                                    {method.description && (
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            {method.description}
+                                                        </p>
+                                                    )}
 
-                                                {(method.estimated_minutes_min || method.estimated_minutes_max) && (
-                                                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                                        Estimativa: {method.estimated_minutes_min || '?'}–
-                                                        {method.estimated_minutes_max || '?'} min
-                                                    </p>
-                                                )}
-                                            </label>
-                                        );
-                                    })}
+                                                    {(method.estimated_minutes_min || method.estimated_minutes_max) && (
+                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            Estimativa: {method.estimated_minutes_min || '?'}–
+                                                            {method.estimated_minutes_max || '?'} min
+                                                        </p>
+                                                    )}
+                                                </label>
+                                            );
+                                        })}
                                 </div>
                             </div>
                         )}

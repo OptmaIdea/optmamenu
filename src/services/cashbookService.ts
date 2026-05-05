@@ -31,6 +31,7 @@ export interface CashbookEntry {
     status: string;
     affects_balance: boolean;
     metadata: Record<string, unknown>;
+    order?: { customer_name: string | null } | null;
     created_at: string;
     updated_at: string;
 }
@@ -66,7 +67,7 @@ export const CashbookService = {
     async listByStore(storeId: string): Promise<CashbookEntry[]> {
         const { data, error } = await supabase
             .from('cashbook_entries')
-            .select('*')
+            .select('*, order:orders(customer_name)')
             .eq('store_id', storeId)
             .order('occurred_at', { ascending: false })
             .limit(100);
