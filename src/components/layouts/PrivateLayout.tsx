@@ -1,11 +1,14 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo, useLayoutEffect } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getCurrentUserSecurityContext } from '@/services/securityService';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
+import { usePermissions } from '@/hooks/usePermissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 import {
     LayoutDashboard,
     Package,
@@ -44,6 +47,15 @@ import {
     Megaphone
 } from 'lucide-react';
 
+type MenuItem = {
+    path: string;
+    icon: LucideIcon;
+    label: string;
+    permission?: string;
+};
+
+type MenuSection = Record<string, MenuItem[]>;
+
 export default function PrivateLayout() {
     const { pathname } = useLocation();
     const navigate = useNavigate();
@@ -52,6 +64,7 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
+    const { permissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -198,12 +211,15 @@ export default function PrivateLayout() {
         localStorage.setItem('theme', !isDark ? 'dark' : 'light');
     };
 
-    const navigationItems = useMemo(() => ({
+    const can = (permissionCode: string) =>
+        hasEffectivePermission(permissions, permissionCode);
+
+    const navigationItems = useMemo<MenuSection>(() => ({
         dashboard: [
             { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional' },
             { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes' },
             { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas' },
-            { path: '/admin/reports', icon: FileText, label: 'Relatórios' },
+            { path: '/admin/reports', icon: FileText, label: 'Relatórios', permission: 'reports.view' },
         ],
         commercial: [
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
@@ -236,11 +252,11 @@ export default function PrivateLayout() {
         settings: [
             { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },
             { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
-            { path: '/admin/users', icon: Users, label: 'Usuários' },
+            { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
             { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
-            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso' },
+            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso', permission: 'security.view' },
         ],
         support: [
             { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },
@@ -328,7 +344,9 @@ export default function PrivateLayout() {
                                     <span className="text-gray-400">{openSections[section] ? '−' : '+'}</span>
                                 </button>
                             )}
-                            {(openSections[section] || isSidebarCollapsed) && items.map(item => {
+                            {(openSections[section] || isSidebarCollapsed) && items
+                                .filter((item) => !item.permission || can(item.permission))
+                                .map(item => {
                                 const IconComponent = item.icon;
                                 const isActive =
                                     pathname === item.path ||

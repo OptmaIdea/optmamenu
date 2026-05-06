@@ -3,6 +3,8 @@ import { useUsersStore } from '@/store/useUsersStore';
 import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { toast } from 'sonner';
@@ -28,6 +30,9 @@ export default function Users() {
     const { securityContext } = useSecurityContext();
 
     const currentMemberId = securityContext?.primary_membership?.member_id ?? null;
+    const primaryStoreId = securityContext?.primary_membership?.store_id ?? null;
+    const { permissions } = usePermissions(primaryStoreId);
+    const canManageUsers = hasEffectivePermission(permissions, 'users.manage');
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showFormModal, setShowFormModal] = useState(false);
@@ -73,6 +78,11 @@ export default function Users() {
     };
 
     const handleCreateUser = () => {
+        if (!canManageUsers) {
+            toast.error('Você não tem permissão para gerenciar usuários.');
+            return;
+        }
+
         setSelectedUser(null);
         setFormMode('create');
         setShowFormModal(true);
@@ -193,7 +203,13 @@ export default function Users() {
                         </button>
                         <button
                             onClick={handleCreateUser}
-                            className="px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors flex items-center gap-2"
+                            disabled={!canManageUsers}
+                            title={
+                                canManageUsers
+                                    ? 'Vincular novo usuário'
+                                    : 'Você não tem permissão para gerenciar usuários'
+                            }
+                            className={`px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <Plus size={18} />
                             Novo Usuário
@@ -291,7 +307,13 @@ export default function Users() {
                     {!searchTerm && (
                         <button
                             onClick={handleCreateUser}
-                            className="px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors"
+                            disabled={!canManageUsers}
+                            title={
+                                canManageUsers
+                                    ? 'Vincular novo usuário'
+                                    : 'Você não tem permissão para gerenciar usuários'
+                            }
+                            className={`px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             Criar Primeiro Usuário
                         </button>

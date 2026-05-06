@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -60,6 +61,72 @@ function formatSecurityStatus(status: string | null): string {
     return status ? labels[status] ?? status : 'Não definido';
 }
 
+function formatPermissionModule(module: string): string {
+    const labels: Record<string, string> = {
+        dashboard: 'Painel',
+        reports: 'Relatórios',
+        products: 'Produtos',
+        stock: 'Estoque',
+        purchases: 'Compras',
+        suppliers: 'Fornecedores',
+        orders: 'Pedidos',
+        cashbook: 'Livro diário',
+        customers: 'Clientes',
+        marketing: 'Marketing',
+        loyalty: 'Fidelidade',
+        users: 'Usuários',
+        security: 'Segurança',
+        settings: 'Configurações',
+    };
+
+    return labels[module] ?? module;
+}
+
+function formatPermissionAction(action: string): string {
+    const labels: Record<string, string> = {
+        view: 'Ver',
+        create: 'Criar',
+        update: 'Editar',
+        delete: 'Excluir',
+        transfer: 'Transferir',
+        adjust: 'Ajustar',
+        confirm: 'Confirmar',
+        cancel: 'Cancelar',
+        manage: 'Gerenciar',
+    };
+
+    return labels[action] ?? action;
+}
+
+function formatSensitiveRequirement(requirement?: string): string {
+    const labels: Record<string, string> = {
+        none: 'Nenhuma exigência',
+        pin: 'PIN',
+        master_password: 'Senha master',
+        pin_or_master: 'PIN ou senha master',
+        owner_approval: 'Aprovação do proprietário',
+        token: 'Token interno',
+        pin_and_token: 'PIN + token interno',
+    };
+
+    return requirement ? labels[requirement] ?? requirement : 'Não definido';
+}
+
+function formatSensitiveReason(reason?: string): string {
+    const labels: Record<string, string> = {
+        allowed: 'Permitido',
+        not_authenticated: 'Usuário não autenticado',
+        not_store_member: 'Usuário não vinculado à loja',
+        action_rule_not_found: 'Regra não encontrada',
+        action_disabled: 'Ação desabilitada',
+        insufficient_role: 'Papel insuficiente',
+        missing_store_id: 'Loja não definida',
+        empty_response: 'Resposta vazia',
+    };
+
+    return reason ? labels[reason] ?? reason : 'Não definido';
+}
+
 export default function Security() {
     const [activeTab, setActiveTab] = useState('context');
     const [loading, setLoading] = useState(true);
@@ -79,6 +146,19 @@ export default function Security() {
 
     const primaryMembership = securityContext?.primary_membership ?? null;
 
+    const {
+        permissions,
+        loading: loadingPermissions,
+        permissionsByModule,
+        allowedPermissions,
+        getActionRequirement,
+    } = usePermissions(primaryStoreId);
+    const canManageSecurity = permissions.some(
+        (permission) =>
+            permission.permission_code === 'security.manage' &&
+            permission.allowed
+    );
+
     const [logFilters, setLogFilters] = useState({
         dateFrom: '',
         dateTo: '',
@@ -86,6 +166,8 @@ export default function Security() {
         action: '',
         outcome: ''
     });
+
+    const [productDeleteRequirement, setProductDeleteRequirement] = useState<string>('');
 
     // Store Data
     const [store, setStore] = useState<SecurityStore | null>(null);
@@ -480,6 +562,16 @@ export default function Security() {
     };
 
     const handleAdvancedSave = async () => {
+        if (!canManageSecurity) {
+            toast.error('Você não tem permissão para alterar configurações de segurança.');
+            return;
+        }
+
+        if (!hasPin) {
+            toast.error('Configure o PIN de segurança antes de alterar configurações avançadas.');
+            return;
+        }
+
         if (!store) return;
         setMessage('');
         setPinAuthModal({ isOpen: true, pin: '', showPin: false, action: 'save_advanced', error: '' });
@@ -610,6 +702,16 @@ export default function Security() {
             return true;
         });
     }, [logs, logFilters]);
+
+    const handleTestSensitiveAction = async () => {
+        try {
+            const requirement = await getActionRequirement('product_delete');
+            setProductDeleteRequirement(JSON.stringify(requirement, null, 2));
+        } catch (error: unknown) {
+            const message = getErrorMessage(error, 'Erro ao testar ação sensível');
+            setProductDeleteRequirement(message);
+        }
+    };
 
     const resetLogFilters = () => {
         const today = new Date();
@@ -882,6 +984,138 @@ export default function Security() {
                                             </p>
                                         )}
                                     </div>
+                                </div>
+
+                                <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
+                                    <div className="mb-3 flex items-center justify-between gap-3">
+                                        <div>
+                                            <h4 className="font-bold text-gray-800 dark:text-white">
+                                                Permissões efetivas
+                                            </h4>
+                                            <p className="text-xs text-gray-500">
+                                                Permissões resolvidas a partir do papel atual e possíveis sobrescritas.
+                                            </p>
+                                        </div>
+
+                                        <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                            {allowedPermissions.length} permitidas
+                                        </span>
+                                    </div>
+
+                                    {loadingPermissions ? (
+                                        <div className="flex min-h-24 items-center justify-center">
+                                            <Loader className="animate-spin text-brand-green" />
+                                        </div>
+                                    ) : permissions.length === 0 ? (
+                                        <p className="text-sm text-gray-500">
+                                            Nenhuma permissão carregada.
+                                        </p>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            {Object.entries(permissionsByModule).map(([module, modulePermissions]) => (
+                                                <div key={module} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
+                                                    <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
+                                                        {formatPermissionModule(module)}
+                                                    </p>
+
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {modulePermissions.map((permission) => (
+                                                            <span
+                                                                key={permission.permission_code}
+                                                                className={
+                                                                    permission.allowed
+                                                                        ? 'rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                                        : 'rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                                                                }
+                                                                title={permission.description ?? permission.permission_code}
+                                                            >
+                                                                {permission.allowed ? '✓ ' : '— '}
+                                                                {formatPermissionAction(permission.action)}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
+                                    <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-gray-800 dark:text-white">
+                                                Teste de ação sensível
+                                            </h4>
+                                            <p className="text-xs text-gray-500">
+                                                Consulta a regra efetiva para exclusão/descontinuação de produto.
+                                            </p>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={handleTestSensitiveAction}
+                                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                                        >
+                                            Testar deletar produtos
+                                        </button>
+                                    </div>
+
+                                    {productDeleteRequirement ? (
+                                        <div className="space-y-3">
+                                            {(() => {
+                                                try {
+                                                    const parsed = JSON.parse(productDeleteRequirement) as {
+                                                        allowed?: boolean;
+                                                        reason?: string;
+                                                        requirement?: string;
+                                                        min_role?: string;
+                                                        current_role?: string;
+                                                        token_enabled?: boolean;
+                                                        has_pin?: boolean;
+                                                    };
+
+                                                    return (
+                                                        <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
+                                                            <InfoLine
+                                                                label="Resultado"
+                                                                value={parsed.allowed ? 'Permitido' : 'Bloqueado'}
+                                                            />
+                                                            <InfoLine
+                                                                label="Motivo"
+                                                                value={formatSensitiveReason(parsed.reason)}
+                                                            />
+                                                            <InfoLine
+                                                                label="Exigência"
+                                                                value={formatSensitiveRequirement(parsed.requirement)}
+                                                            />
+                                                            <InfoLine
+                                                                label="Papel mínimo"
+                                                                value={formatSecurityRole(parsed.min_role ?? null)}
+                                                            />
+                                                            <InfoLine
+                                                                label="Papel atual"
+                                                                value={formatSecurityRole(parsed.current_role ?? null)}
+                                                            />
+                                                            <InfoLine
+                                                                label="PIN configurado"
+                                                                value={parsed.has_pin ? 'Sim' : 'Não'}
+                                                            />
+                                                        </div>
+                                                    );
+                                                } catch {
+                                                    return null;
+                                                }
+                                            })()}
+
+                                            <pre className="max-h-60 overflow-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                                                {productDeleteRequirement}
+                                            </pre>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">
+                                            Clique para consultar a exigência atual da ação sensível.
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
@@ -1448,9 +1682,14 @@ export default function Security() {
                                                 Configure o PIN de segurança antes de alterar as configurações avançadas.
                                             </div>
                                         )}
+                                        {!canManageSecurity && (
+                                            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                                                Você não tem permissão para alterar configurações de segurança.
+                                            </div>
+                                        )}
                                         <button
                                             onClick={handleAdvancedSave}
-                                            disabled={saving || !hasPin}
+                                            disabled={saving || !hasPin || !canManageSecurity}
                                             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <Save size={18} />
