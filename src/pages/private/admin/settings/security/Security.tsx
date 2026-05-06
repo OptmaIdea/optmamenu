@@ -1,19 +1,83 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import bcrypt from 'bcryptjs';
+
 import { timezoneUtils } from '@/utils/timezoneUtils';
 import { toast } from 'sonner';
 import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
-    RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter
+    RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
+    ShieldCheck, User, Store, BadgeCheck
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
+import { useSecurityContext } from '@/hooks/useSecurityContext';
+
+type StoreConfig = {
+    pin_failed_attempts?: number;
+    pin_blocked?: boolean;
+    pin_blocked_at?: string | null;
+    [key: string]: unknown;
+};
+
+type SecurityStore = {
+    id: string;
+    doc_type: string;
+    document: string;
+    stock_password_hash?: string;
+    token_expiry_seconds?: number;
+    max_token_attempts?: number;
+    config?: StoreConfig;
+};
+
+type SecurityLogDetails = Record<string, unknown>;
+
+function getErrorMessage(error: unknown, fallback = 'Erro inesperado'): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
+function formatSecurityRole(role: string | null): string {
+    const labels: Record<string, string> = {
+        owner: 'Proprietário',
+        admin: 'Administrador',
+        manager: 'Gerente',
+        stock_operator: 'Operador de estoque',
+        cashier: 'Caixa',
+        sales: 'Vendas',
+        staff: 'Equipe',
+        viewer: 'Visualizador',
+    };
+
+    return role ? labels[role] ?? role : 'Não definido';
+}
+
+function formatSecurityStatus(status: string | null): string {
+    const labels: Record<string, string> = {
+        active: 'Ativo',
+        inactive: 'Inativo',
+        suspended: 'Suspenso',
+        invited: 'Convidado',
+    };
+
+    return status ? labels[status] ?? status : 'Não definido';
+}
 
 export default function Security() {
-    const [activeTab, setActiveTab] = useState('logs');
+    const [activeTab, setActiveTab] = useState('context');
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
+    const {
+        securityContext,
+        loading: loadingSecurityContext,
+        refresh: refreshSecurityContext,
+        primaryStoreId,
+        primaryStoreSlug,
+        currentRole,
+        isOwner,
+        isAdminLike,
+        hasPin,
+    } = useSecurityContext();
+
+    const primaryMembership = securityContext?.primary_membership ?? null;
 
     const [logFilters, setLogFilters] = useState({
         dateFrom: '',
@@ -24,15 +88,7 @@ export default function Security() {
     });
 
     // Store Data
-    const [store, setStore] = useState<{
-        id: string;
-        doc_type: string;
-        document: string;
-        stock_password_hash?: string;
-        token_expiry_seconds?: number;
-        max_token_attempts?: number;
-        config?: any;
-    } | null>(null);
+    const [store, setStore] = useState<SecurityStore | null>(null);
 
     // Password Change State (login)
     const [passwordData, setPasswordData] = useState({ current: '', new: '', confirm: '' });
@@ -72,19 +128,42 @@ export default function Security() {
         error: ''
     });
 
-    useEffect(() => {
-        fetchInitialData();
-    }, []);
+    // Logs
+    const fetchLogs = useCallback(async () => {
+        if (!store?.id) return;
 
-    useEffect(() => {
-        if (store?.id) {
-            fetchLogs();
-        }
-    }, [store?.id]);
+        setLoadingLogs(true);
+        setTableMissing(false);
 
-    useEffect(() => {
-        if (store?.id) {
-            fetchLogs();
+        try {
+            const { data, error } = await supabase.rpc('get_store_security_logs', {
+                p_store_id: store.id,
+                p_limit: 200,
+                p_date_from: logFilters.dateFrom || null,
+                p_date_to: logFilters.dateTo || null,
+                p_user: logFilters.user.trim() || null,
+                p_action: logFilters.action.trim() || null,
+                p_outcome: logFilters.outcome || null
+            });
+
+            if (error) {
+                console.error('Logs fetch error:', error);
+                if (
+                    error.code === 'PGRST205' ||
+                    error.message?.includes('store_security_logs') ||
+                    error.message?.includes('get_store_security_logs')
+                ) {
+                    setTableMissing(true);
+                }
+                setLogs([]);
+            } else {
+                setLogs((data ?? []) as SecurityLog[]);
+            }
+        } catch (error: unknown) {
+            console.error(error);
+            setLogs([]);
+        } finally {
+            setLoadingLogs(false);
         }
     }, [
         store?.id,
@@ -94,6 +173,16 @@ export default function Security() {
         logFilters.action,
         logFilters.outcome
     ]);
+
+    useEffect(() => {
+        fetchInitialData();
+    }, []);
+
+    useEffect(() => {
+        if (store?.id) {
+            fetchLogs();
+        }
+    }, [store?.id, fetchLogs]);
 
     useEffect(() => {
         const today = new Date();
@@ -114,7 +203,9 @@ export default function Security() {
         }));
     }, []);
 
-
+    useEffect(() => {
+        setPinData(hasPin ? '******' : '');
+    }, [hasPin]);
 
     // Initial data
     const fetchInitialData = async () => {
@@ -147,14 +238,32 @@ export default function Security() {
                 ? adminDataRaw[0]
                 : adminDataRaw;
 
+            const { data: storeSettings, error: storeSettingsError } = await supabase
+                .from('stores')
+                .select('token_expiry_seconds, max_token_attempts')
+                .eq('id', userStore.id)
+                .single();
+
+            if (storeSettingsError) {
+                console.error('Erro ao buscar configurações avançadas da loja:', storeSettingsError);
+            }
+
             if (adminStore) {
                 const mergedStore = {
                     ...adminStore,
-                    id: adminStore.id || userStore.id
+                    id: adminStore.id || userStore.id,
+                    token_expiry_seconds:
+                        storeSettings?.token_expiry_seconds ??
+                        adminStore.token_expiry_seconds ??
+                        15,
+                    max_token_attempts:
+                        storeSettings?.max_token_attempts ??
+                        adminStore.max_token_attempts ??
+                        3,
                 };
 
                 setStore(mergedStore);
-                setPinData(mergedStore.stock_password_hash ? '******' : '');
+                /* setPinData(hasPin ? '******' : ''); */
                 setTokenExpiry(mergedStore.token_expiry_seconds ?? 15);
                 setMaxAttempts(mergedStore.max_token_attempts ?? 3);
             }
@@ -165,46 +274,11 @@ export default function Security() {
         }
     };
 
-    // Logs
-    const fetchLogs = async () => {
-        if (!store?.id) return;
-
-        setLoadingLogs(true);
-        setTableMissing(false);
-
-        try {
-            const { data, error } = await supabase.rpc('get_store_security_logs', {
-                p_store_id: store.id,
-                p_limit: 200,
-                p_date_from: logFilters.dateFrom || null,
-                p_date_to: logFilters.dateTo || null,
-                p_user: logFilters.user.trim() || null,
-                p_action: logFilters.action.trim() || null,
-                p_outcome: logFilters.outcome || null
-            });
-
-            if (error) {
-                console.error('Logs fetch error:', error);
-                if (
-                    error.code === 'PGRST205' ||
-                    error.message?.includes('store_security_logs') ||
-                    error.message?.includes('get_store_security_logs')
-                ) {
-                    setTableMissing(true);
-                }
-                setLogs([]);
-            } else {
-                setLogs(data || []);
-            }
-        } catch (e) {
-            console.error(e);
-            setLogs([]);
-        } finally {
-            setLoadingLogs(false);
-        }
-    };
-
-    const logAction = async (action: string, details: any = {}, outcome: 'success' | 'failure' = 'success') => {
+    const logAction = useCallback(async (
+        action: string,
+        details: SecurityLogDetails = {},
+        outcome: 'success' | 'failure' = 'success'
+    ) => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!store?.id || !user) return;
@@ -223,7 +297,7 @@ export default function Security() {
         } catch (e) {
             console.error('Failed to log security action:', e);
         }
-    };
+    }, [store?.id, fetchLogs]);
 
     // Login password
     const handlePasswordChange = async (e: React.FormEvent) => {
@@ -247,9 +321,10 @@ export default function Security() {
             setMessage('Senha de login alterada com sucesso!');
             setPasswordData({ current: '', new: '', confirm: '' });
             await logAction('Alteração de Senha de Login', {}, 'success');
-        } catch (error: any) {
-            setMessage('Erro ao alterar senha: ' + error.message);
-            await logAction('Alteração de Senha de Login', { error: error.message }, 'failure');
+        } catch (error: unknown) {
+            const errorMessage = getErrorMessage(error, 'Erro ao alterar senha.');
+            setMessage('Erro ao alterar senha: ' + errorMessage);
+            await logAction('Alteração de Senha de Login', { error: errorMessage }, 'failure');
         } finally {
             setSaving(false);
         }
@@ -312,10 +387,11 @@ export default function Security() {
             });
 
             await logAction('Redefinição de Senha Master', {}, 'success');
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const errorMessage = getErrorMessage(error, 'Erro ao redefinir senha master.');
             console.error('Master password reset error:', error);
-            setMessage('Erro ao redefinir senha master: ' + error.message);
-            await logAction('Redefinição de Senha Master', { error: error.message }, 'failure');
+            setMessage('Erro ao redefinir senha master: ' + errorMessage);
+            await logAction('Redefinição de Senha Master', { error: errorMessage }, 'failure');
         } finally {
             setSaving(false);
         }
@@ -349,6 +425,23 @@ export default function Security() {
         return null;
     };
 
+    const savePinDirectly = async () => {
+        const wasExistingPin = hasPin;
+
+        const { error } = await supabase.rpc('set_user_pin', {
+            p_pin: pinData,
+        });
+
+        if (error) throw error;
+
+        setMessage(wasExistingPin ? 'PIN alterado com sucesso!' : 'PIN cadastrado com sucesso!');
+        await logAction(wasExistingPin ? 'Alteração de PIN' : 'Criação de PIN', {}, 'success');
+
+        setPinData('******');
+
+        await refreshSecurityContext();
+    };
+
     const handlePinSave = async () => {
         if (!store) return;
         setMessage('');
@@ -361,6 +454,20 @@ export default function Security() {
         const pinError = validateStockPin(pinData, store.document);
         if (pinError) {
             setMessage(`Erro no PIN: ${pinError}`);
+            return;
+        }
+
+        if (!hasPin) {
+            setSaving(true);
+            try {
+                await savePinDirectly();
+            } catch (error: unknown) {
+                const errorMessage = getErrorMessage(error, 'Erro ao cadastrar PIN.');
+                setMessage('Erro ao cadastrar PIN: ' + errorMessage);
+                await logAction('Tentativa de Criação de PIN', { error: errorMessage }, 'failure');
+            } finally {
+                setSaving(false);
+            }
             return;
         }
 
@@ -378,22 +485,22 @@ export default function Security() {
         setPinAuthModal({ isOpen: true, pin: '', showPin: false, action: 'save_advanced', error: '' });
     };
 
-    const verifyStockPin = async (plainPin: string): Promise<boolean> => {
-        const hash = store?.stock_password_hash;
-        if (!hash) {
+    const verifySecurityPin = async (plainPin: string): Promise<boolean> => {
+        if (!hasPin) {
             toast.error('Nenhum PIN cadastrado. Configure um PIN primeiro.');
             return false;
         }
 
-        if (hash.startsWith('$2')) {
-            try {
-                return await bcrypt.compare(plainPin, hash);
-            } catch {
-                return false;
-            }
+        const { data, error } = await supabase.rpc('validate_user_pin', {
+            p_pin: plainPin,
+        });
+
+        if (error) {
+            console.error('Erro ao validar PIN:', error);
+            return false;
         }
 
-        return plainPin === hash;
+        return Boolean(data);
     };
 
     const handlePinAuthSubmit = async (e: React.FormEvent) => {
@@ -402,7 +509,7 @@ export default function Security() {
         setPinAuthModal(prev => ({ ...prev, error: '' }));
 
         try {
-            const isValid = await verifyStockPin(pinAuthModal.pin);
+            const isValid = await verifySecurityPin(pinAuthModal.pin);
             if (!isValid) {
                 setPinAuthModal(prev => ({ ...prev, error: 'PIN incorreto.' }));
                 setSaving(false);
@@ -410,21 +517,7 @@ export default function Security() {
             }
 
             if (pinAuthModal.action === 'save_pin') {
-                if (!store) return;
-
-                const salt = await bcrypt.genSalt(10);
-                const hashedPin = await bcrypt.hash(pinData, salt);
-
-                const { error: updateError } = await supabase
-                    .from('stores')
-                    .update({ stock_password_hash: hashedPin })
-                    .eq('id', store.id);
-                if (updateError) throw updateError;
-
-                setStore({ ...store, stock_password_hash: hashedPin });
-                setMessage('PIN de estoque salvo com sucesso!');
-                await logAction(store.stock_password_hash ? 'Alteração de PIN' : 'Criação de PIN', {}, 'success');
-                setPinData('******');
+                await savePinDirectly();
 
             } else if (pinAuthModal.action === 'unblock') {
                 if (!store) return;
@@ -452,6 +545,7 @@ export default function Security() {
 
                 setStore({ ...store, token_expiry_seconds: tokenExpiry, max_token_attempts: maxAttempts });
                 setMessage('Configurações avançadas salvas com sucesso!');
+                await fetchInitialData();
                 await logAction(
                     'Alteração de Configurações de Token',
                     { token_expiry: tokenExpiry, max_attempts: maxAttempts },
@@ -460,15 +554,16 @@ export default function Security() {
             }
 
             setPinAuthModal({ isOpen: false, pin: '', showPin: false, action: null, error: '' });
-        } catch (error: any) {
-            setMessage('Erro: ' + error.message);
+        } catch (error: unknown) {
+            const errorMessage = getErrorMessage(error, 'Erro ao executar ação protegida.');
+            setMessage('Erro: ' + errorMessage);
             await logAction(
                 pinAuthModal.action === 'unblock'
                     ? 'Tentativa de Desbloqueio'
                     : pinAuthModal.action === 'save_pin'
                         ? 'Tentativa de Gravação PIN'
                         : 'Tentativa de Alteração de Configurações',
-                { error: error.message },
+                { error: errorMessage },
                 'failure'
             );
         } finally {
@@ -477,6 +572,7 @@ export default function Security() {
     };
 
     const tabs = [
+        { id: 'context', label: 'Contexto de Acesso', icon: ShieldCheck },
         { id: 'logs', label: 'Histórico e Atividades', icon: History },
         { id: 'login', label: 'Senha do Usuário', icon: Key },
         { id: 'pin', label: 'PIN de Segurança', icon: Smartphone },
@@ -586,10 +682,10 @@ export default function Security() {
                             <div className="bg-white dark:bg-gray-900 w-full max-w-md p-6 rounded-2xl shadow-xl animate-zoomIn">
                                 <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                                     <Lock size={20} className="text-red-500" />
-                                    Autorização com PIN de Estoque
+                                    Autorização com PIN de Segurança
                                 </h3>
                                 <p className="text-gray-500 mb-4">
-                                    Digite o PIN de estoque para{' '}
+                                    Digite o PIN de segurança para{' '}
                                     {pinAuthModal.action === 'save_pin'
                                         ? 'alterar/cadastrar o PIN'
                                         : pinAuthModal.action === 'unblock'
@@ -653,7 +749,7 @@ export default function Security() {
                                         <button
                                             type="submit"
                                             disabled={saving || pinAuthModal.pin.length !== 6}
-                                            className="px-4 py-2 bg-brand-green text-white rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                                            className="px-4 py-2 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                         >
                                             {saving && <Loader size={16} className="animate-spin" />}
                                             Confirmar
@@ -663,6 +759,177 @@ export default function Security() {
                             </div>
                         </div>
                     )}
+
+                    {/* CONTEXTO DE ACESSO */}
+                    <div className={activeTab === 'context' ? 'block animate-fadeIn' : 'hidden'}>
+                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                    Contexto de Segurança do Usuário
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Visualize a loja atual, papel, status, PIN e permissões vinculadas ao usuário logado.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={refreshSecurityContext}
+                                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                            >
+                                <RefreshCw size={16} className={loadingSecurityContext ? 'animate-spin' : ''} />
+                                Atualizar
+                            </button>
+                        </div>
+
+                        {loadingSecurityContext ? (
+                            <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
+                                <Loader className="animate-spin text-brand-green" />
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                            <User size={20} />
+                                        </div>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                                            Usuário
+                                        </p>
+                                        <p className="mt-1 break-all text-sm font-bold text-gray-800 dark:text-white">
+                                            {securityContext?.profile?.name || securityContext?.email || 'Usuário'}
+                                        </p>
+                                        <p className="mt-1 break-all text-xs text-gray-500">
+                                            {securityContext?.email || 'E-mail não identificado'}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                            <Store size={20} />
+                                        </div>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                                            Loja atual
+                                        </p>
+                                        <p className="mt-1 text-sm font-bold text-gray-800 dark:text-white">
+                                            {primaryMembership?.store_name || 'Não definida'}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            {primaryStoreSlug ? `/${primaryStoreSlug}` : 'Slug não definido'}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                            <ShieldCheck size={20} />
+                                        </div>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                                            Papel atual
+                                        </p>
+                                        <p className="mt-1 text-sm font-bold text-gray-800 dark:text-white">
+                                            {formatSecurityRole(currentRole)}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            {formatSecurityStatus(primaryMembership?.status ?? null)}
+                                        </p>
+                                    </div>
+
+                                    <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                                        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                            <Key size={20} />
+                                        </div>
+                                        <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                                            PIN
+                                        </p>
+                                        <p className="mt-1 text-sm font-bold text-gray-800 dark:text-white">
+                                            {hasPin ? 'Configurado' : 'Não configurado'}
+                                        </p>
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            PIN individual do usuário
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
+                                        <h4 className="mb-3 flex items-center gap-2 font-bold text-gray-800 dark:text-white">
+                                            <BadgeCheck size={18} className="text-brand-green" />
+                                            Resumo operacional
+                                        </h4>
+
+                                        <div className="space-y-2 text-sm">
+                                            <InfoLine label="Store ID" value={primaryStoreId || 'Não definido'} />
+                                            <InfoLine label="É proprietário?" value={isOwner ? 'Sim' : 'Não'} />
+                                            <InfoLine label="Perfil administrativo?" value={isAdminLike ? 'Sim' : 'Não'} />
+                                            <InfoLine label="Global admin" value={securityContext?.is_global_admin ? 'Sim' : 'Não'} />
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
+                                        <h4 className="mb-3 flex items-center gap-2 font-bold text-gray-800 dark:text-white">
+                                            <Lock size={18} className="text-brand-green" />
+                                            Ações sensíveis
+                                        </h4>
+
+                                        {primaryMembership?.sensitive_actions &&
+                                            Object.keys(primaryMembership.sensitive_actions).length > 0 ? (
+                                            <pre className="max-h-44 overflow-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                                                {JSON.stringify(primaryMembership.sensitive_actions, null, 2)}
+                                            </pre>
+                                        ) : (
+                                            <p className="text-sm text-gray-500">
+                                                Nenhuma ação sensível específica registrada ainda.
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
+                                    <h4 className="mb-3 font-bold text-gray-800 dark:text-white">
+                                        Lojas vinculadas
+                                    </h4>
+
+                                    {securityContext?.memberships?.length ? (
+                                        <div className="space-y-2">
+                                            {securityContext.memberships.map((membership) => (
+                                                <div
+                                                    key={membership.member_id}
+                                                    className="flex flex-col gap-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40 md:flex-row md:items-center md:justify-between"
+                                                >
+                                                    <div>
+                                                        <p className="font-bold text-gray-800 dark:text-white">
+                                                            {membership.store_name}
+                                                        </p>
+                                                        <p className="text-xs text-gray-500">
+                                                            /{membership.store_slug}
+                                                        </p>
+                                                    </div>
+
+                                                    <div className="flex flex-wrap gap-2 text-xs">
+                                                        <span className="rounded-full bg-green-100 px-2 py-1 font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                                            {formatSecurityRole(membership.role)}
+                                                        </span>
+                                                        <span className="rounded-full bg-gray-100 px-2 py-1 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                                            {formatSecurityStatus(membership.status)}
+                                                        </span>
+                                                        {membership.is_primary_owner && (
+                                                            <span className="rounded-full bg-amber-100 px-2 py-1 font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                Titular
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-gray-500">
+                                            Nenhuma loja vinculada encontrada.
+                                        </p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
                     {/* LOGS */}
                     <div className={activeTab === 'logs' ? 'block animate-fadeIn' : 'hidden'}>
@@ -1075,7 +1342,7 @@ export default function Security() {
                                                         {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                                     </button>
                                                 </div>
-                                                <div className="text-xs text-gray-400 md:max-w-[200px]">
+                                                <div className="text-xs text-gray-400 md:max-w-50">
                                                     {store?.stock_password_hash ? (
                                                         <span className="text-yellow-600 dark:text-yellow-500 block mb-1">
                                                             O PIN atual está oculto por segurança. Digite um novo para alterar.
@@ -1117,10 +1384,10 @@ export default function Security() {
                                 </div>
                                 <div className="flex-1">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
-                                        Configurações do Token de Exclusão
+                                        Configurações do Token de Ação Sensível
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                                        Ajuste o tempo de expiração e o número máximo de tentativas do token usado para excluir/descontinuar produtos.
+                                        Ajuste o tempo de expiração e o número máximo de tentativas do token usado em ações sensíveis da loja.
                                         <br />
                                         As alterações exigem o PIN de segurança.
                                     </p>
@@ -1175,16 +1442,19 @@ export default function Security() {
                                         </div>
                                     </div>
 
-                                    <div className="mt-6 pt-4 border-t border-purple-200 dark:border-purple-800/30 flex justify-end">
+                                    <div className="mt-6 pt-4 border-t border-purple-200 gap-3 dark:border-purple-800/30 flex justify-end">
+                                        {!hasPin && (
+                                            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                                                Configure o PIN de segurança antes de alterar as configurações avançadas.
+                                            </div>
+                                        )}
                                         <button
-                                            type="button"
                                             onClick={handleAdvancedSave}
-                                            disabled={saving || !store?.stock_password_hash}
+                                            disabled={saving || !hasPin}
                                             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                            title={!store?.stock_password_hash ? 'Configure um PIN de segurança primeiro' : ''}
                                         >
-                                            {saving ? <Loader size={20} className="animate-spin" /> : <Save size={20} />}
-                                            Salvar configurações
+                                            <Save size={18} />
+                                            {saving ? 'Salvando...' : 'Salvar configurações'}
                                         </button>
                                     </div>
                                 </div>
@@ -1195,5 +1465,19 @@ export default function Security() {
                 </div>
             </div>
         </div>
+
     );
+
+    function InfoLine({ label, value }: { label: string; value: string }) {
+        return (
+            <div className="flex flex-col gap-1 rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/40 sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                    {label}
+                </span>
+                <span className="break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
+                    {value}
+                </span>
+            </div>
+        );
+    }
 }

@@ -1,7 +1,14 @@
 import { create } from 'zustand';
-import { supabase } from '@/lib/supabase';
-import type { UserAdmin, UserFilters, UserFormData, UserStats } from '@/types';
 import { toast } from 'sonner';
+import type { UserAdmin, UserFilters, UserFormData, UserRole, UserStats } from '@/types';
+import type { StoreMemberAdmin, StoreMemberRole, StoreMemberStatus } from '@/types/security';
+import {
+    addStoreMemberByEmail,
+    getCurrentUserSecurityContext,
+    getStoreMembers,
+    updateStoreMemberRole,
+    updateStoreMemberStatus,
+} from '@/services/securityService';
 
 interface UsersState {
     users: UserAdmin[];
@@ -10,14 +17,13 @@ interface UsersState {
     filters: UserFilters;
     total: number;
 
-    // Actions
     fetchUsers: (filters?: UserFilters) => Promise<void>;
     fetchUserById: (id: string) => Promise<UserAdmin | null>;
     createUser: (data: UserFormData) => Promise<UserAdmin | null>;
     updateUser: (id: string, data: Partial<UserFormData>) => Promise<boolean>;
     deleteUser: (id: string) => Promise<boolean>;
     updateUserStatus: (id: string, status: 'active' | 'inactive' | 'suspended') => Promise<boolean>;
-    updateUserRole: (id: string, role: 'super_admin' | 'admin' | 'manager' | 'staff' | 'viewer') => Promise<boolean>;
+    updateUserRole: (id: string, role: UserRole) => Promise<boolean>;
     fetchStats: () => Promise<void>;
     setFilters: (filters: Partial<UserFilters>) => void;
     resetFilters: () => void;
@@ -31,6 +37,153 @@ const DEFAULT_FILTERS: UserFilters = {
     sort_order: 'desc',
 };
 
+const STORE_ROLE_TO_USER_ROLE: Record<StoreMemberRole, UserRole> = {
+    owner: 'owner',
+    admin: 'admin',
+    manager: 'manager',
+    stock_operator: 'stock_operator',
+    cashier: 'cashier',
+    sales: 'sales',
+    viewer: 'viewer',
+    staff: 'staff',
+};
+
+const USER_ROLE_TO_STORE_ROLE: Partial<Record<UserRole, StoreMemberRole>> = {
+    owner: 'owner',
+    admin: 'admin',
+    manager: 'manager',
+    stock_operator: 'stock_operator',
+    cashier: 'cashier',
+    sales: 'sales',
+    viewer: 'viewer',
+    staff: 'staff',
+};
+
+function getErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error ? error.message : fallback;
+}
+
+function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
+    const role = STORE_ROLE_TO_USER_ROLE[member.role] ?? 'staff';
+    const isActive = member.status === 'active';
+
+    return {
+        id: member.member_id,
+        email: member.user_email,
+        phone: member.profile_phone,
+        full_name: member.profile_name || member.user_email || 'Usuário sem nome',
+        cpf: null,
+        avatar_url: null,
+        role,
+        status: member.status === 'invited' ? 'invited' : member.status,
+        is_admin: role === 'owner' || role === 'admin' || role === 'manager',
+        is_active: isActive,
+        email_verified: false,
+        last_sign_in_at: member.last_seen_at,
+        created_at: member.created_at,
+        updated_at: member.updated_at,
+        internal_notes: null,
+        stores: [
+            {
+                id: member.member_id,
+                store_id: member.store_id,
+                user_id: member.user_id,
+                store_name: '',
+                store_slug: '',
+                role,
+                created_at: member.created_at,
+                config: {
+                    permissions: member.permissions,
+                    sensitive_actions: member.sensitive_actions,
+                },
+            },
+        ],
+    };
+}
+
+function applyFilters(users: UserAdmin[], filters: UserFilters): UserAdmin[] {
+    let filteredUsers = [...users];
+
+    if (filters.search?.trim()) {
+        const search = filters.search.trim().toLowerCase();
+
+        filteredUsers = filteredUsers.filter((user) =>
+            [
+                user.full_name,
+                user.email,
+                user.phone,
+                user.cpf,
+            ]
+                .filter(Boolean)
+                .some((value) => String(value).toLowerCase().includes(search))
+        );
+    }
+
+    if (filters.status) {
+        filteredUsers = filteredUsers.filter((user) => user.status === filters.status);
+    }
+
+    if (filters.role) {
+        filteredUsers = filteredUsers.filter((user) => user.role === filters.role);
+    }
+
+    const sortBy = filters.sort_by ?? 'created_at';
+    const sortOrder = filters.sort_order ?? 'desc';
+
+    filteredUsers.sort((a, b) => {
+        const aValue = String(a[sortBy] ?? '').toLowerCase();
+        const bValue = String(b[sortBy] ?? '').toLowerCase();
+
+        if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    const page = filters.page ?? 1;
+    const limit = filters.limit ?? 20;
+    const from = (page - 1) * limit;
+    const to = from + limit;
+
+    return filteredUsers.slice(from, to);
+}
+
+function buildStats(users: UserAdmin[]): UserStats {
+    return {
+        total: users.length,
+        active: users.filter((user) => user.status === 'active').length,
+        inactive: users.filter((user) => user.status === 'inactive').length,
+        admins: users.filter((user) =>
+            user.role === 'owner' ||
+            user.role === 'admin' ||
+            user.role === 'manager' ||
+            user.role === 'super_admin'
+        ).length,
+        pending: users.filter((user) => user.status === 'pending' || user.status === 'invited').length,
+    };
+}
+
+async function getPrimaryStoreId(): Promise<string> {
+    const context = await getCurrentUserSecurityContext();
+    const storeId = context.primary_membership?.store_id;
+
+    if (!context.authenticated) {
+        throw new Error('Usuário não autenticado.');
+    }
+
+    if (!storeId) {
+        throw new Error('Nenhuma loja ativa encontrada para o usuário atual.');
+    }
+
+    return storeId;
+}
+
+async function fetchAllUsersForCurrentStore(): Promise<UserAdmin[]> {
+    const storeId = await getPrimaryStoreId();
+    const members = await getStoreMembers(storeId);
+
+    return members.map(mapStoreMemberToUserAdmin);
+}
+
 export const useUsersStore = create<UsersState>((set, get) => ({
     users: [],
     loading: false,
@@ -39,123 +192,40 @@ export const useUsersStore = create<UsersState>((set, get) => ({
     total: 0,
 
     fetchUsers: async (filters) => {
-        const currentFilters = filters || get().filters;
+        const currentFilters = {
+            ...get().filters,
+            ...(filters ?? {}),
+        };
+
         set({ loading: true });
 
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) throw new Error('Usuário não autenticado');
+            const allUsers = await fetchAllUsersForCurrentStore();
+            const filteredUsers = applyFilters(allUsers, currentFilters);
 
-            // Buscar profiles com dados de usuários
-            let query = supabase
-                .from('profiles')
-                .select('*', { count: 'exact' });
-
-            // Filtro de busca
-            if (currentFilters.search) {
-                query = query.or(`full_name.ilike.%${currentFilters.search}%,phone.ilike.%${currentFilters.search}%,cpf.ilike.%${currentFilters.search}%`);
-            }
-
-            // Filtro por status
-            if (currentFilters.status) {
-                query = query.eq('is_active', currentFilters.status === 'active');
-            }
-
-            // Filtro por admin
-            if (currentFilters.role === 'admin') {
-                query = query.eq('is_admin', true);
-            } else if (currentFilters.role === 'staff' || currentFilters.role === 'viewer') {
-                query = query.eq('is_admin', false);
-            }
-
-            // Ordenação
-            const orderColumn = currentFilters.sort_by || 'created_at';
-            const orderAscending = currentFilters.sort_order === 'asc';
-            query = query.order(orderColumn, { ascending: orderAscending });
-
-            // Paginação
-            const from = ((currentFilters.page || 1) - 1) * (currentFilters.limit || 20);
-            const to = from + (currentFilters.limit || 20) - 1;
-            query = query.range(from, to);
-
-            const { data: profiles, error, count } = await query;
-
-            if (error) throw error;
-
-            // Transformar profiles em UserAdmin
-            const users: UserAdmin[] = (profiles || []).map((profile) => ({
-                id: profile.id,
-                email: null, // Email vem de auth.users, não de profiles
-                phone: profile.phone,
-                full_name: profile.name,
-                cpf: profile.cpf,
-                avatar_url: null,
-                role: profile.is_admin ? 'admin' : 'staff',
-                status: profile.is_active ? 'active' : 'inactive',
-                is_admin: profile.is_admin || false,
-                is_active: profile.is_active ?? true,
-                email_verified: false,
-                last_sign_in_at: null,
-                created_at: profile.created_at,
-                updated_at: profile.updated_at,
-                internal_notes: profile.internal_notes,
-            }));
-
-            set({ users, total: count || 0, loading: false });
-        } catch (error) {
-            console.error('Erro ao buscar usuários:', error);
-            toast.error('Erro ao carregar usuários');
-            set({ loading: false });
+            set({
+                users: filteredUsers,
+                total: allUsers.length,
+                stats: buildStats(allUsers),
+                filters: currentFilters,
+                loading: false,
+            });
+        } catch (error: unknown) {
+            console.error('Erro ao buscar usuários da loja:', error);
+            toast.error(getErrorMessage(error, 'Erro ao carregar usuários'));
+            set({
+                users: [],
+                total: 0,
+                loading: false,
+            });
         }
     },
 
     fetchUserById: async (id) => {
         try {
-            const { data: profile, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', id)
-                .maybeSingle();
-
-            if (error) throw error;
-            if (!profile) return null;
-
-            // Buscar stores relacionadas
-            const { data: stores } = await supabase
-                .from('stores')
-                .select('id, slug, name, config')
-                .eq('user_id', id);
-
-            const user: UserAdmin = {
-                id: profile.id,
-                email: null,
-                phone: profile.phone,
-                full_name: profile.name,
-                cpf: profile.cpf,
-                avatar_url: null,
-                role: profile.is_admin ? 'admin' : 'staff',
-                status: profile.is_active ? 'active' : 'inactive',
-                is_admin: profile.is_admin || false,
-                is_active: profile.is_active ?? true,
-                email_verified: false,
-                last_sign_in_at: null,
-                created_at: profile.created_at,
-                updated_at: profile.updated_at,
-                internal_notes: profile.internal_notes,
-                stores: stores?.map(s => ({
-                    id: s.id,
-                    store_id: s.id,
-                    user_id: id,
-                    store_name: s.name,
-                    store_slug: s.slug,
-                    role: profile.is_admin ? 'admin' : 'staff',
-                    created_at: profile.created_at,
-                    config: s.config,
-                })),
-            };
-
-            return user;
-        } catch (error) {
+            const allUsers = await fetchAllUsersForCurrentStore();
+            return allUsers.find((user) => user.id === id) ?? null;
+        } catch (error: unknown) {
             console.error('Erro ao buscar usuário:', error);
             return null;
         }
@@ -163,189 +233,127 @@ export const useUsersStore = create<UsersState>((set, get) => ({
 
     createUser: async (data) => {
         try {
-            // 1. Criar usuário no auth
-            const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-                email: data.email,
-                password: data.password || 'mudar123',
-                email_confirm: true,
-                user_metadata: {
-                    full_name: data.full_name,
-                    phone: data.phone,
-                    cpf: data.cpf,
-                },
-            });
+            const storeId = await getPrimaryStoreId();
 
-            if (authError) throw authError;
-            if (!authData.user) throw new Error('Usuário não criado');
+            const role = USER_ROLE_TO_STORE_ROLE[data.role];
 
-            // 2. Criar profile
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .insert({
-                    id: authData.user.id,
-                    phone: data.phone,
-                    name: data.full_name,
-                    cpf: data.cpf,
-                    is_admin: data.is_admin,
-                    is_active: true,
-                    internal_notes: data.internal_notes,
-                });
-
-            if (profileError) throw profileError;
-
-            // 3. Associar à loja se fornecido
-            if (data.store_id) {
-                const { error: storeError } = await supabase
-                    .from('stores')
-                    .update({ user_id: authData.user.id })
-                    .eq('id', data.store_id);
-
-                if (storeError) throw storeError;
+            if (!role || role === 'owner') {
+                throw new Error('Papel inválido para novo membro.');
             }
 
-            toast.success('Usuário criado com sucesso');
-
-            // Recarregar lista
-            get().fetchUsers();
-
-            return {
-                id: authData.user.id,
+            const member = await addStoreMemberByEmail({
+                storeId,
                 email: data.email,
-                phone: data.phone ?? null,
-                full_name: data.full_name,
-                cpf: data.cpf ?? null,
-                avatar_url: null,
-                role: data.role,
-                status: 'active' as const,
-                is_admin: data.is_admin,
-                is_active: true,
-                email_verified: false,
-                last_sign_in_at: null,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                internal_notes: data.internal_notes ?? null,
-            };
-        } catch (error: any) {
-            console.error('Erro ao criar usuário:', error);
-            toast.error(error.message || 'Erro ao criar usuário');
+                role: role as Exclude<StoreMemberRole, 'owner'>,
+                status: 'active',
+            });
+
+            if (!member) {
+                throw new Error('Não foi possível vincular o usuário à loja.');
+            }
+
+            toast.success('Usuário vinculado à loja com sucesso');
+            await get().fetchUsers();
+
+            return mapStoreMemberToUserAdmin(member);
+        } catch (error: unknown) {
+            console.error('Erro ao vincular usuário:', error);
+            toast.error(getErrorMessage(error, 'Erro ao vincular usuário'));
             return null;
         }
     },
 
     updateUser: async (id, data) => {
         try {
-            const updateData: any = {};
-            
-            if (data.full_name !== undefined) updateData.name = data.full_name;
-            if (data.phone !== undefined) updateData.phone = data.phone;
-            if (data.cpf !== undefined) updateData.cpf = data.cpf;
-            if (data.is_admin !== undefined) updateData.is_admin = data.is_admin;
-            if (data.internal_notes !== undefined) updateData.internal_notes = data.internal_notes;
+            if (data.role) {
+                const role = USER_ROLE_TO_STORE_ROLE[data.role];
 
-            const { error } = await supabase
-                .from('profiles')
-                .update(updateData)
-                .eq('id', id);
-
-            if (error) throw error;
-
-            // Atualizar email se fornecido
-            if (data.email) {
-                const { error: emailError } = await supabase.auth.admin.updateUserById(id, {
-                    email: data.email,
-                });
-
-                if (emailError) {
-                    console.warn('Erro ao atualizar email:', emailError);
+                if (!role || role === 'owner') {
+                    throw new Error('Papel inválido para atualização.');
                 }
+
+                await updateStoreMemberRole({
+                    memberId: id,
+                    role: role as Exclude<StoreMemberRole, 'owner'>,
+                    reason: 'Atualização pela tela de usuários',
+                });
             }
 
             toast.success('Usuário atualizado com sucesso');
-            get().fetchUsers();
+            await get().fetchUsers();
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao atualizar usuário:', error);
-            toast.error(error.message || 'Erro ao atualizar usuário');
+            toast.error(getErrorMessage(error, 'Erro ao atualizar usuário'));
             return false;
         }
     },
 
     deleteUser: async (id) => {
         try {
-            // Soft delete - apenas desativar
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_active: false })
-                .eq('id', id);
-
-            if (error) throw error;
+            await updateStoreMemberStatus({
+                memberId: id,
+                status: 'inactive',
+                reason: 'Desativação pela tela de usuários',
+            });
 
             toast.success('Usuário desativado com sucesso');
-            get().fetchUsers();
+            await get().fetchUsers();
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao desativar usuário:', error);
-            toast.error(error.message || 'Erro ao desativar usuário');
+            toast.error(getErrorMessage(error, 'Erro ao desativar usuário'));
             return false;
         }
     },
 
     updateUserStatus: async (id, status) => {
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_active: status === 'active' })
-                .eq('id', id);
-
-            if (error) throw error;
+            await updateStoreMemberStatus({
+                memberId: id,
+                status: status as StoreMemberStatus,
+                reason: 'Alteração de status pela tela de usuários',
+            });
 
             toast.success(`Usuário ${status === 'active' ? 'ativado' : 'desativado'} com sucesso`);
-            get().fetchUsers();
+            await get().fetchUsers();
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao atualizar status:', error);
-            toast.error(error.message || 'Erro ao atualizar status');
+            toast.error(getErrorMessage(error, 'Erro ao atualizar status'));
             return false;
         }
     },
 
     updateUserRole: async (id, role) => {
         try {
-            const { error } = await supabase
-                .from('profiles')
-                .update({ is_admin: role === 'admin' || role === 'super_admin' })
-                .eq('id', id);
+            const storeRole = USER_ROLE_TO_STORE_ROLE[role];
 
-            if (error) throw error;
+            if (!storeRole || storeRole === 'owner') {
+                throw new Error('Papel inválido para atualização.');
+            }
+
+            await updateStoreMemberRole({
+                memberId: id,
+                role: storeRole as Exclude<StoreMemberRole, 'owner'>,
+                reason: 'Alteração de papel pela tela de usuários',
+            });
 
             toast.success('Permissão atualizada com sucesso');
-            get().fetchUsers();
+            await get().fetchUsers();
             return true;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Erro ao atualizar permissão:', error);
-            toast.error(error.message || 'Erro ao atualizar permissão');
+            toast.error(getErrorMessage(error, 'Erro ao atualizar permissão'));
             return false;
         }
     },
 
     fetchStats: async () => {
         try {
-            const { data: profiles, error } = await supabase
-                .from('profiles')
-                .select('is_admin, is_active');
-
-            if (error) throw error;
-
-            const stats: UserStats = {
-                total: profiles?.length || 0,
-                active: profiles?.filter(p => p.is_active).length || 0,
-                inactive: profiles?.filter(p => !p.is_active).length || 0,
-                admins: profiles?.filter(p => p.is_admin).length || 0,
-                pending: 0, // Implementar se necessário
-            };
-
-            set({ stats });
-        } catch (error) {
+            const allUsers = await fetchAllUsersForCurrentStore();
+            set({ stats: buildStats(allUsers) });
+        } catch (error: unknown) {
             console.error('Erro ao buscar estatísticas:', error);
         }
     },

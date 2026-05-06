@@ -1,5 +1,5 @@
 import type { UserRole } from '@/types';
-import { Shield, User, Eye, Users, Crown } from 'lucide-react';
+import { Shield, User, Eye, Users, Crown, Package, ShoppingCart, Store } from 'lucide-react';
 
 interface UserRoleBadgeProps {
     role: UserRole;
@@ -9,6 +9,11 @@ interface UserRoleBadgeProps {
 
 export function UserRoleBadge({ role, size = 'md', showIcon = true }: UserRoleBadgeProps) {
     const config = {
+        owner: {
+            color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+            icon: Crown,
+            label: 'Proprietário',
+        },
         super_admin: {
             color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800',
             icon: Crown,
@@ -24,6 +29,21 @@ export function UserRoleBadge({ role, size = 'md', showIcon = true }: UserRoleBa
             icon: Users,
             label: 'Gerente',
         },
+        stock_operator: {
+            color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
+            icon: Package,
+            label: 'Estoque',
+        },
+        cashier: {
+            color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border-teal-200 dark:border-teal-800',
+            icon: Store,
+            label: 'Caixa',
+        },
+        sales: {
+            color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800',
+            icon: ShoppingCart,
+            label: 'Vendas',
+        },
         staff: {
             color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700',
             icon: User,
@@ -37,11 +57,13 @@ export function UserRoleBadge({ role, size = 'md', showIcon = true }: UserRoleBa
     };
 
     const { color, icon: Icon, label } = config[role];
+
     const sizeClasses = {
         sm: 'text-xs px-2 py-0.5',
         md: 'text-xs px-2.5 py-1',
         lg: 'text-sm px-3 py-1.5',
     };
+
     const iconSize = {
         sm: 12,
         md: 14,

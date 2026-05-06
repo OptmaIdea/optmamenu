@@ -1,5 +1,6 @@
 import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
+
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import CreateStore from '@/pages/CreateStore';
 
@@ -163,7 +164,6 @@ export default function AppRoutes() {
             <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
             <Route path="/admin/stock-settings" element={<StockSettingsPage />} />
             <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
-
 
             //Users Section
             <Route path="/admin/users" element={<Users />} />

@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo, useLayoutEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getCurrentUserSecurityContext } from '@/services/securityService';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
@@ -8,6 +9,7 @@ import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttent
 import {
     LayoutDashboard,
     Package,
+    Shield,
     ShoppingBag,
     LogOut,
     Users,
@@ -31,7 +33,6 @@ import {
     CreditCard,
     BookOpen,
     ExternalLink,
-    Lock,
     MessageSquare,
     Truck,
     RadioTower,
@@ -79,37 +80,75 @@ export default function PrivateLayout() {
     useEffect(() => {
         const initialize = async () => {
             const { data: { user } } = await supabase.auth.getUser();
+
             if (!user) {
-                // Se não houver usuário, redirecionar para login (já deve ser protegido pela rota)
                 navigate('/login');
                 return;
             }
 
-            // Usa RPC para evitar stack depth limit exceeded causado por RLS policies recursivas
-            const { data: store, error } = await supabase.rpc('get_user_store_by_id', {
-                p_user_id: user.id,
-            });
+            try {
+                const securityContext = await getCurrentUserSecurityContext();
 
-            if (error) {
-                console.error('Erro ao verificar loja:', error);
+                if (!securityContext.authenticated) {
+                    navigate('/login');
+                    return;
+                }
+
+                const primaryMembership = securityContext.primary_membership;
+
+                if (!primaryMembership) {
+                    navigate('/onboarding/create-store', { replace: true });
+                    return;
+                }
+
+                setStoreId(primaryMembership.store_id);
+                setStoreSlug(primaryMembership.store_slug);
+
+                setUserData({
+                    name:
+                        securityContext.profile?.name ||
+                        user.user_metadata?.full_name ||
+                        securityContext.email ||
+                        'Usuário',
+                    phone:
+                        securityContext.profile?.phone ||
+                        user.user_metadata?.phone_number ||
+                        '',
+                    email: securityContext.email || user.email || '',
+                    avatar:
+                        primaryMembership.store_logo_url ||
+                        user.user_metadata?.avatar_url
+                });
+            } catch (error) {
+                console.error('Erro ao carregar contexto de segurança:', error);
+
+                // Fallback temporário para não travar operação caso a RPC falhe no primeiro teste.
+                const { data: store, error: storeError } = await supabase.rpc('get_user_store_by_id', {
+                    p_user_id: user.id,
+                });
+
+                if (storeError) {
+                    console.error('Erro no fallback get_user_store_by_id:', storeError);
+                }
+
+                const storeData = store?.[0] || null;
+
+                if (!storeData) {
+                    navigate('/onboarding/create-store', { replace: true });
+                    return;
+                }
+
+                setStoreId(storeData.id);
+                setStoreSlug(storeData.slug);
+                setUserData({
+                    name: user.user_metadata?.full_name || user.email || 'Usuário',
+                    phone: user.user_metadata?.phone_number || '',
+                    email: user.email || '',
+                    avatar: storeData.config?.visual_icon_url || user.user_metadata?.avatar_url
+                });
+            } finally {
+                setLoadingStore(false);
             }
-
-            const storeData = store?.[0] || null;
-
-            if (!storeData) {
-                navigate('/onboarding/create-store', { replace: true });
-                return;
-            }
-
-            setStoreId(storeData.id);
-            setStoreSlug(storeData.slug);
-            setUserData({
-                name: user.user_metadata?.full_name || 'Usuário',
-                phone: user.user_metadata?.phone_number || '',
-                email: user.email || '',
-                avatar: storeData.config?.visual_icon_url || user.user_metadata?.avatar_url
-            });
-            setLoadingStore(false);
         };
 
         initialize();
@@ -129,7 +168,6 @@ export default function PrivateLayout() {
 
     // Close mobile menu on route change
     useLayoutEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsMobileOpen(false);
     }, [pathname]);
 
@@ -202,7 +240,7 @@ export default function PrivateLayout() {
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
             { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
-            { path: '/admin/security', icon: Lock, label: 'Senhas e Acesso' },
+            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso' },
         ],
         support: [
             { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },

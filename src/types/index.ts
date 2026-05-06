@@ -142,4 +142,4 @@ export * from '@/types/order';
 export * from '@/types/store';
 export * from '@/types/loyalty';
 export * from '@/types/admin';
-
+export * from '@/types/security';

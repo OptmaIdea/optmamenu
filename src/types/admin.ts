@@ -13,7 +13,7 @@ export interface SecurityLog {
     created_at: string;
     action: string;
     user_email: string;
-    details: any;
+    details: Record<string, unknown>;
     outcome: 'success' | 'failure';
 }
 
@@ -27,9 +27,23 @@ export interface FAQItem {
 // USUÁRIOS DO SISTEMA (Admin/Staff)
 // ============================================
 
-export type UserRole = 'super_admin' | 'admin' | 'manager' | 'staff' | 'viewer';
+export type UserRole =
+    | 'owner'
+    | 'super_admin'
+    | 'admin'
+    | 'manager'
+    | 'stock_operator'
+    | 'cashier'
+    | 'sales'
+    | 'staff'
+    | 'viewer';
 
-export type UserStatus = 'active' | 'inactive' | 'suspended' | 'pending';
+export type UserStatus =
+    | 'active'
+    | 'inactive'
+    | 'suspended'
+    | 'invited'
+    | 'pending';
 
 export interface UserAdmin {
     id: string;
@@ -58,7 +72,7 @@ export interface StoreUser {
     store_slug: string;
     role: UserRole;
     created_at: string;
-    config?: any;
+    config?: Record<string, unknown>;
 }
 
 export interface UserFilters {

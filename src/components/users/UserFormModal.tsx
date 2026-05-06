@@ -78,7 +78,7 @@ export function UserFormModal({
                     {/* Header */}
                     <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            {mode === 'create' ? 'Novo Usuário' : 'Editar Usuário'}
+                            {mode === 'create' ? 'Vincular Usuário Existente' : 'Editar Permissão'}
                         </h2>
                         <button
                             onClick={onClose}
@@ -172,15 +172,17 @@ export function UserFormModal({
                                 onChange={(e) => {
                                     const role = e.target.value as UserRole;
                                     setValue('role', role);
-                                    setValue('is_admin', role === 'admin' || role === 'super_admin');
+                                    setValue('is_admin', role === 'admin' || role === 'manager');
                                 }}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
                             >
                                 <option value="viewer">Visualizador</option>
                                 <option value="staff">Equipe</option>
+                                <option value="sales">Vendas</option>
+                                <option value="cashier">Caixa</option>
+                                <option value="stock_operator">Operador de estoque</option>
                                 <option value="manager">Gerente</option>
                                 <option value="admin">Administrador</option>
-                                <option value="super_admin">Super Admin</option>
                             </select>
                         </div>
 
@@ -211,7 +213,7 @@ export function UserFormModal({
                                 disabled={isSubmitting}
                                 className="flex-1 px-4 py-2 rounded-lg bg-[#21A896] text-white hover:bg-[#1A867A] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Criar' : 'Salvar'}
+                                {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Vincular' : 'Salvar'}
                             </button>
                         </div>
                     </form>

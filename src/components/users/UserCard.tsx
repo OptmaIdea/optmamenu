@@ -22,6 +22,7 @@ export function UserCard({
     showActions = true,
 }: UserCardProps) {
     const [showMenu, setShowMenu] = React.useState(false);
+    const isProtectedOwner = user.role === 'owner';
 
     const initials = user.full_name
         ? user.full_name
@@ -42,7 +43,7 @@ export function UserCard({
             <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                     {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#21A896] to-[#1A867A] flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-linear-to-br from-[#21A896] to-[#1A867A] flex items-center justify-center text-white font-bold text-lg shrink-0">
                         {initials}
                     </div>
 
@@ -59,13 +60,13 @@ export function UserCard({
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
                             {user.email && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <Mail size={14} className="flex-shrink-0" />
+                                    <Mail size={14} className="shrink-0" />
                                     <span className="truncate">{user.email}</span>
                                 </div>
                             )}
                             {user.phone && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                    <Phone size={14} className="flex-shrink-0" />
+                                    <Phone size={14} className="shrink-0" />
                                     <span>{user.phone}</span>
                                 </div>
                             )}
@@ -76,7 +77,7 @@ export function UserCard({
                                 </div>
                             )}
                             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                                <Calendar size={14} className="flex-shrink-0" />
+                                <Calendar size={14} className="shrink-0" />
                                 <span>
                                     Criado em{' '}
                                     {new Date(user.created_at).toLocaleDateString('pt-BR')}
@@ -121,8 +122,19 @@ export function UserCard({
                                     )}
                                     {onEdit && (
                                         <button
-                                            onClick={() => handleAction(() => onEdit(user))}
-                                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                            onClick={() =>
+                                                handleAction(() => {
+                                                    if (!isProtectedOwner) {
+                                                        onEdit(user);
+                                                    }
+                                                })
+                                            }
+                                            disabled={isProtectedOwner}
+                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                                                isProtectedOwner
+                                                    ? 'opacity-50 cursor-not-allowed'
+                                                    : ''
+                                            }`}
                                         >
                                             <Edit2 size={14} />
                                             Editar
@@ -131,9 +143,18 @@ export function UserCard({
                                     {onToggleStatus && (
                                         <button
                                             onClick={() =>
-                                                handleAction(() => onToggleStatus(user))
+                                                handleAction(() => {
+                                                    if (!isProtectedOwner) {
+                                                        onToggleStatus(user);
+                                                    }
+                                                })
                                             }
-                                            className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                                            disabled={isProtectedOwner}
+                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
+                                                isProtectedOwner
+                                                    ? 'opacity-50 cursor-not-allowed'
+                                                    : ''
+                                            }`}
                                         >
                                             {user.status === 'active' ? (
                                                 <>
@@ -150,8 +171,19 @@ export function UserCard({
                                     )}
                                     {onDelete && (
                                         <button
-                                            onClick={() => handleAction(() => onDelete(user))}
-                                            className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                                            onClick={() =>
+                                                handleAction(() => {
+                                                    if (!isProtectedOwner) {
+                                                        onDelete(user);
+                                                    }
+                                                })
+                                            }
+                                            disabled={isProtectedOwner}
+                                            className={`w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 ${
+                                                isProtectedOwner
+                                                    ? 'opacity-50 cursor-not-allowed'
+                                                    : ''
+                                            }`}
                                         >
                                             <Trash2 size={14} />
                                             Excluir

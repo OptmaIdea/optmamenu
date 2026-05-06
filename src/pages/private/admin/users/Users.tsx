@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useUsersStore } from '@/store/useUsersStore';
 import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
+import { useSecurityContext } from '@/hooks/useSecurityContext';
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
+import { toast } from 'sonner';
 import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter } from 'lucide-react';
 
 export default function Users() {
@@ -15,11 +17,17 @@ export default function Users() {
         total,
         fetchUsers,
         fetchStats,
+        createUser,
+        updateUser,
         updateUserStatus,
         deleteUser,
         setFilters,
         resetFilters,
     } = useUsersStore();
+
+    const { securityContext } = useSecurityContext();
+
+    const currentMemberId = securityContext?.primary_membership?.member_id ?? null;
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showFormModal, setShowFormModal] = useState(false);
@@ -31,7 +39,7 @@ export default function Users() {
     useEffect(() => {
         fetchUsers();
         fetchStats();
-    }, []);
+    }, [fetchUsers, fetchStats]);
 
     // Debounced search
     useEffect(() => {
@@ -46,7 +54,7 @@ export default function Users() {
         }, 500);
 
         return () => clearTimeout(timer);
-    }, [searchTerm]);
+    }, [searchTerm, setFilters, fetchUsers, resetFilters]);
 
     const handleViewUser = (user: UserAdmin) => {
         setSelectedUser(user);
@@ -54,6 +62,11 @@ export default function Users() {
     };
 
     const handleEditUser = (user: UserAdmin) => {
+        if (user.role === 'owner') {
+            toast.info('A alteração do proprietário será tratada em uma rotina específica de titularidade.');
+            return;
+        }
+
         setSelectedUser(user);
         setFormMode('edit');
         setShowFormModal(true);
@@ -67,21 +80,51 @@ export default function Users() {
 
     const handleToggleStatus = async (user: UserAdmin) => {
         const newStatus = user.status === 'active' ? 'inactive' : 'active';
+
+        if (user.id === currentMemberId && newStatus !== 'active') {
+            toast.error('Você não pode desativar ou suspender seu próprio usuário.');
+            return;
+        }
+
+        if (user.role === 'owner' && newStatus !== 'active') {
+            toast.error('O proprietário principal não pode ser desativado por esta tela.');
+            return;
+        }
+
         await updateUserStatus(user.id, newStatus);
     };
 
     const handleDeleteUser = async (user: UserAdmin) => {
+        if (user.id === currentMemberId) {
+            toast.error('Você não pode desativar seu próprio usuário.');
+            return;
+        }
+
+        if (user.role === 'owner') {
+            toast.error('O proprietário principal não pode ser desativado por esta tela.');
+            return;
+        }
+
         if (window.confirm(`Tem certeza que deseja desativar o usuário "${user.full_name}"?`)) {
             await deleteUser(user.id);
         }
     };
 
     const handleFormSubmit = async (data: UserFormData) => {
-        // A implementação real seria feita pelo store
-        console.log('Form submitted:', data);
+        if (formMode === 'create') {
+            await createUser(data);
+            return;
+        }
+
+        if (selectedUser) {
+            await updateUser(selectedUser.id, data);
+        }
     };
 
-    const handleFilterChange = (key: keyof UserFilters, value: any) => {
+    const handleFilterChange = <K extends keyof UserFilters>(
+        key: K,
+        value: UserFilters[K]
+    ) => {
         setFilters({ [key]: value });
     };
 
@@ -140,11 +183,10 @@ export default function Users() {
                     <div className="flex gap-2 w-full sm:w-auto">
                         <button
                             onClick={() => setShowFilters(!showFilters)}
-                            className={`px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${
-                                showFilters
-                                    ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
-                                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                            }`}
+                            className={`px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${showFilters
+                                ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
+                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                }`}
                         >
                             <Filter size={18} />
                             Filtros
@@ -169,7 +211,7 @@ export default function Users() {
                             <select
                                 value={filters.status || ''}
                                 onChange={(e) =>
-                                    handleFilterChange('status', e.target.value || undefined)
+                                    handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
                                 }
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
                             >
@@ -177,6 +219,7 @@ export default function Users() {
                                 <option value="active">Ativo</option>
                                 <option value="inactive">Inativo</option>
                                 <option value="suspended">Suspenso</option>
+                                <option value="invited">Convidado</option>
                                 <option value="pending">Pendente</option>
                             </select>
                         </div>
@@ -193,9 +236,12 @@ export default function Users() {
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
                             >
                                 <option value="">Todas</option>
-                                <option value="super_admin">Super Admin</option>
+                                <option value="owner">Proprietário</option>
                                 <option value="admin">Admin</option>
                                 <option value="manager">Gerente</option>
+                                <option value="stock_operator">Operador de estoque</option>
+                                <option value="cashier">Caixa</option>
+                                <option value="sales">Vendas</option>
                                 <option value="staff">Equipe</option>
                                 <option value="viewer">Visualizador</option>
                             </select>
@@ -208,7 +254,7 @@ export default function Users() {
                             <select
                                 value={filters.sort_by || 'created_at'}
                                 onChange={(e) =>
-                                    handleFilterChange('sort_by', e.target.value as any)
+                                    handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
                                 }
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
                             >

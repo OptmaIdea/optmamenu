@@ -22,6 +22,11 @@ export function UserStatusBadge({ status, size = 'md' }: UserStatusBadgeProps) {
             dot: 'bg-red-500',
             label: 'Suspenso',
         },
+        invited: {
+            color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+            dot: 'bg-yellow-500',
+            label: 'Convidado',
+        },
         pending: {
             color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
             dot: 'bg-yellow-500',
@@ -30,6 +35,7 @@ export function UserStatusBadge({ status, size = 'md' }: UserStatusBadgeProps) {
     };
 
     const { color, dot, label } = config[status];
+
     const sizeClasses = {
         sm: 'text-xs px-2 py-0.5',
         md: 'text-xs px-2.5 py-1',
