@@ -19,6 +19,7 @@ import {
     Moon,
     Sun,
     BarChart2,
+    BarChart3,
     AlertCircle,
     Heart,
     History,
@@ -38,7 +39,8 @@ import {
     ArrowRightLeft,
     WalletCards,
     Sparkles,
-    Settings
+    Settings,
+    Megaphone
 } from 'lucide-react';
 
 export default function PrivateLayout() {
@@ -160,7 +162,7 @@ export default function PrivateLayout() {
 
     const navigationItems = useMemo(() => ({
         dashboard: [
-            { path: '/admin', icon: LayoutDashboard, label: 'Painel' },
+            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional' },
             { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes' },
             { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas' },
             { path: '/admin/reports', icon: FileText, label: 'Relatórios' },
@@ -170,12 +172,13 @@ export default function PrivateLayout() {
             { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
             { path: '/admin/payment-methods', icon: WalletCards, label: 'Pagamentos' },
             { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
+            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
             { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
             { path: '/admin/customers', icon: Users, label: 'Clientes' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
             { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
-            { path: '/admin/marketing', icon: BarChart2, label: 'Promoções' },
+            { path: '/admin/marketing', icon: Megaphone, label: 'Promoções' },
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário' },

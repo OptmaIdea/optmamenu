@@ -33,6 +33,7 @@ const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/Cust
 const CustomerLifecyclePage = lazy(() => import('@/pages/private/admin/customers/CustomerLifecyclePage'));
 const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
 const LoyaltyAdvancedPage = lazy(() => import('@/pages/private/admin/loyalty/LoyaltyAdvancedPage'));
+const CommercialDashboardPage = lazy(() => import('@/pages/private/admin/commercial/dashboard/CommercialDashboardPage'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
 const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
 const PaymentMethodsPage = lazy(() => import('@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage'));
@@ -74,7 +75,7 @@ const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/
 const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
 
 // Marketing Section
-const Marketing = lazy(() => import('@/pages/private/admin/marketing/Marketing'));
+const MarketingCenterPage = lazy(() => import('@/pages/private/admin/marketing/MarketingCenterPage'));
 
 // Delivery Section
 const Delivery = lazy(() => import('@/pages/private/admin/delivery/Delivery'));
@@ -125,12 +126,13 @@ export default function AppRoutes() {
             <Route path="/admin/payment-methods" element={<PaymentMethodsPage />} />
             <Route path="/admin/payments" element={<Payments />} />
             <Route path="/admin/delivery" element={<Delivery />} />
+            <Route path="/admin/commercial-dashboard" element={<CommercialDashboardPage />} />
             <Route path="/admin/commercial-settings" element={<CommercialSettingsPage />} />
             <Route path="/admin/customers" element={<Customers />} />
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
             <Route path="/admin/loyalty/advanced" element={<LoyaltyAdvancedPage />} />
             <Route path="/admin/messages-admin" element={<AdminMessages />} />
-            <Route path="/admin/marketing" element={<Marketing />} />
+            <Route path="/admin/marketing" element={<MarketingCenterPage />} />
 
             // Customers Section
             <Route path="/admin/customers" element={<Customers />} />
