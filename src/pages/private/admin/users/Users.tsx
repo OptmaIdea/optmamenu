@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useUsersStore } from '@/store/useUsersStore';
 import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
+import { UserInvitesPanel } from '@/components/users/UserInvitesPanel';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useStoreMemberInvites } from '@/hooks/useStoreMemberInvites';
 import { hasEffectivePermission } from '@/utils/permissions';
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
@@ -32,6 +34,13 @@ export default function Users() {
     const currentMemberId = securityContext?.primary_membership?.member_id ?? null;
     const primaryStoreId = securityContext?.primary_membership?.store_id ?? null;
     const { permissions } = usePermissions(primaryStoreId);
+    const {
+        invites,
+        loading: loadingInvites,
+        saving: savingInvites,
+        refresh: refreshInvites,
+        cancelInvite,
+    } = useStoreMemberInvites(primaryStoreId);
     const canManageUsers = hasEffectivePermission(permissions, 'users.manage');
 
     const [searchTerm, setSearchTerm] = useState('');
@@ -123,11 +132,18 @@ export default function Users() {
     const handleFormSubmit = async (data: UserFormData) => {
         if (formMode === 'create') {
             await createUser(data);
+            await refreshInvites();
+
+            setSelectedUser(null);
+            setShowFormModal(false);
+
             return;
         }
 
         if (selectedUser) {
             await updateUser(selectedUser.id, data);
+            setSelectedUser(null);
+            setShowFormModal(false);
         }
     };
 
@@ -171,6 +187,20 @@ export default function Users() {
                 />
             </div>
 
+            {canManageUsers && (
+                <div className="mb-6">
+                    <UserInvitesPanel
+                        invites={invites}
+                        loading={loadingInvites}
+                        saving={savingInvites}
+                        onRefresh={refreshInvites}
+                        onCancel={async (inviteId) => {
+                            await cancelInvite(inviteId, 'Cancelado pela tela de usuários');
+                        }}
+                    />
+                </div>
+            )}
+
             {/* Toolbar */}
             <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-6">
                 <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -206,7 +236,7 @@ export default function Users() {
                             disabled={!canManageUsers}
                             title={
                                 canManageUsers
-                                    ? 'Vincular novo usuário'
+                                    ? 'Vincular usuário existente'
                                     : 'Você não tem permissão para gerenciar usuários'
                             }
                             className={`px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -310,7 +340,7 @@ export default function Users() {
                             disabled={!canManageUsers}
                             title={
                                 canManageUsers
-                                    ? 'Vincular novo usuário'
+                                    ? 'Vincular usuário existente'
                                     : 'Você não tem permissão para gerenciar usuários'
                             }
                             className={`px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -358,6 +388,7 @@ export default function Users() {
                 isOpen={showDetailModal}
                 onClose={() => setShowDetailModal(false)}
                 user={selectedUser}
+                canManageUsers={canManageUsers}
             />
         </PageContainer>
     );

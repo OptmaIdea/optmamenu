@@ -31,7 +31,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 pb-24"> {/* ← ADICIONADO pb-24 */}
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 pb-24"> {/* ← ADICIONADO pb-24 */}
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-black text-gray-800 dark:text-white font-candara-bold">
@@ -46,7 +46,7 @@ export default function Login() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
-              <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+              <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
               <p className="text-sm text-red-600 dark:text-red-400 font-candara">{error}</p>
             </div>
           )}

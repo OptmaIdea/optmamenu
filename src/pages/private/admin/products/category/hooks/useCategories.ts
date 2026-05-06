@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { logAction } from '@/pages/private/admin/products/products/utils/securityLog';
 import type { Category } from '../types/category.types';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export const useCategories = () => {
     const [categories, setCategories] = useState<Category[]>([]);
@@ -16,15 +17,11 @@ export const useCategories = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: storeData, error: storeError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (storeError || !storeData) {
-                console.error('Store not found:', storeError);
-                return;
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
             }
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
             const { data: categoriesData, error: categoriesError } = await supabase
                 .from('categories')
@@ -32,7 +29,7 @@ export const useCategories = () => {
                     *,
                     products:products(count)
                 `)
-                .eq('store_id', store.id)
+                .eq('store_id', activeStoreId)
                 .order('sort_order', { ascending: true });
 
             if (categoriesError) throw categoriesError;

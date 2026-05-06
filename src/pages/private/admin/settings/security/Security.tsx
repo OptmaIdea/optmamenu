@@ -11,6 +11,7 @@ import {
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -153,11 +154,7 @@ export default function Security() {
         allowedPermissions,
         getActionRequirement,
     } = usePermissions(primaryStoreId);
-    const canManageSecurity = permissions.some(
-        (permission) =>
-            permission.permission_code === 'security.manage' &&
-            permission.allowed
-    );
+    const canManageSecurity = hasEffectivePermission(permissions, 'security.manage');
 
     const [logFilters, setLogFilters] = useState({
         dateFrom: '',

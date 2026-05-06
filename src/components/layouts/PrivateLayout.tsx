@@ -9,6 +9,12 @@ import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
+import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
+import {
+    clearActiveStoreId,
+    getActiveStoreId,
+    setActiveStoreId,
+} from '@/utils/activeStore';
 import {
     LayoutDashboard,
     Package,
@@ -21,6 +27,7 @@ import {
     Layers,
     Menu,
     ChevronLeft,
+    ChevronDown,
     Moon,
     Sun,
     BarChart2,
@@ -44,7 +51,9 @@ import {
     WalletCards,
     Sparkles,
     Settings,
-    Megaphone
+    Megaphone,
+    Store as StoreIcon,
+    Check
 } from 'lucide-react';
 
 type MenuItem = {
@@ -56,6 +65,32 @@ type MenuItem = {
 
 type MenuSection = Record<string, MenuItem[]>;
 
+type LayoutMembership = {
+    member_id: string;
+    store_id: string;
+    store_name: string;
+    store_slug: string;
+    store_logo_url?: string | null;
+    role: string;
+    status: string;
+    is_primary_owner?: boolean;
+};
+
+function formatLayoutRole(role: string): string {
+    const labels: Record<string, string> = {
+        owner: 'Proprietário',
+        admin: 'Administrador',
+        manager: 'Gerente',
+        stock_operator: 'Operador de estoque',
+        cashier: 'Caixa',
+        sales: 'Vendas',
+        staff: 'Equipe',
+        viewer: 'Visualizador',
+    };
+
+    return labels[role] ?? role;
+}
+
 export default function PrivateLayout() {
     const { pathname } = useLocation();
     const navigate = useNavigate();
@@ -64,10 +99,13 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
-    const { permissions } = usePermissions(storeId ?? null);
+    const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
+    const [availableMemberships, setAvailableMemberships] = useState<LayoutMembership[]>([]);
+    const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
+    const [showStoreSwitcher, setShowStoreSwitcher] = useState(false);
 
     const SIDEBAR_GROUPS_STORAGE_KEY = 'optmamenu.sidebar.groups';
     const defaultOpenSections = {
@@ -107,15 +145,55 @@ export default function PrivateLayout() {
                     return;
                 }
 
-                const primaryMembership = securityContext.primary_membership;
+                const memberships = (securityContext.memberships ?? []).filter(
+                    (membership) => membership.status === 'active'
+                ) as LayoutMembership[];
 
-                if (!primaryMembership) {
-                    navigate('/onboarding/create-store', { replace: true });
+                setAvailableMemberships(memberships);
+
+                const storedActiveStoreId = getActiveStoreId();
+                const primaryMembership =
+                    securityContext.primary_membership as LayoutMembership | null;
+
+                const selectedMembership =
+                    memberships.find((membership) => membership.store_id === storedActiveStoreId) ??
+                    primaryMembership ??
+                    memberships[0] ??
+                    null;
+
+                if (storedActiveStoreId && !selectedMembership) {
+                    clearActiveStoreId();
+                }
+
+                if (selectedMembership && storedActiveStoreId !== selectedMembership.store_id) {
+                    localStorage.setItem('optmamenu_active_store_id', selectedMembership.store_id);
+                }
+
+                setActiveMembership(selectedMembership);
+
+                if (!selectedMembership) {
+                    setStoreId(null);
+                    setStoreSlug(null);
+                    setActiveMembership(null);
+                    setUserData({
+                        name:
+                            securityContext.profile?.name ||
+                            user.user_metadata?.full_name ||
+                            securityContext.email ||
+                            'Usuário',
+                        phone:
+                            securityContext.profile?.phone ||
+                            user.user_metadata?.phone_number ||
+                            '',
+                        email: securityContext.email || user.email || '',
+                        avatar: user.user_metadata?.avatar_url,
+                    });
+                    setLoadingStore(false);
                     return;
                 }
 
-                setStoreId(primaryMembership.store_id);
-                setStoreSlug(primaryMembership.store_slug);
+                setStoreId(selectedMembership.store_id);
+                setStoreSlug(selectedMembership.store_slug);
 
                 setUserData({
                     name:
@@ -129,7 +207,7 @@ export default function PrivateLayout() {
                         '',
                     email: securityContext.email || user.email || '',
                     avatar:
-                        primaryMembership.store_logo_url ||
+                        selectedMembership.store_logo_url ||
                         user.user_metadata?.avatar_url
                 });
             } catch (error) {
@@ -153,6 +231,8 @@ export default function PrivateLayout() {
 
                 setStoreId(storeData.id);
                 setStoreSlug(storeData.slug);
+                setActiveMembership(null);
+                setAvailableMemberships([]);
                 setUserData({
                     name: user.user_metadata?.full_name || user.email || 'Usuário',
                     phone: user.user_metadata?.phone_number || '',
@@ -211,8 +291,131 @@ export default function PrivateLayout() {
         localStorage.setItem('theme', !isDark ? 'dark' : 'light');
     };
 
-    const can = (permissionCode: string) =>
-        hasEffectivePermission(permissions, permissionCode);
+    const can = (permissionCode: string) => {
+        if (loadingPermissions) return true;
+
+        return hasEffectivePermission(permissions, permissionCode);
+    };
+
+    const handleSwitchStore = (membership: LayoutMembership) => {
+        if (membership.store_id === storeId) {
+            setShowStoreSwitcher(false);
+            return;
+        }
+
+        setActiveStoreId(membership.store_id);
+        setShowStoreSwitcher(false);
+
+        window.location.reload();
+    };
+
+    const renderStoreSwitcher = () => {
+        if (!activeMembership) return null;
+
+        const hasMultipleStores = availableMemberships.length > 1;
+
+        return (
+            <div className="relative">
+                <button
+                    type="button"
+                    onClick={() => {
+                        if (hasMultipleStores) {
+                            setShowStoreSwitcher((current) => !current);
+                        }
+                    }}
+                    className={`w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition dark:border-gray-700 dark:bg-gray-800 ${
+                        hasMultipleStores
+                            ? 'hover:border-[#21A896] hover:bg-gray-50 dark:hover:bg-gray-700'
+                            : 'cursor-default'
+                    }`}
+                    title={hasMultipleStores ? 'Trocar loja ativa' : 'Loja ativa'}
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                            {activeMembership.store_logo_url ? (
+                                <img
+                                    src={activeMembership.store_logo_url}
+                                    alt={activeMembership.store_name}
+                                    className="h-full w-full object-cover"
+                                />
+                            ) : (
+                                <StoreIcon size={18} className="text-gray-500" />
+                            )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold text-gray-900 dark:text-white">
+                                {activeMembership.store_name}
+                            </p>
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                /{activeMembership.store_slug}
+                            </p>
+                        </div>
+
+                        {hasMultipleStores && (
+                            <ChevronDown
+                                size={16}
+                                className={`text-gray-400 transition ${
+                                    showStoreSwitcher ? 'rotate-180' : ''
+                                }`}
+                            />
+                        )}
+                    </div>
+                </button>
+
+                {hasMultipleStores && showStoreSwitcher && (
+                    <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                        <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
+                            Trocar loja
+                        </p>
+
+                        <div className="space-y-1">
+                            {availableMemberships.map((membership) => {
+                                const isActive =
+                                    membership.store_id === activeMembership.store_id;
+
+                                return (
+                                    <button
+                                        key={membership.member_id}
+                                        type="button"
+                                        onClick={() => handleSwitchStore(membership)}
+                                        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition ${
+                                            isActive
+                                                ? 'bg-[#21A896]/10 text-[#168577]'
+                                                : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'
+                                        }`}
+                                    >
+                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                                            {membership.store_logo_url ? (
+                                                <img
+                                                    src={membership.store_logo_url}
+                                                    alt={membership.store_name}
+                                                    className="h-full w-full object-cover"
+                                                />
+                                            ) : (
+                                                <StoreIcon size={16} className="text-gray-500" />
+                                            )}
+                                        </div>
+
+                                        <div className="min-w-0 flex-1">
+                                            <p className="truncate text-sm font-bold">
+                                                {membership.store_name}
+                                            </p>
+                                            <p className="truncate text-xs opacity-70">
+                                                {formatLayoutRole(membership.role)}
+                                            </p>
+                                        </div>
+
+                                        {isActive && <Check size={16} />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     const navigationItems = useMemo<MenuSection>(() => ({
         dashboard: [
@@ -228,14 +431,14 @@ export default function PrivateLayout() {
             { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
             { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
-            { path: '/admin/customers', icon: Users, label: 'Clientes' },
-            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade' },
-            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada' },
+            { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
+            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
+            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
-            { path: '/admin/marketing', icon: Megaphone, label: 'Promoções' },
+            { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
         ],
         financial: [
-            { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário' },
+            { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
         ],
         products: [
             { path: '/admin/products', icon: Package, label: 'Produtos' },
@@ -347,53 +550,59 @@ export default function PrivateLayout() {
                             {(openSections[section] || isSidebarCollapsed) && items
                                 .filter((item) => !item.permission || can(item.permission))
                                 .map(item => {
-                                const IconComponent = item.icon;
-                                const isActive =
-                                    pathname === item.path ||
-                                    (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
+                                    const IconComponent = item.icon;
+                                    const isActive =
+                                        pathname === item.path ||
+                                        (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
 
-                                return (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        title={isSidebarCollapsed ? item.label : ''}
-                                        className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all
+                                    return (
+                                        <Link
+                                            key={item.path}
+                                            to={item.path}
+                                            title={isSidebarCollapsed ? item.label : ''}
+                                            className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all
                                             ${isSidebarCollapsed ? 'justify-center px-2 py-3.5' : 'px-4 py-3'}
                                             ${isActive
-                                                ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20'
-                                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                                            }`}
-                                    >
-                                        <IconComponent
-                                            size={isSidebarCollapsed ? 26 : 22}
-                                            className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
-                                        />
-                                        {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (
-                                            <span className="absolute right-3 w-2.5 h-2.5 rounded-full bg-amber-400" />
-                                        )}
-                                        {!isSidebarCollapsed && (
-                                            <div className="flex items-center justify-between w-full">
-                                                <span className="font-candara">{item.label}</span>
+                                                    ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20'
+                                                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                                                }`}
+                                        >
+                                            <IconComponent
+                                                size={isSidebarCollapsed ? 26 : 22}
+                                                className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
+                                            />
+                                            {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (
+                                                <span className="absolute right-3 w-2.5 h-2.5 rounded-full bg-amber-400" />
+                                            )}
+                                            {!isSidebarCollapsed && (
+                                                <div className="flex items-center justify-between w-full">
+                                                    <span className="font-candara">{item.label}</span>
 
-                                                {item.path === '/admin/inventory' && attentionCount > 0 && (
-                                                    <span
-                                                        className="ml-2 inline-flex items-center justify-center min-w-5.5 h-5 px-2 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
-                                                        title="Itens com estoque baixo ou zerado"
-                                                    >
-                                                        {attentionCount}
-                                                    </span>
-                                                )}
-                                            </div>
-                                        )}
-                                    </Link>
-                                );
-                            })}
+                                                    {item.path === '/admin/inventory' && attentionCount > 0 && (
+                                                        <span
+                                                            className="ml-2 inline-flex items-center justify-center min-w-5.5 h-5 px-2 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                                                            title="Itens com estoque baixo ou zerado"
+                                                        >
+                                                            {attentionCount}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </Link>
+                                    );
+                                })}
                         </div>
                     ))}
                 </nav>
 
                 {/* Footer Section: User & Actions */}
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                    {!isSidebarCollapsed && (
+                        <div className="mb-3">
+                            {renderStoreSwitcher()}
+                        </div>
+                    )}
+
                     {/* User Profile */}
                     {!isSidebarCollapsed && userData && (
                         <div className="flex items-center gap-3 mb-4 p-2 rounded-lg bg-white dark:bg-gray-700 shadow-sm border border-gray-100 dark:border-gray-600">
@@ -490,6 +699,7 @@ export default function PrivateLayout() {
                 </header>
 
                 <main id="main-scroll-container" className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+                    <MyStoreInvitesBanner />
                     <Outlet />
                 </main>
             </div>

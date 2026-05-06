@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText } from 'lucide-react';
+import { toast } from 'sonner';
 import bcrypt from 'bcryptjs';
 import type { StoreData, IBGEState, IBGECity } from './storeSettings.types';
 import CorporateTab from './tabs/CorporateTab';
@@ -8,6 +9,8 @@ import AddressTab from './tabs/AddressTab';
 import ContactsTab from './tabs/ContactsTab';
 import LegalTab from './tabs/LegalTab';
 import { TEMPLATE_PRIVACY_POLICY, TEMPLATE_TERMS_OF_USE, TEMPLATE_COOKIE_POLICY } from '@/constants/legalTemplates';
+import { getActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
+import { useSecurityContext } from '@/hooks/useSecurityContext';
 
 
 // Helper to get initials
@@ -22,6 +25,7 @@ const getInitials = (name: string) => {
 
 
 export default function StoreSettings() {
+    const { securityContext, loading: loadingSecurityContext } = useSecurityContext();
     const [activeTab, setActiveTab] = useState('corporate');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -69,7 +73,12 @@ export default function StoreSettings() {
     });
 
     useEffect(() => {
-        fetchInitialData();
+        if (!loadingSecurityContext) {
+            fetchInitialData();
+        }
+    }, [loadingSecurityContext]);
+
+    useEffect(() => {
         fetchStates();
     }, []);
 
@@ -81,6 +90,8 @@ export default function StoreSettings() {
     }, [store.address.state]);
 
     const fetchInitialData = async () => {
+        if (loadingSecurityContext) return;
+
         try {
             setLoading(true);
             const { data: { user } } = await supabase.auth.getUser();
@@ -94,22 +105,38 @@ export default function StoreSettings() {
                 email: user.email || 'N/A'
             });
 
-            // Fetch TODOS os dados da loja via RPC (agora retorna todos os campos)
-            const { data: storeData, error: storeError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
+            const activeStoreIdFromStorage = getActiveStoreId();
+            const fallbackStoreId =
+                securityContext?.primary_membership?.store_id ?? null;
+            const activeStoreId = activeStoreIdFromStorage ?? fallbackStoreId;
+
+            if (!activeStoreId) {
+                toast.error('Nenhuma loja ativa selecionada.');
+                setMessage('Erro: Nenhuma loja ativa selecionada.');
+                setLoading(false);
+                return;
+            }
+
+            if (!activeStoreIdFromStorage && fallbackStoreId) {
+                setActiveStoreId(fallbackStoreId);
+            }
+
+            const { data: storeData, error: storeError } = await supabase
+                .from('stores')
+                .select('*')
+                .eq('id', activeStoreId)
+                .maybeSingle();
 
             if (storeError) {
-                console.error('RPC Error:', storeError);
-                throw new Error(`Erro ao buscar loja: ${storeError.message || 'Erro desconhecido'}`);
+                console.error('Erro ao carregar loja ativa:', storeError);
+                toast.error('Erro ao carregar dados da loja ativa.');
+                throw new Error(`Erro ao buscar loja ativa: ${storeError.message}`);
             }
 
             if (!storeData) {
-                console.warn('Nenhuma loja encontrada para este usuário');
-                setMessage('Nenhuma loja encontrada. Você precisa criar uma loja primeiro.');
-                setLoading(false);
-                return;
+                throw new Error(
+                    'Loja ativa não encontrada ou sem permissão de acesso.'
+                );
             }
 
             const store = Array.isArray(storeData) ? storeData[0] : storeData;
@@ -236,6 +263,12 @@ export default function StoreSettings() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('No user');
 
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
+            }
+
             // 1. Update User Metadata (Name) if changed
             if (userData && userData.name !== user.user_metadata.full_name) {
                 const { error: authError } = await supabase.auth.updateUser({
@@ -252,7 +285,6 @@ export default function StoreSettings() {
             }
 
             const payload = {
-                user_id: user.id,
                 name: store.name,
                 slug: store.slug,
                 description: store.description,
@@ -277,10 +309,12 @@ export default function StoreSettings() {
                 dpo_contact: store.dpo_contact
             };
 
-            // ✅ AQUI: troca o .from('stores') por RPC UPSERT
-            const { data, error } = await supabase.rpc('upsert_user_store', {
-                p_payload: payload
-            });
+            const { data, error } = await supabase
+                .from('stores')
+                .update(payload)
+                .eq('id', activeStoreId)
+                .select()
+                .single();
 
             if (error) throw error;
 

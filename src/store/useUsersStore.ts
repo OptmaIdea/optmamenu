@@ -3,12 +3,12 @@ import { toast } from 'sonner';
 import type { UserAdmin, UserFilters, UserFormData, UserRole, UserStats } from '@/types';
 import type { StoreMemberAdmin, StoreMemberRole, StoreMemberStatus } from '@/types/security';
 import {
-    addStoreMemberByEmail,
     getCurrentUserSecurityContext,
     getStoreMembers,
     updateStoreMemberRole,
     updateStoreMemberStatus,
 } from '@/services/securityService';
+import { createStoreMemberInvite } from '@/services/storeMemberInviteService';
 
 interface UsersState {
     users: UserAdmin[];
@@ -241,24 +241,27 @@ export const useUsersStore = create<UsersState>((set, get) => ({
                 throw new Error('Papel inválido para novo membro.');
             }
 
-            const member = await addStoreMemberByEmail({
+            await createStoreMemberInvite({
                 storeId,
                 email: data.email,
                 role: role as Exclude<StoreMemberRole, 'owner'>,
-                status: 'active',
+                expiresInDays: 3,
             });
 
-            if (!member) {
-                throw new Error('Não foi possível vincular o usuário à loja.');
-            }
+            toast.success('Convite criado. Aguardando aceite do usuário.');
 
-            toast.success('Usuário vinculado à loja com sucesso');
             await get().fetchUsers();
 
-            return mapStoreMemberToUserAdmin(member);
+            return null;
         } catch (error: unknown) {
-            console.error('Erro ao vincular usuário:', error);
-            toast.error(getErrorMessage(error, 'Erro ao vincular usuário'));
+            console.error('Erro ao vincular/convidar usuário:', error);
+
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : 'Erro ao vincular ou convidar usuário';
+
+            toast.error(message);
             return null;
         }
     },

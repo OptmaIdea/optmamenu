@@ -37,14 +37,9 @@ export function UserFormModal({
     });
 
     useEffect(() => {
-        if (user && mode === 'edit') {
-            setValue('full_name', user.full_name || '');
-            setValue('phone', user.phone || '');
-            setValue('cpf', user.cpf || '');
-            setValue('role', user.role);
-            setValue('is_admin', user.is_admin);
-            setValue('internal_notes', user.internal_notes || '');
-        } else if (mode === 'create') {
+        if (!isOpen) return;
+
+        if (mode === 'create') {
             reset({
                 email: '',
                 full_name: '',
@@ -54,14 +49,47 @@ export function UserFormModal({
                 is_admin: false,
                 internal_notes: '',
             });
+            return;
         }
-    }, [user, mode, setValue, reset]);
+
+        if (user) {
+            reset({
+                email: user.email ?? '',
+                full_name: user.full_name ?? '',
+                phone: user.phone ?? '',
+                cpf: user.cpf ?? '',
+                role: user.role,
+                is_admin: user.is_admin,
+                internal_notes: user.internal_notes ?? '',
+            });
+        }
+    }, [isOpen, mode, user, reset]);
 
     if (!isOpen) return null;
 
+    const resetCreateForm = () => {
+        reset({
+            email: '',
+            full_name: '',
+            phone: '',
+            cpf: '',
+            role: 'staff',
+            is_admin: false,
+            internal_notes: '',
+        });
+    };
+
+    const handleClose = () => {
+        if (mode === 'create') {
+            resetCreateForm();
+        }
+
+        onClose();
+    };
+
     const handleFormSubmit = async (data: UserFormData) => {
         await onSubmit(data);
-        onClose();
+        handleClose();
     };
 
     return (
@@ -69,7 +97,7 @@ export function UserFormModal({
             {/* Backdrop */}
             <div
                 className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-                onClick={onClose}
+                onClick={handleClose}
             />
 
             {/* Modal */}
@@ -78,10 +106,10 @@ export function UserFormModal({
                     {/* Header */}
                     <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            {mode === 'create' ? 'Vincular Usuário Existente' : 'Editar Permissão'}
+                            {mode === 'create' ? 'Vincular ou Convidar Usuário' : 'Editar Permissão'}
                         </h2>
                         <button
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                         >
                             <X size={20} className="text-gray-500" />
@@ -203,7 +231,7 @@ export function UserFormModal({
                         <div className="flex gap-3 pt-4">
                             <button
                                 type="button"
-                                onClick={onClose}
+                                onClick={handleClose}
                                 className="flex-1 px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 font-medium transition-colors"
                             >
                                 Cancelar
@@ -213,7 +241,7 @@ export function UserFormModal({
                                 disabled={isSubmitting}
                                 className="flex-1 px-4 py-2 rounded-lg bg-[#21A896] text-white hover:bg-[#1A867A] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Vincular' : 'Salvar'}
+                                {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Vincular/Convidar' : 'Salvar'}
                             </button>
                         </div>
                     </form>

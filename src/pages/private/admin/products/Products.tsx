@@ -11,6 +11,7 @@ import { useProducts } from '@/pages/private/admin/products/products/hooks/usePr
 import { useFilters } from '@/pages/private/admin/products/products/hooks/useFilters';
 import { useModals } from '@/pages/private/admin/products/products/hooks/useModals';
 import { useExport } from '@/pages/private/admin/products/products/hooks/useExport';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 
 // Components
@@ -113,19 +114,18 @@ export default function ProductsPage() {
         const fetchCategories = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: storeData, error } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (error || !storeData) return;
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
-            if (store) {
-                const { data } = await supabase
-                    .from('categories')
-                    .select('*')
-                    .eq('store_id', store.id);
-                if (data) setCategories(data);
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
             }
+
+            const { data } = await supabase
+                .from('categories')
+                .select('*')
+                .eq('store_id', activeStoreId);
+
+            if (data) setCategories(data);
         };
         fetchCategories();
     }, [setCategories]);
@@ -138,17 +138,16 @@ export default function ProductsPage() {
             setUserEmail(user.email || 'Admin');
 
             // Primeiro busca a loja do usuário via RPC
-            const { data: storeData, error: storeError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (storeError || !storeData) return;
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
+            }
 
             // Agora usa o store.id correto para buscar a config
             const { data, error } = await supabase.rpc(
                 'get_store_config_admin',
-                { p_store_id: store.id }
+                { p_store_id: activeStoreId }
             );
             if (error) return;
             const storeConfig = Array.isArray(data) ? data[0] : data;

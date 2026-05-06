@@ -19,6 +19,7 @@ import CategoryEditModal from '@/pages/private/admin/products/category/component
 import CategoryDeleteConfirmModal from '@/pages/private/admin/products/category/components/CategoryDeleteConfirmModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import CategoryProductsSimpleModal from '@/pages/private/admin/products/category/components/CategoryProductsSimpleModal';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export default function CategoriesPage() {
     const [storeId, setStoreId] = useState<string | null>(null);
@@ -64,13 +65,14 @@ export default function CategoriesPage() {
         const fetchStoreId = async () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: storeData, error } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (error || !storeData) return;
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
-            if (store) setStoreId(store.id);
+
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
+            }
+
+            setStoreId(activeStoreId);
         };
         fetchStoreId();
     }, []);
@@ -78,10 +80,15 @@ export default function CategoriesPage() {
     // Buscar produtos de uma categoria para o modal
     const fetchCategoryProducts = async (categoryId: string) => {
         try {
+            if (!storeId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
+            }
+
             const { data, error } = await supabase
                 .from('products')
                 .select('name')
                 .eq('category_id', categoryId)
+                .eq('store_id', storeId)
                 .order('name');
 
             if (error) throw error;

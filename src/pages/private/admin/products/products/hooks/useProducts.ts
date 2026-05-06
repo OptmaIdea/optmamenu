@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { Product, DisplayStockStatus } from '../types/product.types';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export const useProducts = () => {
     const [products, setProducts] = useState<Product[]>([]);
@@ -15,15 +16,13 @@ export const useProducts = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            const { data: storeData, error } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (error || !storeData) {
-                console.error('Store not found:', error);
-                return;
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
             }
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
+
+            console.log('ACTIVE STORE PRODUCTS:', activeStoreId);
 
             // Busca principal de produtos (cadastro, categoria, imagens, preço)
             const { data: productsRaw, error: productsError } = await supabase
@@ -32,8 +31,10 @@ export const useProducts = () => {
           *,
           category:categories(id, name, price_logic_type, price_rules)
         `)
-                .eq('store_id', store.id)
+                .eq('store_id', activeStoreId)
                 .order('created_at', { ascending: false });
+
+            console.log('PRODUCTS DEBUG:', { data: productsRaw, error: productsError });
 
             if (productsError) throw productsError;
 
@@ -41,7 +42,7 @@ export const useProducts = () => {
             const { data: managementRows, error: managementError } = await supabase.rpc(
                 'get_inventory_management_products',
                 {
-                    p_store_id: store.id,
+                    p_store_id: activeStoreId,
                     p_recommended_action: null,
                     p_limit: 1000,
                 }

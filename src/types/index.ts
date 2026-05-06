@@ -145,3 +145,5 @@ export * from '@/types/admin';
 export * from '@/types/security';
 export * from '@/types/permissions';
 export * from '@/types/userMemberDetails';
+export * from '@/types/storeMemberInvites';
+export * from '@/types/myStoreInvites';

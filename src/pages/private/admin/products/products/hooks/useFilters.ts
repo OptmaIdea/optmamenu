@@ -8,6 +8,7 @@ import type {
     FilterAction,
     Category
 } from '../types/product.types';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export const useFilters = (products: Product[]) => {
     // Search
@@ -37,19 +38,18 @@ export const useFilters = (products: Product[]) => {
         try {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
-            const { data: storeData, error } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (error || !storeData) return;
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
-            if (store) {
-                const { data } = await supabase
-                    .from('categories')
-                    .select('*')
-                    .eq('store_id', store.id);
-                if (data) setCategories(data);
+            const activeStoreId = getActiveStoreId();
+
+            if (!activeStoreId) {
+                throw new Error('Nenhuma loja ativa selecionada.');
             }
+
+            const { data } = await supabase
+                .from('categories')
+                .select('*')
+                .eq('store_id', activeStoreId);
+
+            if (data) setCategories(data);
         } catch (error) {
             console.error('Error fetching categories:', error);
         }

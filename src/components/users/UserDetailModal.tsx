@@ -27,6 +27,7 @@ interface UserDetailModalProps {
     isOpen: boolean;
     onClose: () => void;
     user: UserAdmin | null;
+    canManageUsers?: boolean;
 }
 
 type ModalTab = 'overview' | 'internal' | 'occurrences';
@@ -111,7 +112,12 @@ function todayInputValue(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-export function UserDetailModal({ isOpen, onClose, user }: UserDetailModalProps) {
+export function UserDetailModal({
+    isOpen,
+    onClose,
+    user,
+    canManageUsers = false,
+}: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
     const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
     const [loadedDetailsId, setLoadedDetailsId] = useState<string | null>(null);
@@ -258,8 +264,12 @@ export function UserDetailModal({ isOpen, onClose, user }: UserDetailModalProps)
 
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
-        { id: 'internal', label: 'Dados internos', icon: Briefcase },
-        { id: 'occurrences', label: 'Ocorrências', icon: AlertTriangle },
+        ...(canManageUsers
+            ? [
+                  { id: 'internal' as ModalTab, label: 'Dados internos', icon: Briefcase },
+                  { id: 'occurrences' as ModalTab, label: 'Ocorrências', icon: AlertTriangle },
+              ]
+            : []),
     ];
 
     return (
@@ -432,7 +442,7 @@ export function UserDetailModal({ isOpen, onClose, user }: UserDetailModalProps)
                                 </>
                             )}
 
-                            {activeTab === 'internal' && (
+                            {activeTab === 'internal' && canManageUsers && (
                                 <div className="space-y-5">
                                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
                                         Estes dados são internos da loja e devem ficar restritos a owner,
@@ -591,7 +601,7 @@ export function UserDetailModal({ isOpen, onClose, user }: UserDetailModalProps)
                                 </div>
                             )}
 
-                            {activeTab === 'occurrences' && (
+                            {activeTab === 'occurrences' && canManageUsers && (
                                 <div className="space-y-5">
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                         <h4 className="mb-3 font-bold text-gray-900 dark:text-white">
