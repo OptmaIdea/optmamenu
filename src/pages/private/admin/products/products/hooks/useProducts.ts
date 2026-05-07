@@ -22,8 +22,6 @@ export const useProducts = () => {
                 throw new Error('Nenhuma loja ativa selecionada.');
             }
 
-            console.log('ACTIVE STORE PRODUCTS:', activeStoreId);
-
             // Busca principal de produtos (cadastro, categoria, imagens, preço)
             const { data: productsRaw, error: productsError } = await supabase
                 .from('products')
@@ -33,8 +31,6 @@ export const useProducts = () => {
         `)
                 .eq('store_id', activeStoreId)
                 .order('created_at', { ascending: false });
-
-            console.log('PRODUCTS DEBUG:', { data: productsRaw, error: productsError });
 
             if (productsError) throw productsError;
 

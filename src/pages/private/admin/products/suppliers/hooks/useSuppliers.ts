@@ -2,20 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { Supplier, SupplierInput } from '../types/supplier.types';
+import { getActiveStoreId } from '@/utils/activeStore';
 
-type StoreLike = { id: string };
 
-const getCurrentStore = async (): Promise<StoreLike | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-
-  const { data: storeData, error } = await supabase.rpc('get_user_store_by_id', { p_user_id: user.id });
-  if (error || !storeData) return null;
-  const store = Array.isArray(storeData) ? storeData[0] : storeData;
-  if (!store?.id) return null;
-
-  return { id: store.id };
-};
 
 export const useSuppliers = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -31,13 +20,16 @@ export const useSuppliers = () => {
   const fetchSuppliers = useCallback(async () => {
     setLoading(true);
     try {
-      const store = await getCurrentStore();
-      if (!store) return;
+      const activeStoreId = getActiveStoreId();
+      if (!activeStoreId) {
+        setSuppliers([]);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
-        .eq('store_id', store.id)
+        .eq('store_id', activeStoreId)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -54,12 +46,12 @@ export const useSuppliers = () => {
   const upsertSupplier = useCallback(async (input: SupplierInput, supplierId?: string) => {
     setSaving(true);
     try {
-      const store = await getCurrentStore();
-      if (!store) throw new Error('Store not found');
+      const activeStoreId = getActiveStoreId();
+      if (!activeStoreId) throw new Error('Store not found');
 
       const payload: Partial<Supplier> = {
         ...(supplierId ? { id: supplierId } : {}),
-        store_id: store.id,
+        store_id: activeStoreId,
         name: input.name.trim(),
         document: input.document?.trim() || null,
         phone: input.phone?.trim() || null,

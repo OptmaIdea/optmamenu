@@ -1,8 +1,3 @@
-/**
- * Adapter hook for the suppliers admin folder.
- * Wraps the canonical useSuppliers from products/suppliers and exposes
- * the API expected by SupplierDetailPage (refreshSuppliers, toggleSupplierActive).
- */
 import { useCallback } from 'react';
 import {
   useSuppliers as _useSuppliers,

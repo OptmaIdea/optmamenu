@@ -9,6 +9,9 @@ import { exportSupplierLifecycleCsv } from './utils/exportSupplierLifecycle';
 import { SupplierLifecycleSummaryCards } from './components/SupplierLifecycleSummaryCards';
 import { SupplierLifecycleTabs } from './components/SupplierLifecycleTabs';
 
+import { getActiveStoreId } from '@/utils/activeStore';
+import { usePermissions } from '@/hooks/usePermissions';
+
 import {
   getSupplierOperationalBadges,
 } from './utils/supplierStatusUtils';
@@ -16,6 +19,10 @@ import {
 export default function SupplierLifecyclePage() {
   const { supplierId } = useParams<{ supplierId: string }>();
   const [activeTab, setActiveTab] = useState('purchases');
+
+  const activeStoreId = getActiveStoreId();
+  const { hasPermission } = usePermissions(activeStoreId);
+  const canManageSuppliers = hasPermission('suppliers.manage');
 
   const {
     summary,
@@ -420,59 +427,63 @@ export default function SupplierLifecyclePage() {
             Atualizar
           </button>
 
-          <button
-            type="button"
-            onClick={handleTogglePreferred}
-            disabled={savingAction}
-            className="inline-flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-700 hover:bg-yellow-100 disabled:opacity-60 dark:border-yellow-900/40 dark:bg-yellow-950/20 dark:text-yellow-300"
-          >
-            <Star size={16} />
-            {summary.preferred_supplier ? 'Remover preferencial' : 'Marcar preferencial'}
-          </button>
+          {canManageSuppliers && (
+            <>
+              <button
+                type="button"
+                onClick={handleTogglePreferred}
+                disabled={savingAction}
+                className="inline-flex items-center gap-2 rounded-xl border border-yellow-200 bg-yellow-50 px-3 py-2 text-sm font-semibold text-yellow-700 hover:bg-yellow-100 disabled:opacity-60 dark:border-yellow-900/40 dark:bg-yellow-950/20 dark:text-yellow-300"
+              >
+                <Star size={16} />
+                {summary.preferred_supplier ? 'Remover preferencial' : 'Marcar preferencial'}
+              </button>
 
-          {summary.homologation_status !== 'approved' && (
-            <button
-              type="button"
-              onClick={handleApproveSupplier}
-              disabled={savingAction}
-              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-            >
-              <CheckCircle2 size={16} />
-              Aprovar
-            </button>
-          )}
+              {summary.homologation_status !== 'approved' && (
+                <button
+                  type="button"
+                  onClick={handleApproveSupplier}
+                  disabled={savingAction}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                >
+                  <CheckCircle2 size={16} />
+                  Aprovar
+                </button>
+              )}
 
-          {summary.homologation_status !== 'rejected' && summary.homologation_status !== 'blocked' && (
-            <button
-              type="button"
-              onClick={handleRejectSupplier}
-              disabled={savingAction}
-              className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
-            >
-              <Ban size={16} />
-              Reprovar
-            </button>
-          )}
+              {summary.homologation_status !== 'rejected' && summary.homologation_status !== 'blocked' && (
+                <button
+                  type="button"
+                  onClick={handleRejectSupplier}
+                  disabled={savingAction}
+                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-100 disabled:opacity-60"
+                >
+                  <Ban size={16} />
+                  Reprovar
+                </button>
+              )}
 
-          {summary?.blocked ? (
-            <button
-              type="button"
-              onClick={() => void handleUnblockSupplier()}
-              disabled={savingAction}
-              className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
-            >
-              Desbloquear
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void handleBlockSupplier()}
-              disabled={savingAction}
-              className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
-            >
-              <Ban size={16} />
-              Bloquear
-            </button>
+              {summary?.blocked ? (
+                <button
+                  type="button"
+                  onClick={() => void handleUnblockSupplier()}
+                  disabled={savingAction}
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 px-3 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-60"
+                >
+                  Desbloquear
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleBlockSupplier()}
+                  disabled={savingAction}
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60"
+                >
+                  <Ban size={16} />
+                  Bloquear
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

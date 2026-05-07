@@ -12,6 +12,8 @@ import StatsCard from '@/components/common/StatsCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 
 import { supabase } from '@/lib/supabase';
+import { getActiveStoreId } from '@/utils/activeStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useSuppliers } from './hooks/useSuppliers';
 import type { Supplier } from './types/supplier.types';
 
@@ -61,14 +63,23 @@ export default function SuppliersPage() {
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
   const [storeId, setStoreId] = useState<string | null>(null);
 
+  const activeStoreId = getActiveStoreId();
+  const { hasPermission, loading: loadingPermissions } = usePermissions(activeStoreId);
+
+  const canViewSuppliers =
+    hasPermission('suppliers.view') ||
+    hasPermission('suppliers.manage') ||
+    hasPermission('purchases.view');
+
+  const canManageSuppliers = hasPermission('suppliers.manage');
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      supabase.rpc('get_user_store_by_id', { p_user_id: user.id }).then(({ data }) => {
-        const store = Array.isArray(data) ? data[0] : data;
-        if (store?.id) setStoreId(store.id);
-      });
-    });
+    const activeStoreId = getActiveStoreId();
+    if (activeStoreId) {
+      setStoreId(activeStoreId);
+    } else {
+      toast.error('Nenhuma loja ativa selecionada.');
+    }
   }, []);
 
   const filteredAndSorted = useMemo(() => {
@@ -146,6 +157,21 @@ export default function SuppliersPage() {
   const activeCount = useMemo(() => suppliers.filter((s: Supplier) => s.active).length, [suppliers]);
   const inactiveCount = useMemo(() => suppliers.filter((s: Supplier) => !s.active).length, [suppliers]);
 
+  if (!loadingPermissions && !canViewSuppliers) {
+    return (
+      <PageContainer title="Fornecedores" subtitle="Acesso restrito">
+        <div className="flex h-[400px] items-center justify-center rounded-2xl border border-gray-200 bg-white p-8">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900">Acesso restrito</h3>
+            <p className="mt-2 text-sm text-gray-500">
+              Você não tem permissão para visualizar fornecedores.
+            </p>
+          </div>
+        </div>
+      </PageContainer>
+    );
+  }
+
   return (
     <PageContainer
       title="Fornecedores"
@@ -155,14 +181,16 @@ export default function SuppliersPage() {
       action={
         <div className="flex flex-wrap items-center gap-2">
           <InventoryQuickNav />
-          <button
-            onClick={() => { setSupplierModalMode('create'); setEditingSupplier(null); setSupplierModalOpen(true); }}
-            className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
-            type="button"
-          >
-            <Plus className="h-4 w-4" />
-            Novo fornecedor
-          </button>
+          {canManageSuppliers && (
+            <button
+              onClick={() => { setSupplierModalMode('create'); setEditingSupplier(null); setSupplierModalOpen(true); }}
+              className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+              Novo fornecedor
+            </button>
+          )}
         </div>
       }
     >
@@ -370,14 +398,16 @@ export default function SuppliersPage() {
                               <FileText size={15} />
                             </button>
 
-                            <button
-                              onClick={() => { setSupplierModalMode('edit'); setEditingSupplier(s); setSupplierModalOpen(true); }}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                              title="Editar fornecedor"
-                              type="button"
-                            >
-                              <Pencil size={15} />
-                            </button>
+                            {canManageSuppliers && (
+                              <button
+                                onClick={() => { setSupplierModalMode('edit'); setEditingSupplier(s); setSupplierModalOpen(true); }}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+                                title="Editar fornecedor"
+                                type="button"
+                              >
+                                <Pencil size={15} />
+                              </button>
+                            )}
 
                             {/*                             <button
                               onClick={() => setSupplierActive(s.id, !s.active)}

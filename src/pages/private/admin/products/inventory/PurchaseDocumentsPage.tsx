@@ -37,6 +37,7 @@ import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/comp
 import { PurchaseSuggestionsPanel } from '@/pages/private/admin/products/inventory/components/PurchaseSuggestionsPanel';
 import OperationalTimeline from './components/OperationalTimeline';
 import { useOperationalTimeline } from './hooks/useOperationalTimeline';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 type PurchaseDocumentStatus = 'draft' | 'confirmed' | 'canceled' | 'cancelled';
 
@@ -70,7 +71,7 @@ type PurchaseDocumentItemRow = {
   total_cost: number | null;
 };
 
-type StoreLike = { id: string };
+/* type StoreLike = { id: string }; */
 
 type InventoryProductLike = {
   id: string;
@@ -79,25 +80,6 @@ type InventoryProductLike = {
   discontinued?: boolean | null;
   is_discontinued?: boolean | null;
   last_entry_unit_cost?: number | null;
-};
-
-const getCurrentStore = async (): Promise<StoreLike | null> => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) return null;
-
-  const { data: storeData, error } = await supabase.rpc('get_user_store_by_id', {
-    p_user_id: user.id,
-  });
-
-  if (error || !storeData) return null;
-
-  const store = Array.isArray(storeData) ? storeData[0] : storeData;
-  if (!store?.id) return null;
-
-  return { id: store.id };
 };
 
 const money = (value: number | null | undefined) =>
@@ -386,10 +368,10 @@ export default function PurchaseDocumentsPage() {
     setPageError(null);
 
     try {
-      const store = await getCurrentStore();
-      if (!store) throw new Error('Loja não encontrada');
+      const activeStoreId = getActiveStoreId();
+      if (!activeStoreId) throw new Error('Loja não encontrada');
 
-      setStoreId(store.id);
+      setStoreId(activeStoreId);
 
       const [
         { data: sData, error: sErr },
@@ -399,7 +381,7 @@ export default function PurchaseDocumentsPage() {
         supabase
           .from('suppliers')
           .select('id, name, active, blocked, homologation_status')
-          .eq('store_id', store.id)
+          .eq('store_id', activeStoreId)
           .eq('active', true)
           .eq('blocked', false)
           .eq('homologation_status', 'approved')
@@ -407,12 +389,12 @@ export default function PurchaseDocumentsPage() {
         supabase
           .from('purchase_documents')
           .select('*')
-          .eq('store_id', store.id)
+          .eq('store_id', activeStoreId)
           .order('created_at', { ascending: false }),
         supabase
           .from('purchase_document_items')
           .select('id, purchase_document_id, product_id, quantity, unit_cost, total_cost')
-          .eq('store_id', store.id),
+          .eq('store_id', activeStoreId),
       ]);
 
       if (sErr) throw sErr;
