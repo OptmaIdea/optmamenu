@@ -8,6 +8,7 @@ import EmptyState from '@/components/common/empty-state/EmptyState';
 import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { supabase } from '@/lib/supabase';
 import { formatNumberPtBr } from '@/utils/export/formatters';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 const actionLabelMap: Record<string, string> = {
   buy: 'Comprar',
@@ -40,15 +41,18 @@ export default function ProductLifecycleSelectorPage() {
 
   useEffect(() => {
     const fetchManagementData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data: storeData } = await supabase.rpc('get_user_store_by_id', { p_user_id: user.id });
-      if (!storeData || !storeData[0]) return;
+      const activeStoreId = getActiveStoreId();
+
+      if (!activeStoreId) {
+          console.warn('Nenhuma loja ativa encontrada para Vida do Produto.');
+          setManagementMap(new Map());
+          return;
+      }
       
       const { data: managementRows, error: managementError } = await supabase.rpc(
         'get_inventory_management_products',
         {
-          p_store_id: storeData[0].id,
+          p_store_id: activeStoreId,
           p_recommended_action: null,
           p_limit: 1000,
         }

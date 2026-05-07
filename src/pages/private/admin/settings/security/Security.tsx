@@ -12,6 +12,7 @@ import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
+import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -137,15 +138,20 @@ export default function Security() {
         securityContext,
         loading: loadingSecurityContext,
         refresh: refreshSecurityContext,
-        primaryStoreId,
-        primaryStoreSlug,
-        currentRole,
         isOwner,
         isAdminLike,
         hasPin,
     } = useSecurityContext();
 
-    const primaryMembership = securityContext?.primary_membership ?? null;
+    const activeMembership = resolveActiveMembership(
+        securityContext?.memberships,
+        securityContext?.primary_membership
+    );
+
+    const currentStoreId = activeMembership?.store_id ?? getActiveStoreId();
+    const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
+    const currentStoreSlug = activeMembership?.store_slug ?? '';
+    const currentRole = activeMembership?.role ?? null;
 
     const {
         permissions,
@@ -153,7 +159,7 @@ export default function Security() {
         permissionsByModule,
         allowedPermissions,
         getActionRequirement,
-    } = usePermissions(primaryStoreId);
+    } = usePermissions(currentStoreId);
     const canManageSecurity = hasEffectivePermission(permissions, 'security.manage');
 
     const [logFilters, setLogFilters] = useState({
@@ -289,26 +295,12 @@ export default function Security() {
     // Initial data
     const fetchInitialData = async () => {
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { data: storeDataRaw, error: storeError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-
-            if (storeError) throw storeError;
-            if (!storeDataRaw) return;
-
-            const userStore = Array.isArray(storeDataRaw)
-                ? storeDataRaw[0]
-                : storeDataRaw;
-
-            if (!userStore?.id) return;
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) return;
 
             const { data: adminDataRaw, error: adminError } = await supabase.rpc(
                 'get_store_config_admin',
-                { p_store_id: userStore.id }
+                { p_store_id: activeStoreId }
             );
 
             if (adminError) throw adminError;
@@ -320,7 +312,7 @@ export default function Security() {
             const { data: storeSettings, error: storeSettingsError } = await supabase
                 .from('stores')
                 .select('token_expiry_seconds, max_token_attempts')
-                .eq('id', userStore.id)
+                .eq('id', activeStoreId)
                 .single();
 
             if (storeSettingsError) {
@@ -330,7 +322,7 @@ export default function Security() {
             if (adminStore) {
                 const mergedStore = {
                     ...adminStore,
-                    id: adminStore.id || userStore.id,
+                    id: adminStore.id || activeStoreId,
                     token_expiry_seconds:
                         storeSettings?.token_expiry_seconds ??
                         adminStore.token_expiry_seconds ??
@@ -342,7 +334,6 @@ export default function Security() {
                 };
 
                 setStore(mergedStore);
-                /* setPinData(hasPin ? '******' : ''); */
                 setTokenExpiry(mergedStore.token_expiry_seconds ?? 15);
                 setMaxAttempts(mergedStore.max_token_attempts ?? 3);
             }
@@ -911,10 +902,10 @@ export default function Security() {
                                             Loja atual
                                         </p>
                                         <p className="mt-1 text-sm font-bold text-gray-800 dark:text-white">
-                                            {primaryMembership?.store_name || 'Não definida'}
+                                            {currentStoreName}
                                         </p>
                                         <p className="mt-1 text-xs text-gray-500">
-                                            {primaryStoreSlug ? `/${primaryStoreSlug}` : 'Slug não definido'}
+                                            {currentStoreSlug ? `/${currentStoreSlug}` : 'Slug não definido'}
                                         </p>
                                     </div>
 
@@ -929,7 +920,7 @@ export default function Security() {
                                             {formatSecurityRole(currentRole)}
                                         </p>
                                         <p className="mt-1 text-xs text-gray-500">
-                                            {formatSecurityStatus(primaryMembership?.status ?? null)}
+                                            {formatSecurityStatus(activeMembership?.status ?? null)}
                                         </p>
                                     </div>
 
@@ -957,7 +948,7 @@ export default function Security() {
                                         </h4>
 
                                         <div className="space-y-2 text-sm">
-                                            <InfoLine label="Store ID" value={primaryStoreId || 'Não definido'} />
+                                            <InfoLine label="Store ID" value={currentStoreId || 'Não definido'} />
                                             <InfoLine label="É proprietário?" value={isOwner ? 'Sim' : 'Não'} />
                                             <InfoLine label="Perfil administrativo?" value={isAdminLike ? 'Sim' : 'Não'} />
                                             <InfoLine label="Global admin" value={securityContext?.is_global_admin ? 'Sim' : 'Não'} />
@@ -970,10 +961,10 @@ export default function Security() {
                                             Ações sensíveis
                                         </h4>
 
-                                        {primaryMembership?.sensitive_actions &&
-                                            Object.keys(primaryMembership.sensitive_actions).length > 0 ? (
+                                        {activeMembership?.sensitive_actions &&
+                                            Object.keys(activeMembership.sensitive_actions).length > 0 ? (
                                             <pre className="max-h-44 overflow-auto rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                                                {JSON.stringify(primaryMembership.sensitive_actions, null, 2)}
+                                                {JSON.stringify(activeMembership.sensitive_actions, null, 2)}
                                             </pre>
                                         ) : (
                                             <p className="text-sm text-gray-500">

@@ -323,11 +323,10 @@ export default function PrivateLayout() {
                             setShowStoreSwitcher((current) => !current);
                         }
                     }}
-                    className={`w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition dark:border-gray-700 dark:bg-gray-800 ${
-                        hasMultipleStores
-                            ? 'hover:border-[#21A896] hover:bg-gray-50 dark:hover:bg-gray-700'
-                            : 'cursor-default'
-                    }`}
+                    className={`w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition dark:border-gray-700 dark:bg-gray-800 ${hasMultipleStores
+                        ? 'hover:border-[#21A896] hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'cursor-default'
+                        }`}
                     title={hasMultipleStores ? 'Trocar loja ativa' : 'Loja ativa'}
                 >
                     <div className="flex items-center gap-3">
@@ -355,9 +354,8 @@ export default function PrivateLayout() {
                         {hasMultipleStores && (
                             <ChevronDown
                                 size={16}
-                                className={`text-gray-400 transition ${
-                                    showStoreSwitcher ? 'rotate-180' : ''
-                                }`}
+                                className={`text-gray-400 transition ${showStoreSwitcher ? 'rotate-180' : ''
+                                    }`}
                             />
                         )}
                     </div>
@@ -379,11 +377,10 @@ export default function PrivateLayout() {
                                         key={membership.member_id}
                                         type="button"
                                         onClick={() => handleSwitchStore(membership)}
-                                        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition ${
-                                            isActive
-                                                ? 'bg-[#21A896]/10 text-[#168577]'
-                                                : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'
-                                        }`}
+                                        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition ${isActive
+                                            ? 'bg-[#21A896]/10 text-[#168577]'
+                                            : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'
+                                            }`}
                                     >
                                         <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
                                             {membership.store_logo_url ? (
@@ -443,13 +440,13 @@ export default function PrivateLayout() {
         products: [
             { path: '/admin/products', icon: Package, label: 'Produtos' },
             { path: '/admin/categories', icon: Layers, label: 'Categorias' },
-            { path: '/admin/inventory', icon: FileText, label: 'Estoque por local' },
+            { path: '/admin/inventory', icon: FileText, label: 'Estoque por local', permission: 'stock.view' },
             { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
-            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências' },
+            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'stock.transfer' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
-            { path: '/admin/stock-movements', icon: History, label: 'Movimentação' },
+            { path: '/admin/stock-movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
             { path: '/admin/stock-settings', icon: SlidersHorizontal, label: 'Configurações de Estoque' },
         ],
         settings: [

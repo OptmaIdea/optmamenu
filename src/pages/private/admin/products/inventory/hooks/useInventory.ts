@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { ProductStock } from '../types/inventory.types';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export const useInventory = () => {
     const [products, setProducts] = useState<ProductStock[]>([]);
@@ -11,18 +12,12 @@ export const useInventory = () => {
     const fetchInventory = useCallback(async () => {
         try {
             setLoading(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const activeStoreId = getActiveStoreId();
 
-            const { data: storeData, error: storeError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (storeError || !storeData) {
+            if (!activeStoreId) {
                 setProducts([]);
                 return;
             }
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
 
             // Buscar produtos diretamente da tabela products, excluindo descontinuados
             const { data: productsData, error: productsError } = await supabase
@@ -43,7 +38,7 @@ export const useInventory = () => {
                     created_at,
                     last_entry_unit_cost
                 `)
-                .eq('store_id', store.id)
+                .eq('store_id', activeStoreId)
                 .eq('is_discontinued', false)
                 .eq('active', true)
                 .order('name');

@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { getActiveStoreId } from '@/utils/activeStore';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useProductLifecycle } from './hooks/useProductLifecycle';
 import { useProductStockMovements } from './hooks/useProductStockMovements';
@@ -86,6 +88,42 @@ const stockStatusClassMap: Record<string, string> = {
 
 export default function ProductLifecyclePage() {
   const { id } = useParams();
+  const [product, setProduct] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchProduct = async () => {
+      if (!id) return;
+      const activeStoreId = getActiveStoreId();
+
+      if (!activeStoreId) {
+          setProduct(null);
+          console.warn('Nenhuma loja ativa selecionada.');
+          return;
+      }
+
+      const { data: productData, error: fetchError } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .eq('store_id', activeStoreId)
+          .maybeSingle();
+
+      if (fetchError) {
+          console.error('Erro ao carregar produto da vida do produto:', fetchError);
+          return;
+      }
+
+      if (!productData) {
+          setProduct(null);
+          return;
+      }
+
+      setProduct(productData);
+    };
+
+    fetchProduct();
+  }, [id]);
+
   const [activeTab, setActiveTab] = useState<LifecycleTab>('summary');
   const [movementSearch, setMovementSearch] = useState('');
   const [movementOperationFilter, setMovementOperationFilter] =
@@ -371,10 +409,10 @@ export default function ProductLifecyclePage() {
         formatNumberPtBr(row.transfer_count ?? 0),
         formatNumberPtBr(row.min_stock ?? 0),
         formatNumberPtBr(row.max_stock ?? 0),
-        formatDateTimePtBr(row.last_entry_at),
-        formatDateTimePtBr(row.last_exit_at),
-        formatDateTimePtBr(row.last_movement_at),
-        formatDateTimePtBr(row.last_transfer_at),
+        row?.last_entry_at ? formatDateTimePtBr(row.last_entry_at) : '—',
+        row?.last_exit_at ? formatDateTimePtBr(row.last_exit_at) : '—',
+        row?.last_movement_at ? formatDateTimePtBr(row.last_movement_at) : '—',
+        row?.last_transfer_at ? formatDateTimePtBr(row.last_transfer_at) : '—',
       ]],
     });
   };
@@ -477,7 +515,7 @@ export default function ProductLifecyclePage() {
 
   if (loading) return <LoadingSpinner />;
 
-  if (!row) {
+  if (!row && !product) {
     return (
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
         <h1 className="text-xl font-bold text-gray-900 dark:text-white">Produto não encontrado</h1>
@@ -496,23 +534,23 @@ export default function ProductLifecyclePage() {
 
             <div className="mt-1 flex flex-wrap items-center gap-2">
               <h1 className="max-w-full truncate text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-                {row.product_name}
+                {row?.product_name || product?.name}
               </h1>
 
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row.active
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row?.active ?? product?.active
                     ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
                     : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                   }`}
               >
-                {row.active ? 'Ativo' : 'Inativo'}
+                {row?.active ?? product?.active ? 'Ativo' : 'Inativo'}
               </span>
             </div>
 
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
               <span>Visão 360º do item no estoque, movimentações e auditoria.</span>
-              <span>Preço atual: {row.price != null ? formatCurrencyPtBr(row.price) : '—'}</span>
-              <span>Estoque global: {formatNumberPtBr(row.total_on_hand)}</span>
+              <span>Preço atual: {(row?.price ?? product?.price) != null ? formatCurrencyPtBr(row?.price ?? product?.price) : '—'}</span>
+              <span>Estoque global: {formatNumberPtBr(row?.total_on_hand ?? 0)}</span>
             </div>
           </div>
 
@@ -539,33 +577,33 @@ export default function ProductLifecyclePage() {
               Estoque total
               <InfoTooltip text="Quantidade física total do produto somando todos os locais." />
             </div>
-            <div className="text-2xl font-bold">{row.total_on_hand}</div>
+            <div className="text-2xl font-bold">{row?.total_on_hand ?? 0}</div>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="flex items-center gap-1 text-sm text-gray-500">
               Reservado
               <InfoTooltip text="Quantidade comprometida com pedidos ou operações em andamento." />
             </div>
-            <div className="text-2xl font-bold">{row.total_reserved}</div>
+            <div className="text-2xl font-bold">{row?.total_reserved ?? 0}</div>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="flex items-center gap-1 text-sm text-gray-500">
               Disponível
               <InfoTooltip text="Quantidade utilizável no momento, considerando o saldo físico menos reservas." />
             </div>
-            <div className="text-2xl font-bold">{row.total_available}</div>
+            <div className="text-2xl font-bold">{row?.total_available ?? 0}</div>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="text-sm text-gray-500">Transferências</div>
-            <div className="text-2xl font-bold">{row.transfer_count ?? 0}</div>
+            <div className="text-2xl font-bold">{row?.transfer_count ?? 0}</div>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="text-sm text-gray-500">Mínimo</div>
-            <div className="text-2xl font-bold">{row.min_stock ?? '—'}</div>
+            <div className="text-2xl font-bold">{row?.min_stock ?? product?.min_stock ?? '—'}</div>
           </div>
           <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-900/40">
             <div className="text-sm text-gray-500">Máximo</div>
-            <div className="text-2xl font-bold">{row.max_stock ?? '—'}</div>
+            <div className="text-2xl font-bold">{row?.max_stock ?? product?.max_stock ?? '—'}</div>
           </div>
         </div>
       </div>
@@ -655,7 +693,7 @@ export default function ProductLifecyclePage() {
             <div>
               <div className="text-gray-500">Última entrada</div>
               <div className="font-semibold">
-                {row.last_entry_at ? (
+                {row?.last_entry_at ? (
                   formatDateTimePtBr(row.last_entry_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
@@ -667,7 +705,7 @@ export default function ProductLifecyclePage() {
             <div>
               <div className="text-gray-500">Última saída</div>
               <div className="font-semibold">
-                {row.last_exit_at ? (
+                {row?.last_exit_at ? (
                   formatDateTimePtBr(row.last_exit_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
@@ -679,7 +717,7 @@ export default function ProductLifecyclePage() {
             <div>
               <div className="text-gray-500">Última movimentação</div>
               <div className="font-semibold">
-                {row.last_movement_at ? (
+                {row?.last_movement_at ? (
                   formatDateTimePtBr(row.last_movement_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">
@@ -691,7 +729,7 @@ export default function ProductLifecyclePage() {
             <div>
               <div className="text-gray-500">Última transferência</div>
               <div className="font-semibold">
-                {row.last_transfer_at ? (
+                {row?.last_transfer_at ? (
                   formatDateTimePtBr(row.last_transfer_at)
                 ) : (
                   <span className="flex items-center gap-1 text-gray-400">

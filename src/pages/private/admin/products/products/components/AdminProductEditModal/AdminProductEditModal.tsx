@@ -3,11 +3,12 @@ import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 
 import { supabase } from '@/lib/supabase';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 import CategoryEditModal from '@/pages/private/admin/products/category/components/CategoryEditModal';
 import DeactivateProductModal from '@/pages/private/admin/products/products/components/AdminProductEditModal/DeactivateProductModal';
 import ReactivateProductModal from '@/pages/private/admin/products/products/components/AdminProductEditModal/ReactivateProductModal';
-import SecurityConfirmModal from '@/components/common/SecurityConfirmModal';
+
 
 import { ImageSection } from './ImageSection';
 import ProductFormPanel from './panels/ProductFormPanel';
@@ -15,7 +16,7 @@ import ProductFormPanel from './panels/ProductFormPanel';
 import { logAction } from '@/pages/private/admin/products/products/utils/securityLog';
 import { useStockMovement } from '@/pages/private/admin/products/inventory/hooks/useStockMovement';
 import { useProductSave } from '@/pages/private/admin/products/products/hooks/useProductSave';
-import { useStoreSecurityConfig } from '@/hooks/useStoreSecurityConfig';
+
 
 import type { Category, Product } from '../../types/product.types';
 
@@ -79,8 +80,8 @@ export default function AdminProductEditModal({
     const [priceLogicType, setPriceLogicType] = useState<'standard' | 'category_volume'>('standard');
     const [priceRules, setPriceRules] = useState<PriceRule[]>([]);
 
-    // Modal de confirmação de segurança
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    // Modal de confirmação de segurança (apenas inativação/reativação mantém modal)
+    // Edição comum agora salva diretamente sem senha
 
     // ===== MODAIS DE INATIVAÇÃO E REATIVAÇÃO =====
     const [showDeactivateModal, setShowDeactivateModal] = useState(false);
@@ -105,7 +106,6 @@ export default function AdminProductEditModal({
         return categories.find(c => c.id === id);
     };
 
-    const { tokenExpirySeconds, maxTokenAttempts } = useStoreSecurityConfig();
 
 
     // Buscar dados iniciais
@@ -135,23 +135,18 @@ export default function AdminProductEditModal({
     const fetchCategories = async () => {
         try {
             setLoadingCategories(true);
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const { data: storeData, error } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (error || !storeData) return;
-            const store = Array.isArray(storeData) ? storeData[0] : storeData;
-            if (store) {
-                setStoreId(store.id);
-                const { data } = await supabase
-                    .from('categories')
-                    .select('*')
-                    .eq('store_id', store.id)
-                    .order('sort_order', { ascending: true });
-                if (data) setCategories(data);
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) {
+                toast.error('Nenhuma loja ativa selecionada.');
+                return;
             }
+            setStoreId(activeStoreId);
+            const { data } = await supabase
+                .from('categories')
+                .select('*')
+                .eq('store_id', activeStoreId)
+                .order('sort_order', { ascending: true });
+            if (data) setCategories(data);
         } catch (error) {
             console.error('Erro ao buscar categorias:', error);
         } finally {
@@ -373,7 +368,6 @@ export default function AdminProductEditModal({
         const productId = isEditing ? product!.id : uuidv4();
 
         await saveProduct({
-            storeId,
             productId,
             name,
             description,
@@ -488,29 +482,11 @@ export default function AdminProductEditModal({
                     setMaxStock={setMaxStock}
                     saving={saving}
                     canSave={Boolean(name)}
-                    onSaveClick={() => {
-                        if (isEditing) {
-                            setShowConfirmModal(true);
-                        } else {
-                            handleSaveConfirmed();
-                        }
-                    }}
+                    onSaveClick={handleSaveConfirmed}
                     onCancel={onClose}
                 />
             </div>
-            {/* MODAL DE CONFIRMAÇÃO DE SEGURANÇA */}
-            <SecurityConfirmModal
-                isOpen={showConfirmModal}
-                onClose={() => setShowConfirmModal(false)}
-                onConfirm={handleSaveConfirmed}
-                title={isEditing ? 'Confirmar edição' : 'Confirmar criação'}
-                description={`Confirme a ${isEditing ? 'edição' : 'criação'} do produto "${name || 'sem nome'}" com a senha de estoque.`}
-                confirmText="Confirmar"
-                cancelText="Cancelar"
-                requireToken={true}
-                tokenExpirySeconds={tokenExpirySeconds}
-                maxTokenAttempts={maxTokenAttempts}
-            />
+
 
             {/* Modal de Inativação */}
             {showDeactivateModal && product && (

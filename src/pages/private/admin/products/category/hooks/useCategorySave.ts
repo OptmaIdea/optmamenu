@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { getActiveStoreId } from '@/utils/activeStore';
 import type { CategoryFormData } from '../types/category.types';
 
 interface SaveParams {
@@ -15,10 +16,10 @@ interface SaveParams {
 export const useCategorySave = () => {
     const [saving, setSaving] = useState(false);
 
-    const uploadImage = async (file: File, storeId: string, categoryId: string): Promise<string | null> => {
+    const uploadImage = async (file: File, activeStoreId: string, categoryId: string): Promise<string | null> => {
         try {
             const fileExt = file.name.split('.').pop();
-            const fileName = `${storeId}/${categoryId}/cover.${fileExt}`; // único por categoria
+            const fileName = `${activeStoreId}/${categoryId}/cover.${fileExt}`; // único por categoria
             const { error: uploadError } = await supabase.storage
                 .from('category-images')
                 .upload(fileName, file, { upsert: true }); // sobrescreve se já existir
@@ -50,26 +51,31 @@ export const useCategorySave = () => {
     };
 
     const handleSave = async ({
-        storeId,
         categoryId,
         formData,
         imageFile,
         onSuccess,
-    }: SaveParams) => {
+    }: Omit<SaveParams, 'storeId'>) => {
+        const activeStoreId = getActiveStoreId();
+
+        if (!activeStoreId) {
+            toast.error('Nenhuma loja ativa selecionada.');
+            return;
+        }
+
         setSaving(true);
         let uploadedImageUrl: string | null = null;
 
         try {
             // 1. Se houver um novo arquivo de imagem, faz o upload e obtém a URL
             if (imageFile) {
-                const tempId = categoryId || uuidv4(); // usa o ID existente ou gera um temporário
-                uploadedImageUrl = await uploadImage(imageFile, storeId, tempId);
+                const tempId = categoryId || uuidv4();
+                uploadedImageUrl = await uploadImage(imageFile, activeStoreId, tempId);
                 if (!uploadedImageUrl) throw new Error('Falha no upload da imagem');
             }
 
-            // 2. Prepara o payload
-            const payload = {
-                store_id: storeId,
+            // 2. Payload base (sem store_id — adicionado apenas no INSERT)
+            const basePayload = {
                 name: formData.name,
                 description: formData.description,
                 sort_order: formData.sort_order,
@@ -79,23 +85,23 @@ export const useCategorySave = () => {
                 image_url: uploadedImageUrl || formData.image_url || null,
             };
 
-            // 3. Se for edição, inclui o id
-            let query;
-            if (categoryId) {
-                query = supabase
+            // 3. INSERT ou UPDATE separados
+            if (!categoryId) {
+                // CRIAR: inclui store_id
+                const insertPayload = { ...basePayload, store_id: activeStoreId };
+                const { error } = await supabase
                     .from('categories')
-                    .update(payload)
-                    .eq('id', categoryId)
-                    .select();
+                    .insert([insertPayload]);
+                if (error) throw error;
             } else {
-                query = supabase
+                // EDITAR: trava pela loja ativa para evitar edição cruzada
+                const { error } = await supabase
                     .from('categories')
-                    .insert([payload])
-                    .select();
+                    .update(basePayload)
+                    .eq('id', categoryId)
+                    .eq('store_id', activeStoreId);
+                if (error) throw error;
             }
-
-            const { error } = await query.maybeSingle();
-            if (error) throw error;
 
             // 4. Se a categoria antiga tinha uma imagem e foi substituída, remove a antiga
             if (categoryId && formData.image_url && uploadedImageUrl && formData.image_url !== uploadedImageUrl) {

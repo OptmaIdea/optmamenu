@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export type CurrentStore = {
   id: string;
   slug?: string | null;
   name?: string | null;
-  active?: boolean | null;
   user_id?: string | null;
 };
 
@@ -18,8 +18,8 @@ type UseCurrentStoreResult = {
 };
 
 /**
- * Padrão do projeto: resolve a loja do usuário logado via RPC get_user_store_by_id.
- * Evita duplicação de código em páginas /admin.
+ * Resolve a loja ativa via activeStoreId (localStorage), consultando a tabela stores.
+ * Garante isolamento por loja selecionada no seletor, não pela loja primária do usuário.
  */
 export function useCurrentStore(): UseCurrentStoreResult {
   const [store, setStore] = useState<CurrentStore | null>(null);
@@ -31,33 +31,28 @@ export function useCurrentStore(): UseCurrentStoreResult {
       setLoading(true);
       setError(null);
 
-      const { data: authData, error: authErr } = await supabase.auth.getUser();
-      if (authErr) throw authErr;
-
-      const userId = authData?.user?.id;
-      if (!userId) {
+      const activeStoreId = getActiveStoreId();
+      if (!activeStoreId) {
         setStore(null);
         return;
       }
 
-      const { data: storeData, error: storeErr } = await supabase.rpc('get_user_store_by_id', {
-        p_user_id: userId,
-      });
+      const { data: storeData, error: storeErr } = await supabase
+        .from('stores')
+        .select('id, slug, name, user_id')
+        .eq('id', activeStoreId)
+        .maybeSingle();
 
       if (storeErr) throw storeErr;
 
-      // ⚠️ O RPC pode retornar:
-      // - um objeto
-      // - uma lista (PostgREST costuma embrulhar em array)
-      // Normalizamos para sempre retornar 1 objeto ou null.
-      const normalized = Array.isArray(storeData)
-        ? ((storeData[0] as any) ?? null)
-        : ((storeData as any) ?? null);
+      if (!storeData) {
+        throw new Error('Loja ativa não encontrada ou sem permissão.');
+      }
 
-      setStore(normalized);
+      setStore(storeData ?? null);
     } catch (e: any) {
       console.error('useCurrentStore error:', e);
-      setError(e?.message || 'Erro ao carregar a loja do usuário.');
+      setError(e?.message || 'Erro ao carregar a loja ativa.');
       setStore(null);
     } finally {
       setLoading(false);
@@ -66,6 +61,11 @@ export function useCurrentStore(): UseCurrentStoreResult {
 
   useEffect(() => {
     refresh();
+
+    // Re-executa sempre que o seletor de loja mudar
+    const handler = () => void refresh();
+    window.addEventListener('optmamenu:active-store-changed', handler);
+    return () => window.removeEventListener('optmamenu:active-store-changed', handler);
   }, [refresh]);
 
   return {

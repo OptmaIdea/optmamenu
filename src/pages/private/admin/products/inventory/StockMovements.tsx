@@ -37,6 +37,7 @@ import {
   getTransferDivergenceReasonLabel,
   getTransferDivergenceResolutionLabel,
 } from './utils/productMovementNarrative';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 const INITIAL_MOVEMENTS_LIMIT = 7;
 const MOVEMENTS_PAGE_SIZE = 50;
@@ -134,13 +135,25 @@ export default function StockMovementsPage() {
   useEffect(() => {
     const fetchStoreAndUser = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (user) {
+        setUserEmail(user.email || 'Admin');
+      }
 
-      setUserEmail(user.email || 'Admin');
+      const activeStoreId = getActiveStoreId();
+      if (!activeStoreId) {
+        throw new Error('Nenhuma loja ativa selecionada.');
+      }
 
-      const { data: storeData, error: storeError } = await supabase.rpc('get_user_store_by_id', { p_user_id: user.id });
-      if (storeError || !storeData) return;
-      const store = Array.isArray(storeData) ? storeData[0] : storeData;
+      const { data: store, error: storeError } = await supabase
+        .from('stores')
+        .select('id, name, slug, config')
+        .eq('id', activeStoreId)
+        .maybeSingle();
+
+      if (storeError) throw storeError;
+      if (!store) {
+        throw new Error('Loja ativa não encontrada ou sem permissão.');
+      }
 
       const { data, error } = await supabase.rpc('get_store_config_admin', { p_store_id: store.id });
       if (error) return;

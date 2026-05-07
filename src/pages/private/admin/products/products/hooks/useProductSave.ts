@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getActiveStoreId } from '@/utils/activeStore';
 import type { MediaItem } from '@/pages/private/admin/products/products/hooks/useProductImages';
 import type { PriceRule } from '../types/product.types';
 
+
 interface SaveParams {
-    storeId: string;
     productId: string;
     name: string;
     description: string;
@@ -29,7 +30,6 @@ export const useProductSave = () => {
     const [saving, setSaving] = useState(false);
 
     const handleSave = async ({
-        storeId,
         productId,
         name,
         description,
@@ -48,10 +48,13 @@ export const useProductSave = () => {
         onSuccess,
         onClose,
     }: SaveParams) => {
-        if (!storeId) {
-            toast.error('Loja não identificada');
+        const activeStoreId = getActiveStoreId();
+
+        if (!activeStoreId) {
+            toast.error('Nenhuma loja ativa selecionada.');
             return;
         }
+
         setSaving(true);
         const uploadedPaths: string[] = [];
 
@@ -65,7 +68,7 @@ export const useProductSave = () => {
                 } else if (item.type === 'file') {
                     const file = item.value as File;
                     const fileExt = file.name.split('.').pop();
-                    const fileName = `${storeId}/${productId}/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                    const fileName = `${activeStoreId}/${productId}/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
                     const { error: uploadError } = await supabase.storage
                         .from('products')
                         .upload(fileName, file);
@@ -78,10 +81,8 @@ export const useProductSave = () => {
                 }
             }
 
-            // 2. Preparar payload
-            const payload = {
-                id: productId,
-                store_id: storeId,
+            // 2. Preparar payload base
+            const basePayload = {
                 name,
                 description,
                 price: parseFloat(price.replace(',', '.')) || 0,
@@ -96,11 +97,27 @@ export const useProductSave = () => {
                 max_stock: maxStock || 0,
             };
 
-            // 3. Salvar no banco (upsert)
-            const { error } = await supabase
-                .from('products')
-                .upsert(payload, { onConflict: 'id' });
-            if (error) throw error;
+            // 3. Salvar no banco (INSERT ou UPDATE separados)
+            if (!isEditing) {
+                // INSERT: inclui id e store_id
+                const insertPayload = {
+                    ...basePayload,
+                    id: productId,
+                    store_id: activeStoreId,
+                };
+                const { error } = await supabase
+                    .from('products')
+                    .insert(insertPayload);
+                if (error) throw error;
+            } else {
+                // UPDATE: filtra pela loja ativa para evitar edição cruzada
+                const { error } = await supabase
+                    .from('products')
+                    .update(basePayload)
+                    .eq('id', productId)
+                    .eq('store_id', activeStoreId);
+                if (error) throw error;
+            }
 
             // 4. Limpar imagens removidas
             if (imagesToDelete.length > 0) {

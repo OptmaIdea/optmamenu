@@ -60,21 +60,12 @@ export default function CategoriesPage() {
     const [categoryProductsNames, setCategoryProductsNames] = useState<string[]>([]);
 
 
-    // Buscar storeId ao montar
+    // Resolver storeId ao montar (síncrono via loja ativa)
     useEffect(() => {
-        const fetchStoreId = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const activeStoreId = getActiveStoreId();
-
-            if (!activeStoreId) {
-                throw new Error('Nenhuma loja ativa selecionada.');
-            }
-
+        const activeStoreId = getActiveStoreId();
+        if (activeStoreId) {
             setStoreId(activeStoreId);
-        };
-        fetchStoreId();
+        }
     }, []);
 
     // Buscar produtos de uma categoria para o modal
@@ -93,7 +84,7 @@ export default function CategoriesPage() {
 
             if (error) throw error;
 
-            const names = data?.map(p => p.name) || [];
+            const names = data?.map((p: { name: string }) => p.name) || [];
             setCategoryProductsNames(names);
         } catch (error) {
             console.error('Erro ao carregar produtos da categoria:', error);

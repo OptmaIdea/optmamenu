@@ -5,8 +5,6 @@ import { toast } from 'sonner';
 import type { Category } from '../types/category.types';
 import { useCategoryForm } from '@/pages/private/admin/products/category/hooks/useCategoryForm';
 import { useCategorySave } from '@/pages/private/admin/products/category/hooks/useCategorySave';
-import { useStoreSecurityConfig } from '@/hooks/useStoreSecurityConfig';
-import SecurityConfirmModal from '@/components/common/SecurityConfirmModal';
 import CategoryFormFields from '@/pages/private/admin/products/category/components/CategoryFormFields';
 
 interface CategoryEditModalProps {
@@ -21,7 +19,7 @@ export default function CategoryEditModal({
     isOpen,
     onClose,
     category,
-    storeId,
+    storeId: _storeId,
     onSuccess,
 }: CategoryEditModalProps) {
     const isEditing = !!category;
@@ -29,10 +27,8 @@ export default function CategoryEditModal({
 
     const form = useCategoryForm(category);
     const { saving, handleSave } = useCategorySave();
-    const { tokenExpirySeconds, maxTokenAttempts } = useStoreSecurityConfig();
 
     const [imageFile, setImageFile] = useState<File | null>(null);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [localActive, setLocalActive] = useState(form.active);
 
     // Atualiza estado local quando o formulário carrega
@@ -68,18 +64,12 @@ export default function CategoryEditModal({
             toast.error('O nome da categoria é obrigatório.');
             return;
         }
-
-        if (isEditing) {
-            setShowConfirmModal(true);
-        } else {
-            handleConfirmSave();
-        }
+        handleConfirmSave();
     };
 
     const handleConfirmSave = async () => {
         try {
             await handleSave({
-                storeId,
                 categoryId: isEditing ? categoryId : undefined,
                 formData: { ...form.getFormData(), active: localActive },
                 imageFile: imageFile,
@@ -219,19 +209,6 @@ export default function CategoryEditModal({
                 </div>
             </div>
 
-            {/* Modal de confirmação de segurança */}
-            <SecurityConfirmModal
-                isOpen={showConfirmModal}
-                onClose={() => setShowConfirmModal(false)}
-                onConfirm={handleConfirmSave}
-                title={isEditing ? 'Confirmar edição' : 'Confirmar criação'}
-                description={`Confirme a ${isEditing ? 'edição' : 'criação'} da categoria "${form.name || 'sem nome'}" com a senha de estoque.`}
-                confirmText="Confirmar"
-                cancelText="Cancelar"
-                requireToken={true}
-                tokenExpirySeconds={tokenExpirySeconds}
-                maxTokenAttempts={maxTokenAttempts}
-            />
         </div>
     );
 }

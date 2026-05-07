@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getActiveStoreId } from '@/utils/activeStore';
 import type { StockMovementType, StockMovement, StockMovementFilters } from '../types/inventory.types';
 
 interface RegisterMovementParams {
@@ -18,8 +19,6 @@ interface FetchMovementsResult {
     total: number;
     hasMore: boolean;
 }
-
-type StoreLike = { id: string };
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -128,12 +127,7 @@ const getMovementSourceLabel = (source: string | null | undefined) => {
     }
 };
 
-const normalizeStore = (storeData: unknown): StoreLike | null => {
-    if (!storeData) return null;
-    if (Array.isArray(storeData)) return storeData[0] ?? null;
-    if (isRecord(storeData) && typeof storeData.id === 'string') return { id: storeData.id };
-    return null;
-};
+
 
 const extractSuggestedRpcName = (err: unknown): string | null => {
     const hint = isRecord(err) && typeof err.hint === 'string' ? err.hint : '';
@@ -263,21 +257,7 @@ const matchesMovementFilters = (item: StockMovementRpcItem, filters: StockMoveme
 export const useStockMovement = () => {
     const [loading, setLoading] = useState(false);
 
-    const getUserAndStore = async (): Promise<{ userId: string; store: StoreLike } | null> => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return null;
-
-        const { data: storeData, error: storeError } = await supabase.rpc(
-            'get_user_store_by_id',
-            { p_user_id: user.id }
-        );
-        if (storeError) throw storeError;
-
-        const store = normalizeStore(storeData);
-        if (!store?.id) return null;
-
-        return { userId: user.id, store };
-    };
+    // Removido: getUserAndStore (substituído por getActiveStoreId local)
 
     /**
      * Registra uma nova movimentação de estoque via RPC (evita insert direto)
@@ -288,14 +268,14 @@ export const useStockMovement = () => {
     const registerMovement = async (params: RegisterMovementParams): Promise<boolean> => {
         setLoading(true);
         try {
-            const ctx = await getUserAndStore();
-            if (!ctx) throw new Error('Usuário não autenticado ou loja não encontrada');
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) throw new Error('Usuário não autenticado ou loja não encontrada');
 
             const qtyAbs = Math.abs(params.quantity);
 
             // 1) tentativa principal: qty absoluta (type define sinal no banco)
             let { data, error } = await callApplyStockMovementDelta({
-                storeId: ctx.store.id,
+                storeId: activeStoreId,
                 productId: params.productId,
                 type: params.type,
                 qty: qtyAbs,
@@ -308,7 +288,7 @@ export const useStockMovement = () => {
                 const qtySigned = applySignByType(params.type, qtyAbs);
 
                 const retry = await callApplyStockMovementDelta({
-                    storeId: ctx.store.id,
+                    storeId: activeStoreId,
                     productId: params.productId,
                     type: params.type,
                     qty: qtySigned,
@@ -335,7 +315,7 @@ export const useStockMovement = () => {
                     const { data: latest, error: latestErr } = await supabase
                         .from('stock_movements')
                         .select('id, metadata')
-                        .eq('store_id', ctx.store.id)
+                        .eq('store_id', activeStoreId)
                         .eq('product_id', params.productId)
                         .eq('type', params.type)
                         .order('created_at', { ascending: false })
@@ -402,12 +382,16 @@ export const useStockMovement = () => {
     ): Promise<FetchMovementsResult> => {
         setLoading(true);
         try {
-            const ctx = await getUserAndStore();
-            if (!ctx) return { movements: [], total: 0, hasMore: false };
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) {
+                console.warn('Nenhuma loja ativa selecionada para movimentações.');
+                return { movements: [], total: 0, hasMore: false };
+            }
+
 
             const offset = (page - 1) * pageSize;
             const { data: result, error } = await supabase.rpc('get_stock_movements_safe', {
-                p_store_id: ctx.store.id,
+                p_store_id: activeStoreId,
                 p_limit: pageSize,
                 p_offset: offset,
             });
@@ -417,20 +401,29 @@ export const useStockMovement = () => {
                 throw error;
             }
 
-            const rpcResult = result as StockMovementsRpcResult | null;
+            const rawResponse = result as unknown;
+
+            const rpcResult =
+                typeof rawResponse === 'string'
+                    ? (JSON.parse(rawResponse) as StockMovementsRpcResult)
+                    : (rawResponse as StockMovementsRpcResult | null);
+
 
             if (!rpcResult?.ok) {
-                throw new Error(rpcResult?.error || 'Erro ao buscar movimentações.');
+                console.warn('Falha ao buscar movimentações:', rpcResult?.error);
+                return { movements: [], total: 0, hasMore: false };
             }
 
-            const data: StockMovementRpcItem[] = (rpcResult.items || [])
-                .filter((item) => matchesMovementFilters(item, filters))
-                .map((item) => ({
-                    ...item,
-                    products: {
-                        name: item.product_name,
-                    },
-                }));
+            const rawItems = rpcResult.items || [];
+
+            const filteredItems = rawItems.filter((item) => matchesMovementFilters(item, filters));
+
+            const data: StockMovementRpcItem[] = filteredItems.map((item) => ({
+                ...item,
+                products: {
+                    name: item.product_name,
+                },
+            }));
 
             const count = Number(rpcResult.total || 0);
 
@@ -647,13 +640,13 @@ export const useStockMovement = () => {
      */
     const getProductMovements = async (productId: string): Promise<StockMovement[]> => {
         try {
-            const ctx = await getUserAndStore();
-            if (!ctx) return [];
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) return [];
 
             const { data, error } = await supabase
                 .from('stock_movements')
                 .select('*')
-                .eq('store_id', ctx.store.id)
+                .eq('store_id', activeStoreId)
                 .eq('product_id', productId)
                 .order('created_at', { ascending: false })
                 .limit(100);
@@ -674,8 +667,8 @@ export const useStockMovement = () => {
      */
     const hasMovements = async (productId: string): Promise<boolean> => {
         try {
-            const ctx = await getUserAndStore();
-            if (!ctx) return false;
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) return false;
 
             const { data, error } = await supabase.rpc('product_has_movements', {
                 p_product_id: productId,
