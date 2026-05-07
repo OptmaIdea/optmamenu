@@ -89,11 +89,18 @@ export const useSuppliers = () => {
 
   const setSupplierActive = useCallback(async (supplierId: string, active: boolean) => {
     try {
-      const { error } = await supabase
+      const activeStoreId = getActiveStoreId();
+      if (!activeStoreId) throw new Error('Loja não identificada.');
+
+      const { data, error } = await supabase
         .from('suppliers')
         .update({ active })
-        .eq('id', supplierId);
+        .eq('id', supplierId)
+        .eq('store_id', activeStoreId)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('Alteração não aplicada. Verifique suas permissões.');
 
       setSuppliers(prev => prev.map(s => (s.id === supplierId ? { ...s, active } : s)));
       toast.success(active ? 'Fornecedor reativado' : 'Fornecedor desativado');
@@ -101,7 +108,7 @@ export const useSuppliers = () => {
       return true;
     } catch (e) {
       console.error('Error updating supplier:', e);
-      toast.error('Erro ao atualizar fornecedor');
+      toast.error(e instanceof Error ? e.message : 'Erro ao atualizar fornecedor');
       return false;
     }
   }, []);

@@ -578,13 +578,16 @@ export default function PurchaseDocumentsPage() {
       let docId = editingDocId;
 
       if (docId) {
-        const { error: updateErr } = await supabase
+        const { data: updated, error: updateErr } = await supabase
           .from('purchase_documents')
           .update(payload)
-          .eq('id', docId);
+          .eq('id', docId)
+          .eq('store_id', storeId)
+          .select('id')
+          .maybeSingle();
 
         if (updateErr) throw updateErr;
-
+        if (!updated) throw new Error('Alteração não aplicada. Verifique suas permissões.');
         const { error: delErr } = await supabase
           .from('purchase_document_items')
           .delete()

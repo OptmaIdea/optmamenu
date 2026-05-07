@@ -296,7 +296,7 @@ export default function SupplierLifecyclePage() {
   const supplierBadges = summary ? getSupplierOperationalBadges(summary) : [];
 
   const pageTitle = useMemo(() => {
-    return summary?.trade_name || summary?.name || 'Vida do Fornecedor';
+    return summary?.name || 'Vida do Fornecedor';
   }, [summary]);
 
   if (loading && !summary) {

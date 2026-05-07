@@ -448,12 +448,15 @@ export default function SuppliersPage() {
             toast.success('Fornecedor criado com sucesso.');
           } else {
             if (!editingSupplier?.id) throw new Error('Fornecedor não identificado.');
-            const { error } = await supabase
+            const { data: updated, error } = await supabase
               .from('suppliers')
               .update({ ...payload, updated_at: new Date().toISOString() })
               .eq('id', editingSupplier.id)
-              .eq('store_id', storeId);
+              .eq('store_id', storeId)
+              .select('id')
+              .maybeSingle();
             if (error) throw error;
+            if (!updated) throw new Error('Alteração não aplicada. Verifique suas permissões.');
             toast.success('Fornecedor atualizado com sucesso.');
           }
 

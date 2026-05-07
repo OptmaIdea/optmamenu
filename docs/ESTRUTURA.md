@@ -1,49 +1,90 @@
 # Estrutura do projeto
 
-## Frontend
-- src/pages/private/admin/products/
-  - Products.tsx
-  - products/
-    - components/
-    - hooks/
-    - types/
-
-- src/pages/private/admin/products/inventory/
-  - InventoryByLocationPage.tsx
-  - TransfersPage.tsx
-  - TransferDetailPage.tsx
-  - StockMovements.tsx
-  - ProductLifecycleSelectorPage.tsx
-  - ProductLifecyclePage.tsx
-  - SupplierLifecyclePage.tsx
-  - PurchaseDocumentsPage.tsx
-  - PurchaseQuotationsPage.tsx
-  - PurchaseInsightsPage.tsx
+## Frontend (src)
+- src/
+  - App.css
+  - App.tsx
+  - AppRoutes.tsx
+  - index.css
+  - main.tsx
+  - __tests__/
+  - assets/
+  - components/
+    - common/
+      - empty-state/
+      - tooltip/
+      - navigation/
+  - constants/
   - hooks/
-  - types/
+  - lib/
+  - pages/
+    - private/
+      - admin/
+        - products/
+          - Products.tsx
+          - Suppliers.tsx
+          - Categories.tsx
+          - Inventory.tsx
+          - products/
+            - components/
+            - hooks/
+            - types/
+          - inventory/
+            - InventoryByLocationPage.tsx
+            - TransfersPage.tsx
+            - TransferDetailPage.tsx
+            - StockMovements.tsx
+            - ProductLifecycleSelectorPage.tsx
+            - ProductLifecyclePage.tsx
+            - SupplierLifecyclePage.tsx
+            - PurchaseDocumentsPage.tsx
+            - PurchaseQuotationsPage.tsx
+            - PurchaseInsightsPage.tsx
+            - hooks/
+            - types/
+            - services/
+            - utils/
   - services/
+  - store/
+  - types/
   - utils/
+    - export/
+      - csv.ts
+      - formatters.ts
 
-- src/components/common/
-  - empty-state/
-  - tooltip/
-  - navigation/
-
-- src/utils/export/
-  - csv.ts
-  - formatters.ts
-
-## Documentação
+## Documentação (docs)
 - docs/README.md
 - docs/ARCHITECTURE.md
+- docs/ATUALIZACOES_IMPLEMENTADAS.md
+- docs/CHANGELOG_FASES.md
+- docs/DATA_DICTIONARY.md
 - docs/ESTRUTURA.md
 - docs/FASE_5_CONSOLIDACAO_OPERACIONAL.md
 - docs/FASE_6_5I_TIMELINE_OPERACIONAL.md
 - docs/FASE_7_FORNECEDOR_360.md
+- docs/FASE_8_COMERCIAL.md
+- docs/GUIA_CENTRAL_MARKETING.md
+- docs/GUIA_CLIENTES_FIDELIDADE.md
+- docs/GUIA_LIVRO_CAIXA.md
+- docs/GUIA_LOJA_PUBLICA_PEDIDOS.md
+- docs/GUIA_MARKETING_MENSAGENS_ANIVERSARIANTES.md
+- docs/GUIA_MOVIMENTACAO_CATEGORIAS.md
 - docs/GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
+- docs/GUIA_USUARIOS_CLIENTES_FIDELIDADE.md
+- docs/IMPLEMENTATION_PLAN.md
+- docs/INVENTORY_FUNCTIONS_ANALISYS.md
 - docs/MANUAL_FORNECEDORES.md
-- docs/DATA_DICTIONARY.md
-- docs/RPCS_AND_VIEWS.md
-- docs/RLS_AND_SECURITY.md
+- docs/MANUAL_USUARIO.md
+- docs/MULTISTOCK_FRONTEND.md
 - docs/OPERATIONS_PLAYBOOK.md
+- docs/PLANO_DE_NEGOCIOS.md
+- docs/PLANO_DE_NEGOCIOS_ATUALIZACAO_2026_02.md
+- docs/RAIO_X_TECNICO_2026_03.md
+- docs/README.md
+- docs/RESUMO_EXECUTIVO.md
+- docs/RLS_AND_SECURITY.md
+- docs/ROADMAP_REFINAMENTOS_POS_FASE_8.md
+- docs/RPCS_AND_VIEWS.md
 - docs/SCHEMA_TABELAS_SUPABASE_SQL.MD
+- docs/SQL_EXTRAS_EM_SUPABASE_COM_EXITO.md
+- docs/OPERATIONS_PLAYBOOK.md
