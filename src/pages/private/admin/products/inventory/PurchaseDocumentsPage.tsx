@@ -11,10 +11,10 @@ import {
   CheckCircle2,
   Download,
   Eye,
-  EyeOff,
   FileText,
   Pencil,
   Plus,
+  RefreshCw,
   Save,
   ShieldAlert,
   Trash2,
@@ -38,6 +38,7 @@ import { PurchaseSuggestionsPanel } from '@/pages/private/admin/products/invento
 import OperationalTimeline from './components/OperationalTimeline';
 import { useOperationalTimeline } from './hooks/useOperationalTimeline';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { usePermissions } from '@/hooks/usePermissions';
 
 type PurchaseDocumentStatus = 'draft' | 'confirmed' | 'canceled' | 'cancelled';
 
@@ -138,6 +139,7 @@ export default function PurchaseDocumentsPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [storeId, setStoreId] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -161,12 +163,18 @@ export default function PurchaseDocumentsPage() {
   ]);
 
   const [editingStatus, setEditingStatus] = useState<PurchaseDocumentStatus | null>(null);
+  const [autoOpenedDocId, setAutoOpenedDocId] = useState<string | null>(null);
+
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<PurchaseDocument | null>(null);
   const [cancelReason, setCancelReason] = useState('');
-  const [cancelMasterPassword, setCancelMasterPassword] = useState('');
-  const [showCancelPassword, setShowCancelPassword] = useState(false);
-  const [autoOpenedDocId, setAutoOpenedDocId] = useState<string | null>(null);
+
+
+  const activeStoreId = getActiveStoreId();
+  const { hasPermission } = usePermissions(activeStoreId);
+  const canCreatePurchase = hasPermission('purchases.create');
+  const canConfirmPurchase = hasPermission('purchases.confirm');
+  const canCancelPurchase = hasPermission('purchases.cancel');
 
   const {
     events: purchaseDocumentTimelineEvents,
@@ -446,8 +454,6 @@ export default function PurchaseDocumentsPage() {
   const openCancelModal = useCallback((doc: PurchaseDocument) => {
     setCancelTarget(doc);
     setCancelReason('');
-    setCancelMasterPassword('');
-    setShowCancelPassword(false);
     setCancelOpen(true);
   }, []);
 
@@ -555,6 +561,11 @@ export default function PurchaseDocumentsPage() {
   }, [filters.supplierId, filters.productId, searchParams, setSearchParams]);
 
   const createOrUpdateDraft = useCallback(async () => {
+    if (!canCreatePurchase) {
+      toast.error('Você não tem permissão para editar compras.');
+      return;
+    }
+
     if (!storeId) return;
 
     if (!canSaveDraft) {
@@ -654,6 +665,7 @@ export default function PurchaseDocumentsPage() {
     fetchAll,
     resetDraft,
     refetchPurchaseDocumentTimeline,
+    canCreatePurchase,
   ]);
 
   const confirmDocument = useCallback(
@@ -711,11 +723,6 @@ export default function PurchaseDocumentsPage() {
       return;
     }
 
-    if (!cancelMasterPassword.trim()) {
-      toast.error('Informe a senha master');
-      return;
-    }
-
     const confirmed = window.confirm(
       'Cancelar esta entrada irá gerar movimentação inversa, ajustar o estoque e manter trilha de auditoria.\n\nDeseja continuar?',
     );
@@ -727,7 +734,6 @@ export default function PurchaseDocumentsPage() {
       const { error } = await supabase.rpc('cancel_purchase_document', {
         p_document_id: cancelTarget.id,
         p_reason: cancelReason.trim(),
-        p_master_password: cancelMasterPassword,
       });
 
       if (error) throw error;
@@ -736,7 +742,6 @@ export default function PurchaseDocumentsPage() {
       setCancelOpen(false);
       setCancelTarget(null);
       setCancelReason('');
-      setCancelMasterPassword('');
       setDraftOpen(false);
       resetDraft();
       await fetchAll();
@@ -748,7 +753,7 @@ export default function PurchaseDocumentsPage() {
     } finally {
       setSaving(false);
     }
-  }, [cancelMasterPassword, cancelReason, cancelTarget, fetchAll, resetDraft, refetchPurchaseDocumentTimeline]);
+  }, [cancelReason, cancelTarget, fetchAll, resetDraft, refetchPurchaseDocumentTimeline]);
 
   const deleteDraft = useCallback(
     async (docId: string) => {
@@ -793,6 +798,18 @@ export default function PurchaseDocumentsPage() {
       action={
         <div className="flex flex-wrap items-center gap-2">
           <InventoryQuickNav />
+          <button
+            type="button"
+            onClick={async () => {
+              setRefreshing(true);
+              try { await fetchAll(); } finally { setRefreshing(false); }
+            }}
+            disabled={refreshing}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Atualizar
+          </button>
           <button
             type="button"
             onClick={() => navigate('/admin/stock/purchase-insights')}
@@ -854,14 +871,16 @@ export default function PurchaseDocumentsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
-                  onClick={openNewDraft}
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                  Novo documento
-                </button>
+                {canCreatePurchase && (
+                  <button
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-white hover:opacity-90 disabled:opacity-60"
+                    onClick={openNewDraft}
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Novo documento
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -1320,10 +1339,7 @@ export default function PurchaseDocumentsPage() {
                   <button
                     type="button"
                     className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    onClick={() => {
-                      setCancelOpen(false);
-                      setShowCancelPassword(false);
-                    }}
+                    onClick={() => setCancelOpen(false)}
                   >
                     Fechar
                   </button>
@@ -1343,29 +1359,6 @@ export default function PurchaseDocumentsPage() {
                     />
                   </div>
 
-                  <div>
-                    <label className="mb-1 block text-sm text-gray-700 dark:text-gray-200">
-                      Senha master
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showCancelPassword ? 'text' : 'password'}
-                        value={cancelMasterPassword}
-                        onChange={(e: ChangeEvent<HTMLInputElement>) => setCancelMasterPassword(e.target.value)}
-                        className="w-full rounded-xl border border-gray-200 bg-white p-2 pr-10 text-sm dark:border-gray-700 dark:bg-gray-950"
-                        placeholder="Digite a senha master"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowCancelPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                        title={showCancelPassword ? 'Ocultar senha' : 'Mostrar senha'}
-                      >
-                        {showCancelPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
                     Esta operação não apaga o documento. Ela cria a movimentação inversa, ajusta o estoque e marca a entrada como cancelada.
                   </div>
@@ -1375,10 +1368,7 @@ export default function PurchaseDocumentsPage() {
                   <button
                     type="button"
                     className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
-                    onClick={() => {
-                      setCancelOpen(false);
-                      setShowCancelPassword(false);
-                    }}
+                    onClick={() => setCancelOpen(false)}
                   >
                     Voltar
                   </button>
@@ -1464,45 +1454,53 @@ export default function PurchaseDocumentsPage() {
 
                       {doc.status === 'draft' ? (
                         <>
-                          <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
-                            onClick={() => void openDocument(doc, false)}
-                            title="Editar"
-                            type="button"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
+                          {canCreatePurchase && (
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:hover:bg-gray-800"
+                              onClick={() => void openDocument(doc, false)}
+                              title="Editar"
+                              type="button"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
 
-                          <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white hover:opacity-90 disabled:opacity-60"
-                            onClick={() => void confirmDocument(doc.id)}
-                            disabled={saving}
-                            title="Confirmar"
-                            type="button"
-                          >
-                            <CheckCircle2 className="h-4 w-4" />
-                          </button>
+                          {canConfirmPurchase && (
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white hover:opacity-90 disabled:opacity-60"
+                              onClick={() => void confirmDocument(doc.id)}
+                              disabled={saving}
+                              title="Confirmar"
+                              type="button"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                            </button>
+                          )}
 
-                          <button
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
-                            onClick={() => void deleteDraft(doc.id)}
-                            disabled={saving}
-                            title="Excluir"
-                            type="button"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {canCancelPurchase && (
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
+                              onClick={() => void deleteDraft(doc.id)}
+                              disabled={saving}
+                              title="Excluir rascunho"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </>
                       ) : doc.status === 'confirmed' ? (
-                        <button
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
-                          onClick={() => openCancelModal(doc)}
-                          disabled={saving}
-                          title="Cancelar entrada"
-                          type="button"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
+                        canCancelPurchase ? (
+                          <button
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-rose-600 text-white hover:opacity-90 disabled:opacity-60"
+                            onClick={() => openCancelModal(doc)}
+                            disabled={saving}
+                            title="Cancelar entrada"
+                            type="button"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        ) : null
                       ) : null}
                     </div>
                   </div>
