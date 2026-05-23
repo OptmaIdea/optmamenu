@@ -297,18 +297,18 @@ export default function LegalTerms({ programId }: LegalTermsProps) {
     return (
         <div className="space-y-6 animate-fadeIn">
             {/* Info Alert */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+            <div className="bg-brand-purple/10 border border-brand-purple/20 rounded-xl p-4">
                 <div className="flex gap-3">
-                    <AlertCircle className="text-blue-600 dark:text-blue-400 flex-shrink-0" size={20} />
-                    <div className="text-sm text-blue-800 dark:text-blue-300">
+                    <AlertCircle className="text-brand-purple flex-shrink-0" size={20} />
+                    <div className="text-sm text-brand-purple dark:text-brand-purple-light">
                         <p className="font-bold mb-1">Variáveis Disponíveis</p>
                         <p className="text-xs leading-relaxed">
                             Use as seguintes marcações que serão substituídas automaticamente:<br />
-                            <code className="bg-blue-100 dark:bg-blue-900/50 px-1 py-0.5 rounded text-blue-900 dark:text-blue-200">{'{{STORE_NAME}}'}</code> - Nome da loja<br />
-                            <code className="bg-blue-100 dark:bg-blue-900/50 px-1 py-0.5 rounded text-blue-900 dark:text-blue-200">{'{{CURRENT_DATE}}'}</code> - Data atual<br />
-                            <code className="bg-blue-100 dark:bg-blue-900/50 px-1 py-0.5 rounded text-blue-900 dark:text-blue-200">{'{{POINTS_VALIDITY_MONTHS}}'}</code> - Meses de validade dos pontos<br />
-                            <code className="bg-blue-100 dark:bg-blue-900/50 px-1 py-0.5 rounded text-blue-900 dark:text-blue-200">{'{{VOUCHER_VALIDITY_DAYS}}'}</code> - Dias de validade do voucher<br />
-                            <code className="bg-blue-100 dark:bg-blue-900/50 px-1 py-0.5 rounded text-blue-900 dark:text-blue-200">{'{{ACCEPTANCE_DATE}}'}</code> - Data de aceitação
+                            <code className="bg-brand-purple/20 px-1 py-0.5 rounded text-brand-purple dark:text-brand-purple-light">{'{{STORE_NAME}}'}</code> - Nome da loja<br />
+                            <code className="bg-brand-purple/20 px-1 py-0.5 rounded text-brand-purple dark:text-brand-purple-light">{'{{CURRENT_DATE}}'}</code> - Data atual<br />
+                            <code className="bg-brand-purple/20 px-1 py-0.5 rounded text-brand-purple dark:text-brand-purple-light">{'{{POINTS_VALIDITY_MONTHS}}'}</code> - Meses de validade dos pontos<br />
+                            <code className="bg-brand-purple/20 px-1 py-0.5 rounded text-brand-purple dark:text-brand-purple-light">{'{{VOUCHER_VALIDITY_DAYS}}'}</code> - Dias de validade do voucher<br />
+                            <code className="bg-brand-purple/20 px-1 py-0.5 rounded text-brand-purple dark:text-brand-purple-light">{'{{ACCEPTANCE_DATE}}'}</code> - Data de aceitação
                         </p>
                     </div>
                 </div>

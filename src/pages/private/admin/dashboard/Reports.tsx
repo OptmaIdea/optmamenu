@@ -27,7 +27,7 @@ export default function ReportsPage() {
             description: 'Análise de pedidos e vendas por período (em breve)',
             icon: <ShoppingCart size={24} />,
             path: '#',
-            color: 'bg-green-500',
+            color: 'bg-brand-purple',
         },
         {
             title: 'Produtos Mais Vendidos',

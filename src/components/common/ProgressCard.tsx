@@ -32,9 +32,9 @@ export default function ProgressCard({
       text: 'text-[#F26541]'
     },
     blue: {
-      bg: 'bg-blue-500/10',
-      fill: 'bg-blue-500',
-      text: 'text-blue-500'
+      bg: 'bg-[#7B2D8E]/10',
+      fill: 'bg-[#7B2D8E]',
+      text: 'text-[#7B2D8E]'
     }
   };
 

@@ -57,11 +57,11 @@ export default function CategoryRules({ storeId }: { storeId: string }) {
 
     return (
         <div className="animate-fadeIn space-y-6">
-            <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl flex items-start gap-3 border border-blue-100 dark:border-blue-800">
-                <Info className="text-blue-500 shrink-0 mt-0.5" size={20} />
+            <div className="bg-brand-purple/10 p-4 rounded-xl flex items-start gap-3 border border-brand-purple/20">
+                <Info className="text-brand-purple shrink-0 mt-0.5" size={20} />
                 <div>
-                    <h3 className="font-bold text-blue-700 dark:text-blue-300 text-sm">Regras por Categoria</h3>
-                    <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    <h3 className="font-bold text-brand-purple dark:text-brand-purple-light text-sm font-candara-bold">Regras por Categoria</h3>
+                    <p className="text-sm text-brand-purple/80 dark:text-brand-purple-light/95 mt-1 font-candara">
                         Defina quais categorias pontuam e crie aceleradores de pontos (ex: Bebidas valem 2x pontos).
                         Se uma categoria não for elegível, os itens dela não gerarão pontos na compra.
                     </p>

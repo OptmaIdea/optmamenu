@@ -27,12 +27,12 @@ export default function Terms() {
           {/* Conteúdo dos Termos */}
           <div className="p-8 space-y-8">
             <div className="prose prose-lg dark:prose-invert max-w-none">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 mb-8">
+              <div className="bg-brand-purple/10 border border-brand-purple/20 rounded-xl p-6 mb-8">
                 <div className="flex items-start gap-3">
-                  <AlertCircle size={24} className="text-blue-600 dark:text-blue-400 flex-shrink-0 mt-1" />
+                  <AlertCircle size={24} className="text-brand-purple flex-shrink-0 mt-1" />
                   <div>
-                    <h3 className="font-bold text-blue-800 dark:text-blue-300 mb-2">Leia atentamente</h3>
-                    <p className="text-blue-700 dark:text-blue-400">
+                    <h3 className="font-bold text-brand-purple dark:text-brand-purple-light mb-2">Leia atentamente</h3>
+                    <p className="text-brand-purple/80 dark:text-brand-purple-light/90">
                       Estes Termos de Uso regulam o uso da plataforma OptmaMenu. Ao criar uma conta, você concorda com todas as condições aqui estabelecidas.
                     </p>
                   </div>
@@ -182,8 +182,8 @@ export default function Terms() {
                 </p>
               </section>
 
-              <h3 className="font-bold text-green-800 dark:text-green-300 mb-2">Ao usar nossa plataforma</h3>
-              <p className="text-green-700 dark:text-green-400">
+              <h3 className="font-bold text-brand-dark dark:text-brand-green mb-2 font-candara-bold">Ao usar nossa plataforma</h3>
+              <p className="text-brand-green dark:text-brand-green/80 font-candara">
                 Você concorda em seguir todas as diretrizes de segurança e ética para garantir a melhor experiência para seus clientes.
               </p>
             </div>

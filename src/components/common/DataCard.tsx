@@ -10,7 +10,7 @@ interface DataCardProps {
   className?: string;
   badge?: {
     text: string;
-    color?: 'green' | 'orange' | 'red' | 'blue';
+    color?: 'green' | 'orange' | 'red' | 'blue' | 'yellow';
   };
 }
 
@@ -37,9 +37,10 @@ export default function DataCard({
             <span className={`
               px-2.5 py-0.5 rounded-full text-xs font-bold
               ${badge.color === 'red' && 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'}
-              ${badge.color === 'orange' && 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'}
-              ${badge.color === 'green' && 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'}
-              ${badge.color === 'blue' && 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'}
+              ${badge.color === 'orange' && 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20 dark:text-brand-light'}
+              ${badge.color === 'green' && 'bg-brand-green/10 text-brand-dark dark:bg-brand-green/20 dark:text-brand-green'}
+              ${badge.color === 'blue' && 'bg-brand-purple/10 text-brand-purple dark:bg-brand-purple/20 dark:text-brand-purple-light'}
+              ${badge.color === 'yellow' && 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'}
               ${!badge.color && 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}
             `}>
               {badge.text}

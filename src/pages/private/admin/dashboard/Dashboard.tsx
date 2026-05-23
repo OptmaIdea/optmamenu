@@ -403,7 +403,7 @@ export default function Dashboard() {
               title="Estoque Baixo"
               badge={
                 stats.lowStockCount > 0
-                  ? { text: `${stats.lowStockCount} itens`, color: 'orange' }
+                  ? { text: `${stats.lowStockCount} itens`, color: 'yellow' }
                   : undefined
               }
             >
@@ -424,7 +424,7 @@ export default function Dashboard() {
                       className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-2 h-8 bg-yellow-400 rounded-full"></div>
+                        <div className="w-2 h-8 bg-yellow-500 rounded-full"></div>
                         <div>
                           <span className="font-medium text-gray-700 dark:text-gray-300 font-candara">
                             {p.name}

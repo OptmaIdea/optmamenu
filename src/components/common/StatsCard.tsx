@@ -27,14 +27,14 @@ const colorVariants = {
     border: 'border-[#F26541]/20'
   },
   blue: {
-    bg: 'bg-blue-500/10 dark:bg-blue-500/20',
-    text: 'text-blue-500',
-    border: 'border-blue-500/20'
+    bg: 'bg-[#7B2D8E]/10 dark:bg-[#7B2D8E]/20',
+    text: 'text-[#7B2D8E]',
+    border: 'border-[#7B2D8E]/20'
   },
   purple: {
-    bg: 'bg-purple-500/10 dark:bg-purple-500/20',
-    text: 'text-purple-500',
-    border: 'border-purple-500/20'
+    bg: 'bg-[#7B2D8E]/10 dark:bg-[#7B2D8E]/20',
+    text: 'text-[#7B2D8E]',
+    border: 'border-[#7B2D8E]/20'
   }
 };
 

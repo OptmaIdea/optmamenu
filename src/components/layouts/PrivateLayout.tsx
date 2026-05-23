@@ -111,8 +111,8 @@ export default function PrivateLayout() {
     const defaultOpenSections = {
         dashboard: true,
         commercial: false,
-        financial: true,
-        products: true,
+        financial: false,
+        products: false,
         settings: false,
         support: false,
     };
@@ -279,10 +279,21 @@ export default function PrivateLayout() {
     };
 
     const toggleSection = (section: string) => {
-        setOpenSections((prev) => ({
-            ...prev,
-            [section]: !prev[section],
-        }));
+        setOpenSections((prev) => {
+            const isOpening = !prev[section];
+            const next = {
+                dashboard: false,
+                commercial: false,
+                financial: false,
+                products: false,
+                settings: false,
+                support: false,
+            };
+            if (isOpening) {
+                next[section as keyof typeof next] = true;
+            }
+            return next;
+        });
     };
 
     const toggleDarkMode = () => {

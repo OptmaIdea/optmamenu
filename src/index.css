@@ -5,29 +5,33 @@
 @layer base {
   html {
     @apply bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100;
-    font-family: 'Candara', 'Segoe UI', Arial, sans-serif;
+    font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
   }
 }
 
-/* Cores da marca */
-:root {
+@theme {
   --color-brand-green: #21A896;
   --color-brand-orange: #F26541;
   --color-brand-light: #FBA93C;
   --color-brand-dark: #1A867A;
+  --color-brand-purple: #9333EA;
+  --color-brand-purple-light: #C084FC;
+  --color-brand-gray: #6B6258;
+}
 
+:root {
   /* Gradiente para landing */
   --landing-gradient: linear-gradient(135deg, #21A896 0%, #1A867A 100%);
 }
 
-/* Font stack para Candara */
+/* Font stack para Candara com fallback premium */
 .font-candara {
-  font-family: 'Candara', 'Segoe UI', 'Arial', sans-serif;
+  font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
   font-weight: 400;
 }
 
 .font-candara-bold {
-  font-family: 'Candara', 'Segoe UI', 'Arial', sans-serif;
+  font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
   font-weight: 700;
 }
 

@@ -10,22 +10,22 @@ interface UserRoleBadgeProps {
 export function UserRoleBadge({ role, size = 'md', showIcon = true }: UserRoleBadgeProps) {
     const config = {
         owner: {
-            color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+            color: 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20 dark:text-brand-light border-brand-orange/20 dark:border-brand-orange/30',
             icon: Crown,
             label: 'Proprietário',
         },
         super_admin: {
-            color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800',
+            color: 'bg-brand-purple/20 text-brand-purple dark:bg-brand-purple/30 dark:text-brand-purple-light border-brand-purple/30 dark:border-brand-purple/40',
             icon: Crown,
             label: 'Super Admin',
         },
         admin: {
-            color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800',
+            color: 'bg-brand-purple/10 text-brand-purple dark:bg-brand-purple/20 dark:text-brand-purple-light border-brand-purple/20 dark:border-brand-purple/30',
             icon: Shield,
             label: 'Admin',
         },
         manager: {
-            color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
+            color: 'bg-brand-purple-light/10 text-brand-purple-light dark:bg-brand-purple-light/20 dark:text-brand-purple-light border-brand-purple-light/20 dark:border-brand-purple-light/30',
             icon: Users,
             label: 'Gerente',
         },
@@ -35,7 +35,7 @@ export function UserRoleBadge({ role, size = 'md', showIcon = true }: UserRoleBa
             label: 'Estoque',
         },
         cashier: {
-            color: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400 border-teal-200 dark:border-teal-800',
+            color: 'bg-brand-green/10 text-brand-green dark:bg-brand-green/20 dark:text-brand-green border-brand-green/20 dark:border-brand-green/30',
             icon: Store,
             label: 'Caixa',
         },

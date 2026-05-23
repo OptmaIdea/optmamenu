@@ -31,20 +31,20 @@ export default function PrivacyPolicy() {
           <div className="p-8 space-y-8">
             {/* Cards de Destaque */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl">
-                <Lock size={24} className="text-blue-600 dark:text-blue-400 mb-2" />
-                <h3 className="font-bold text-gray-800 dark:text-white text-sm mb-1">Dados Protegidos</h3>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Criptografia de ponta a ponta</p>
+              <div className="bg-brand-orange/10 p-4 rounded-xl">
+                <Lock size={24} className="text-brand-orange mb-2" />
+                <h3 className="font-bold text-gray-800 dark:text-white text-sm mb-1 font-candara-bold">Dados Protegidos</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-candara">Criptografia de ponta a ponta</p>
               </div>
-              <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-xl">
-                <Eye size={24} className="text-green-600 dark:text-green-400 mb-2" />
-                <h3 className="font-bold text-gray-800 dark:text-white text-sm mb-1">Seu Controle</h3>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Você decide o que compartilhar</p>
+              <div className="bg-brand-green/10 p-4 rounded-xl">
+                <Eye size={24} className="text-brand-green mb-2" />
+                <h3 className="font-bold text-gray-800 dark:text-white text-sm mb-1 font-candara-bold">Seu Controle</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-candara">Você decide o que compartilhar</p>
               </div>
-              <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl">
-                <Database size={24} className="text-purple-600 dark:text-purple-400 mb-2" />
-                <h3 className="font-bold text-gray-800 dark:text-white text-sm mb-1">LGPD</h3>
-                <p className="text-xs text-gray-600 dark:text-gray-400">Em conformidade com a lei</p>
+              <div className="bg-brand-purple/10 p-4 rounded-xl">
+                <Database size={24} className="text-brand-purple mb-2" />
+                <h3 className="font-bold text-gray-800 dark:text-white text-sm mb-1 font-candara-bold">LGPD</h3>
+                <p className="text-xs text-gray-600 dark:text-gray-400 font-candara">Em conformidade com a lei</p>
               </div>
             </div>
 
@@ -288,14 +288,14 @@ export default function PrivacyPolicy() {
                 </div>
               </section>
 
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6 mt-8">
+              <div className="bg-brand-green/10 border border-brand-green/20 rounded-xl p-6 mt-8">
                 <div className="flex items-start gap-3">
-                  <Shield size={24} className="text-green-600 dark:text-green-400 flex-shrink-0 mt-1" />
+                  <Shield size={24} className="text-brand-green flex-shrink-0 mt-1" />
                   <div>
-                    <h3 className="font-bold text-green-800 dark:text-green-300 mb-2">
+                    <h3 className="font-bold text-brand-dark dark:text-brand-green mb-2 font-candara-bold">
                       Seus dados estão seguros conosco
                     </h3>
-                    <p className="text-green-700 dark:text-green-400 text-sm">
+                    <p className="text-brand-green dark:text-brand-green/80 text-sm font-candara">
                       Estamos comprometidos em proteger sua privacidade e ser transparentes
                       sobre como utilizamos seus dados. Esta política reflete nosso compromisso
                       com a segurança e conformidade com a LGPD.

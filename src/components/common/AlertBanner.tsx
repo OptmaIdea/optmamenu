@@ -26,16 +26,16 @@ export default function AlertBanner({
   
   const variants = {
     success: {
-      bg: 'bg-green-50 dark:bg-green-900/20',
-      border: 'border-green-200 dark:border-green-800',
-      icon: <CheckCircle className="text-green-500" size={20} />,
-      text: 'text-green-800 dark:text-green-300',
-      button: 'hover:bg-green-100 dark:hover:bg-green-800/30'
+      bg: 'bg-brand-green/10 dark:bg-brand-green/20',
+      border: 'border-brand-green/20 dark:border-brand-green/30',
+      icon: <CheckCircle className="text-brand-green" size={20} />,
+      text: 'text-brand-dark dark:text-brand-green',
+      button: 'hover:bg-brand-green/20 dark:hover:bg-brand-green/40'
     },
     warning: {
       bg: 'bg-yellow-50 dark:bg-yellow-900/20',
       border: 'border-yellow-200 dark:border-yellow-800',
-      icon: <AlertTriangle className="text-yellow-500" size={20} />,
+      icon: <AlertTriangle className="text-yellow-600 dark:text-yellow-400" size={20} />,
       text: 'text-yellow-800 dark:text-yellow-300',
       button: 'hover:bg-yellow-100 dark:hover:bg-yellow-800/30'
     },
@@ -47,11 +47,11 @@ export default function AlertBanner({
       button: 'hover:bg-red-100 dark:hover:bg-red-800/30'
     },
     info: {
-      bg: 'bg-blue-50 dark:bg-blue-900/20',
-      border: 'border-blue-200 dark:border-blue-800',
-      icon: <Info className="text-blue-500" size={20} />,
-      text: 'text-blue-800 dark:text-blue-300',
-      button: 'hover:bg-blue-100 dark:hover:bg-blue-800/30'
+      bg: 'bg-brand-purple/10 dark:bg-brand-purple/20',
+      border: 'border-brand-purple/20 dark:border-brand-purple/30',
+      icon: <Info className="text-brand-purple" size={20} />,
+      text: 'text-brand-purple dark:text-brand-purple-light',
+      button: 'hover:bg-brand-purple/20 dark:hover:bg-brand-purple/40'
     }
   };
   
