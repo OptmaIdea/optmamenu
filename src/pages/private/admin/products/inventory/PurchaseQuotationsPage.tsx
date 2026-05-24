@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
     CheckCircle2,
@@ -11,7 +12,6 @@ import {
     MessageCircle,
     Plus,
     Printer,
-    RefreshCw,
     Save,
     Search,
     X,
@@ -35,7 +35,6 @@ import type { PurchaseQuotationDetail, PurchaseQuotationSummary } from '@/servic
 import type { Supplier } from '@/pages/private/admin/products/suppliers/types/supplier.types';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
 import { buildCsv, downloadCsv, formatCsvNumberBR } from '@/utils/csv';
-import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { isSupplierPurchaseEligible } from './utils/supplierStatusUtils';
 import { getActiveStoreId } from '@/utils/activeStore';
 
@@ -321,10 +320,16 @@ function buildQuotationPrintHtml(
 
 export default function PurchaseQuotationsPage() {
     const navigate = useNavigate();
+
+    const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalContainer(document.getElementById('quick-access-actions-portal'));
+    }, []);
+
     const { products: inventoryProducts } = useInventory();
     const [storeId, setStoreId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
     const [quotationProductIds, setQuotationProductIds] = useState<Record<string, string[]>>({});
@@ -389,8 +394,7 @@ export default function PurchaseQuotationsPage() {
         if (!nextStoreId) return;
 
         try {
-            if (options?.silent) setRefreshing(true);
-            else setLoading(true);
+            if (!options?.silent) setLoading(true);
 
             const data = await stockService.getPurchaseQuotationsByStore(nextStoreId, null);
             setQuotations(data);
@@ -399,7 +403,6 @@ export default function PurchaseQuotationsPage() {
             toast.error('Não foi possível carregar as cotações.');
         } finally {
             setLoading(false);
-            setRefreshing(false);
         }
     }
 
@@ -854,24 +857,25 @@ export default function PurchaseQuotationsPage() {
     if (loading) return <LoadingSpinner />;
 
     return (
-        <PageContainer
-            title="Cotações"
-            subtitle="Acesso rápido às cotações salvas para fornecedores."
-            action={
-                <div className="flex flex-wrap items-center gap-2">
-                    <InventoryQuickNav />
-                    <button
-                        type="button"
-                        onClick={() => void loadQuotations(storeId, { silent: true })}
-                        disabled={refreshing}
-                        className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                        <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                        Atualizar
-                    </button>
-                </div>
-            }
-        >
+        <>
+            {portalContainer && createPortal(
+                <button
+                    type="button"
+                    onClick={() => setManualQuotationOpen(true)}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+                >
+                    <Plus size={13} />
+                    <span>Nova Cotação</span>
+                </button>,
+                portalContainer
+            )}
+
+            <PageContainer
+                title="Cotações"
+                subtitle="Acesso rápido às cotações salvas para fornecedores."
+                onRefresh={() => loadQuotations(storeId, { silent: true })}
+                withoutHeader={true}
+            >
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
                     <p className="text-sm text-gray-500">Cotações exibidas</p>
@@ -1551,5 +1555,6 @@ export default function PurchaseQuotationsPage() {
                 </div>
             )}
         </PageContainer>
+        </>
     );
 }

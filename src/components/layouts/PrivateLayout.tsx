@@ -20,7 +20,6 @@ import {
     Package,
     Shield,
     ShoppingBag,
-    LogOut,
     Users,
     FileText,
     HelpCircle,
@@ -42,7 +41,6 @@ import {
     Clock,
     CreditCard,
     BookOpen,
-    ExternalLink,
     MessageSquare,
     Truck,
     RadioTower,
@@ -50,10 +48,14 @@ import {
     ArrowRightLeft,
     WalletCards,
     Sparkles,
+    FileStack,
     Settings,
     Megaphone,
     Store as StoreIcon,
-    Check
+    Check,
+    Power,
+    RefreshCw,
+    Bell
 } from 'lucide-react';
 
 type MenuItem = {
@@ -100,12 +102,80 @@ export default function PrivateLayout() {
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
+    const can = (permissionCode: string) => {
+        if (loadingPermissions) return true;
+
+        return hasEffectivePermission(permissions, permissionCode);
+    };
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
     const [availableMemberships, setAvailableMemberships] = useState<LayoutMembership[]>([]);
     const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
     const [showStoreSwitcher, setShowStoreSwitcher] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [sessionStartTime] = useState<Date>(() => {
+        const stored = sessionStorage.getItem('optmamenu.session.start');
+        if (stored) {
+            const date = new Date(stored);
+            if (!isNaN(date.getTime())) return date;
+        }
+        const now = new Date();
+        sessionStorage.setItem('optmamenu.session.start', now.toISOString());
+        return now;
+    });
+    const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+    const navigationItems = useMemo<MenuSection>(() => ({
+        dashboard: [
+            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional' },
+            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes' },
+            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas' },
+            { path: '/admin/reports', icon: FileStack, label: 'Relatórios', permission: 'reports.view' },
+        ],
+        commercial: [
+            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
+            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
+            { path: '/admin/payment-methods', icon: WalletCards, label: 'Pagamentos' },
+            { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
+            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
+            { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
+            { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
+            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
+            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
+            { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
+            { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
+        ],
+        financial: [
+            { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
+        ],
+        products: [
+            { path: '/admin/products', icon: Package, label: 'Produtos' },
+            { path: '/admin/categories', icon: Layers, label: 'Categorias' },
+            { path: '/admin/inventory', icon: FileText, label: 'Estoque por local', permission: 'stock.view' },
+            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
+            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'stock.transfer' },
+            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
+            { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
+            { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
+            { path: '/admin/stock-movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
+            { path: '/admin/stock-settings', icon: SlidersHorizontal, label: 'Configurações de Estoque' },
+        ],
+        settings: [
+            { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },
+            { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
+            { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
+            { path: '/admin/hours', icon: Clock, label: 'Horários' },
+            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
+            { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
+            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso', permission: 'security.view' },
+        ],
+        support: [
+            { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },
+            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ' },
+            { path: '/admin/docs', icon: BookOpen, label: 'Documentação' },
+        ]
+    }), []);
 
     const SIDEBAR_GROUPS_STORAGE_KEY = 'optmamenu.sidebar.groups';
     const defaultOpenSections = {
@@ -278,6 +348,62 @@ export default function PrivateLayout() {
         navigate('/');
     };
 
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const sessionElapsedTime = useMemo(() => {
+        const diffMs = currentTime.getTime() - sessionStartTime.getTime();
+        if (diffMs < 0) return '00:00:00';
+        const diffSecs = Math.floor(diffMs / 1000);
+        const hrs = Math.floor(diffSecs / 3600);
+        const mins = Math.floor((diffSecs % 3600) / 60);
+        const secs = diffSecs % 60;
+        return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':');
+    }, [currentTime, sessionStartTime]);
+
+    // Resolve o grupo e item ativo
+    const currentItem = useMemo(() => {
+        // 1. Tenta correspondência exata de caminho
+        for (const [group, items] of Object.entries(navigationItems)) {
+            const matchedItem = items.find(item => pathname === item.path);
+            if (matchedItem) {
+                return { group, item: matchedItem };
+            }
+        }
+        // 2. Se não achar exato, tenta por prefixo de subpasta (excluindo /admin que é raiz)
+        for (const [group, items] of Object.entries(navigationItems)) {
+            const matchedItem = items.find(item => {
+                if (item.path === '/admin') return false;
+                return pathname.startsWith(item.path + '/');
+            });
+            if (matchedItem) {
+                return { group, item: matchedItem };
+            }
+        }
+        return null;
+    }, [navigationItems, pathname]);
+
+    // Resolve as rotas irmãs para o Acesso Rápido (exclui o atual)
+    const siblingItems = useMemo(() => {
+        if (!currentItem) return [];
+        const groupItems = navigationItems[currentItem.group as keyof typeof navigationItems] || [];
+        return groupItems.filter(
+            item => item.path !== currentItem.item.path && (!item.permission || can(item.permission))
+        );
+    }, [currentItem, navigationItems, permissions, loadingPermissions]);
+
+    const handleRefresh = () => {
+        setIsRefreshing(true);
+        window.dispatchEvent(new CustomEvent('optmamenu.refresh'));
+        setTimeout(() => {
+            setIsRefreshing(false);
+        }, 1000);
+    };
+
     const toggleSection = (section: string) => {
         setOpenSections((prev) => {
             const isOpening = !prev[section];
@@ -302,11 +428,7 @@ export default function PrivateLayout() {
         localStorage.setItem('theme', !isDark ? 'dark' : 'light');
     };
 
-    const can = (permissionCode: string) => {
-        if (loadingPermissions) return true;
 
-        return hasEffectivePermission(permissions, permissionCode);
-    };
 
     const handleSwitchStore = (membership: LayoutMembership) => {
         if (membership.store_id === storeId) {
@@ -425,63 +547,14 @@ export default function PrivateLayout() {
         );
     };
 
-    const navigationItems = useMemo<MenuSection>(() => ({
-        dashboard: [
-            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional' },
-            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes' },
-            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas' },
-            { path: '/admin/reports', icon: FileText, label: 'Relatórios', permission: 'reports.view' },
-        ],
-        commercial: [
-            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
-            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
-            { path: '/admin/payment-methods', icon: WalletCards, label: 'Pagamentos' },
-            { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
-            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
-            { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
-            { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
-            { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
-            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
-            { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
-            { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
-        ],
-        financial: [
-            { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
-        ],
-        products: [
-            { path: '/admin/products', icon: Package, label: 'Produtos' },
-            { path: '/admin/categories', icon: Layers, label: 'Categorias' },
-            { path: '/admin/inventory', icon: FileText, label: 'Estoque por local', permission: 'stock.view' },
-            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
-            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'stock.transfer' },
-            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
-            { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
-            { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
-            { path: '/admin/stock-movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
-            { path: '/admin/stock-settings', icon: SlidersHorizontal, label: 'Configurações de Estoque' },
-        ],
-        settings: [
-            { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },
-            { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
-            { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
-            { path: '/admin/hours', icon: Clock, label: 'Horários' },
-            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
-            { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
-            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso', permission: 'security.view' },
-        ],
-        support: [
-            { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },
-            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ' },
-            { path: '/admin/docs', icon: BookOpen, label: 'Documentação' },
-        ]
-    }), []);
+
 
     if (loadingStore) {
         return <LoadingSpinner />;
     }
 
     return (
-        <div className="flex h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-300 font-sans">
+        <div className="flex h-screen bg-[#F8F6F2] dark:bg-gray-950 transition-colors duration-300 font-sans overflow-hidden">
             {/* Mobile Overlay */}
             {isMobileOpen && (
                 <div
@@ -495,221 +568,345 @@ export default function PrivateLayout() {
                 className={`fixed md:static inset-y-0 left-0 z-40 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 
                     ${isSidebarCollapsed ? 'md:w-20' : 'md:w-72'} 
                     ${isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full md:translate-x-0 w-72'}
-                    flex flex-col shadow-xl md:shadow-none
+                    flex flex-col shadow-xl md:shadow-none shrink-0 h-full
                 `}
             >
-                {/* Header / Brand */}
-                <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                    {!isSidebarCollapsed && (
-                        <div>
+                {/* Header / Brand (Fixo no topo da Sidebar) */}
+                <div className="h-[73px] shrink-0 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center px-4 md:px-6 bg-white dark:bg-gray-800">
+                    {!isSidebarCollapsed ? (
+                        <div className="flex items-center">
                             <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition">
                                 <img
                                     src="/assets/OptmaMenuLogo.webp"
                                     alt="OptmaMenu"
-                                    className="h-8 w-auto"
+                                    className="h-10 w-auto"
                                 />
                             </Link>
-                            <div className="flex items-center gap-2 mt-2">
-                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest font-candara">Admin</span>
-                                {storeSlug && (
-                                    <a
-                                        href={`/s/${storeSlug}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-[10px] text-[#21A896] hover:underline flex items-center gap-1 font-bold font-candara"
-                                        title="Visualizar Loja"
-                                    >
-                                        <ExternalLink size={10} />
-                                        Ver Loja
-                                    </a>
-                                )}
-                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex justify-center w-full">
+                            <img
+                                src="/assets/OptmaMenuLogo.webp"
+                                alt="Logo"
+                                className="h-6 w-6 object-contain"
+                                title="OptmaMenu"
+                            />
                         </div>
                     )}
                     <button
                         onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                        className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                        className={`p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 ${isSidebarCollapsed ? 'absolute left-1/2 -translate-x-1/2 mt-12 md:mt-0 md:relative md:left-auto md:translate-x-0' : ''}`}
                     >
-                        {isSidebarCollapsed ? <Menu size={20} /> : <ChevronLeft size={20} />}
+                        {isSidebarCollapsed ? <Menu size={18} /> : <ChevronLeft size={18} />}
                     </button>
                 </div>
 
-                {/* Navigation */}
-                <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar">
-                    {Object.entries(navigationItems).map(([section, items]) => (
-                        <div key={section} className="space-y-1">
-                            {!isSidebarCollapsed && (
-                                <button
-                                    type="button"
-                                    onClick={() => toggleSection(section)}
-                                    className="w-full flex items-center justify-between px-4 mb-2 text-xs font-bold text-gray-400 uppercase tracking-wider font-candara"
-                                >
-                                    <span>
-                                        {section === 'dashboard' && 'Dashboard'}
-                                        {section === 'commercial' && 'Comercial'}
-                                        {section === 'financial' && 'Financeiro'}
-                                        {section === 'products' && 'Produtos'}
-                                        {section === 'settings' && 'Configurações'}
-                                        {section === 'support' && 'Suporte'}
-                                    </span>
-                                    <span className="text-gray-400">{openSections[section] ? '−' : '+'}</span>
-                                </button>
-                            )}
-                            {(openSections[section] || isSidebarCollapsed) && items
-                                .filter((item) => !item.permission || can(item.permission))
-                                .map(item => {
-                                    const IconComponent = item.icon;
-                                    const isActive =
-                                        pathname === item.path ||
-                                        (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
-
-                                    return (
-                                        <Link
-                                            key={item.path}
-                                            to={item.path}
-                                            title={isSidebarCollapsed ? item.label : ''}
-                                            className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all
-                                            ${isSidebarCollapsed ? 'justify-center px-2 py-3.5' : 'px-4 py-3'}
-                                            ${isActive
-                                                    ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20'
-                                                    : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                                                }`}
-                                        >
-                                            <IconComponent
-                                                size={isSidebarCollapsed ? 26 : 22}
-                                                className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
-                                            />
-                                            {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (
-                                                <span className="absolute right-3 w-2.5 h-2.5 rounded-full bg-amber-400" />
-                                            )}
-                                            {!isSidebarCollapsed && (
-                                                <div className="flex items-center justify-between w-full">
-                                                    <span className="font-candara">{item.label}</span>
-
-                                                    {item.path === '/admin/inventory' && attentionCount > 0 && (
-                                                        <span
-                                                            className="ml-2 inline-flex items-center justify-center min-w-5.5 h-5 px-2 rounded-full text-[11px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
-                                                            title="Itens com estoque baixo ou zerado"
-                                                        >
-                                                            {attentionCount}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </Link>
-                                    );
-                                })}
-                        </div>
-                    ))}
-                </nav>
-
-                {/* Footer Section: User & Actions */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
-                    {!isSidebarCollapsed && (
-                        <div className="mb-3">
-                            {renderStoreSwitcher()}
-                        </div>
-                    )}
-
-                    {/* User Profile */}
-                    {!isSidebarCollapsed && userData && (
-                        <div className="flex items-center gap-3 mb-4 p-2 rounded-lg bg-white dark:bg-gray-700 shadow-sm border border-gray-100 dark:border-gray-600">
-                            {userData.avatar ? (
-                                <img src={userData.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] dark:text-[#21A896] font-bold text-lg">
-                                    {userData.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                            <div className="flex-1 overflow-hidden">
-                                <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
-                                    {userData.name}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate font-candara">
-                                    {userData.email}
-                                </p>
+                {/* Scrollable Area: User logged, Accordion Menu, Switcher, Tema/Sair, Copyright */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between p-4 space-y-6">
+                    <div className="space-y-6">
+                        {/* User Profile */}
+                        {userData && (
+                            <div className={`p-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${
+                                isSidebarCollapsed ? 'flex flex-col items-center gap-2 p-1.5' : 'flex items-center gap-3'
+                            }`}>
+                                {userData.avatar ? (
+                                    <img
+                                        src={userData.avatar}
+                                        alt="Avatar"
+                                        className={`${isSidebarCollapsed ? 'w-8 h-8' : 'w-10 h-10'} rounded-full object-cover border border-gray-200 dark:border-gray-600`}
+                                        title={isSidebarCollapsed ? userData.name : ''}
+                                    />
+                                ) : (
+                                    <div className={`${isSidebarCollapsed ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-lg'} rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] font-bold`} title={isSidebarCollapsed ? userData.name : ''}>
+                                        {userData.name.charAt(0).toUpperCase()}
+                                    </div>
+                                )}
+                                
+                                {!isSidebarCollapsed && (
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
+                                            {userData.name}
+                                        </p>
+                                        <p className="text-[11px] font-bold text-brand-green truncate font-candara uppercase tracking-wide">
+                                            {activeMembership ? formatLayoutRole(activeMembership.role) : 'Usuário'}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    )}
-                    {isSidebarCollapsed && userData && (
-                        <div className="flex justify-center mb-4">
-                            {userData.avatar ? (
-                                <img src={userData.avatar} alt="Avatar" className="w-10 h-10 rounded-full object-cover border border-gray-200" title={userData.name} />
-                            ) : (
-                                <div className="w-10 h-10 rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] dark:text-[#21A896] font-bold text-lg" title={userData.name}>
-                                    {userData.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
 
-                    {/* Actions */}
-                    <div className={`grid ${isSidebarCollapsed ? 'grid-cols-1 gap-2' : 'grid-cols-2 gap-2'}`}>
-                        <button
-                            onClick={toggleDarkMode}
-                            title="Alternar Tema"
-                            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 hover:bg-white dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors font-candara"
-                        >
-                            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-                            {!isSidebarCollapsed && <span className="text-xs font-bold">Tema</span>}
-                        </button>
+                        {/* Navigation Menu */}
+                        <nav className="space-y-4">
+                            {Object.entries(navigationItems).map(([section, items]) => {
+                                const isCurrentGroup = currentItem?.group === section;
+                                return (
+                                    <div key={section} className="space-y-1">
+                                        {!isSidebarCollapsed && (
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSection(section)}
+                                                className={`w-full flex items-center justify-between px-3 py-1 mb-1 text-xs tracking-wider font-candara transition-all ${
+                                                    isCurrentGroup
+                                                        ? 'font-black text-gray-800 dark:text-gray-200 text-[13px] uppercase'
+                                                        : 'font-bold text-gray-400 dark:text-gray-500 uppercase'
+                                                }`}
+                                            >
+                                                <span>
+                                                    {section === 'dashboard' && 'Dashboard'}
+                                                    {section === 'commercial' && 'Comercial'}
+                                                    {section === 'financial' && 'Financeiro'}
+                                                    {section === 'products' && 'Produtos'}
+                                                    {section === 'settings' && 'Configurações'}
+                                                    {section === 'support' && 'Suporte'}
+                                                </span>
+                                                <span className="text-gray-400">{openSections[section] ? '−' : '+'}</span>
+                                            </button>
+                                        )}
+                                        {(openSections[section] || isSidebarCollapsed) && items
+                                            .filter((item) => !item.permission || can(item.permission))
+                                            .map(item => {
+                                                const IconComponent = item.icon;
+                                                const isActive =
+                                                    pathname === item.path ||
+                                                    (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
 
-                        <button
-                            onClick={handleLogout}
-                            title="Sair"
-                            className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-transparent font-candara"
-                        >
-                            <LogOut size={18} />
-                            {!isSidebarCollapsed && <span className="text-xs font-bold">Sair</span>}
-                        </button>
+                                                return (
+                                                    <Link
+                                                        key={item.path}
+                                                        to={item.path}
+                                                        title={isSidebarCollapsed ? item.label : ''}
+                                                        className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all relative
+                                                        ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'}
+                                                        ${isActive
+                                                            ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20 dark:bg-[#21A896]/20'
+                                                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                                                        }`}
+                                                    >
+                                                        <IconComponent
+                                                            size={isSidebarCollapsed ? 22 : 18}
+                                                            className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
+                                                        />
+                                                        {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (
+                                                            <span className="absolute right-3 w-2 h-2 rounded-full bg-amber-400" />
+                                                        )}
+                                                        {!isSidebarCollapsed && (
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <span className="font-candara">{item.label}</span>
+
+                                                                {item.path === '/admin/inventory' && attentionCount > 0 && (
+                                                                    <span
+                                                                        className="ml-2 inline-flex items-center justify-center min-w-5.5 h-5 px-2 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-200"
+                                                                        title="Itens com estoque baixo ou zerado"
+                                                                    >
+                                                                        {attentionCount}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </Link>
+                                                );
+                                            })}
+                                    </div>
+                                );
+                            })}
+                        </nav>
                     </div>
 
-                    {/* Copyright */}
-                    {!isSidebarCollapsed && (
-                        <div className="mt-4 text-center">
-                            <p className="text-[10px] text-gray-400 font-candara">
-                                © {new Date().getFullYear()} OptmaIdea
-                            </p>
+                    {/* Footer Actions & Switcher */}
+                    <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+                        {!isSidebarCollapsed && (
+                            <div>
+                                {renderStoreSwitcher()}
+                            </div>
+                        )}
+
+                        <div className={`flex ${isSidebarCollapsed ? 'flex-col gap-2 items-center' : 'gap-2'}`}>
+                            <button
+                                onClick={toggleDarkMode}
+                                title="Alternar Tema"
+                                className={`flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors font-candara ${
+                                    isSidebarCollapsed ? 'p-2 w-9 h-9' : 'px-3 py-2 flex-1 text-xs font-bold'
+                                }`}
+                            >
+                                {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                                {!isSidebarCollapsed && <span>Tema</span>}
+                            </button>
+
+                            <button
+                                onClick={handleLogout}
+                                title="Sair"
+                                className={`flex items-center justify-center gap-2 rounded-lg bg-red-50 dark:bg-red-955/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-transparent font-candara ${
+                                    isSidebarCollapsed ? 'p-2 w-9 h-9' : 'px-3 py-2 flex-1 text-xs font-bold'
+                                }`}
+                            >
+                                <Power size={16} />
+                                {!isSidebarCollapsed && <span>Sair</span>}
+                            </button>
                         </div>
-                    )}
+
+                        {!isSidebarCollapsed && (
+                            <div className="text-center">
+                                <p className="text-[10px] text-gray-400 font-candara">
+                                    © {new Date().getFullYear()} OptmaIdea
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </aside>
 
             {/* Main Content Area */}
-            <div className="flex-1 min-w-0 flex flex-col overflow-hidden h-screen bg-gray-50 dark:bg-gray-900">
-                {/* Mobile Header */}
-                <header className="md:hidden bg-white dark:bg-gray-800 p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center z-20 shadow-sm">
-                    <button
-                        onClick={() => setIsMobileOpen(true)}
-                        className="text-gray-600 dark:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        aria-label="Abrir menu"
-                    >
-                        <Menu size={24} />
-                    </button>
-                    <span className="font-black text-lg text-[#21A896] dark:text-[#21A896] italic font-candara-bold">
-                        OptmaMenu
-                    </span>
-                    {userData && (
-                        <div className="flex items-center gap-2">
-                            {userData.avatar ? (
-                                <img
-                                    src={userData.avatar}
-                                    alt="Avatar"
-                                    className="w-8 h-8 rounded-full"
-                                />
-                            ) : (
-                                <div className="w-8 h-8 rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] font-bold text-sm">
-                                    {userData.name.charAt(0).toUpperCase()}
-                                </div>
-                            )}
+            <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden bg-[#F8F6F2] dark:bg-gray-950">
+                {/* Unified Header */}
+                <header className="h-[73px] shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center px-4 md:px-8 z-30 shadow-sm transition-colors duration-300">
+                    {/* Left Side: Hamburguer & Active Route Icon/Name */}
+                    <div className="flex items-center gap-2 min-w-0">
+                        <button
+                            onClick={() => setIsMobileOpen(true)}
+                            className="md:hidden text-gray-500 dark:text-gray-400 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mr-1 shrink-0"
+                            aria-label="Abrir menu"
+                        >
+                            <Menu size={22} />
+                        </button>
+                        
+                        {currentItem && (
+                            <div className="flex items-center gap-2 min-w-0">
+                                <currentItem.item.icon className="w-5 h-5 md:w-6 md:h-6 text-brand-light shrink-0" />
+                                <h1 className="font-extrabold text-sm md:text-lg text-brand-orange truncate font-candara-bold select-none">
+                                    {currentItem.item.label}
+                                </h1>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Center: Session stats */}
+                    <div className="hidden lg:flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 font-candara select-none">
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-750 px-2.5 py-1 rounded-full border border-gray-100 dark:border-gray-700">
+                            <span className="font-bold">Acesso em:</span>
+                            <span className="font-mono">{sessionStartTime.toLocaleTimeString('pt-BR')}</span>
                         </div>
-                    )}
+                        <span className="text-gray-300 dark:text-gray-650">|</span>
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-750 px-2.5 py-1 rounded-full border border-gray-100 dark:border-gray-700">
+                            <span className="font-bold">Agora:</span>
+                            <span className="font-mono">{currentTime.toLocaleTimeString('pt-BR')}</span>
+                        </div>
+                        <span className="text-gray-300 dark:text-gray-650">|</span>
+                        <div className="flex items-center gap-1.5 bg-brand-green/5 dark:bg-brand-green/10 px-3 py-1 rounded-full border border-brand-green/10">
+                            <span className="font-bold text-brand-green">Tempo:</span>
+                            <span className="font-bold text-brand-green font-mono">{sessionElapsedTime}</span>
+                        </div>
+                    </div>
+
+                    {/* Right Side: Quick actions */}
+                    <div className="flex items-center gap-1">
+                        {storeSlug && (
+                            <a
+                                href={`/s/${storeSlug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Acessar loja: /s/${storeSlug}`}
+                                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                            >
+                                <StoreIcon size={19} />
+                            </a>
+                        )}
+                        
+                        {/* Messages Icon */}
+                        <button
+                            type="button"
+                            title="Mensagens (Sem novas mensagens)"
+                            className="p-2 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition relative shrink-0"
+                        >
+                            <MessageSquare size={19} />
+                            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-light" />
+                        </button>
+
+                        {/* Alerts Icon */}
+                        <button
+                            type="button"
+                            title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
+                            className={`p-2 rounded-lg transition relative shrink-0 ${
+                                attentionCount > 0 
+                                    ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20' 
+                                    : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                            }`}
+                        >
+                            <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
+                            {attentionCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 bg-brand-light text-gray-900 text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center border border-white dark:border-gray-800">
+                                    {attentionCount}
+                                </span>
+                            )}
+                        </button>
+
+                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
+
+                        {/* Theme Toggle */}
+                        <button
+                            onClick={toggleDarkMode}
+                            title="Alternar Tema"
+                            className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                        >
+                            {isDark ? <Sun size={19} /> : <Moon size={19} />}
+                        </button>
+
+                        {/* Logout Power Button */}
+                        <button
+                            onClick={handleLogout}
+                            title="Sair do painel"
+                            className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+                        >
+                            <Power size={19} className="stroke-[2.5]" />
+                        </button>
+                    </div>
                 </header>
 
-                <main id="main-scroll-container" className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-                    <MyStoreInvitesBanner />
-                    <Outlet />
-                </main>
+                {/* Quick Access Bar */}
+                <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 md:px-8 py-2.5 flex items-center justify-between flex-wrap gap-2 z-20 shrink-0">
+                    <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar no-scrollbar py-0.5 min-w-0">
+                        {siblingItems.length > 0 ? (
+                            siblingItems.map((item) => {
+                                const SiblingIcon = item.icon;
+                                return (
+                                    <Link
+                                        key={item.path}
+                                        to={item.path}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors border border-gray-100 dark:border-gray-700 shrink-0"
+                                    >
+                                        <SiblingIcon size={13} className="text-gray-400 dark:text-gray-500" />
+                                        <span>{item.label}</span>
+                                    </Link>
+                                );
+                            })
+                        ) : (
+                            <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest select-none">
+                                Menu de Operação
+                             </span>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                        {/* Target DOM para o portal de ações rápidas da rota filha */}
+                        <div id="quick-access-actions-portal" className="flex items-center gap-2" />
+
+                        <button
+                            onClick={handleRefresh}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#21A896]/35 shrink-0 shadow-sm cursor-pointer"
+                            title="Atualizar dados da página"
+                        >
+                            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+                            <span>Atualizar</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Main Content Area Scrollable */}
+                <div id="main-scroll-container" className="flex-1 overflow-y-auto custom-scrollbar flex flex-col bg-[#F8F6F2] dark:bg-gray-950">
+                    <main className="flex-1 p-4 md:p-8">
+                        <MyStoreInvitesBanner />
+                        <Outlet />
+                    </main>
+                </div>
             </div>
             <BackToTopButton />
         </div>

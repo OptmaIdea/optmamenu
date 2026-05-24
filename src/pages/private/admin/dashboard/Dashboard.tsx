@@ -247,6 +247,17 @@ export default function Dashboard() {
     };
   }, [fetchDashboardData]);
 
+  useEffect(() => {
+    const handleRefreshEvent = () => {
+      fetchDashboardData();
+    };
+
+    window.addEventListener('optmamenu.refresh', handleRefreshEvent);
+    return () => {
+      window.removeEventListener('optmamenu.refresh', handleRefreshEvent);
+    };
+  }, [fetchDashboardData]);
+
   if (loading) {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
@@ -288,6 +299,7 @@ export default function Dashboard() {
       subtitle="Visão completa da sua operação em tempo real"
       lastUpdated={lastUpdated}
       onRefresh={fetchDashboardData}
+      withoutHeader={true}
     >
       {(stats.zeroStockCount > 0 || stats.lowStockCount > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

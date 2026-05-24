@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   History,
@@ -26,7 +27,6 @@ import { useReactToPrint } from 'react-to-print';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatDateTimePtBr, formatDateTimeForExportPtBr, formatDatePtBr, getLocalDateInputValue } from '@/utils/dateTime';
 import { formatNumberPtBr } from '@/utils/export/formatters';
-import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { ManualStockAdjustmentModal } from './components/ManualStockAdjustmentModal';
 import {
   getMovementDestinationLabel,
@@ -60,6 +60,13 @@ const MOVEMENT_LABELS: Record<
 export default function StockMovementsPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('quick-access-actions-portal'));
+  }, []);
+
   const { fetchMovements } = useStockMovement();
   const { products: allProducts, refresh: refreshInventory } = useInventory();
 
@@ -431,46 +438,53 @@ export default function StockMovementsPage() {
   );
 
   return (
-    <PageContainer
-      title={selectedProduct ? `Movimentações: ${selectedProduct.name}` : 'Movimentações de Estoque'}
-      subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
-      action={
-        <div className="flex flex-wrap items-center gap-2">
-          <InventoryQuickNav />
+    <>
+      {portalContainer && createPortal(
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setAdjustmentModalOpen(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+            className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
           >
-            <PlusCircle className="h-4 w-4" />
-            <span className="hidden sm:inline">Registrar ajuste</span>
+            <PlusCircle size={13} />
+            <span>Registrar ajuste</span>
           </button>
           <button
+            type="button"
             onClick={() => setShowFilters(!showFilters)}
-            className={`h-10 px-3 text-sm rounded-lg font-medium flex items-center gap-2 transition-colors ${showFilters
-              ? 'bg-[#21A896] text-white'
-              : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+            className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-bold transition-colors shadow-sm cursor-pointer shrink-0 ${showFilters
+              ? 'bg-[#21A896] border-[#21A896] text-white hover:bg-[#1a867a]'
+              : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
           >
-            <Filter size={18} />
-            <span className="hidden sm:inline">Filtros</span>
+            <Filter size={13} />
+            <span>Filtros</span>
           </button>
           <button
+            type="button"
             onClick={handlePrint}
-            className="h-10 px-3 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
           >
-            <Printer size={18} />
-            <span className="hidden sm:inline">Imprimir</span>
+            <Printer size={13} />
+            <span>Imprimir</span>
           </button>
           <button
+            type="button"
             onClick={handleExportCsv}
-            className="h-10 px-3 text-sm bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 font-medium flex items-center gap-2"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
           >
-            <FileText size={18} />
-            <span className="hidden sm:inline">Exportar CSV</span>
+            <FileText size={13} />
+            <span>Exportar CSV</span>
           </button>
-        </div>
-      }
-    >
+        </div>,
+        portalContainer
+      )}
+
+      <PageContainer
+        title={selectedProduct ? `Movimentações: ${selectedProduct.name}` : 'Movimentações de Estoque'}
+        subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
+        onRefresh={loadMovements}
+        withoutHeader={true}
+      >
       {(selectedProduct || selectedProductIds.length > 0 || filters.productId || filters.productIds) && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
           {selectedProduct && (
@@ -912,6 +926,7 @@ export default function StockMovementsPage() {
         products={availableProducts}
         locations={adjustmentLocations.length > 0 ? adjustmentLocations : locationOptions}
       />
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }

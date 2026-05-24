@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { ArrowLeft, CheckCircle2, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
-import { InventoryQuickNav } from './components/InventoryQuickNav';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import PageContainer from '@/components/common/PageContainer';
 import TransferDetailHeader from './components/TransferDetailHeader';
 import TransferItemsTable from './components/TransferItemsTable';
 import { useStockTransferDetail } from './hooks/useStockTransferDetail';
@@ -40,6 +41,12 @@ const getTransferStatusLabel = (status: string | null | undefined) => {
 export default function TransferDetailPage() {
     const { id } = useParams();
     const { data, loading, refresh } = useStockTransferDetail(id);
+
+    const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalContainer(document.getElementById('quick-access-actions-portal'));
+    }, []);
 
     const [actionLoading, setActionLoading] = useState(false);
     const [showReceiveForm, setShowReceiveForm] = useState(false);
@@ -211,73 +218,81 @@ export default function TransferDetailPage() {
 
     if (!transfer) {
         return (
-            <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Transferência não encontrada</h1>
-            </div>
+            <PageContainer
+                title="Detalhes da transferência"
+                withoutHeader={true}
+            >
+                <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h1 className="text-xl font-bold text-gray-900 dark:text-white">Transferência não encontrada</h1>
+                </div>
+            </PageContainer>
         );
     }
 
     return (
-        <div className="space-y-6">
-            <InventoryQuickNav
-                extra={
+        <>
+            {portalContainer && createPortal(
+                <div className="flex items-center gap-2">
                     <Link
                         to="/admin/transfers"
-                        className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
                         title="Voltar para transferências"
                     >
-                        <ArrowLeft size={16} />
-                        <span className="hidden sm:inline">Transferências</span>
+                        <ArrowLeft size={13} />
+                        <span>Transferências</span>
                     </Link>
-                }
-            />
 
-            {/* Action bar */}
-            <div className="flex flex-wrap items-center justify-end gap-2">
-                {transfer.status === 'draft' && (
-                    <>
+                    {transfer.status === 'draft' && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={handleShipTransfer}
+                                disabled={actionLoading}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+                            >
+                                <Send size={13} />
+                                <span>Enviar</span>
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleCancelTransfer}
+                                disabled={actionLoading}
+                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300"
+                            >
+                                <XCircle size={13} />
+                                <span>Cancelar</span>
+                            </button>
+                        </>
+                    )}
+
+                    {transfer.status === 'shipped' && (
                         <button
                             type="button"
-                            onClick={handleShipTransfer}
+                            onClick={() => setShowReceiveForm((v) => !v)}
                             disabled={actionLoading}
-                            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                            className="inline-flex items-center gap-1.5 h-8 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
                         >
-                            <Send size={16} />
-                            Enviar
+                            <CheckCircle2 size={13} />
+                            <span>Receber</span>
                         </button>
+                    )}
 
-                        <button
-                            type="button"
-                            onClick={handleCancelTransfer}
-                            disabled={actionLoading}
-                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300"
-                        >
-                            <XCircle size={16} />
-                            Cancelar
-                        </button>
-                    </>
-                )}
-
-                {transfer.status === 'shipped' && (
                     <button
                         type="button"
-                        onClick={() => setShowReceiveForm((v) => !v)}
-                        disabled={actionLoading}
-                        className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                        onClick={handleExportCsv}
+                        className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
                     >
-                        <CheckCircle2 size={16} />
-                        Receber
+                        <span>Exportar itens</span>
                     </button>
-                )}
+                </div>,
+                portalContainer
+            )}
 
-                <button
-                    type="button"
-                    onClick={handleExportCsv}
-                    className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-                >
-                    Exportar itens
-                </button>
-            </div>
+            <PageContainer
+                title="Detalhes da transferência"
+                withoutHeader={true}
+            >
 
             <TransferDetailHeader header={transfer} />
 
@@ -422,6 +437,7 @@ export default function TransferDetailPage() {
             )}
 
             <TransferItemsTable items={items} />
-        </div>
+            </PageContainer>
+        </>
     );
 }

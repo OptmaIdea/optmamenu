@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus, Archive } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AdminProductViewModal from '@/pages/private/admin/products/products/components/AdminProductViewModal';
@@ -25,11 +26,16 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import DiscontinuedProductsModal from '@/pages/private/admin/products/products/components/DiscontinuedProductsModal';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import { PackageSearch } from 'lucide-react';
-import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
 
 export default function ProductsPage() {
     // Products data
     const { products, loading, deletingId, lastUpdated, handleRefresh } = useProducts();
+
+    const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalContainer(document.getElementById('quick-access-actions-portal'));
+    }, []);
 
     // ✅ Produtos NÃO descontinuados (para listagem principal e estatísticas)
     const nonDiscontinuedProducts = useMemo(() => {
@@ -177,24 +183,23 @@ export default function ProductsPage() {
 
     return (
         <>
+            {portalContainer && createPortal(
+                <button
+                    onClick={handleNewProduct}
+                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+                >
+                    <Plus size={13} />
+                    <span>Novo Produto</span>
+                </button>,
+                portalContainer
+            )}
+
             <PageContainer
                 title="Produtos"
                 subtitle="Gerencie seu catálogo"
                 lastUpdated={lastUpdated}
                 onRefresh={handleRefresh}
-                action={
-                    <div className="flex flex-wrap items-center gap-2">
-                        <InventoryQuickNav />
-                        <button
-                            onClick={handleNewProduct}
-                            className="inline-flex items-center gap-1.5 h-10 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-xl transition-colors"
-                        >
-                            <Plus size={16} />
-                            <span className="hidden md:inline">Novo Produto</span>
-                            <span className="md:hidden">Novo</span>
-                        </button>
-                    </div>
-                }
+                withoutHeader={true}
             >
                 {/* Botão de Produtos Descontinuados (posicionado após o FilterBar) */}
                 {hasAnyProducts && (

@@ -1,8 +1,10 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import PageContainer from '@/components/common/PageContainer';
 import { useProductLifecycle } from './hooks/useProductLifecycle';
 import { useProductStockMovements } from './hooks/useProductStockMovements';
 import { useProductInventoryAudit } from './hooks/useProductInventoryAudit';
@@ -13,7 +15,6 @@ import { useProductSupplierLifecycle } from './hooks/useProductSupplierLifecycle
 import { ProductSupplierCostPanel } from './components/ProductSupplierCostPanel';
 import { useProductTransitSummary } from './hooks/useProductTransitSummary';
 import { ProductTransitPanel } from './components/ProductTransitPanel';
-import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatCurrencyPtBr, formatNumberPtBr } from '@/utils/export/formatters';
 import { formatDateTimePtBr } from '@/utils/dateTime';
@@ -89,6 +90,12 @@ const stockStatusClassMap: Record<string, string> = {
 export default function ProductLifecyclePage() {
   const { id } = useParams();
   const [product, setProduct] = useState<any>(null);
+
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('quick-access-actions-portal'));
+  }, []);
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -517,58 +524,35 @@ export default function ProductLifecyclePage() {
 
   if (!row && !product) {
     return (
-      <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Produto não encontrado</h1>
-      </div>
+      <PageContainer
+        title="Vida do produto"
+        withoutHeader={true}
+      >
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-sm border border-gray-100 dark:border-gray-700">
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Produto não encontrado</h1>
+        </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="sticky top-0 z-30 rounded-2xl border border-gray-100 bg-white/95 p-4 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/95 sm:p-5">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <div className="text-xs font-semibold uppercase tracking-wide text-[#21A896] dark:text-[#37d0bb]">
-              Vida do produto
-            </div>
+    <>
+      {portalContainer && createPortal(
+        <Link
+          to="/admin/products/lifecycle"
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
+          title="Voltar para Vida do produto"
+        >
+          <ArrowLeft size={13} />
+          <span>Vida do produto</span>
+        </Link>,
+        portalContainer
+      )}
 
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="max-w-full truncate text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">
-                {row?.product_name || product?.name}
-              </h1>
-
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${row?.active ?? product?.active
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
-                  }`}
-              >
-                {row?.active ?? product?.active ? 'Ativo' : 'Inativo'}
-              </span>
-            </div>
-
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-              <span>Visão 360º do item no estoque, movimentações e auditoria.</span>
-              <span>Preço atual: {(row?.price ?? product?.price) != null ? formatCurrencyPtBr(row?.price ?? product?.price) : '—'}</span>
-              <span>Estoque global: {formatNumberPtBr(row?.total_on_hand ?? 0)}</span>
-            </div>
-          </div>
-
-          {/* Barra de nav: botão Voltar + atalhos do módulo */}
-          <InventoryQuickNav
-            extra={
-              <Link
-                to="/admin/products/lifecycle"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-500 transition-colors hover:border-[#21A896]/40 hover:text-[#21A896] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400"
-                title="Voltar para Vida do produto"
-              >
-                <ArrowLeft size={16} />
-                <span className="hidden sm:inline">Vida do produto</span>
-              </Link>
-            }
-          />
-        </div>
-      </div>
+      <PageContainer
+        title="Vida do produto"
+        withoutHeader={true}
+      >
 
       <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
@@ -1069,6 +1053,7 @@ export default function ProductLifecyclePage() {
           </div>
         </div>
       )}
-    </div>
+      </PageContainer>
+    </>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -14,7 +15,6 @@ import {
   FileText,
   Pencil,
   Plus,
-  RefreshCw,
   Save,
   ShieldAlert,
   Trash2,
@@ -33,7 +33,6 @@ import { buildCsv, downloadCsv, formatCsvNumberBR } from '@/utils/csv';
 import type { Supplier } from '@/pages/private/admin/products/suppliers/types/supplier.types';
 import { isSupplierPurchaseEligible } from './utils/supplierStatusUtils';
 import { useInventory } from '@/pages/private/admin/products/inventory/hooks/useInventory';
-import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
 import { PurchaseSuggestionsPanel } from '@/pages/private/admin/products/inventory/components/PurchaseSuggestionsPanel';
 import OperationalTimeline from './components/OperationalTimeline';
 import { useOperationalTimeline } from './hooks/useOperationalTimeline';
@@ -134,12 +133,17 @@ const getPurchaseDocumentStatusLabel = (status?: string | null) => {
 export default function PurchaseDocumentsPage() {
   const navigate = useNavigate();
 
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('quick-access-actions-portal'));
+  }, []);
+
   const { products: inventoryProducts } = useInventory();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
 
   const [storeId, setStoreId] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -792,35 +796,25 @@ export default function PurchaseDocumentsPage() {
   );
 
   return (
-    <PageContainer
-      title="Compras e Entradas"
-      subtitle="Crie rascunhos de compra por sugestão, revise documentos e confirme entradas no estoque"
-      action={
-        <div className="flex flex-wrap items-center gap-2">
-          <InventoryQuickNav />
-          <button
-            type="button"
-            onClick={async () => {
-              setRefreshing(true);
-              try { await fetchAll(); } finally { setRefreshing(false); }
-            }}
-            disabled={refreshing}
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-          >
-            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            Atualizar
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/admin/stock/purchase-insights')}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <BarChart3 className="h-4 w-4" />
-            Dashboard de compras
-          </button>
-        </div>
-      }
-    >
+    <>
+      {portalContainer && createPortal(
+        <button
+          type="button"
+          onClick={() => navigate('/admin/stock/purchase-insights')}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
+        >
+          <BarChart3 className="h-3.5 w-3.5" />
+          <span>Dashboard de compras</span>
+        </button>,
+        portalContainer
+      )}
+
+      <PageContainer
+        title="Compras e Entradas"
+        subtitle="Crie rascunhos de compra por sugestão, revise documentos e confirme entradas no estoque"
+        onRefresh={fetchAll}
+        withoutHeader={true}
+      >
       {pageError ? (
         <AlertBanner type="error" title="Atenção" message={pageError} />
       ) : null}
@@ -1530,6 +1524,7 @@ export default function PurchaseDocumentsPage() {
           </div>
         </div>
       )}
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }

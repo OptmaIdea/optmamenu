@@ -42,3 +42,7 @@ dist-ssr/
 
 # Archives
 *.zip
+
+# AI
+.agent/
+.agent/skills

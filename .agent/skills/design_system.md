@@ -122,3 +122,51 @@ Para manter a consistência, todos os status de tabelas, cartões e badges devem
 .card-numerico.critico { border-left-color: #DC2626; } /* Vermelho */
 .card-numerico.inativo { border-left-color: #6B6258; } /* Cinza Quente */
 ```
+
+---
+
+## 6. Layout Mestre do Painel Administrativo (PrivateLayout)
+
+O layout da área de administração segue uma estrutura unificada e responsiva com as seguintes especificações rígidas:
+
+### 6.1 Barra Lateral (Sidebar)
+* **Topo Fixo (73px)**: Conterá a logo (`/assets/OptmaMenuLogo.webp` ou similar) dimensionada com altura **`h-9.5`** para melhor legibilidade, e o botão de colapso (`ChevronLeft` / `Menu`), permanecendo sempre fixo e sem rolagem. 
+* **Sem Redundâncias**: Atalhos redundantes ("Admin", "Ver Loja") no topo da sidebar devem ser evitados para reduzir o ruído visual.
+* **Fluxo Único Rolável**: Todos os outros elementos (Perfil do usuário logado, Menu de Navegação, Seletor de Loja, Tema/Sair e Copyright) ficam em um único container rolável vertical (`flex-1 overflow-y-auto custom-scrollbar`).
+* **Perfil do Usuário**: Exibe o avatar circular e o cargo dinâmico (campo `role` da tabela `store_members` formatado via `formatLayoutRole`) abaixo do nome. Se colapsado, mostra apenas o avatar com tooltip. O perfil não deve ser duplicado no rodapé.
+* **Menu Accordion Real**: Ao clicar para abrir um grupo de opções (ex: Dashboard, Comercial, Financeiro, Produtos, Configurações, Suporte), todas as outras seções são fechadas de forma que apenas um grupo fique aberto por vez.
+* **Grupo Ativo**: Se o grupo do menu selecionado estiver ativo, o texto deve ser mais escuro, em negrito e com leve aumento de fonte (`text-[13px] font-black text-gray-800 dark:text-gray-200` em vez de `text-xs font-bold text-gray-400`).
+* **Item Selecionado**: Ganha fundo verde-água translúcido (`bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20`).
+
+### 6.2 Cabeçalho Unificado (Header)
+* **Altura Fixa (73px)**: Fixo no topo da tela, sempre visível (no desktop e no mobile), sobrepondo-se ao conteúdo.
+* **Lado Esquerdo**: Hamburger (para mobile) + Ícone da rota selecionada (cor **Mostarda** `#FBA93C`) + Nome da rota selecionada (cor **Laranja** `#F26541` em negrito).
+* **Centro**: Estatísticas de tempo de sessão ("Acesso em: hh:mm:ss", "Agora: hh:mm:ss" e "Tempo: hh:mm:ss" com destaque verde-água no cronômetro decorrido).
+* **Lado Direito**:
+  * Ícone `store` ("Acessar loja") direcionando para `/s/${storeSlug}` em nova aba.
+  * Ícone `mail` (mensagens): cor cinza com indicador se mockado.
+  * Ícone `bell` (alertas): cor **Mostarda** (padrão crítico de atenção/exclamação) com efeito de pulse se `attentionCount > 0`, indicando a quantidade de alertas.
+  * Alternador de Tema (Sun/Moon).
+  * Ícone `power` (logout): cor vermelha.
+
+### 6.3 Barra de Acesso Rápido e Portal de Ações
+* Fica posicionada logo abaixo do cabeçalho e acima do conteúdo principal.
+* Apresenta atalhos do tipo tags/badges discretos para as **rotas irmãs** (outras rotas do mesmo grupo de menu, ocultando a rota ativa).
+* Contém o botão **Atualizar** (`RefreshCw`). Ao ser clicado, dispara o evento customizado `optmamenu.refresh` e anima com rotação o ícone.
+* As páginas principais escutam o evento `optmamenu.refresh` para recarregar seus dados de forma transparente sem dar refresh na tela inteira.
+* **Portal de Ações Rápidas (`#quick-access-actions-portal`)**: Há um elemento `<div id="quick-access-actions-portal" className="flex items-center gap-2"></div>` do lado direito desta barra. As páginas ativas devem injetar seus botões de ação globais (como "+ Novo Produto", "Exportar CSV", "Registrar Ajuste", etc.) usando React Portal:
+  ```tsx
+  {mounted && document.getElementById('quick-access-actions-portal') && createPortal(
+    <button className="...">Ação</button>,
+    document.getElementById('quick-access-actions-portal')!
+  )}
+  ```
+
+### 6.4 Ocultação de Cabeçalhos e Títulos Duplicados nas Páginas
+* Para evitar visual poluído e duplicação de informações com o cabeçalho superior, as páginas internas exibidas no frame principal devem herdar a prop **`withoutHeader={true}`** no componente `<PageContainer>`:
+  ```tsx
+  <PageContainer title="Título" withoutHeader={true}>
+    {/* Conteúdo */}
+  </PageContainer>
+  ```
+* Não utilize componentes locais de navegação com ícones circulares gigantes no meio das páginas (ex: o antigo `InventoryQuickNav`). As ações e navegações devem ser delegadas à barra de acesso rápido e ao portal superior.

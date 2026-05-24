@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Search, Plus, Pencil, /* Power, PowerOff, */ Package,
   Activity, BarChart3, Eye, Download, FileText,
@@ -19,7 +20,6 @@ import type { Supplier } from './types/supplier.types';
 
 import { useSuppliersInsights } from '@/pages/private/admin/suppliers/hooks/useSuppliersInsights';
 import { buildCsv, downloadCsv, formatCsvNumberBR, formatCsvIntegerBR } from '@/utils/csv';
-import { InventoryQuickNav } from '@/pages/private/admin/products/inventory/components/InventoryQuickNav';
 import { getSupplierOperationalBadges } from '@/pages/private/admin/products/inventory/utils/supplierStatusUtils';
 import { SupplierFormModal } from '@/pages/private/admin/products/inventory/components/SupplierFormModal';
 
@@ -72,6 +72,12 @@ export default function SuppliersPage() {
     hasPermission('purchases.view');
 
   const canManageSuppliers = hasPermission('suppliers.manage');
+
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('quick-access-actions-portal'));
+  }, []);
 
   useEffect(() => {
     const activeStoreId = getActiveStoreId();
@@ -173,27 +179,30 @@ export default function SuppliersPage() {
   }
 
   return (
-    <PageContainer
-      title="Fornecedores"
-      subtitle="Cadastre a origem das entradas para facilitar compras e reposição."
-      lastUpdated={lastUpdated}
-      onRefresh={fetchSuppliers}
-      action={
-        <div className="flex flex-wrap items-center gap-2">
-          <InventoryQuickNav />
+    <>
+      {portalContainer && createPortal(
+        <div className="flex items-center gap-2">
           {canManageSuppliers && (
             <button
               onClick={() => { setSupplierModalMode('create'); setEditingSupplier(null); setSupplierModalOpen(true); }}
-              className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
               type="button"
             >
-              <Plus className="h-4 w-4" />
-              Novo fornecedor
+              <Plus size={13} />
+              <span>Novo Fornecedor</span>
             </button>
           )}
-        </div>
-      }
-    >
+        </div>,
+        portalContainer
+      )}
+
+      <PageContainer
+        title="Fornecedores"
+        subtitle="Cadastre a origem das entradas para facilitar compras e reposição."
+        lastUpdated={lastUpdated}
+        onRefresh={fetchSuppliers}
+        withoutHeader={true}
+      >
       <div className="flex flex-col gap-6">
         {/* Stats */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -464,5 +473,6 @@ export default function SuppliersPage() {
         }}
       />
     </PageContainer>
+    </>
   );
 }

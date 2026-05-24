@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ArrowRightLeft, CheckCircle2, Search, X, Boxes, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import PageContainer from '@/components/common/PageContainer';
 import TransferListTable from './components/TransferListTable';
 import { useStockTransfers } from './hooks/useStockTransfers';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatNumberPtBr } from '@/utils/export/formatters';
 import { formatDateTimeForExportPtBr, toAppDate, getLocalDateInputValue } from '@/utils/dateTime';
 import EmptyState from '@/components/common/empty-state/EmptyState';
-import { InventoryQuickNav } from './components/InventoryQuickNav';
 import { toast } from 'sonner';
 import { stockService } from '@/services/stockService';
 import type { InventoryPositionRow } from '@/services/stockService';
@@ -62,6 +63,13 @@ export default function TransfersPage() {
   const { rows, loading, refresh } = useStockTransfers();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('quick-access-actions-portal'));
+  }, []);
+
   const { storeId, loading: loadingStore } = useCurrentStore();
 
   const {
@@ -641,15 +649,12 @@ export default function TransfersPage() {
 
   if (!loading && !hasAnyData) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Transferências</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Gestão de transferências entre locais de estoque.
-            </p>
-          </div>
-
+      <PageContainer
+        title="Transferências"
+        subtitle="Gestão de transferências entre locais de estoque."
+        withoutHeader={true}
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
           <button
             type="button"
             onClick={openManualBatchModal}
@@ -665,39 +670,40 @@ export default function TransfersPage() {
           title="Nenhuma transferência cadastrada ainda"
           description="Quando você criar transferências entre locais, elas aparecerão aqui com status, datas e quantidades."
         />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Transferências</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Gestão de transferências entre locais de estoque.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <InventoryQuickNav />
+    <>
+      {portalContainer && createPortal(
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={openManualBatchModal}
             disabled={!storeId}
-            className="inline-flex items-center h-10 gap-2 px-3 rounded-xl bg-[#21A896] text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60 transition whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0 disabled:opacity-60"
           >
-            <Plus size={15} />
-            Nova transferência manual
+            <Plus size={13} />
+            <span>Nova Transferência Manual</span>
           </button>
           <button
             type="button"
             onClick={handleExportCsv}
-            className="inline-flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition whitespace-nowrap shrink-0"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
           >
-            Exportar CSV
+            <span>Exportar CSV</span>
           </button>
-        </div>
-      </div>
+        </div>,
+        portalContainer
+      )}
+
+      <PageContainer
+        title="Transferências"
+        subtitle="Gestão de transferências entre locais de estoque."
+        onRefresh={refresh}
+        withoutHeader={true}
+      >
 
       {prefillTransfer && (
         <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/20">
@@ -1245,6 +1251,7 @@ export default function TransfersPage() {
       )}
 
       <TransferListTable rows={filteredRows} onClearFilters={hasFilters ? clearFilters : undefined} />
-    </div>
+      </PageContainer>
+    </>
   );
 }

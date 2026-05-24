@@ -42,14 +42,16 @@ export default function BackToTopButton() {
       onClick={handleClick}
       aria-label="Voltar ao topo"
       className={[
-        'fixed bottom-5 right-5 z-[70] inline-flex h-11 w-11 items-center justify-center rounded-full',
-        'bg-[#21A896] text-white shadow-lg transition-all duration-200',
-        'hover:scale-[1.03] hover:shadow-xl',
-        'focus:outline-none focus:ring-2 focus:ring-[#21A896]/40',
-        visible ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-3 opacity-0',
+        'fixed bottom-6 right-6 md:bottom-8 md:right-8 z-[1000]',
+        'bg-[#21A896] hover:bg-[#1a867a] text-white',
+        'w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg',
+        'flex items-center justify-center',
+        'transition-all duration-300 transform hover:scale-110',
+        'focus:outline-none focus:ring-2 focus:ring-[#21A896] focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+        visible ? 'translate-y-0 opacity-100 scale-100' : 'pointer-events-none translate-y-3 opacity-0 scale-75',
       ].join(' ')}
     >
-      <ChevronUp className="h-5 w-5" />
+      <ChevronUp className="w-6 h-6 md:w-7 md:h-7" />
     </button>
   );
 }

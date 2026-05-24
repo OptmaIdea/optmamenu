@@ -1,5 +1,6 @@
-import { useMemo, useState, Fragment } from 'react';
+import { useMemo, useState, useEffect, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useInventoryByLocation } from './hooks/useInventoryByLocation';
 import { useInventoryTransit } from './hooks/useInventoryTransit';
@@ -9,6 +10,7 @@ import { formatNumberPtBr } from '@/utils/export/formatters';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
+import PageContainer from '@/components/common/PageContainer';
 import {
   PackageSearch,
   ArrowRightLeft,
@@ -19,7 +21,6 @@ import {
   ChevronUp,
   ChevronDown,
 } from 'lucide-react';
-import { InventoryQuickNav } from './components/InventoryQuickNav';
 
 // ─── Mapas de status local ────────────────────────────────────────────────────
 
@@ -95,6 +96,12 @@ export default function InventoryByLocationPage() {
   const navigate = useNavigate();
   const { rows: rawRows, loading, storeId } = useInventoryByLocation();
   const { rows: transitRows } = useInventoryTransit(storeId);
+
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setPortalContainer(document.getElementById('quick-access-actions-portal'));
+  }, []);
 
   const rows = useMemo(
     () => mergeInventoryRowsWithTransit(rawRows, transitRows),
@@ -386,49 +393,38 @@ export default function InventoryByLocationPage() {
 
   if (!loading && !hasAnyData) {
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Estoque por local
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Visão multiestoque com saldo físico, reservado e disponível por local.
-            </p>
-          </div>
-        </div>
+      <PageContainer
+        title="Estoque por local"
+        subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
+        withoutHeader={true}
+      >
         <EmptyState
           icon={<PackageSearch className="h-5 w-5" />}
           title="Ainda não há posições de estoque por local"
           description="Assim que houver saldos registrados nos locais de estoque, esta visão começará a exibir as posições."
         />
-      </div>
+      </PageContainer>
     );
   }
 
   return (
-    <div className="space-y-6">
-      {/* Cabeçalho */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Estoque por local
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Visão multiestoque com saldo físico, reservado e disponível por local.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <InventoryQuickNav />
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="inline-flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition whitespace-nowrap shrink-0"
-          >
-            Exportar CSV
-          </button>
-        </div>
-      </div>
+    <>
+      {portalContainer && createPortal(
+        <button
+          type="button"
+          onClick={handleExportCsv}
+          className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
+        >
+          Exportar CSV
+        </button>,
+        portalContainer
+      )}
+
+      <PageContainer
+        title="Estoque por local"
+        subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
+        withoutHeader={true}
+      >
 
       {/* Cards gerenciais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-8 gap-4">
@@ -888,6 +884,7 @@ export default function InventoryByLocationPage() {
           </table>
         </div>
       </div>
-    </div>
-  );
+    </PageContainer>
+  </>
+);
 }
