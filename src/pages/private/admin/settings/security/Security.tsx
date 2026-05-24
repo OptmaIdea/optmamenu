@@ -13,6 +13,7 @@ import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
 import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
+import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermissionsAdmin';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -129,7 +130,57 @@ function formatSensitiveReason(reason?: string): string {
     return reason ? labels[reason] ?? reason : 'Não definido';
 }
 
+function renderRiskBadge(risk: string) {
+    const cleanRisk = risk?.toLowerCase();
+    if (cleanRisk === 'critical') {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+                Crítico
+            </span>
+        );
+    }
+    if (cleanRisk === 'high') {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700 dark:bg-orange-950/40 dark:text-orange-300 border border-orange-200 dark:border-orange-900/50">
+                Alto
+            </span>
+        );
+    }
+    if (cleanRisk === 'medium') {
+        return (
+            <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-900/50">
+                Médio
+            </span>
+        );
+    }
+    return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-bold text-green-700 dark:bg-green-950/40 dark:text-green-300 border border-green-200 dark:border-green-900/50">
+            Baixo
+        </span>
+    );
+}
+
+function renderAllowedCheck(allowed: boolean) {
+    return allowed ? (
+        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs" title="Permitido">
+            ✓
+        </span>
+    ) : (
+        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 font-bold text-xs" title="Bloqueado">
+            —
+        </span>
+    );
+}
+
 export default function Security() {
+    const {
+        permissionMatrix,
+        sensitiveActions: sensitiveActionsMatrix,
+        loading: adminLoading,
+        error: adminError,
+        refresh: refreshAdmin,
+    } = useSecurityPermissionsAdmin();
+
     const [activeTab, setActiveTab] = useState('context');
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
@@ -652,11 +703,12 @@ export default function Security() {
     };
 
     const tabs = [
-        { id: 'context', label: 'Contexto de Acesso', icon: ShieldCheck },
-        { id: 'logs', label: 'Histórico e Atividades', icon: History },
-        { id: 'login', label: 'Senha do Usuário', icon: Key },
-        { id: 'pin', label: 'PIN de Segurança', icon: Smartphone },
-        { id: 'advanced', label: 'Configurações Avançadas', icon: Settings },
+        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck },
+        { id: 'logs', label: 'Histórico de atividades', icon: History },
+        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck },
+        { id: 'users_perms', label: 'Permissões por usuário', icon: User },
+        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock },
+        { id: 'pin_token', label: 'PIN e token', icon: Key },
     ];
 
     const filteredLogs = useMemo(() => {
@@ -1301,213 +1353,227 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* LOGIN PASSWORD */}
-                    <div className={activeTab === 'login' ? 'block animate-fadeIn' : 'hidden'}>
-                        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">
-                            Alterar Senha do Sistema
-                        </h3>
-
-                        <form onSubmit={handlePasswordChange} className="max-w-md space-y-4">
+                    {/* PERMISSÕES POR PAPEL */}
+                    <div className={activeTab === 'roles' ? 'block animate-fadeIn' : 'hidden'}>
+                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Nova Senha
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showPassword.new ? 'text' : 'password'}
-                                        value={passwordData.new}
-                                        onChange={e => setPasswordData({ ...passwordData, new: e.target.value })}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword({ ...showPassword, new: !showPassword.new })}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                                        tabIndex={-1}
-                                    >
-                                        {showPassword.new ? <EyeOff size={18} /> : <Eye size={18} />}
-                                    </button>
-                                </div>
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                    Matriz de Permissões por Papel
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Esta tabela mostra as permissões padrão configuradas no sistema para cada papel.
+                                </p>
                             </div>
+                            <button
+                                type="button"
+                                onClick={refreshAdmin}
+                                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                            >
+                                <RefreshCw size={16} className={adminLoading.matrix ? 'animate-spin' : ''} />
+                                Atualizar
+                            </button>
+                        </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Confirmar Nova Senha
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        type={showPassword.confirm ? 'text' : 'password'}
-                                        value={passwordData.confirm}
-                                        onChange={e => setPasswordData({ ...passwordData, confirm: e.target.value })}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
-                                        required
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                                    >
-                                        {showPassword.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
-                                    </button>
-                                </div>
+                        {adminError && (
+                            <div className="p-4 rounded-xl mb-6 bg-red-50 border border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
+                                <p className="font-semibold">Erro ao carregar matriz de permissões:</p>
+                                <p className="text-sm mt-1">{adminError}</p>
                             </div>
+                        )}
 
-                            <div className="pt-4">
-                                <button
-                                    type="submit"
-                                    disabled={saving || !passwordData.new}
-                                    className="flex items-center gap-2 bg-brand-green text-white px-6 py-3 rounded-lg font-bold hover:brightness-90 transition disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-700"
-                                >
-                                    {saving ? <Loader size={20} className="animate-spin" /> : <Save size={20} />}
-                                    Atualizar Senha
-                                </button>
+                        {adminLoading.matrix ? (
+                            <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
+                                <Loader className="animate-spin text-brand-green" />
                             </div>
-                        </form>
+                        ) : permissionMatrix.length === 0 ? (
+                            <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
+                                Nenhuma permissão configurada ou erro na leitura do banco.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                                        <tr>
+                                            <th className="p-3">Permissão</th>
+                                            <th className="p-3">Risco</th>
+                                            <th className="p-3 text-center">Proprietário (owner)</th>
+                                            <th className="p-3 text-center">Admin (admin)</th>
+                                            <th className="p-3 text-center">Gerente (manager)</th>
+                                            <th className="p-3 text-center">Estoque (stock)</th>
+                                            <th className="p-3 text-center">Caixa (cashier)</th>
+                                            <th className="p-3 text-center">Vendas (sales)</th>
+                                            <th className="p-3 text-center">Equipe (staff)</th>
+                                            <th className="p-3 text-center">Visualizador (viewer)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                        {permissionMatrix.map((row) => (
+                                            <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                <td className="p-3">
+                                                    <div className="font-bold text-gray-800 dark:text-white">
+                                                        {row.label}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        {row.module}.{row.action} ({row.permission_code})
+                                                    </div>
+                                                    {row.description && (
+                                                        <div className="text-xs text-gray-500 mt-0.5">{row.description}</div>
+                                                    )}
+                                                </td>
+                                                <td className="p-3">
+                                                    {renderRiskBadge(row.risk_level)}
+                                                </td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.owner_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.admin_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.manager_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.stock_operator_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.cashier_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.sales_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.staff_allowed)}</td>
+                                                <td className="p-3 text-center">{renderAllowedCheck(row.viewer_allowed)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
 
-                        <div className="mt-8 border-t border-gray-100 pt-8 dark:border-gray-700">
-                            <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-2">
-                                Redefinir Senha Master da Loja
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                                Essa senha é usada em operações sensíveis, como cancelamento de entrada confirmada.
+                    {/* PERMISSÕES POR USUÁRIO */}
+                    <div className={activeTab === 'users_perms' ? 'block animate-fadeIn' : 'hidden'}>
+                        <div className="p-8 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-800">
+                                <User size={24} />
+                            </div>
+                            <h4 className="text-base font-bold text-gray-800 dark:text-white mb-2">
+                                Permissões Individuais por Usuário
+                            </h4>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                                Em breve: Nesta aba será possível visualizar e configurar sobrescritas de permissões específicas por membro da equipe, permitindo ajustes pontuais sem alterar as regras gerais do papel.
                             </p>
-
-                            <form onSubmit={handleMasterPasswordReset} className="max-w-md space-y-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        Senha do usuário
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type={showMasterPassword.login ? 'text' : 'password'}
-                                            value={masterPasswordData.loginPassword}
-                                            onChange={e =>
-                                                setMasterPasswordData({
-                                                    ...masterPasswordData,
-                                                    loginPassword: e.target.value
-                                                })
-                                            }
-                                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
-                                            placeholder="Digite sua senha do login"
-                                            required
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowMasterPassword(prev => ({ ...prev, login: !prev.login }))
-                                            }
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                                        >
-                                            {showMasterPassword.login ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        Nova senha master
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type={showMasterPassword.newMaster ? 'text' : 'password'}
-                                            value={masterPasswordData.newMaster}
-                                            onChange={e =>
-                                                setMasterPasswordData({
-                                                    ...masterPasswordData,
-                                                    newMaster: e.target.value
-                                                })
-                                            }
-                                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
-                                            placeholder="Mínimo 6 caracteres"
-                                            required
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowMasterPassword(prev => ({
-                                                    ...prev,
-                                                    newMaster: !prev.newMaster
-                                                }))
-                                            }
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                                        >
-                                            {showMasterPassword.newMaster ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        Confirmar nova senha master
-                                    </label>
-                                    <div className="relative">
-                                        <input
-                                            type={showMasterPassword.confirmMaster ? 'text' : 'password'}
-                                            value={masterPasswordData.confirmMaster}
-                                            onChange={e =>
-                                                setMasterPasswordData({
-                                                    ...masterPasswordData,
-                                                    confirmMaster: e.target.value
-                                                })
-                                            }
-                                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
-                                            placeholder="Repita a nova senha"
-                                            required
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                setShowMasterPassword(prev => ({
-                                                    ...prev,
-                                                    confirmMaster: !prev.confirmMaster
-                                                }))
-                                            }
-                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                                        >
-                                            {showMasterPassword.confirmMaster ? <EyeOff size={18} /> : <Eye size={18} />}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                                    Essa senha será exigida em operações críticas da loja. Guarde-a em local seguro.
-                                </div>
-
-                                <div className="pt-2">
-                                    <button
-                                        type="submit"
-                                        disabled={
-                                            saving ||
-                                            !masterPasswordData.loginPassword.trim() ||
-                                            !masterPasswordData.newMaster.trim() ||
-                                            !masterPasswordData.confirmMaster.trim()
-                                        }
-                                        className="inline-flex items-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-60"
-                                    >
-                                        {saving && <Loader size={16} className="animate-spin" />}
-                                        <Lock size={16} />
-                                        Redefinir Senha Master
-                                    </button>
-                                </div>
-                            </form>
                         </div>
                     </div>
 
-                    {/* PIN */}
-                    <div className={activeTab === 'pin' ? 'block animate-fadeIn' : 'hidden'}>
+                    {/* AÇÕES SENSÍVEIS */}
+                    <div className={activeTab === 'sensitive_actions' ? 'block animate-fadeIn' : 'hidden'}>
+                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                    Configuração de Ações Sensíveis
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Essas ações exigem autorizações adicionais do operador ou administrador (PIN, Token, Senha Master, aprovação do dono).
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={refreshAdmin}
+                                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                            >
+                                <RefreshCw size={16} className={adminLoading.sensitiveActions ? 'animate-spin' : ''} />
+                                Atualizar
+                            </button>
+                        </div>
+
+                        {adminError && (
+                            <div className="p-4 rounded-xl mb-6 bg-red-50 border border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
+                                <p className="font-semibold">Erro ao carregar ações sensíveis:</p>
+                                <p className="text-sm mt-1">{adminError}</p>
+                            </div>
+                        )}
+
+                        {adminLoading.sensitiveActions ? (
+                            <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
+                                <Loader className="animate-spin text-brand-green" />
+                            </div>
+                        ) : sensitiveActionsMatrix.length === 0 ? (
+                            <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
+                                Nenhuma ação sensível configurada ou erro na leitura do banco.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                                        <tr>
+                                            <th className="p-3">Ação Sensível</th>
+                                            <th className="p-3">Risco</th>
+                                            <th className="p-3">Exigência</th>
+                                            <th className="p-3">Papel Mínimo</th>
+                                            <th className="p-3 text-center">Habilitado</th>
+                                            <th className="p-3 text-center">Token</th>
+                                            <th className="p-3">Expiração</th>
+                                            <th className="p-3">Tentativas Máx.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                        {sensitiveActionsMatrix.map((row) => (
+                                            <tr key={row.action_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                <td className="p-3">
+                                                    <div className="font-bold text-gray-800 dark:text-white">
+                                                        {row.label}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        {row.module} ({row.action_code})
+                                                    </div>
+                                                    {row.description && (
+                                                        <div className="text-xs text-gray-500 mt-0.5">{row.description}</div>
+                                                    )}
+                                                </td>
+                                                <td className="p-3">
+                                                    {renderRiskBadge(row.risk_level)}
+                                                </td>
+                                                <td className="p-3">
+                                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                                        {formatSensitiveRequirement(row.requirement)}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3">
+                                                    <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
+                                                        {formatSecurityRole(row.min_role)}
+                                                    </span>
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    {row.enabled ? (
+                                                        <span className="text-green-600 font-bold">Ativo</span>
+                                                    ) : (
+                                                        <span className="text-gray-400 font-semibold">—</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3 text-center">
+                                                    {row.token_enabled ? (
+                                                        <span className="text-green-600 font-bold">Sim</span>
+                                                    ) : (
+                                                        <span className="text-gray-400 font-semibold">Não</span>
+                                                    )}
+                                                </td>
+                                                <td className="p-3 text-gray-700 dark:text-gray-300">
+                                                    {row.token_expiry_seconds}s
+                                                </td>
+                                                <td className="p-3 text-gray-700 dark:text-gray-300">
+                                                    {row.max_attempts}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* PIN E TOKEN */}
+                    <div className={activeTab === 'pin_token' ? 'block space-y-8 animate-fadeIn' : 'hidden'}>
+                        {/* PIN de Segurança */}
                         <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 p-6 rounded-xl">
-                            <div className="flex items-start gap-4">
-                                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600">
-                                    <Lock size={24} />
+                            <div className="flex flex-col md:flex-row md:items-start gap-4">
+                                <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600 shrink-0 w-fit">
+                                    <Smartphone size={24} />
                                 </div>
-                                <div className="flex-1">
+                                <div className="flex-1 w-full">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
                                         PIN de Segurança
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
-                                        Este PIN é utilizado para autorizar funções específicas do sistema, que exigem segurança.
-                                        Mantenha-o seguro.
+                                        Este PIN é utilizado para autorizar funções específicas do sistema que exigem validação em tempo de execução.
                                     </p>
 
                                     {store?.config?.pin_blocked ? (
@@ -1533,7 +1599,7 @@ export default function Security() {
                                                 {store?.stock_password_hash ? 'Alterar PIN Atual' : 'Cadastrar Novo PIN'}
                                             </label>
                                             <div className="flex flex-col md:flex-row gap-4 items-center">
-                                                <div className="relative flex-1">
+                                                <div className="relative flex-1 w-full">
                                                     <input
                                                         type={showPin ? 'text' : 'password'}
                                                         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.5em] text-center font-bold text-xl pr-10"
@@ -1564,7 +1630,7 @@ export default function Security() {
                                                         {showPin ? <EyeOff size={18} /> : <Eye size={18} />}
                                                     </button>
                                                 </div>
-                                                <div className="text-xs text-gray-400 md:max-w-50">
+                                                <div className="text-xs text-gray-400 md:max-w-xs">
                                                     {store?.stock_password_hash ? (
                                                         <span className="text-yellow-600 dark:text-yellow-500 block mb-1">
                                                             O PIN atual está oculto por segurança. Digite um novo para alterar.
@@ -1573,11 +1639,7 @@ export default function Security() {
                                                         <span className="block mb-1">Defina um PIN de 6 números.</span>
                                                     )}
                                                     <span className="opacity-75">
-                                                        * 6 números
-                                                        <br />
-                                                        * Sem sequências
-                                                        <br />
-                                                        * Sem repetições
+                                                        * 6 números | Sem sequências | Sem repetições
                                                     </span>
                                                 </div>
                                             </div>
@@ -1595,22 +1657,213 @@ export default function Security() {
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    {/* ADVANCED */}
-                    <div className={activeTab === 'advanced' ? 'block animate-fadeIn' : 'hidden'}>
+                        {/* Alterar Senhas */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Senha do Sistema */}
+                            <div className="border border-gray-200 dark:border-gray-700 p-6 rounded-xl space-y-4 bg-white dark:bg-gray-800">
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                    <Key size={20} className="text-brand-green" />
+                                    Alterar Senha do Sistema
+                                </h3>
+                                <form onSubmit={handlePasswordChange} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                            Nova Senha
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword.new ? 'text' : 'password'}
+                                                value={passwordData.new}
+                                                onChange={e => setPasswordData({ ...passwordData, new: e.target.value })}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword({ ...showPassword, new: !showPassword.new })}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                                tabIndex={-1}
+                                            >
+                                                {showPassword.new ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                            Confirmar Nova Senha
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showPassword.confirm ? 'text' : 'password'}
+                                                value={passwordData.confirm}
+                                                onChange={e => setPasswordData({ ...passwordData, confirm: e.target.value })}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                            >
+                                                {showPassword.confirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <button
+                                            type="submit"
+                                            disabled={saving || !passwordData.new}
+                                            className="flex items-center gap-2 bg-brand-green text-white px-5 py-2.5 rounded-lg font-bold hover:brightness-90 transition disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-700 text-sm"
+                                        >
+                                            {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                                            Atualizar Senha
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            {/* Senha Master da Loja */}
+                            <div className="border border-gray-200 dark:border-gray-700 p-6 rounded-xl space-y-4 bg-white dark:bg-gray-800">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                                        <Lock size={20} className="text-purple-600" />
+                                        Redefinir Senha Master da Loja
+                                    </h3>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                        Usada em operações sensíveis (como cancelamentos de entradas).
+                                    </p>
+                                </div>
+                                <form onSubmit={handleMasterPasswordReset} className="space-y-4">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                            Senha do Usuário
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showMasterPassword.login ? 'text' : 'password'}
+                                                value={masterPasswordData.loginPassword}
+                                                onChange={e =>
+                                                    setMasterPasswordData({
+                                                        ...masterPasswordData,
+                                                        loginPassword: e.target.value
+                                                    })
+                                                }
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
+                                                placeholder="Digite sua senha de login"
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowMasterPassword(prev => ({ ...prev, login: !prev.login }))
+                                                }
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                            >
+                                                {showMasterPassword.login ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                            Nova Senha Master
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showMasterPassword.newMaster ? 'text' : 'password'}
+                                                value={masterPasswordData.newMaster}
+                                                onChange={e =>
+                                                    setMasterPasswordData({
+                                                        ...masterPasswordData,
+                                                        newMaster: e.target.value
+                                                    })
+                                                }
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
+                                                placeholder="Mínimo 6 caracteres"
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowMasterPassword(prev => ({
+                                                        ...prev,
+                                                        newMaster: !prev.newMaster
+                                                    }))
+                                                }
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                            >
+                                                {showMasterPassword.newMaster ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                            Confirmar Nova Senha Master
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type={showMasterPassword.confirmMaster ? 'text' : 'password'}
+                                                value={masterPasswordData.confirmMaster}
+                                                onChange={e =>
+                                                    setMasterPasswordData({
+                                                        ...masterPasswordData,
+                                                        confirmMaster: e.target.value
+                                                    })
+                                                }
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
+                                                placeholder="Repita a nova senha"
+                                                required
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    setShowMasterPassword(prev => ({
+                                                        ...prev,
+                                                        confirmMaster: !prev.confirmMaster
+                                                    }))
+                                                }
+                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                                            >
+                                                {showMasterPassword.confirmMaster ? <EyeOff size={18} /> : <Eye size={18} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-2">
+                                        <button
+                                            type="submit"
+                                            disabled={
+                                                saving ||
+                                                !masterPasswordData.loginPassword.trim() ||
+                                                !masterPasswordData.newMaster.trim() ||
+                                                !masterPasswordData.confirmMaster.trim()
+                                            }
+                                            className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm"
+                                        >
+                                            {saving ? <Loader size={16} className="animate-spin" /> : <Lock size={16} />}
+                                            Redefinir Master
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        {/* Configurações Avançadas de Token */}
                         <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 p-6 rounded-xl">
-                            <div className="flex items-start gap-4">
-                                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full text-purple-600">
+                            <div className="flex flex-col md:flex-row md:items-start gap-4">
+                                <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full text-purple-600 shrink-0 w-fit">
                                     <Settings size={24} />
                                 </div>
-                                <div className="flex-1">
+                                <div className="flex-1 w-full">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
                                         Configurações do Token de Ação Sensível
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
                                         Ajuste o tempo de expiração e o número máximo de tentativas do token usado em ações sensíveis da loja.
-                                        <br />
                                         As alterações exigem o PIN de segurança.
                                     </p>
 
