@@ -130,6 +130,43 @@ function formatSensitiveReason(reason?: string): string {
     return reason ? labels[reason] ?? reason : 'Não definido';
 }
 
+function formatSecurityLogAction(action?: string): string {
+    const labels: Record<string, string> = {
+        store_sensitive_action_rule_updated: 'Regra de ação sensível alterada',
+        store_role_permission_template_updated: 'Permissão por papel alterada',
+        store_member_permissions_updated: 'Permissões individuais alteradas',
+
+        security_settings_change: 'Configurações de segurança alteradas',
+        security_settings_updated: 'Configurações de segurança alteradas',
+        security_context_refreshed: 'Contexto de segurança atualizado',
+
+        user_pin_created: 'PIN cadastrado',
+        user_pin_updated: 'PIN alterado',
+        user_pin_validated: 'PIN validado',
+        user_pin_validation_failed: 'Falha na validação do PIN',
+        user_pin_unblocked: 'PIN desbloqueado',
+
+        store_master_password_reset: 'Senha master redefinida',
+        login_password_changed: 'Senha de login alterada',
+
+        sensitive_token_created: 'Token de ação sensível criado',
+        sensitive_token_validated: 'Token de ação sensível validado',
+        sensitive_token_validation_failed: 'Falha na validação do token',
+
+        product_delete: 'Exclusão/descontinuação de produto',
+        stock_adjustment: 'Ajuste de estoque',
+        purchase_cancel: 'Cancelamento de compra',
+        user_role_change: 'Alteração de papel de usuário',
+        user_status_change: 'Alteração de status de usuário',
+    };
+
+    if (!action) return 'Ação não identificada';
+
+    return labels[action] ?? action
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function renderRiskBadge(risk: string) {
     const cleanRisk = risk?.toLowerCase();
     if (cleanRisk === 'critical') {
@@ -753,7 +790,7 @@ export default function Security() {
             }
 
             if (logFilters.action.trim()) {
-                const actionValue = (log.action || '').toLowerCase();
+                const actionValue = `${log.action || ''} ${formatSecurityLogAction(log.action)}`.toLowerCase();
                 if (!actionValue.includes(logFilters.action.trim().toLowerCase())) return false;
             }
 
@@ -816,7 +853,7 @@ export default function Security() {
                 role,
                 permissionCode,
                 allowed: !currentAllowed,
-                reason: `Alteração pela tela de segurança: ${permissionCode} para ${role}`,
+                reason: `${!currentAllowed ? 'Liberação' : 'Bloqueio'} da permissão ${permissionCode} para o papel ${formatSecurityRole(role)} pela tela de segurança.`,
             });
 
             toast.success('Permissão atualizada.');
@@ -866,7 +903,7 @@ export default function Security() {
             await updateSensitiveAction({
                 actionCode: row.action_code,
                 ...next,
-                reason: `Alteração pela tela de segurança: ${row.action_code}`,
+                reason: `Alteração da regra ${row.action_code} pela tela de segurança.`,
             });
 
             toast.success('Regra sensível atualizada.');
@@ -1443,7 +1480,14 @@ export default function Security() {
                                                     </div>
                                                 </td>
                                                 <td className="p-3 text-gray-800 dark:text-gray-200">
-                                                    {log.action}
+                                                    <div>
+                                                        <p className="font-bold">
+                                                            {formatSecurityLogAction(log.action)}
+                                                        </p>
+                                                        <p className="text-xs text-gray-400">
+                                                            {log.action}
+                                                        </p>
+                                                    </div>
                                                 </td>
                                                 <td className="p-3">
                                                     {log.outcome === 'success' ? (
@@ -1550,11 +1594,10 @@ export default function Security() {
                                                                         allowed
                                                                     )
                                                                 }
-                                                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black transition ${
-                                                                    allowed
-                                                                        ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-200 dark:border-green-900/50 dark:bg-green-900/30 dark:text-green-300'
-                                                                        : 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
-                                                                } ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                                                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black transition ${allowed
+                                                                    ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-200 dark:border-green-900/50 dark:bg-green-900/30 dark:text-green-300'
+                                                                    : 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+                                                                    } ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                                                                 title={
                                                                     column.role === 'owner'
                                                                         ? 'Owner sempre tem acesso total'
