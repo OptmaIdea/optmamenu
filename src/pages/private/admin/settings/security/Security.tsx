@@ -167,6 +167,117 @@ function formatSecurityLogAction(action?: string): string {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function getStringDetail(
+    details: Record<string, unknown> | null | undefined,
+    key: string
+): string | null {
+    const value = details?.[key];
+    return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function getRecordDetail(
+    details: Record<string, unknown> | null | undefined,
+    key: string
+): Record<string, unknown> {
+    const value = details?.[key];
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : {};
+}
+
+function formatBooleanPermission(value: unknown): string {
+    if (value === true) return 'permitido';
+    if (value === false) return 'bloqueado';
+    return 'herdado';
+}
+
+function formatPermissionLabelFromCode(code: string): string {
+    const [module, action] = code.split('.');
+
+    if (!module || !action) return code;
+
+    return `${formatPermissionModule(module)} · ${formatPermissionAction(action)}`;
+}
+
+function getPermissionChangesSummary(details: Record<string, unknown>): string | null {
+    const oldPermissions = getRecordDetail(details, 'old_permissions');
+    const newPermissions = getRecordDetail(details, 'new_permissions');
+
+    const codes = Array.from(
+        new Set([
+            ...Object.keys(oldPermissions),
+            ...Object.keys(newPermissions),
+        ])
+    );
+
+    const changed = codes.filter((code) => {
+        return oldPermissions[code] !== newPermissions[code];
+    });
+
+    if (!changed.length) return null;
+
+    return changed
+        .slice(0, 3)
+        .map((code) => {
+            const label = formatPermissionLabelFromCode(code);
+            const oldValue = formatBooleanPermission(oldPermissions[code]);
+            const newValue = formatBooleanPermission(newPermissions[code]);
+
+            return `${label}: ${oldValue} → ${newValue}`;
+        })
+        .join(' | ');
+}
+
+function formatSecurityLogDetails(log: SecurityLog): string | null {
+    const details = log.details ?? {};
+
+    if (log.action === 'store_member_permissions_updated') {
+        const targetName =
+            getStringDetail(details, 'target_user_name') ||
+            getStringDetail(details, 'target_user_email') ||
+            getStringDetail(details, 'target_user_id') ||
+            'usuário selecionado';
+
+        const targetRole = formatSecurityRole(getStringDetail(details, 'target_role'));
+
+        const changes = getPermissionChangesSummary(details);
+
+        if (changes) {
+            return `${targetName} (${targetRole}) · ${changes}`;
+        }
+
+        return `${targetName} (${targetRole}) · permissões revisadas`;
+    }
+
+    if (log.action === 'store_role_permission_template_updated') {
+        const role = formatSecurityRole(getStringDetail(details, 'role'));
+        const permissionCode = getStringDetail(details, 'permission_code');
+        const oldAllowed = details.old_allowed;
+        const newAllowed = details.new_allowed;
+
+        return `${role} · ${permissionCode ? formatPermissionLabelFromCode(permissionCode) : 'permissão'}: ${formatBooleanPermission(oldAllowed)} → ${formatBooleanPermission(newAllowed)}`;
+    }
+
+    if (log.action === 'store_sensitive_action_rule_updated') {
+        const actionCode = getStringDetail(details, 'action_code') ?? 'ação sensível';
+        const oldRule = getRecordDetail(details, 'old_rule');
+        const newRule = getRecordDetail(details, 'new_rule');
+
+        const oldRequirement = typeof oldRule.requirement === 'string'
+            ? formatSensitiveRequirement(oldRule.requirement)
+            : 'não definido';
+
+        const newRequirement = typeof newRule.requirement === 'string'
+            ? formatSensitiveRequirement(newRule.requirement)
+            : 'não definido';
+
+        return `${formatSecurityLogAction(actionCode)} · exigência: ${oldRequirement} → ${newRequirement}`;
+    }
+
+    const reason = getStringDetail(details, 'reason');
+    return reason;
+}
+
 function renderRiskBadge(risk: string) {
     const cleanRisk = risk?.toLowerCase();
     if (cleanRisk === 'critical') {
@@ -233,17 +344,25 @@ export default function Security() {
     const {
         permissionMatrix,
         sensitiveActions: sensitiveActionsMatrix,
+        memberPermissionDetail,
+        membersForPermissions,
         loading: adminLoading,
         error: adminError,
         refresh: refreshAdmin,
         updateRolePermission,
         updateSensitiveAction,
+        fetchMemberPermissionDetail,
+        updateMemberPermissions,
+        fetchMembersForPermissions,
     } = useSecurityPermissionsAdmin();
 
     const [activeTab, setActiveTab] = useState('context');
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
+
+    const [selectedMemberId, setSelectedMemberId] = useState('');
+    const [memberPermissionOverrides, setMemberPermissionOverrides] = useState<Record<string, boolean>>({});
     const {
         securityContext,
         loading: loadingSecurityContext,
@@ -262,6 +381,10 @@ export default function Security() {
     const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
     const currentStoreSlug = activeMembership?.store_slug ?? '';
     const currentRole = activeMembership?.role ?? null;
+
+    const selectableMembers = useMemo(() => {
+        return membersForPermissions.filter((member) => member.role !== 'owner');
+    }, [membersForPermissions]);
 
     const {
         permissions,
@@ -401,6 +524,25 @@ export default function Security() {
     useEffect(() => {
         setPinData(hasPin ? '******' : '');
     }, [hasPin]);
+
+    useEffect(() => {
+        if (!selectedMemberId) {
+            setMemberPermissionOverrides({});
+            return;
+        }
+
+        void fetchMemberPermissionDetail(selectedMemberId).then((rows) => {
+            const overrides: Record<string, boolean> = {};
+
+            rows.forEach((row) => {
+                if (row.override_value !== null) {
+                    overrides[row.permission_code] = row.override_value;
+                }
+            });
+
+            setMemberPermissionOverrides(overrides);
+        });
+    }, [selectedMemberId, fetchMemberPermissionDetail]);
 
     // Initial data
     const fetchInitialData = async () => {
@@ -910,6 +1052,55 @@ export default function Security() {
             await fetchLogs();
         } catch (error: unknown) {
             toast.error(getErrorMessage(error, 'Erro ao atualizar ação sensível.'));
+        }
+    };
+
+    const getOverrideSelectValue = (permissionCode: string): 'inherit' | 'allow' | 'deny' => {
+        if (!(permissionCode in memberPermissionOverrides)) return 'inherit';
+        return memberPermissionOverrides[permissionCode] ? 'allow' : 'deny';
+    };
+
+    const handleMemberOverrideChange = (
+        permissionCode: string,
+        value: 'inherit' | 'allow' | 'deny'
+    ) => {
+        setMemberPermissionOverrides((prev) => {
+            const next = { ...prev };
+
+            if (value === 'inherit') {
+                delete next[permissionCode];
+                return next;
+            }
+
+            next[permissionCode] = value === 'allow';
+            return next;
+        });
+    };
+
+    const handleSaveMemberOverrides = async () => {
+        if (!selectedMemberId) {
+            toast.error('Selecione um usuário.');
+            return;
+        }
+
+        if (!canManageSecurity) {
+            toast.error('Você não tem permissão para alterar permissões individuais.');
+            return;
+        }
+
+        try {
+            await updateMemberPermissions({
+                memberId: selectedMemberId,
+                permissions: memberPermissionOverrides,
+                sensitiveActions: {},
+                reason: 'Alteração de permissões individuais pela tela de segurança.',
+            });
+
+            toast.success('Permissões individuais salvas.');
+            await fetchMembersForPermissions();
+            await fetchLogs();
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, 'Erro ao salvar permissões individuais.'));
         }
     };
 
@@ -1480,11 +1671,18 @@ export default function Security() {
                                                     </div>
                                                 </td>
                                                 <td className="p-3 text-gray-800 dark:text-gray-200">
-                                                    <div>
+                                                    <div className="max-w-xl">
                                                         <p className="font-bold">
                                                             {formatSecurityLogAction(log.action)}
                                                         </p>
-                                                        <p className="text-xs text-gray-400">
+
+                                                        {formatSecurityLogDetails(log) && (
+                                                            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                                                {formatSecurityLogDetails(log)}
+                                                            </p>
+                                                        )}
+
+                                                        <p className="mt-0.5 text-[11px] text-gray-400">
                                                             {log.action}
                                                         </p>
                                                     </div>
@@ -1621,17 +1819,147 @@ export default function Security() {
 
                     {/* PERMISSÕES POR USUÁRIO */}
                     <div className={activeTab === 'users_perms' ? 'block animate-fadeIn' : 'hidden'}>
-                        <div className="p-8 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-                            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-800">
-                                <User size={24} />
+                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                    Permissões Individuais por Usuário
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Configure exceções específicas sem alterar o padrão do papel.
+                                </p>
                             </div>
-                            <h4 className="text-base font-bold text-gray-800 dark:text-white mb-2">
-                                Permissões Individuais por Usuário
-                            </h4>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                                Em breve: Nesta aba será possível visualizar e configurar sobrescritas de permissões específicas por membro da equipe, permitindo ajustes pontuais sem alterar as regras gerais do papel.
-                            </p>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveMemberOverrides}
+                                disabled={!selectedMemberId || adminLoading.saving || !canManageSecurity}
+                                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {adminLoading.saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                                Salvar permissões
+                            </button>
                         </div>
+
+                        <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
+                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                Usuário/membro
+                            </label>
+
+                            <select
+                                value={selectedMemberId}
+                                onChange={(event) => setSelectedMemberId(event.target.value)}
+                                disabled={!canManageSecurity}
+                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                            >
+                                <option value="">Selecione um membro</option>
+                                {selectableMembers.map((member) => (
+                                    <option key={member.member_id} value={member.member_id}>
+                                        {member.user_name} — {formatSecurityRole(member.role)} — {member.user_email || 'sem e-mail'}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {selectableMembers.length === 0 && (
+                                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                    Nenhum membro editável apareceu no contexto atual. Se necessário, criaremos uma RPC para listar todos os membros da loja.
+                                </p>
+                            )}
+                        </div>
+
+                        {!selectedMemberId ? (
+                            <div className="p-8 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
+                                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-800">
+                                    <User size={24} />
+                                </div>
+                                <h4 className="text-base font-bold text-gray-800 dark:text-white mb-2">
+                                    Selecione um usuário
+                                </h4>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                                    Escolha um membro para visualizar permissões herdadas e configurar exceções individuais.
+                                </p>
+                            </div>
+                        ) : adminLoading.memberDetail ? (
+                            <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
+                                <Loader className="animate-spin text-brand-green" />
+                            </div>
+                        ) : memberPermissionDetail.length === 0 ? (
+                            <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
+                                Nenhuma permissão encontrada para este membro.
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                                        <tr>
+                                            <th className="p-3">Permissão</th>
+                                            <th className="p-3">Risco</th>
+                                            <th className="p-3 text-center">Papel</th>
+                                            <th className="p-3 text-center">Efetivo</th>
+                                            <th className="p-3">Override individual</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                        {memberPermissionDetail.map((row) => (
+                                            <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                <td className="p-3">
+                                                    <div className="font-bold text-gray-800 dark:text-white">
+                                                        {row.label}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        {formatPermissionModule(row.module)} · {formatPermissionAction(row.action)} · {row.permission_code}
+                                                    </div>
+                                                    {row.description && (
+                                                        <div className="text-xs text-gray-500 mt-0.5">
+                                                            {row.description}
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                <td className="p-3">
+                                                    {renderRiskBadge(row.risk_level)}
+                                                </td>
+
+                                                <td className="p-3 text-center">
+                                                    <span className={row.role_allowed ? 'text-green-600 font-bold' : 'text-gray-400 font-semibold'}>
+                                                        {row.role_allowed ? 'Permitido' : 'Bloqueado'}
+                                                    </span>
+                                                </td>
+
+                                                <td className="p-3 text-center">
+                                                    <span className={row.effective_allowed ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                                                        {row.effective_allowed ? 'Permitido' : 'Bloqueado'}
+                                                    </span>
+                                                </td>
+
+                                                <td className="p-3">
+                                                    <select
+                                                        value={getOverrideSelectValue(row.permission_code)}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleMemberOverrideChange(
+                                                                row.permission_code,
+                                                                event.target.value as 'inherit' | 'allow' | 'deny'
+                                                            )
+                                                        }
+                                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    >
+                                                        <option value="inherit">Herdar do papel</option>
+                                                        <option value="allow">Liberar para este usuário</option>
+                                                        <option value="deny">Bloquear para este usuário</option>
+                                                    </select>
+
+                                                    {row.source !== 'role_template' && (
+                                                        <p className="mt-1 text-xs text-gray-400">
+                                                            Origem atual: {row.source}
+                                                        </p>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
 
                     {/* AÇÕES SENSÍVEIS */}

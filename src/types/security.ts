@@ -151,3 +151,17 @@ export type StoreSensitiveActionMatrixRow = {
   source: string;
   sort_order: number | null;
 };
+
+export type StoreMemberForPermissionsRow = {
+  member_id: string;
+  store_id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string | null;
+  role: StoreRole | string;
+  status: string;
+  permissions: Record<string, boolean>;
+  sensitive_actions: Record<string, unknown>;
+  created_at: string | null;
+  updated_at: string | null;
+};

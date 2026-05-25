@@ -201,24 +201,6 @@ export default function ProductsPage() {
                 onRefresh={handleRefresh}
                 withoutHeader={true}
             >
-                {/* Botão de Produtos Descontinuados (posicionado após o FilterBar) */}
-                {hasAnyProducts && (
-                    <div className="flex justify-end mt-2 mb-4">
-                        <button
-                            onClick={() => setShowDiscontinuedModal(true)}
-                            className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-1.5"
-                        >
-                            <Archive size={16} />
-                            <span className="hidden sm:inline">Descontinuados</span>
-                            {discontinuedProducts.length > 0 && (
-                                <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-full text-xs">
-                                    {discontinuedProducts.length}
-                                </span>
-                            )}
-                        </button>
-                    </div>
-                )}
-
                 {/* Main Content */}
                 {!hasAnyProducts ? (
                     <EmptyState

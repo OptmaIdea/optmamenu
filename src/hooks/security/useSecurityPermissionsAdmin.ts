@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import type {
+  StoreMemberForPermissionsRow,
+  StoreMemberPermissionDetailRow,
   StorePermissionMatrixRow,
   StoreSensitiveActionMatrixRow,
 } from '@/types/security';
@@ -9,15 +11,21 @@ import type {
 type LoadingState = {
   matrix: boolean;
   sensitiveActions: boolean;
+  members: boolean;
+  memberDetail: boolean;
   saving: boolean;
 };
 
 export function useSecurityPermissionsAdmin() {
   const [permissionMatrix, setPermissionMatrix] = useState<StorePermissionMatrixRow[]>([]);
   const [sensitiveActions, setSensitiveActions] = useState<StoreSensitiveActionMatrixRow[]>([]);
+  const [memberPermissionDetail, setMemberPermissionDetail] = useState<StoreMemberPermissionDetailRow[]>([]);
+  const [membersForPermissions, setMembersForPermissions] = useState<StoreMemberForPermissionsRow[]>([]);
   const [loading, setLoading] = useState<LoadingState>({
     matrix: true,
     sensitiveActions: true,
+    members: true,
+    memberDetail: false,
     saving: false,
   });
   const [error, setError] = useState<string | null>(null);
@@ -71,6 +79,84 @@ export function useSecurityPermissionsAdmin() {
 
     setLoading((prev) => ({ ...prev, sensitiveActions: false }));
   }, [storeId]);
+
+  const fetchMembersForPermissions = useCallback(async () => {
+    if (!storeId) {
+      setMembersForPermissions([]);
+      setLoading((prev) => ({ ...prev, members: false }));
+      return;
+    }
+
+    setError(null);
+    setLoading((prev) => ({ ...prev, members: true }));
+
+    const { data, error: rpcError } = await supabase.rpc('get_store_members_for_permissions', {
+      p_store_id: storeId,
+    });
+
+    setLoading((prev) => ({ ...prev, members: false }));
+
+    if (rpcError) {
+      setError(rpcError.message);
+      setMembersForPermissions([]);
+      return;
+    }
+
+    setMembersForPermissions((data ?? []) as StoreMemberForPermissionsRow[]);
+  }, [storeId]);
+
+  const fetchMemberPermissionDetail = useCallback(async (memberId: string) => {
+    if (!memberId) {
+      setMemberPermissionDetail([]);
+      return [];
+    }
+
+    setError(null);
+    setLoading((prev) => ({ ...prev, memberDetail: true }));
+
+    const { data, error: rpcError } = await supabase.rpc('get_store_member_permission_detail', {
+      p_member_id: memberId,
+    });
+
+    setLoading((prev) => ({ ...prev, memberDetail: false }));
+
+    if (rpcError) {
+      setError(rpcError.message);
+      setMemberPermissionDetail([]);
+      throw rpcError;
+    }
+
+    const rows = (data ?? []) as StoreMemberPermissionDetailRow[];
+    setMemberPermissionDetail(rows);
+    return rows;
+  }, []);
+
+  const updateMemberPermissions = useCallback(
+    async (params: {
+      memberId: string;
+      permissions: Record<string, boolean>;
+      sensitiveActions?: Record<string, unknown>;
+      reason?: string;
+    }) => {
+      setLoading((prev) => ({ ...prev, saving: true }));
+
+      const { error: rpcError } = await supabase.rpc('update_store_member_permissions', {
+        p_member_id: params.memberId,
+        p_permissions: params.permissions,
+        p_sensitive_actions: params.sensitiveActions ?? {},
+        p_reason: params.reason ?? null,
+      });
+
+      setLoading((prev) => ({ ...prev, saving: false }));
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      await fetchMemberPermissionDetail(params.memberId);
+    },
+    [fetchMemberPermissionDetail]
+  );
 
   const updateRolePermission = useCallback(
     async (params: {
@@ -149,18 +235,28 @@ export function useSecurityPermissionsAdmin() {
   useEffect(() => {
     void fetchPermissionMatrix();
     void fetchSensitiveActions();
-  }, [fetchPermissionMatrix, fetchSensitiveActions]);
+    void fetchMembersForPermissions();
+  }, [fetchPermissionMatrix, fetchSensitiveActions, fetchMembersForPermissions]);
 
   return {
     storeId,
     permissionMatrix,
     sensitiveActions,
+    memberPermissionDetail,
+    membersForPermissions,
     loading,
     error,
     refresh: async () => {
-      await Promise.all([fetchPermissionMatrix(), fetchSensitiveActions()]);
+      await Promise.all([
+        fetchPermissionMatrix(),
+        fetchSensitiveActions(),
+        fetchMembersForPermissions(),
+      ]);
     },
     updateRolePermission,
     updateSensitiveAction,
+    fetchMembersForPermissions,
+    fetchMemberPermissionDetail,
+    updateMemberPermissions,
   };
 }

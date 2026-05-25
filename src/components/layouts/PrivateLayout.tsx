@@ -13,7 +13,6 @@ import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner'
 import {
     clearActiveStoreId,
     getActiveStoreId,
-    setActiveStoreId,
 } from '@/utils/activeStore';
 import {
     LayoutDashboard,
@@ -26,7 +25,6 @@ import {
     Layers,
     Menu,
     ChevronLeft,
-    ChevronDown,
     Moon,
     Sun,
     BarChart2,
@@ -52,7 +50,6 @@ import {
     Settings,
     Megaphone,
     Store as StoreIcon,
-    Check,
     Power,
     RefreshCw,
     Bell
@@ -110,9 +107,8 @@ export default function PrivateLayout() {
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
-    const [availableMemberships, setAvailableMemberships] = useState<LayoutMembership[]>([]);
     const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
-    const [showStoreSwitcher, setShowStoreSwitcher] = useState(false);
+
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -219,8 +215,6 @@ export default function PrivateLayout() {
                     (membership) => membership.status === 'active'
                 ) as LayoutMembership[];
 
-                setAvailableMemberships(memberships);
-
                 const storedActiveStoreId = getActiveStoreId();
                 const primaryMembership =
                     securityContext.primary_membership as LayoutMembership | null;
@@ -302,7 +296,6 @@ export default function PrivateLayout() {
                 setStoreId(storeData.id);
                 setStoreSlug(storeData.slug);
                 setActiveMembership(null);
-                setAvailableMemberships([]);
                 setUserData({
                     name: user.user_metadata?.full_name || user.email || 'Usuário',
                     phone: user.user_metadata?.phone_number || '',
@@ -430,125 +423,6 @@ export default function PrivateLayout() {
 
 
 
-    const handleSwitchStore = (membership: LayoutMembership) => {
-        if (membership.store_id === storeId) {
-            setShowStoreSwitcher(false);
-            return;
-        }
-
-        setActiveStoreId(membership.store_id);
-        setShowStoreSwitcher(false);
-
-        window.location.reload();
-    };
-
-    const renderStoreSwitcher = () => {
-        if (!activeMembership) return null;
-
-        const hasMultipleStores = availableMemberships.length > 1;
-
-        return (
-            <div className="relative">
-                <button
-                    type="button"
-                    onClick={() => {
-                        if (hasMultipleStores) {
-                            setShowStoreSwitcher((current) => !current);
-                        }
-                    }}
-                    className={`w-full rounded-xl border border-gray-200 bg-white p-3 text-left shadow-sm transition dark:border-gray-700 dark:bg-gray-800 ${hasMultipleStores
-                        ? 'hover:border-[#21A896] hover:bg-gray-50 dark:hover:bg-gray-700'
-                        : 'cursor-default'
-                        }`}
-                    title={hasMultipleStores ? 'Trocar loja ativa' : 'Loja ativa'}
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                            {activeMembership.store_logo_url ? (
-                                <img
-                                    src={activeMembership.store_logo_url}
-                                    alt={activeMembership.store_name}
-                                    className="h-full w-full object-cover"
-                                />
-                            ) : (
-                                <StoreIcon size={18} className="text-gray-500" />
-                            )}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-bold text-gray-900 dark:text-white">
-                                {activeMembership.store_name}
-                            </p>
-                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                                /{activeMembership.store_slug}
-                            </p>
-                        </div>
-
-                        {hasMultipleStores && (
-                            <ChevronDown
-                                size={16}
-                                className={`text-gray-400 transition ${showStoreSwitcher ? 'rotate-180' : ''
-                                    }`}
-                            />
-                        )}
-                    </div>
-                </button>
-
-                {hasMultipleStores && showStoreSwitcher && (
-                    <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-72 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800">
-                        <p className="px-2 pb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
-                            Trocar loja
-                        </p>
-
-                        <div className="space-y-1">
-                            {availableMemberships.map((membership) => {
-                                const isActive =
-                                    membership.store_id === activeMembership.store_id;
-
-                                return (
-                                    <button
-                                        key={membership.member_id}
-                                        type="button"
-                                        onClick={() => handleSwitchStore(membership)}
-                                        className={`flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition ${isActive
-                                            ? 'bg-[#21A896]/10 text-[#168577]'
-                                            : 'text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700'
-                                            }`}
-                                    >
-                                        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                                            {membership.store_logo_url ? (
-                                                <img
-                                                    src={membership.store_logo_url}
-                                                    alt={membership.store_name}
-                                                    className="h-full w-full object-cover"
-                                                />
-                                            ) : (
-                                                <StoreIcon size={16} className="text-gray-500" />
-                                            )}
-                                        </div>
-
-                                        <div className="min-w-0 flex-1">
-                                            <p className="truncate text-sm font-bold">
-                                                {membership.store_name}
-                                            </p>
-                                            <p className="truncate text-xs opacity-70">
-                                                {formatLayoutRole(membership.role)}
-                                            </p>
-                                        </div>
-
-                                        {isActive && <Check size={16} />}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-
-
     if (loadingStore) {
         return <LoadingSpinner />;
     }
@@ -606,9 +480,8 @@ export default function PrivateLayout() {
                     <div className="space-y-6">
                         {/* User Profile */}
                         {userData && (
-                            <div className={`p-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${
-                                isSidebarCollapsed ? 'flex flex-col items-center gap-2 p-1.5' : 'flex items-center gap-3'
-                            }`}>
+                            <div className={`p-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${isSidebarCollapsed ? 'flex flex-col items-center gap-2 p-1.5' : 'flex items-center gap-3'
+                                }`}>
                                 {userData.avatar ? (
                                     <img
                                         src={userData.avatar}
@@ -621,7 +494,7 @@ export default function PrivateLayout() {
                                         {userData.name.charAt(0).toUpperCase()}
                                     </div>
                                 )}
-                                
+
                                 {!isSidebarCollapsed && (
                                     <div className="flex-1 overflow-hidden">
                                         <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
@@ -645,11 +518,10 @@ export default function PrivateLayout() {
                                             <button
                                                 type="button"
                                                 onClick={() => toggleSection(section)}
-                                                className={`w-full flex items-center justify-between px-3 py-1 mb-1 text-xs tracking-wider font-candara transition-all ${
-                                                    isCurrentGroup
-                                                        ? 'font-black text-gray-800 dark:text-gray-200 text-[13px] uppercase'
-                                                        : 'font-bold text-gray-400 dark:text-gray-500 uppercase'
-                                                }`}
+                                                className={`w-full flex items-center justify-between px-3 py-1 mb-1 text-xs tracking-wider font-candara transition-all ${isCurrentGroup
+                                                    ? 'font-black text-gray-800 dark:text-gray-200 text-[13px] uppercase'
+                                                    : 'font-bold text-gray-400 dark:text-gray-500 uppercase'
+                                                    }`}
                                             >
                                                 <span>
                                                     {section === 'dashboard' && 'Dashboard'}
@@ -678,9 +550,9 @@ export default function PrivateLayout() {
                                                         className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all relative
                                                         ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'}
                                                         ${isActive
-                                                            ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20 dark:bg-[#21A896]/20'
-                                                            : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-                                                        }`}
+                                                                ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20 dark:bg-[#21A896]/20'
+                                                                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+                                                            }`}
                                                     >
                                                         <IconComponent
                                                             size={isSidebarCollapsed ? 22 : 18}
@@ -715,39 +587,17 @@ export default function PrivateLayout() {
                     {/* Footer Actions & Switcher */}
                     <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                         {!isSidebarCollapsed && (
-                            <div>
-                                {renderStoreSwitcher()}
-                            </div>
-                        )}
-
-                        <div className={`flex ${isSidebarCollapsed ? 'flex-col gap-2 items-center' : 'gap-2'}`}>
-                            <button
-                                onClick={toggleDarkMode}
-                                title="Alternar Tema"
-                                className={`flex items-center justify-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors font-candara ${
-                                    isSidebarCollapsed ? 'p-2 w-9 h-9' : 'px-3 py-2 flex-1 text-xs font-bold'
-                                }`}
-                            >
-                                {isDark ? <Sun size={16} /> : <Moon size={16} />}
-                                {!isSidebarCollapsed && <span>Tema</span>}
-                            </button>
-
-                            <button
-                                onClick={handleLogout}
-                                title="Sair"
-                                className={`flex items-center justify-center gap-2 rounded-lg bg-red-50 dark:bg-red-955/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors border border-transparent font-candara ${
-                                    isSidebarCollapsed ? 'p-2 w-9 h-9' : 'px-3 py-2 flex-1 text-xs font-bold'
-                                }`}
-                            >
-                                <Power size={16} />
-                                {!isSidebarCollapsed && <span>Sair</span>}
-                            </button>
-                        </div>
-
-                        {!isSidebarCollapsed && (
                             <div className="text-center">
                                 <p className="text-[10px] text-gray-400 font-candara">
-                                    © {new Date().getFullYear()} OptmaIdea
+                                    © {new Date().getFullYear()}{' '}
+                                    <a
+                                        href="https://optmaidea2.vercel.app/"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hover:underline"
+                                    >
+                                        OptmaIdea
+                                    </a>
                                 </p>
                             </div>
                         )}
@@ -768,7 +618,7 @@ export default function PrivateLayout() {
                         >
                             <Menu size={22} />
                         </button>
-                        
+
                         {currentItem && (
                             <div className="flex items-center gap-2 min-w-0">
                                 <currentItem.item.icon className="w-5 h-5 md:w-6 md:h-6 text-brand-light shrink-0" />
@@ -807,10 +657,10 @@ export default function PrivateLayout() {
                                 title={`Acessar loja: /s/${storeSlug}`}
                                 className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
                             >
-                                <StoreIcon size={19} />
+                                <StoreIcon size={19} style={{ color: 'teal-300' }} />
                             </a>
                         )}
-                        
+
                         {/* Messages Icon */}
                         <button
                             type="button"
@@ -825,11 +675,10 @@ export default function PrivateLayout() {
                         <button
                             type="button"
                             title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
-                            className={`p-2 rounded-lg transition relative shrink-0 ${
-                                attentionCount > 0 
-                                    ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20' 
-                                    : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                            }`}
+                            className={`p-2 rounded-lg transition relative shrink-0 ${attentionCount > 0
+                                ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
+                                : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                }`}
                         >
                             <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
                             {attentionCount > 0 && (
@@ -881,7 +730,7 @@ export default function PrivateLayout() {
                         ) : (
                             <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest select-none">
                                 Menu de Operação
-                             </span>
+                            </span>
                         )}
                     </div>
 
