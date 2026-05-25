@@ -13,6 +13,7 @@ export interface SecurityLog {
     created_at: string;
     action: string;
     user_email: string;
+    user_name?: string | null;
     details: Record<string, unknown>;
     outcome: 'success' | 'failure';
 }

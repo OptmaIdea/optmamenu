@@ -160,17 +160,37 @@ function renderRiskBadge(risk: string) {
     );
 }
 
-function renderAllowedCheck(allowed: boolean) {
-    return allowed ? (
-        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400 font-bold text-xs" title="Permitido">
-            ✓
-        </span>
-    ) : (
-        <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 font-bold text-xs" title="Bloqueado">
-            —
-        </span>
-    );
-}
+const ROLE_PERMISSION_COLUMNS = [
+    { role: 'owner', key: 'owner_allowed', label: 'Proprietário' },
+    { role: 'admin', key: 'admin_allowed', label: 'Admin' },
+    { role: 'manager', key: 'manager_allowed', label: 'Gerente' },
+    { role: 'stock_operator', key: 'stock_operator_allowed', label: 'Estoque' },
+    { role: 'cashier', key: 'cashier_allowed', label: 'Caixa' },
+    { role: 'sales', key: 'sales_allowed', label: 'Vendas' },
+    { role: 'staff', key: 'staff_allowed', label: 'Equipe' },
+    { role: 'viewer', key: 'viewer_allowed', label: 'Visualizador' },
+] as const;
+
+const SENSITIVE_REQUIREMENT_OPTIONS = [
+    { value: 'none', label: 'Nenhuma' },
+    { value: 'pin', label: 'PIN' },
+    { value: 'master_password', label: 'Senha master' },
+    { value: 'pin_or_master', label: 'PIN ou senha master' },
+    { value: 'owner_approval', label: 'Aprovação do proprietário' },
+    { value: 'token', label: 'Token interno' },
+    { value: 'pin_and_token', label: 'PIN + token' },
+] as const;
+
+const ROLE_OPTIONS = [
+    { value: 'owner', label: 'Proprietário' },
+    { value: 'admin', label: 'Admin' },
+    { value: 'manager', label: 'Gerente' },
+    { value: 'stock_operator', label: 'Estoque' },
+    { value: 'cashier', label: 'Caixa' },
+    { value: 'sales', label: 'Vendas' },
+    { value: 'staff', label: 'Equipe' },
+    { value: 'viewer', label: 'Visualizador' },
+] as const;
 
 export default function Security() {
     const {
@@ -179,6 +199,8 @@ export default function Security() {
         loading: adminLoading,
         error: adminError,
         refresh: refreshAdmin,
+        updateRolePermission,
+        updateSensitiveAction,
     } = useSecurityPermissionsAdmin();
 
     const [activeTab, setActiveTab] = useState('context');
@@ -726,7 +748,7 @@ export default function Security() {
             }
 
             if (logFilters.user.trim()) {
-                const userValue = (log.user_email || '').toLowerCase();
+                const userValue = `${log.user_name || ''} ${log.user_email || ''}`.toLowerCase();
                 if (!userValue.includes(logFilters.user.trim().toLowerCase())) return false;
             }
 
@@ -772,6 +794,86 @@ export default function Security() {
             action: '',
             outcome: ''
         });
+    };
+
+    const handleToggleRolePermission = async (
+        permissionCode: string,
+        role: string,
+        currentAllowed: boolean
+    ) => {
+        if (!canManageSecurity) {
+            toast.error('Você não tem permissão para alterar permissões.');
+            return;
+        }
+
+        if (role === 'owner') {
+            toast.info('O proprietário sempre mantém acesso total.');
+            return;
+        }
+
+        try {
+            await updateRolePermission({
+                role,
+                permissionCode,
+                allowed: !currentAllowed,
+                reason: `Alteração pela tela de segurança: ${permissionCode} para ${role}`,
+            });
+
+            toast.success('Permissão atualizada.');
+            await fetchLogs();
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, 'Erro ao atualizar permissão.'));
+        }
+    };
+
+    const handleUpdateSensitiveAction = async (
+        row: {
+            action_code: string;
+            enabled: boolean;
+            requirement: string;
+            min_role: string;
+            token_enabled: boolean;
+            token_expiry_seconds: number;
+            max_attempts: number;
+            require_reason: boolean;
+        },
+        patch: Partial<{
+            enabled: boolean;
+            requirement: string;
+            min_role: string;
+            token_enabled: boolean;
+            token_expiry_seconds: number;
+            max_attempts: number;
+            require_reason: boolean;
+        }>
+    ) => {
+        if (!canManageSecurity) {
+            toast.error('Você não tem permissão para alterar ações sensíveis.');
+            return;
+        }
+
+        const next = {
+            enabled: patch.enabled ?? row.enabled,
+            requirement: patch.requirement ?? row.requirement,
+            minRole: patch.min_role ?? row.min_role,
+            tokenEnabled: patch.token_enabled ?? row.token_enabled,
+            tokenExpirySeconds: patch.token_expiry_seconds ?? row.token_expiry_seconds,
+            maxAttempts: patch.max_attempts ?? row.max_attempts,
+            requireReason: patch.require_reason ?? row.require_reason,
+        };
+
+        try {
+            await updateSensitiveAction({
+                actionCode: row.action_code,
+                ...next,
+                reason: `Alteração pela tela de segurança: ${row.action_code}`,
+            });
+
+            toast.success('Regra sensível atualizada.');
+            await fetchLogs();
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, 'Erro ao atualizar ação sensível.'));
+        }
     };
 
     if (loading) {
@@ -1329,7 +1431,16 @@ export default function Security() {
                                                     {timezoneUtils.formatBrazilDateTime(log.created_at)}
                                                 </td>
                                                 <td className="p-3 font-medium text-gray-700 dark:text-gray-300">
-                                                    {log.user_email}
+                                                    <div>
+                                                        <p className="font-bold text-gray-700 dark:text-gray-300">
+                                                            {log.user_name || log.user_email || 'Usuário não identificado'}
+                                                        </p>
+                                                        {log.user_email && (
+                                                            <p className="text-xs text-gray-400">
+                                                                {log.user_email}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="p-3 text-gray-800 dark:text-gray-200">
                                                     {log.action}
@@ -1396,14 +1507,11 @@ export default function Security() {
                                         <tr>
                                             <th className="p-3">Permissão</th>
                                             <th className="p-3">Risco</th>
-                                            <th className="p-3 text-center">Proprietário (owner)</th>
-                                            <th className="p-3 text-center">Admin (admin)</th>
-                                            <th className="p-3 text-center">Gerente (manager)</th>
-                                            <th className="p-3 text-center">Estoque (stock)</th>
-                                            <th className="p-3 text-center">Caixa (cashier)</th>
-                                            <th className="p-3 text-center">Vendas (sales)</th>
-                                            <th className="p-3 text-center">Equipe (staff)</th>
-                                            <th className="p-3 text-center">Visualizador (viewer)</th>
+                                            {ROLE_PERMISSION_COLUMNS.map((column) => (
+                                                <th key={column.role} className="p-3 text-center">
+                                                    {column.label}
+                                                </th>
+                                            ))}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1423,14 +1531,43 @@ export default function Security() {
                                                 <td className="p-3">
                                                     {renderRiskBadge(row.risk_level)}
                                                 </td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.owner_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.admin_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.manager_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.stock_operator_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.cashier_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.sales_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.staff_allowed)}</td>
-                                                <td className="p-3 text-center">{renderAllowedCheck(row.viewer_allowed)}</td>
+                                                {ROLE_PERMISSION_COLUMNS.map((column) => {
+                                                    const allowed = Boolean(row[column.key]);
+                                                    const disabled =
+                                                        column.role === 'owner' ||
+                                                        !canManageSecurity ||
+                                                        adminLoading.saving;
+
+                                                    return (
+                                                        <td key={column.role} className="p-3 text-center">
+                                                            <button
+                                                                type="button"
+                                                                disabled={disabled}
+                                                                onClick={() =>
+                                                                    handleToggleRolePermission(
+                                                                        row.permission_code,
+                                                                        column.role,
+                                                                        allowed
+                                                                    )
+                                                                }
+                                                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black transition ${
+                                                                    allowed
+                                                                        ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-200 dark:border-green-900/50 dark:bg-green-900/30 dark:text-green-300'
+                                                                        : 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+                                                                } ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                                                                title={
+                                                                    column.role === 'owner'
+                                                                        ? 'Owner sempre tem acesso total'
+                                                                        : allowed
+                                                                            ? `Remover de ${column.label}`
+                                                                            : `Liberar para ${column.label}`
+                                                                }
+                                                            >
+                                                                {allowed ? '✓' : '—'}
+                                                            </button>
+                                                        </td>
+                                                    );
+                                                })}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -1503,6 +1640,7 @@ export default function Security() {
                                             <th className="p-3 text-center">Token</th>
                                             <th className="p-3">Expiração</th>
                                             <th className="p-3">Tentativas Máx.</th>
+                                            <th className="p-3 text-center">Motivo</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -1523,34 +1661,115 @@ export default function Security() {
                                                     {renderRiskBadge(row.risk_level)}
                                                 </td>
                                                 <td className="p-3">
-                                                    <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                                                        {formatSensitiveRequirement(row.requirement)}
-                                                    </span>
+                                                    <select
+                                                        value={row.requirement}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                requirement: event.target.value,
+                                                            })
+                                                        }
+                                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    >
+                                                        {SENSITIVE_REQUIREMENT_OPTIONS.map((option) => (
+                                                            <option key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
                                                 </td>
+
                                                 <td className="p-3">
-                                                    <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                                        {formatSecurityRole(row.min_role)}
-                                                    </span>
+                                                    <select
+                                                        value={row.min_role}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                min_role: event.target.value,
+                                                            })
+                                                        }
+                                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    >
+                                                        {ROLE_OPTIONS.map((option) => (
+                                                            <option key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
                                                 </td>
+
                                                 <td className="p-3 text-center">
-                                                    {row.enabled ? (
-                                                        <span className="text-green-600 font-bold">Ativo</span>
-                                                    ) : (
-                                                        <span className="text-gray-400 font-semibold">—</span>
-                                                    )}
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={row.enabled}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                enabled: event.target.checked,
+                                                            })
+                                                        }
+                                                        className="h-4 w-4 accent-green-600"
+                                                    />
                                                 </td>
+
                                                 <td className="p-3 text-center">
-                                                    {row.token_enabled ? (
-                                                        <span className="text-green-600 font-bold">Sim</span>
-                                                    ) : (
-                                                        <span className="text-gray-400 font-semibold">Não</span>
-                                                    )}
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={row.token_enabled}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                token_enabled: event.target.checked,
+                                                            })
+                                                        }
+                                                        className="h-4 w-4 accent-green-600"
+                                                    />
                                                 </td>
-                                                <td className="p-3 text-gray-700 dark:text-gray-300">
-                                                    {row.token_expiry_seconds}s
+
+                                                <td className="p-3">
+                                                    <input
+                                                        type="number"
+                                                        min={15}
+                                                        max={300}
+                                                        value={row.token_expiry_seconds}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                token_expiry_seconds: Number(event.target.value),
+                                                            })
+                                                        }
+                                                        className="w-20 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    />
                                                 </td>
-                                                <td className="p-3 text-gray-700 dark:text-gray-300">
-                                                    {row.max_attempts}
+
+                                                <td className="p-3">
+                                                    <input
+                                                        type="number"
+                                                        min={1}
+                                                        max={10}
+                                                        value={row.max_attempts}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                max_attempts: Number(event.target.value),
+                                                            })
+                                                        }
+                                                        className="w-16 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                    />
+                                                </td>
+
+                                                <td className="p-3 text-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={row.require_reason}
+                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        onChange={(event) =>
+                                                            handleUpdateSensitiveAction(row, {
+                                                                require_reason: event.target.checked,
+                                                            })
+                                                        }
+                                                        className="h-4 w-4 accent-green-600"
+                                                    />
                                                 </td>
                                             </tr>
                                         ))}
