@@ -14,6 +14,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
 import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
 import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermissionsAdmin';
+import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -545,7 +546,7 @@ export default function Security() {
     }, [selectedMemberId, fetchMemberPermissionDetail]);
 
     // Initial data
-    const fetchInitialData = async () => {
+    const fetchInitialData = useCallback(async () => {
         try {
             const activeStoreId = getActiveStoreId();
             if (!activeStoreId) return;
@@ -594,7 +595,25 @@ export default function Security() {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    const handleRefresh = useCallback(async () => {
+        setLoading(true);
+        try {
+            await Promise.all([
+                fetchInitialData(),
+                refreshSecurityContext(),
+                refreshAdmin(),
+            ]);
+            if (store?.id) {
+                await fetchLogs();
+            }
+        } finally {
+            setLoading(false);
+        }
+    }, [fetchInitialData, refreshSecurityContext, refreshAdmin, store?.id, fetchLogs]);
+
+    useRefreshFrame(handleRefresh);
 
     const logAction = useCallback(async (
         action: string,

@@ -13,6 +13,7 @@ import { useFilters } from '@/pages/private/admin/products/products/hooks/useFil
 import { useModals } from '@/pages/private/admin/products/products/hooks/useModals';
 import { useExport } from '@/pages/private/admin/products/products/hooks/useExport';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 
 
 // Components
@@ -30,6 +31,8 @@ import { PackageSearch } from 'lucide-react';
 export default function ProductsPage() {
     // Products data
     const { products, loading, deletingId, lastUpdated, handleRefresh } = useProducts();
+
+    useRefreshFrame(handleRefresh);
 
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 

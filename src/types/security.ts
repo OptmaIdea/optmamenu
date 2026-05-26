@@ -165,3 +165,15 @@ export type StoreMemberForPermissionsRow = {
   created_at: string | null;
   updated_at: string | null;
 };
+
+export type LoginStoreOption = {
+  store_id: string;
+  store_name: string;
+  store_slug: string | null;
+  store_logo_url: string | null;
+  role: StoreRole | string;
+  status: string;
+  is_owner: boolean;
+  is_primary_owner: boolean;
+  sort_order: number | null;
+};

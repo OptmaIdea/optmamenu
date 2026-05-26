@@ -1,48 +1,128 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
-import { Mail, Lock, ArrowRight, AlertCircle } from 'lucide-react';
+import { Mail, Lock, ArrowRight, AlertCircle, Store, CheckCircle } from 'lucide-react';
+import { clearActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
+import type { LoginStoreOption } from '@/types/security';
+
+function formatLoginRole(role: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    owner: 'Proprietário',
+    admin: 'Administrador',
+    manager: 'Gerente',
+    stock_operator: 'Operador de estoque',
+    cashier: 'Caixa',
+    sales: 'Vendas',
+    staff: 'Equipe',
+    viewer: 'Visualizador',
+  };
+
+  return role ? labels[role] ?? role : 'Não definido';
+}
 
 export default function Login() {
   const navigate = useNavigate();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
   const [loading, setLoading] = useState(false);
+  const [selectingStore, setSelectingStore] = useState(false);
+  const [storeOptions, setStoreOptions] = useState<LoginStoreOption[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState('');
+
   const [error, setError] = useState('');
+
+  const finishLoginWithStore = (storeId: string) => {
+    setActiveStoreId(storeId);
+    navigate('/admin', { replace: true });
+  };
+
+  const fetchLoginStoreOptions = async (): Promise<LoginStoreOption[]> => {
+    const { data, error: rpcError } = await supabase.rpc('get_login_store_options');
+
+    if (rpcError) {
+      throw rpcError;
+    }
+
+    return (data ?? []) as LoginStoreOption[];
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     setLoading(true);
     setError('');
+    setStoreOptions([]);
+    setSelectedStoreId('');
+    clearActiveStoreId();
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { error: loginError } = await supabase.auth.signInWithPassword({
         email,
-        password
+        password,
       });
 
-      if (error) throw error;
-      navigate('/admin');
-    } catch (error: any) {
-      setError(error.message || 'Erro ao fazer login');
+      if (loginError) throw loginError;
+
+      const options = await fetchLoginStoreOptions();
+
+      if (!options.length) {
+        await supabase.auth.signOut();
+        clearActiveStoreId();
+        throw new Error('Nenhuma loja ativa vinculada a este usuário.');
+      }
+
+      if (options.length === 1) {
+        finishLoginWithStore(options[0].store_id);
+        return;
+      }
+
+      setStoreOptions(options);
+      setSelectedStoreId(options[0].store_id);
+      setSelectingStore(true);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : 'Erro ao fazer login';
+
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleConfirmStore = () => {
+    if (!selectedStoreId) {
+      setError('Selecione uma loja para continuar.');
+      return;
+    }
+
+    finishLoginWithStore(selectedStoreId);
+  };
+
+  const handleBackToCredentials = async () => {
+    await supabase.auth.signOut();
+    clearActiveStoreId();
+    setSelectingStore(false);
+    setStoreOptions([]);
+    setSelectedStoreId('');
+    setPassword('');
+  };
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 pb-24"> {/* ← ADICIONADO pb-24 */}
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 pb-24">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-black text-gray-800 dark:text-white font-candara-bold">
-            Acesse sua conta
+            {selectingStore ? 'Escolha onde entrar' : 'Acesse sua conta'}
           </h2>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-candara">
-            Faça login para acessar seu painel
+            {selectingStore
+              ? 'Selecione a loja ou vínculo de trabalho desta sessão.'
+              : 'Faça login para acessar seu painel'}
           </p>
         </div>
 
-        {/* Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
@@ -51,85 +131,157 @@ export default function Login() {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
-                E-mail
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="seu@email.com"
-                  required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
-                />
+          {!selectingStore ? (
+            <form onSubmit={handleLogin} className="space-y-6">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  E-mail
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="seu@email.com"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
-                Senha
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="password"
-                  name="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
-                />
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                  Senha
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="password"
+                    name="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2">
-                <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]" />
-                <span className="text-sm text-gray-600 dark:text-gray-400 font-candara">Lembrar-me</span>
-              </label>
-              <Link
-                to="/forgot-password"
-                className="text-sm font-bold text-[#21A896] hover:text-[#1a867a] transition-colors font-candara"
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]" />
+                  <span className="text-sm text-gray-600 dark:text-gray-400 font-candara">Lembrar-me</span>
+                </label>
+                <Link
+                  to="/forgot-password"
+                  className="text-sm font-bold text-[#21A896] hover:text-[#1a867a] transition-colors font-candara"
+                >
+                  Esqueceu a senha?
+                </Link>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
               >
-                Esqueceu a senha?
-              </Link>
-            </div>
+                {loading ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <>
+                    Entrar
+                    <ArrowRight size={18} />
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-5">
+              <div className="space-y-3">
+                {storeOptions.map((option) => {
+                  const selected = selectedStoreId === option.store_id;
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <>
-                  Entrar
-                  <ArrowRight size={18} />
-                </>
-              )}
-            </button>
-          </form>
+                  return (
+                    <button
+                      key={option.store_id}
+                      type="button"
+                      onClick={() => setSelectedStoreId(option.store_id)}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${selected
+                          ? 'border-[#21A896] bg-[#21A896]/10 ring-2 ring-[#21A896]/20'
+                          : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900/40'
+                        }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white shadow-sm dark:bg-gray-800">
+                          {option.store_logo_url ? (
+                            <img
+                              src={option.store_logo_url}
+                              alt={option.store_name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Store size={22} className="text-[#21A896]" />
+                          )}
+                        </div>
 
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-candara">
-              Ainda não tem uma conta?{' '}
-              <Link
-                to="/signup"
-                className="font-bold text-[#21A896] hover:text-[#1a867a] transition-colors"
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-base font-black text-gray-800 dark:text-white">
+                            {option.store_name}
+                          </p>
+                          <p className="text-sm font-bold text-[#21A896]">
+                            {formatLoginRole(option.role)}
+                          </p>
+                          {option.store_slug && (
+                            <p className="text-xs text-gray-400">/{option.store_slug}</p>
+                          )}
+                        </div>
+
+                        {selected && (
+                          <CheckCircle size={22} className="text-[#21A896]" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleConfirmStore}
+                disabled={!selectedStoreId}
+                className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
               >
-                Cadastre-se
-              </Link>
-            </p>
-          </div>
+                Continuar
+                <ArrowRight size={18} />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleBackToCredentials}
+                className="w-full py-2 px-4 text-sm font-bold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                Trocar usuário
+              </button>
+            </div>
+          )}
+
+          {!selectingStore && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+                Ainda não tem uma conta?{' '}
+                <Link
+                  to="/signup"
+                  className="font-bold text-[#21A896] hover:text-[#1a867a] transition-colors"
+                >
+                  Cadastre-se
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

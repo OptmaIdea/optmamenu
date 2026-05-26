@@ -338,6 +338,7 @@ export default function PrivateLayout() {
 
     const handleLogout = async () => {
         await supabase.auth.signOut();
+        clearActiveStoreId();
         navigate('/');
     };
 
