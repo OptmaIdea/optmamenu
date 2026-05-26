@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { getActiveStoreId } from '@/utils/activeStore';
 import {
   Package,
   ShoppingBag,
@@ -118,22 +119,27 @@ export default function Dashboard() {
       }
 
       // Buscar store via RPC evita recursion/stack depth por RLS em stores.
-      const { data: storeData, error: storeError } = await supabase.rpc('get_user_store_by_id', {
-        p_user_id: user.id,
-      });
+      const activeStoreId = getActiveStoreId();
 
-      if (storeError) {
-        console.error('Erro ao buscar store (RPC):', storeError);
-        setFatalError(storeError.message || 'Erro ao buscar loja.');
+      if (!activeStoreId) {
+        setFatalError('Nenhuma loja ativa selecionada. Faça login novamente e escolha uma loja.');
         return;
       }
 
-      const store: StoreRow | null = Array.isArray(storeData)
-        ? ((storeData[0] as StoreRow | undefined) ?? null)
-        : (storeData as StoreRow | null);
+      const { data: store, error: storeError } = await supabase
+        .from('stores')
+        .select('id, slug, config')
+        .eq('id', activeStoreId)
+        .maybeSingle();
+
+      if (storeError) {
+        console.error('Erro ao buscar loja ativa:', storeError);
+        setFatalError(storeError.message || 'Erro ao buscar loja ativa.');
+        return;
+      }
 
       if (!store?.id) {
-        setFatalError('Loja não encontrada para este usuário.');
+        setFatalError('Loja ativa não encontrada ou sem permissão.');
         return;
       }
 
@@ -253,8 +259,11 @@ export default function Dashboard() {
     };
 
     window.addEventListener('optmamenu.refresh', handleRefreshEvent);
+    window.addEventListener('optmamenu:active-store-changed', handleRefreshEvent);
+
     return () => {
       window.removeEventListener('optmamenu.refresh', handleRefreshEvent);
+      window.removeEventListener('optmamenu:active-store-changed', handleRefreshEvent);
     };
   }, [fetchDashboardData]);
 
