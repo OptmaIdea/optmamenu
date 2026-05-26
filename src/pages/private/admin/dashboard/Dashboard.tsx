@@ -20,11 +20,11 @@ import RecentActivity from '@/components/common/RecentActivity';
 import ProgressCard from '@/components/common/ProgressCard';
 import { useStockAlerts, type StockAlertProduct } from '@/hooks/stock/useStockAlerts';
 
-type StoreRow = {
+/* type StoreRow = {
   id: string;
   slug?: string | null;
   config?: any;
-};
+}; */
 
 type DashboardOrdersSummary = {
   orders_count?: number | string;

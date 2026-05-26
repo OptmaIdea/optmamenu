@@ -90,6 +90,23 @@ function formatLayoutRole(role: string): string {
     return labels[role] ?? role;
 }
 
+function getInitials(name?: string | null): string {
+    if (!name) return 'U';
+
+    const parts = name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+
+    if (!parts.length) return 'U';
+
+    if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+    }
+
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
 export default function PrivateLayout() {
     const { pathname } = useLocation();
     const navigate = useNavigate();
@@ -270,9 +287,7 @@ export default function PrivateLayout() {
                         user.user_metadata?.phone_number ||
                         '',
                     email: securityContext.email || user.email || '',
-                    avatar:
-                        selectedMembership.store_logo_url ||
-                        user.user_metadata?.avatar_url
+                    avatar: user.user_metadata?.avatar_url
                 });
             } catch (error) {
                 console.error('Erro ao carregar contexto de segurança:', error);
@@ -300,7 +315,7 @@ export default function PrivateLayout() {
                     name: user.user_metadata?.full_name || user.email || 'Usuário',
                     phone: user.user_metadata?.phone_number || '',
                     email: user.email || '',
-                    avatar: storeData.config?.visual_icon_url || user.user_metadata?.avatar_url
+                    avatar: user.user_metadata?.avatar_url
                 });
             } finally {
                 setLoadingStore(false);
@@ -337,9 +352,10 @@ export default function PrivateLayout() {
     }, [openSections]);
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
         clearActiveStoreId();
-        navigate('/');
+        sessionStorage.removeItem('optmamenu.session.start');
+        await supabase.auth.signOut();
+        navigate('/login', { replace: true });
     };
 
     useEffect(() => {
@@ -480,7 +496,7 @@ export default function PrivateLayout() {
                 <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col justify-between p-4 space-y-6">
                     <div className="space-y-6">
                         {/* User Profile */}
-                        {userData && (
+                        {/*                         {userData && (
                             <div className={`p-2 rounded-xl bg-gray-50 dark:bg-gray-700/50 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${isSidebarCollapsed ? 'flex flex-col items-center gap-2 p-1.5' : 'flex items-center gap-3'
                                 }`}>
                                 {userData.avatar ? (
@@ -503,6 +519,81 @@ export default function PrivateLayout() {
                                         </p>
                                         <p className="text-[11px] font-bold text-brand-green truncate font-candara uppercase tracking-wide">
                                             {activeMembership ? formatLayoutRole(activeMembership.role) : 'Usuário'}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )} */}
+
+                        {/* Active Store */}
+                        {activeMembership && (
+                            <div
+                                className={`rounded-xl bg-gray-50 dark:bg-gray-700/50 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${isSidebarCollapsed ? 'p-1.5 flex justify-center' : 'p-2 flex items-center gap-3'
+                                    }`}
+                            >
+                                <div
+                                    className={`${isSidebarCollapsed ? 'w-8 h-8' : 'w-10 h-10'
+                                        } rounded-full overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center shrink-0`}
+                                    title={isSidebarCollapsed ? activeMembership.store_name : ''}
+                                >
+                                    {activeMembership.store_logo_url ? (
+                                        <img
+                                            src={activeMembership.store_logo_url}
+                                            alt={activeMembership.store_name}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <StoreIcon size={isSidebarCollapsed ? 16 : 20} className="text-brand-green" />
+                                    )}
+                                </div>
+
+                                {!isSidebarCollapsed && (
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
+                                            {activeMembership.store_name}
+                                        </p>
+                                        <p className="text-[11px] font-bold text-brand-green truncate font-candara uppercase tracking-wide">
+                                            {formatLayoutRole(activeMembership.role)}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Logged User */}
+                        {userData && (
+                            <div
+                                className={`rounded-xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${isSidebarCollapsed ? 'p-1.5 flex justify-center' : 'p-2 flex items-center gap-3'
+                                    }`}
+                            >
+                                {userData.avatar ? (
+                                    <img
+                                        src={userData.avatar}
+                                        alt={userData.name}
+                                        className={`${isSidebarCollapsed ? 'w-8 h-8' : 'w-10 h-10'
+                                            } rounded-full object-cover border border-gray-200 dark:border-gray-600`}
+                                        title={isSidebarCollapsed ? userData.name : ''}
+                                    />
+                                ) : (
+                                    <div
+                                        className={`${isSidebarCollapsed ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
+                                            } rounded-full bg-brand-green/10 dark:bg-brand-green/20 flex items-center justify-center text-brand-green font-black`}
+                                        title={isSidebarCollapsed ? userData.name : ''}
+                                    >
+                                        {getInitials(userData.name)}
+                                    </div>
+                                )}
+
+                                {!isSidebarCollapsed && (
+                                    <div className="flex-1 overflow-hidden">
+                                        <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
+                                            {userData.name}
+                                        </p>
+                                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate font-candara">
+                                            {userData.email}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate font-candara">
+                                            Sessão iniciada às {sessionStartTime.toLocaleTimeString('pt-BR')}
                                         </p>
                                     </div>
                                 )}
