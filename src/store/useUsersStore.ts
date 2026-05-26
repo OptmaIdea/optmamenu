@@ -1,11 +1,11 @@
 import { create } from 'zustand';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import type { UserAdmin, UserFilters, UserFormData, UserRole, UserStats } from '@/types';
 import type { StoreMemberAdmin, StoreMemberRole, StoreMemberStatus } from '@/types/security';
 import {
     getCurrentUserSecurityContext,
     getStoreMembers,
-    updateStoreMemberRole,
     updateStoreMemberStatus,
 } from '@/services/securityService';
 import { createStoreMemberInvite } from '@/services/storeMemberInviteService';
@@ -291,11 +291,15 @@ export const useUsersStore = create<UsersState>((set, get) => ({
                     throw new Error('Papel inválido para atualização.');
                 }
 
-                await updateStoreMemberRole({
-                    memberId: id,
-                    role: role as Exclude<StoreMemberRole, 'owner'>,
-                    reason: 'Atualização pela tela de usuários',
+                const { error } = await supabase.rpc('change_store_member_role', {
+                    p_member_id: id,
+                    p_new_role: role,
+                    p_reason: 'Alteração de função pela tela de usuários',
+                    p_clear_individual_overrides: false,
+                    p_create_occurrence: true,
                 });
+
+                if (error) throw error;
             }
 
             toast.success('Usuário atualizado com sucesso');
@@ -352,13 +356,17 @@ export const useUsersStore = create<UsersState>((set, get) => ({
                 throw new Error('Papel inválido para atualização.');
             }
 
-            await updateStoreMemberRole({
-                memberId: id,
-                role: storeRole as Exclude<StoreMemberRole, 'owner'>,
-                reason: 'Alteração de papel pela tela de usuários',
+            const { error } = await supabase.rpc('change_store_member_role', {
+                p_member_id: id,
+                p_new_role: storeRole,
+                p_reason: 'Alteração de função pela tela de usuários',
+                p_clear_individual_overrides: false,
+                p_create_occurrence: true,
             });
 
-            toast.success('Permissão atualizada com sucesso');
+            if (error) throw error;
+
+            toast.success('Função atualizada com sucesso.');
             await get().fetchUsers();
             return true;
         } catch (error: unknown) {

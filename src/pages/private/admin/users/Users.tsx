@@ -13,6 +13,22 @@ import { toast } from 'sonner';
 import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter } from 'lucide-react';
 import { useStoreMemberSessionSummary } from '@/hooks/security/useStoreMemberSessionSummary';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { supabase } from '@/lib/supabase';
+
+function formatRoleLabel(role: string): string {
+    const labels: Record<string, string> = {
+        owner: 'Proprietário',
+        admin: 'Administrador',
+        manager: 'Gerente',
+        stock_operator: 'Operador de estoque',
+        cashier: 'Caixa',
+        sales: 'Vendas',
+        staff: 'Equipe',
+        viewer: 'Visualizador',
+    };
+
+    return labels[role] ?? role;
+}
 
 export default function Users() {
     const {
@@ -99,6 +115,11 @@ export default function Users() {
     const [selectedUser, setSelectedUser] = useState<UserAdmin | null>(null);
     const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
     const [showFilters, setShowFilters] = useState(false);
+    const [roleChangeConfirmation, setRoleChangeConfirmation] = useState<{
+        user: UserAdmin;
+        newRole: string;
+        clearOverrides: boolean;
+    } | null>(null);
 
     useEffect(() => {
         fetchUsers();
@@ -218,12 +239,49 @@ export default function Users() {
         }
 
         if (selectedUser) {
+            if (data.role !== selectedUser.role) {
+                setRoleChangeConfirmation({
+                    user: selectedUser,
+                    newRole: data.role,
+                    clearOverrides: false,
+                });
+                setSelectedUser(null);
+                setShowFormModal(false);
+                return;
+            }
             await updateUser(selectedUser.id, data);
             await refreshSessionSummary();
             setSelectedUser(null);
             setShowFormModal(false);
         }
     };
+
+    const handleConfirmRoleChange = async () => {
+        if (!roleChangeConfirmation) return;
+
+        const { user, newRole, clearOverrides } = roleChangeConfirmation;
+
+        try {
+            await supabase.rpc('change_store_member_role', {
+                p_member_id: user.id,
+                p_new_role: newRole,
+                p_reason: 'Alteração de função pela tela de usuários',
+                p_clear_individual_overrides: clearOverrides,
+                p_create_occurrence: true,
+            });
+
+            toast.success('Função atualizada com sucesso.');
+
+            setRoleChangeConfirmation(null);
+
+            await fetchUsers();
+            await refreshSessionSummary();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Não foi possível alterar a função.';
+            toast.error(message);
+        }
+    };
+
 
     const handleFilterChange = <K extends keyof UserFilters>(
         key: K,
@@ -468,6 +526,88 @@ export default function Users() {
                 user={selectedUser}
                 canManageUsers={canManageUsers}
             />
+
+            {roleChangeConfirmation && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+                        <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                            Confirmar mudança de função
+                        </h3>
+
+                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                            Você está alterando a função de{' '}
+                            <strong>{roleChangeConfirmation.user.full_name}</strong>.
+                        </p>
+
+                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
+                            <p>
+                                As permissões herdadas passarão a seguir o novo papel.
+                                Esta ação será registrada no histórico de segurança e na Vida do Usuário.
+                            </p>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
+                                <p className="text-xs font-bold uppercase text-gray-500">
+                                    Função atual
+                                </p>
+                                <p className="font-bold text-gray-900 dark:text-white">
+                                    {formatRoleLabel(roleChangeConfirmation.user.role)}
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
+                                <p className="text-xs font-bold uppercase text-gray-500">
+                                    Nova função
+                                </p>
+                                <p className="font-bold text-[#21A896]">
+                                    {formatRoleLabel(roleChangeConfirmation.newRole)}
+                                </p>
+                            </div>
+                        </div>
+
+                        <label className="mt-4 flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                            <input
+                                type="checkbox"
+                                checked={roleChangeConfirmation.clearOverrides}
+                                onChange={(event) =>
+                                    setRoleChangeConfirmation((current) =>
+                                        current
+                                            ? {
+                                                  ...current,
+                                                  clearOverrides: event.target.checked,
+                                              }
+                                            : current
+                                    )
+                                }
+                                className="mt-1"
+                            />
+                            <span>
+                                Limpar permissões individuais deste usuário ao alterar a função.
+                                Se desmarcado, as exceções individuais serão preservadas.
+                            </span>
+                        </label>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setRoleChangeConfirmation(null)}
+                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleConfirmRoleChange}
+                                className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A]"
+                            >
+                                Confirmar alteração
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </PageContainer>
     );
 }

@@ -136,6 +136,7 @@ function formatSecurityLogAction(action?: string): string {
         store_sensitive_action_rule_updated: 'Regra de ação sensível alterada',
         store_role_permission_template_updated: 'Permissão por papel alterada',
         store_member_permissions_updated: 'Permissões individuais alteradas',
+        store_member_role_changed: 'Função do usuário alterada',
 
         security_settings_change: 'Configurações de segurança alteradas',
         security_settings_updated: 'Configurações de segurança alteradas',
@@ -252,6 +253,24 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         }
 
         return `${targetName} (${targetRole}) · permissões revisadas`;
+    }
+
+    if (log.action === 'store_member_role_changed') {
+        const targetName =
+            getStringDetail(details, 'target_user_name') ||
+            getStringDetail(details, 'target_user_email') ||
+            'usuário selecionado';
+
+        const oldRole = formatSecurityRole(getStringDetail(details, 'old_role'));
+        const newRole = formatSecurityRole(getStringDetail(details, 'new_role'));
+
+        const cleared = details.clear_individual_overrides === true;
+
+        return `${targetName} · ${oldRole} → ${newRole}${
+            cleared
+                ? ' · permissões individuais limpas'
+                : ' · permissões individuais preservadas'
+        }`;
     }
 
     if (log.action === 'store_role_permission_template_updated') {

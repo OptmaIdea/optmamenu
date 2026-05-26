@@ -303,6 +303,44 @@ export function UserDetailModal({
         return source ? labels[source] ?? source : 'Origem não identificada';
     };
 
+    const formatHistoryActionLabel = (action: string | null | undefined): string => {
+        const labels: Record<string, string> = {
+            store_sensitive_action_rule_updated: 'Regra de ação sensível alterada',
+            store_role_permission_template_updated: 'Permissão por papel alterada',
+            store_member_permissions_updated: 'Permissões individuais alteradas',
+            store_member_role_changed: 'Função do usuário alterada',
+
+            security_settings_change: 'Configurações de segurança alteradas',
+            security_settings_updated: 'Configurações de segurança alteradas',
+            security_context_refreshed: 'Contexto de segurança atualizado',
+
+            user_pin_created: 'PIN cadastrado',
+            user_pin_updated: 'PIN alterado',
+            user_pin_validated: 'PIN validado',
+            user_pin_validation_failed: 'Falha na validação do PIN',
+            user_pin_unblocked: 'PIN desbloqueado',
+
+            store_master_password_reset: 'Senha master redefinida',
+            login_password_changed: 'Senha de login alterada',
+
+            sensitive_token_created: 'Token de ação sensível criado',
+            sensitive_token_validated: 'Token de ação sensível validado',
+            sensitive_token_validation_failed: 'Falha na validação do token',
+
+            product_delete: 'Exclusão/descontinuação de produto',
+            stock_adjustment: 'Ajuste de estoque',
+            purchase_cancel: 'Cancelamento de compra',
+            user_role_change: 'Alteração de papel de usuário',
+            user_status_change: 'Alteração de status de usuário',
+
+            session_store_selected: 'Entrada na loja selecionada',
+            session_logout: 'Saída do sistema',
+            session_login_test: 'Teste de login/sessão',
+        };
+
+        return action ? labels[action] ?? action : 'Ação desconhecida';
+    };
+
     const getStringMetadata = (
         metadata: Record<string, unknown> | null | undefined,
         key: string
@@ -413,6 +451,22 @@ export function UserDetailModal({
             );
         }
 
+        if (event.action === 'store_member_role_changed') {
+            const targetName =
+                getStringMetadata(event.metadata, 'target_user_name') ||
+                getStringMetadata(event.metadata, 'target_user_email') ||
+                'Usuário selecionado';
+
+            const oldRole = getStringMetadata(event.metadata, 'old_role');
+            const newRole = getStringMetadata(event.metadata, 'new_role');
+            const cleared = event.metadata?.clear_individual_overrides === true;
+
+            return `${targetName} · ${oldRole ? formatRoleLabel(oldRole) : 'função anterior'} → ${
+                newRole ? formatRoleLabel(newRole) : 'nova função'
+            }${cleared ? ' · permissões individuais limpas' : ' · permissões individuais preservadas'}`;
+        }
+
+
         if (event.action === 'store_role_permission_template_updated') {
             const role = getStringMetadata(event.metadata, 'role');
             const permissionCode = getStringMetadata(event.metadata, 'permission_code');
@@ -477,7 +531,7 @@ export function UserDetailModal({
             formatOptionalDateTime(item.event_at),
             formatHistoryModule(item.module),
             item.action,
-            item.title,
+            formatHistoryActionLabel(item.title || item.action),
             formatHistoryDescription(item),
             formatHistoryOutcome(item.outcome),
             item.entity_type ?? '',
@@ -521,7 +575,7 @@ export function UserDetailModal({
                     <tr>
                         <td>${formatOptionalDateTime(event.event_at)}</td>
                         <td>${formatHistoryModule(event.module)}</td>
-                        <td>${event.title}</td>
+                        <td>${formatHistoryActionLabel(event.title || event.action)}</td>
                         <td>${formatHistoryDescription(event)}</td>
                         <td>${formatHistoryOutcome(event.outcome)}</td>
                         <td>${formatHistorySource(event.source)}</td>
@@ -1169,7 +1223,7 @@ export function UserDetailModal({
                                                             </div>
 
                                                             <h5 className="font-bold text-gray-900 dark:text-white">
-                                                                {event.title}
+                                                                {formatHistoryActionLabel(event.title || event.action)}
                                                             </h5>
 
                                                             <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">
