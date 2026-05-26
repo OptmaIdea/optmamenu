@@ -20,6 +20,10 @@ import {
     Plus,
     AlertTriangle,
     Loader,
+    Clock,
+    LogIn,
+    LogOut,
+    Activity,
 } from 'lucide-react';
 import { useStoreMemberDetails } from '@/hooks/useStoreMemberDetails';
 
@@ -30,7 +34,8 @@ interface UserDetailModalProps {
     canManageUsers?: boolean;
 }
 
-type ModalTab = 'overview' | 'internal' | 'occurrences';
+type ModalTab = 'overview' | 'access' | 'internal' | 'occurrences';
+
 
 interface InternalFormState {
     nickname: string;
@@ -187,6 +192,49 @@ export function UserDetailModal({
         });
     };
 
+    const formatOptionalDateTime = (dateString: string | null | undefined) => {
+        if (!dateString) return 'Sem registro';
+
+        return new Date(dateString).toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
+
+    const getSessionActionLabel = (action: string | null | undefined) => {
+        const labels: Record<string, string> = {
+            session_store_selected: 'Entrada na loja selecionada',
+            session_logout: 'Saída do sistema',
+            session_login_test: 'Teste de sessão',
+        };
+
+        return action ? labels[action] ?? action : 'Sem evento registrado';
+    };
+
+    const lastSessionIcon =
+        user.last_session_action === 'session_logout'
+            ? LogOut
+            : user.last_session_action === 'session_store_selected'
+                ? LogIn
+                : Clock;
+
+    const lastSessionDetails = (user.last_session_details as Record<string, any>) ?? {};
+    const lastSessionStoreName =
+        typeof lastSessionDetails.store_name === 'string'
+            ? lastSessionDetails.store_name
+            : null;
+    const lastSessionRole =
+        typeof lastSessionDetails.role === 'string'
+            ? formatRoleLabel(lastSessionDetails.role)
+            : null;
+    const sessionElapsed =
+        typeof lastSessionDetails.session_elapsed === 'string'
+            ? lastSessionDetails.session_elapsed
+            : null;
+
     const handleSaveInternalDetails = async () => {
         if (!memberStore) {
             toast.error('Vínculo de loja não encontrado para este usuário.');
@@ -264,6 +312,7 @@ export function UserDetailModal({
 
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
+        { id: 'access', label: 'Acesso', icon: Activity },
         ...(canManageUsers
             ? [
                   { id: 'internal' as ModalTab, label: 'Dados internos', icon: Briefcase },
@@ -383,11 +432,16 @@ export function UserDetailModal({
                                             value={formatDate(user.created_at)}
                                         />
 
-                                        {user.last_sign_in_at && (
+                                        {(user.last_session_at || user.last_seen_at || user.last_sign_in_at) && (
                                             <InfoCard
-                                                icon={Calendar}
+                                                icon={Clock}
                                                 label="Último acesso"
-                                                value={formatDate(user.last_sign_in_at)}
+                                                value={formatDate(
+                                                    user.last_session_at ||
+                                                    user.last_seen_at ||
+                                                    user.last_sign_in_at ||
+                                                    user.created_at
+                                                )}
                                             />
                                         )}
 
@@ -441,6 +495,85 @@ export function UserDetailModal({
                                     </div>
                                 </>
                             )}
+
+                             {activeTab === 'access' && (
+                                 <div className="space-y-5">
+                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                         <InfoCard
+                                             icon={lastSessionIcon}
+                                             label="Último evento de sessão"
+                                             value={getSessionActionLabel(user.last_session_action)}
+                                         />
+
+                                         <InfoCard
+                                             icon={Clock}
+                                             label="Quando ocorreu"
+                                             value={formatOptionalDateTime(user.last_session_at || user.last_seen_at)}
+                                         />
+
+                                         <InfoCard
+                                             icon={Activity}
+                                             label="Último sinal de atividade"
+                                             value={formatOptionalDateTime(user.last_seen_at || user.last_session_at)}
+                                         />
+
+                                         <InfoCard
+                                             icon={Shield}
+                                             label="Papel no último acesso"
+                                             value={lastSessionRole || formatRoleLabel(user.role)}
+                                         />
+
+                                         {lastSessionStoreName && (
+                                             <InfoCard
+                                                 icon={Store}
+                                                 label="Loja acessada"
+                                                 value={lastSessionStoreName}
+                                             />
+                                         )}
+
+                                         {sessionElapsed && (
+                                             <InfoCard
+                                                 icon={Clock}
+                                                 label="Tempo da sessão"
+                                                 value={sessionElapsed}
+                                             />
+                                         )}
+                                     </div>
+
+                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                         <h4 className="mb-2 flex items-center gap-2 font-bold text-gray-900 dark:text-white">
+                                             <Activity size={18} />
+                                             Observações de auditoria
+                                         </h4>
+
+                                         <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                                             <li>
+                                                 • O último acesso é registrado quando o usuário entra em uma loja
+                                                 no login multi-loja.
+                                             </li>
+                                             <li>
+                                                 • A saída do sistema é registrada quando o usuário clica em sair.
+                                             </li>
+                                             <li>
+                                                 • Usuários que permanecem com a aba aberta podem atualizar o último
+                                                 sinal apenas em eventos específicos do sistema.
+                                             </li>
+                                         </ul>
+                                     </div>
+
+                                     {Object.keys(lastSessionDetails).length > 0 && (
+                                         <details className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                             <summary className="cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-300">
+                                                 Ver detalhes técnicos do último evento
+                                             </summary>
+
+                                             <pre className="mt-3 max-h-56 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
+                                                 {JSON.stringify(lastSessionDetails, null, 2)}
+                                             </pre>
+                                         </details>
+                                     )}
+                                 </div>
+                             )}
 
                             {activeTab === 'internal' && canManageUsers && (
                                 <div className="space-y-5">
