@@ -33,8 +33,21 @@ export default function Login() {
 
   const [error, setError] = useState('');
 
-  const finishLoginWithStore = (storeId: string) => {
+  const finishLoginWithStore = async (storeId: string) => {
+    const selectedStore = storeOptions.find((option) => option.store_id === storeId);
+
     setActiveStoreId(storeId);
+
+    sessionStorage.setItem('optmamenu.session.start', new Date().toISOString());
+
+    await logSessionEvent(storeId, 'session_store_selected', {
+      source: 'login',
+      store_name: selectedStore?.store_name ?? null,
+      store_slug: selectedStore?.store_slug ?? null,
+      role: selectedStore?.role ?? null,
+      multiple_store_options: storeOptions.length,
+    });
+
     navigate('/admin', { replace: true });
   };
 
@@ -74,7 +87,7 @@ export default function Login() {
       }
 
       if (options.length === 1) {
-        finishLoginWithStore(options[0].store_id);
+        await finishLoginWithStore(options[0].store_id);
         return;
       }
 
@@ -97,7 +110,7 @@ export default function Login() {
       return;
     }
 
-    finishLoginWithStore(selectedStoreId);
+    void finishLoginWithStore(selectedStoreId);
   };
 
   const handleBackToCredentials = async () => {
@@ -107,6 +120,23 @@ export default function Login() {
     setStoreOptions([]);
     setSelectedStoreId('');
     setPassword('');
+  };
+
+  const logSessionEvent = async (
+    storeId: string,
+    action: string,
+    details: Record<string, unknown> = {}
+  ) => {
+    const { error: rpcError } = await supabase.rpc('log_user_session_event', {
+      p_store_id: storeId,
+      p_action: action,
+      p_details: details,
+      p_outcome: 'success',
+    });
+
+    if (rpcError) {
+      console.warn('Não foi possível registrar evento de sessão:', rpcError);
+    }
   };
 
   return (
@@ -211,8 +241,8 @@ export default function Login() {
                       type="button"
                       onClick={() => setSelectedStoreId(option.store_id)}
                       className={`w-full rounded-2xl border p-4 text-left transition ${selected
-                          ? 'border-[#21A896] bg-[#21A896]/10 ring-2 ring-[#21A896]/20'
-                          : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900/40'
+                        ? 'border-[#21A896] bg-[#21A896]/10 ring-2 ring-[#21A896]/20'
+                        : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900/40'
                         }`}
                     >
                       <div className="flex items-center gap-3">
