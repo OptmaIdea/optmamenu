@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useUsersStore } from '@/store/useUsersStore';
 import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
@@ -11,6 +11,8 @@ import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { toast } from 'sonner';
 import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter } from 'lucide-react';
+import { useStoreMemberSessionSummary } from '@/hooks/security/useStoreMemberSessionSummary';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 export default function Users() {
     const {
@@ -31,17 +33,65 @@ export default function Users() {
 
     const { securityContext } = useSecurityContext();
 
-    const currentMemberId = securityContext?.primary_membership?.member_id ?? null;
-    const primaryStoreId = securityContext?.primary_membership?.store_id ?? null;
-    const { permissions } = usePermissions(primaryStoreId);
+    const activeStoreId = getActiveStoreId();
+
+    const activeMembership = useMemo(() => {
+        if (!securityContext?.memberships?.length) {
+            return securityContext?.primary_membership ?? null;
+        }
+
+        if (!activeStoreId) {
+            return securityContext.primary_membership ?? null;
+        }
+
+        return (
+            securityContext.memberships.find(
+                (membership) =>
+                    membership.store_id === activeStoreId &&
+                    membership.status === 'active'
+            ) ??
+            securityContext.primary_membership ??
+            null
+        );
+    }, [securityContext?.memberships, securityContext?.primary_membership, activeStoreId]);
+
+    const currentMemberId = activeMembership?.member_id ?? null;
+    const operationalStoreId = activeMembership?.store_id ?? activeStoreId ?? null;
+
+    const { permissions } = usePermissions(operationalStoreId);
     const {
         invites,
         loading: loadingInvites,
         saving: savingInvites,
         refresh: refreshInvites,
         cancelInvite,
-    } = useStoreMemberInvites(primaryStoreId);
+    } = useStoreMemberInvites(operationalStoreId);
     const canManageUsers = hasEffectivePermission(permissions, 'users.manage');
+
+    const {
+        items: sessionSummary,
+        refresh: refreshSessionSummary,
+    } = useStoreMemberSessionSummary();
+
+    const sessionSummaryByMemberId = useMemo(() => {
+        return new Map(sessionSummary.map((item) => [item.member_id, item]));
+    }, [sessionSummary]);
+
+    const usersWithSession = useMemo(() => {
+        return users.map((user) => {
+            const summary = sessionSummaryByMemberId.get(user.id);
+
+            if (!summary) return user;
+
+            return {
+                ...user,
+                last_seen_at: summary.last_seen_at,
+                last_session_action: summary.last_session_action,
+                last_session_at: summary.last_session_at,
+                last_session_details: summary.last_session_details,
+            };
+        });
+    }, [users, sessionSummaryByMemberId]);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showFormModal, setShowFormModal] = useState(false);
@@ -71,7 +121,19 @@ export default function Users() {
     }, [searchTerm, setFilters, fetchUsers, resetFilters]);
 
     const handleViewUser = (user: UserAdmin) => {
-        setSelectedUser(user);
+        const summary = sessionSummaryByMemberId.get(user.id);
+
+        setSelectedUser({
+            ...user,
+            ...(summary
+                ? {
+                    last_seen_at: summary.last_seen_at,
+                    last_session_action: summary.last_session_action,
+                    last_session_at: summary.last_session_at,
+                    last_session_details: summary.last_session_details,
+                }
+                : {}),
+        });
         setShowDetailModal(true);
     };
 
@@ -81,7 +143,19 @@ export default function Users() {
             return;
         }
 
-        setSelectedUser(user);
+        const summary = sessionSummaryByMemberId.get(user.id);
+
+        setSelectedUser({
+            ...user,
+            ...(summary
+                ? {
+                    last_seen_at: summary.last_seen_at,
+                    last_session_action: summary.last_session_action,
+                    last_session_at: summary.last_session_at,
+                    last_session_details: summary.last_session_details,
+                }
+                : {}),
+        });
         setFormMode('edit');
         setShowFormModal(true);
     };
@@ -111,6 +185,7 @@ export default function Users() {
         }
 
         await updateUserStatus(user.id, newStatus);
+        await refreshSessionSummary();
     };
 
     const handleDeleteUser = async (user: UserAdmin) => {
@@ -126,6 +201,7 @@ export default function Users() {
 
         if (window.confirm(`Tem certeza que deseja desativar o usuário "${user.full_name}"?`)) {
             await deleteUser(user.id);
+            await refreshSessionSummary();
         }
     };
 
@@ -133,6 +209,7 @@ export default function Users() {
         if (formMode === 'create') {
             await createUser(data);
             await refreshInvites();
+            await refreshSessionSummary();
 
             setSelectedUser(null);
             setShowFormModal(false);
@@ -142,6 +219,7 @@ export default function Users() {
 
         if (selectedUser) {
             await updateUser(selectedUser.id, data);
+            await refreshSessionSummary();
             setSelectedUser(null);
             setShowFormModal(false);
         }
@@ -351,7 +429,7 @@ export default function Users() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {users.map((user) => (
+                    {usersWithSession.map((user) => (
                         <UserCard
                             key={user.id}
                             user={user}

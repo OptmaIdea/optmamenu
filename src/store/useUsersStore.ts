@@ -9,6 +9,7 @@ import {
     updateStoreMemberStatus,
 } from '@/services/securityService';
 import { createStoreMemberInvite } from '@/services/storeMemberInviteService';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 interface UsersState {
     users: UserAdmin[];
@@ -162,23 +163,38 @@ function buildStats(users: UserAdmin[]): UserStats {
     };
 }
 
-async function getPrimaryStoreId(): Promise<string> {
+async function getCurrentOperationalStoreId(): Promise<string> {
     const context = await getCurrentUserSecurityContext();
-    const storeId = context.primary_membership?.store_id;
 
     if (!context.authenticated) {
         throw new Error('Usuário não autenticado.');
     }
 
-    if (!storeId) {
+    const activeStoreId = getActiveStoreId();
+
+    if (activeStoreId) {
+        const hasMembership = context.memberships.some(
+            (membership) =>
+                membership.store_id === activeStoreId &&
+                membership.status === 'active'
+        );
+
+        if (hasMembership) {
+            return activeStoreId;
+        }
+    }
+
+    const fallbackStoreId = context.primary_membership?.store_id;
+
+    if (!fallbackStoreId) {
         throw new Error('Nenhuma loja ativa encontrada para o usuário atual.');
     }
 
-    return storeId;
+    return fallbackStoreId;
 }
 
 async function fetchAllUsersForCurrentStore(): Promise<UserAdmin[]> {
-    const storeId = await getPrimaryStoreId();
+    const storeId = await getCurrentOperationalStoreId();
     const members = await getStoreMembers(storeId);
 
     return members.map(mapStoreMemberToUserAdmin);
@@ -233,7 +249,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
 
     createUser: async (data) => {
         try {
-            const storeId = await getPrimaryStoreId();
+            const storeId = await getCurrentOperationalStoreId();
 
             const role = USER_ROLE_TO_STORE_ROLE[data.role];
 

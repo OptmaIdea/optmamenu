@@ -2,7 +2,19 @@ import React from 'react';
 import type { UserAdmin } from '@/types';
 import { UserStatusBadge } from './UserStatusBadge';
 import { UserRoleBadge } from './UserRoleBadge';
-import { Mail, Phone, Calendar, MoreVertical, Edit2, Trash2, Ban, CheckCircle } from 'lucide-react';
+import {
+    Mail,
+    Phone,
+    Calendar,
+    MoreVertical,
+    Edit2,
+    Trash2,
+    Ban,
+    CheckCircle,
+    Clock,
+    LogIn,
+    LogOut,
+} from 'lucide-react';
 
 interface UserCardProps {
     user: UserAdmin;
@@ -37,6 +49,22 @@ export function UserCard({
         action();
         setShowMenu(false);
     };
+
+    const lastAccessAt = user.last_session_at || user.last_seen_at;
+
+    const lastSessionLabel =
+        user.last_session_action === 'session_logout'
+            ? 'Última saída'
+            : user.last_session_action === 'session_store_selected'
+                ? 'Última entrada'
+                : 'Último acesso';
+
+    const LastSessionIcon =
+        user.last_session_action === 'session_logout'
+            ? LogOut
+            : user.last_session_action === 'session_store_selected'
+                ? LogIn
+                : Clock;
 
     return (
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow">
@@ -83,6 +111,21 @@ export function UserCard({
                                     {new Date(user.created_at).toLocaleDateString('pt-BR')}
                                 </span>
                             </div>
+                            {lastAccessAt && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                    <LastSessionIcon size={14} className="shrink-0" />
+                                    <span>
+                                        {lastSessionLabel}:{' '}
+                                        {new Date(lastAccessAt).toLocaleString('pt-BR')}
+                                    </span>
+                                </div>
+                            )}
+                            {!lastAccessAt && (
+                                <div className="flex items-center gap-2 text-sm text-gray-400">
+                                    <Clock size={14} className="shrink-0" />
+                                    <span>Sem acesso registrado</span>
+                                </div>
+                            )}
                         </div>
 
                         {user.internal_notes && (

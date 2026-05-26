@@ -177,3 +177,11 @@ export type LoginStoreOption = {
   is_primary_owner: boolean;
   sort_order: number | null;
 };
+
+export interface StoreMemberSessionSummaryRow {
+  member_id: string;
+  last_seen_at: string | null;
+  last_session_action: string | null;
+  last_session_at: string | null;
+  last_session_details: Record<string, unknown> | null;
+}

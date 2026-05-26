@@ -63,6 +63,10 @@ export interface UserAdmin {
     updated_at: string;
     internal_notes?: string | null;
     stores?: StoreUser[];
+    last_seen_at?: string | null;
+    last_session_action?: string | null;
+    last_session_at?: string | null;
+    last_session_details?: Record<string, unknown> | null;
 }
 
 export interface StoreUser {
