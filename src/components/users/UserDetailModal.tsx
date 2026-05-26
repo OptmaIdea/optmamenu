@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import type {
     StoreMemberOccurrenceSeverity,
@@ -24,8 +24,15 @@ import {
     LogIn,
     LogOut,
     Activity,
+    Filter,
+    FileDown,
+    Search,
+    RefreshCw,
+    Printer,
+    ArrowUpDown,
 } from 'lucide-react';
 import { useStoreMemberDetails } from '@/hooks/useStoreMemberDetails';
+import { useStoreMemberFullHistory } from '@/hooks/security/useStoreMemberFullHistory';
 
 interface UserDetailModalProps {
     isOpen: boolean;
@@ -34,7 +41,8 @@ interface UserDetailModalProps {
     canManageUsers?: boolean;
 }
 
-type ModalTab = 'overview' | 'access' | 'internal' | 'occurrences';
+type ModalTab = 'overview' | 'access' | 'history' | 'internal' | 'occurrences';
+
 
 
 interface InternalFormState {
@@ -137,6 +145,26 @@ export function UserDetailModal({
         addOccurrence,
     } = useStoreMemberDetails(isOpen && user ? user.id : null);
 
+    const {
+        items: fullHistoryItems,
+        filters: historyFilters,
+        loading: historyLoading,
+        error: historyError,
+        updateFilters: updateHistoryFilters,
+        resetFilters: resetHistoryFilters,
+        fetchHistory,
+    } = useStoreMemberFullHistory(user?.id ?? null, isOpen);
+
+    const [historySortOrder, setHistorySortOrder] = useState<'asc' | 'desc'>('desc');
+
+    const fullHistory = useMemo(() => {
+        return [...fullHistoryItems].sort((a, b) => {
+            const dateA = new Date(a.event_at).getTime();
+            const dateB = new Date(b.event_at).getTime();
+            return historySortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+        });
+    }, [fullHistoryItems, historySortOrder]);
+
     const memberStore = user?.stores?.[0] ?? null;
 
     const [internalForm, setInternalForm] = useState<InternalFormState>(() =>
@@ -235,6 +263,387 @@ export function UserDetailModal({
             ? lastSessionDetails.session_elapsed
             : null;
 
+    const formatHistoryModule = (module: string) => {
+        const labels: Record<string, string> = {
+            security: 'Segurança',
+            users: 'Usuários',
+            audit: 'Auditoria',
+            stock: 'Estoque',
+            purchases: 'Compras',
+            suppliers: 'Fornecedores',
+            products: 'Produtos',
+        };
+
+        return labels[module] ?? module;
+    };
+
+    const formatHistoryOutcome = (outcome: string | null | undefined) => {
+        const labels: Record<string, string> = {
+            success: 'Sucesso',
+            failure: 'Falha',
+            info: 'Informativo',
+            low: 'Baixa',
+            medium: 'Média',
+            high: 'Alta',
+            critical: 'Crítica',
+        };
+
+        return outcome ? labels[outcome] ?? outcome : 'Sem resultado';
+    };
+
+    const formatHistorySource = (source: string | null | undefined) => {
+        const labels: Record<string, string> = {
+            store_security_logs: 'Registro de segurança',
+            store_member_occurrences: 'Ocorrência do usuário',
+            audit_logs: 'Auditoria operacional',
+            stock_movements: 'Movimentação de estoque',
+            operational_timeline: 'Linha do tempo operacional',
+        };
+
+        return source ? labels[source] ?? source : 'Origem não identificada';
+    };
+
+    const getStringMetadata = (
+        metadata: Record<string, unknown> | null | undefined,
+        key: string
+    ): string | null => {
+        const value = metadata?.[key];
+        return typeof value === 'string' && value.trim() ? value : null;
+    };
+
+    const getRecordMetadata = (
+        metadata: Record<string, unknown> | null | undefined,
+        key: string
+    ): Record<string, unknown> => {
+        const value = metadata?.[key];
+
+        return value && typeof value === 'object' && !Array.isArray(value)
+            ? (value as Record<string, unknown>)
+            : {};
+    };
+
+    const formatPermissionLabelFromCode = (code: string) => {
+        const labels: Record<string, string> = {
+            'dashboard.view': 'Painel · Ver',
+            'reports.view': 'Relatórios · Ver',
+            'products.view': 'Produtos · Ver',
+            'products.create': 'Produtos · Criar',
+            'products.update': 'Produtos · Editar',
+            'products.delete': 'Produtos · Excluir',
+            'stock.view': 'Estoque · Ver',
+            'stock.transfer': 'Estoque · Transferir',
+            'stock.adjust': 'Estoque · Ajustar',
+            'purchases.view': 'Compras · Ver',
+            'purchases.create': 'Compras · Criar',
+            'purchases.confirm': 'Compras · Confirmar',
+            'purchases.cancel': 'Compras · Cancelar',
+            'suppliers.view': 'Fornecedores · Ver',
+            'suppliers.manage': 'Fornecedores · Gerenciar',
+            'orders.view': 'Pedidos · Ver',
+            'orders.manage': 'Pedidos · Gerenciar',
+            'orders.cancel': 'Pedidos · Cancelar',
+            'cashbook.view': 'Livro diário · Ver',
+            'cashbook.create': 'Livro diário · Criar',
+            'cashbook.cancel': 'Livro diário · Cancelar',
+            'clients.view': 'Clientes · Ver',
+            'clients.manage': 'Clientes · Gerenciar',
+            'marketing.view': 'Marketing · Ver',
+            'marketing.manage': 'Marketing · Gerenciar',
+            'loyalty.view': 'Fidelidade · Ver',
+            'loyalty.manage': 'Fidelidade · Gerenciar',
+            'users.view': 'Usuários · Ver',
+            'users.manage': 'Usuários · Gerenciar',
+            'security.view': 'Segurança · Ver',
+            'security.manage': 'Segurança · Gerenciar',
+        };
+
+        if (labels[code]) return labels[code];
+
+        const [module, action] = code.split('.');
+        if (!module || !action) return code;
+
+        return `${module} · ${action}`;
+    };
+
+    const formatPermissionValue = (value: unknown) => {
+        if (value === true) return 'permitido';
+        if (value === false) return 'bloqueado';
+        return 'herdado';
+    };
+
+    const getPermissionChangeSummaryFromMetadata = (
+        metadata: Record<string, unknown> | null | undefined
+    ) => {
+        const oldPermissions = getRecordMetadata(metadata, 'old_permissions');
+        const newPermissions = getRecordMetadata(metadata, 'new_permissions');
+
+        const codes = Array.from(
+            new Set([
+                ...Object.keys(oldPermissions),
+                ...Object.keys(newPermissions),
+            ])
+        );
+
+        const changed = codes.filter(
+            (code) => oldPermissions[code] !== newPermissions[code]
+        );
+
+        if (!changed.length) return null;
+
+        return changed
+            .slice(0, 4)
+            .map((code) => {
+                return `${formatPermissionLabelFromCode(code)}: ${formatPermissionValue(
+                    oldPermissions[code]
+                )} → ${formatPermissionValue(newPermissions[code])}`;
+            })
+            .join(' | ');
+    };
+
+    const formatHistoryDescription = (event: {
+        action: string;
+        description: string | null;
+        metadata: Record<string, unknown> | null;
+    }) => {
+        if (event.action === 'store_member_permissions_updated') {
+            return (
+                getPermissionChangeSummaryFromMetadata(event.metadata) ||
+                event.description ||
+                'Permissões individuais revisadas.'
+            );
+        }
+
+        if (event.action === 'store_role_permission_template_updated') {
+            const role = getStringMetadata(event.metadata, 'role');
+            const permissionCode = getStringMetadata(event.metadata, 'permission_code');
+            const oldAllowed = event.metadata?.old_allowed;
+            const newAllowed = event.metadata?.new_allowed;
+
+            const parts = [
+                role ? `Papel: ${formatRoleLabel(role)}` : null,
+                permissionCode ? formatPermissionLabelFromCode(permissionCode) : null,
+                `${formatPermissionValue(oldAllowed)} → ${formatPermissionValue(newAllowed)}`,
+            ].filter(Boolean);
+
+            return parts.join(' · ');
+        }
+
+        if (event.action === 'store_sensitive_action_rule_updated') {
+            const actionCode = getStringMetadata(event.metadata, 'action_code');
+            const oldRule = getRecordMetadata(event.metadata, 'old_rule');
+            const newRule = getRecordMetadata(event.metadata, 'new_rule');
+
+            const oldRequirement =
+                typeof oldRule.requirement === 'string' ? oldRule.requirement : 'não definido';
+
+            const newRequirement =
+                typeof newRule.requirement === 'string' ? newRule.requirement : 'não definido';
+
+            return `${actionCode ?? 'Ação sensível'} · exigência: ${oldRequirement} → ${newRequirement}`;
+        }
+
+        if (event.action === 'session_store_selected') {
+            const storeName = getStringMetadata(event.metadata, 'store_name');
+            const role = getStringMetadata(event.metadata, 'role');
+
+            return `${storeName ?? 'Loja selecionada'} · acesso como ${role ? formatRoleLabel(role) : 'papel não informado'
+                }`;
+        }
+
+        if (event.action === 'session_logout') {
+            const elapsed = getStringMetadata(event.metadata, 'session_elapsed');
+
+            return elapsed
+                ? `Tempo de sessão: ${elapsed}`
+                : 'Usuário encerrou a sessão.';
+        }
+
+        return event.description || 'Evento registrado no histórico.';
+    };
+
+    const exportUserHistoryCsv = () => {
+        const headers = [
+            'Data/Hora',
+            'Módulo',
+            'Ação',
+            'Título',
+            'Descrição',
+            'Resultado',
+            'Entidade',
+            'Origem',
+        ];
+
+        const rows = fullHistory.map((item) => [
+            formatOptionalDateTime(item.event_at),
+            formatHistoryModule(item.module),
+            item.action,
+            item.title,
+            formatHistoryDescription(item),
+            formatHistoryOutcome(item.outcome),
+            item.entity_type ?? '',
+            formatHistorySource(item.source),
+        ]);
+
+        const csv = [
+            headers.join(';'),
+            ...rows.map((row) =>
+                row
+                    .map((value) => `"${String(value).replaceAll('"', '""')}"`)
+                    .join(';')
+            ),
+        ].join('\n');
+
+        const blob = new Blob([`\uFEFF${csv}`], {
+            type: 'text/csv;charset=utf-8;',
+        });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+
+        link.href = url;
+        link.download = `historico-usuario-${user.id}.csv`;
+        link.click();
+
+        URL.revokeObjectURL(url);
+    };
+
+    const printUserHistoryReport = () => {
+        const printWindow = window.open('', '_blank', 'width=1100,height=800');
+
+        if (!printWindow) {
+            toast.error('Não foi possível abrir a janela de impressão.');
+            return;
+        }
+
+        const rows = fullHistory
+            .map((event) => {
+                return `
+                    <tr>
+                        <td>${formatOptionalDateTime(event.event_at)}</td>
+                        <td>${formatHistoryModule(event.module)}</td>
+                        <td>${event.title}</td>
+                        <td>${formatHistoryDescription(event)}</td>
+                        <td>${formatHistoryOutcome(event.outcome)}</td>
+                        <td>${formatHistorySource(event.source)}</td>
+                    </tr>
+                `;
+            })
+            .join('');
+
+        printWindow.document.write(`
+            <!doctype html>
+            <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Histórico do usuário - ${user.full_name}</title>
+                    <style>
+                        * {
+                            box-sizing: border-box;
+                        }
+
+                        body {
+                            font-family: Arial, sans-serif;
+                            margin: 32px;
+                            color: #111827;
+                        }
+
+                        header {
+                            border-bottom: 2px solid #21A896;
+                            padding-bottom: 16px;
+                            margin-bottom: 24px;
+                        }
+
+                        h1 {
+                            margin: 0 0 8px;
+                            font-size: 22px;
+                        }
+
+                        p {
+                            margin: 4px 0;
+                            font-size: 13px;
+                        }
+
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            font-size: 12px;
+                        }
+
+                        th {
+                            text-align: left;
+                            background: #f3f4f6;
+                            border: 1px solid #d1d5db;
+                            padding: 8px;
+                        }
+
+                        td {
+                            vertical-align: top;
+                            border: 1px solid #e5e7eb;
+                            padding: 8px;
+                        }
+
+                        tr:nth-child(even) {
+                            background: #f9fafb;
+                        }
+
+                        .muted {
+                            color: #6b7280;
+                        }
+
+                        @media print {
+                            body {
+                                margin: 16px;
+                            }
+
+                            button {
+                                display: none;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <header>
+                        <h1>Histórico do usuário</h1>
+                        <p><strong>Usuário:</strong> ${user.full_name}</p>
+                        <p><strong>E-mail:</strong> ${user.email ?? 'Não informado'}</p>
+                        <p><strong>Papel atual:</strong> ${formatRoleLabel(user.role)}</p>
+                        <p><strong>Status:</strong> ${user.status}</p>
+                        <p class="muted"><strong>Emitido em:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+                        <p class="muted">Relatório gerado a partir dos filtros aplicados na tela.</p>
+                    </header>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data/Hora</th>
+                                <th>Módulo</th>
+                                <th>Evento</th>
+                                <th>Descrição</th>
+                                <th>Resultado</th>
+                                <th>Origem</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows || `
+                                <tr>
+                                    <td colspan="6">Nenhum evento encontrado para os filtros aplicados.</td>
+                                </tr>
+                            `}
+                        </tbody>
+                    </table>
+
+                    <script>
+                        window.onload = function () {
+                            window.print();
+                        };
+                    </script>
+                </body>
+            </html>
+        `);
+
+        printWindow.document.close();
+    };
+
     const handleSaveInternalDetails = async () => {
         if (!memberStore) {
             toast.error('Vínculo de loja não encontrado para este usuário.');
@@ -313,11 +722,12 @@ export function UserDetailModal({
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
         { id: 'access', label: 'Acesso', icon: Activity },
+        { id: 'history', label: 'Histórico', icon: Activity },
         ...(canManageUsers
             ? [
-                  { id: 'internal' as ModalTab, label: 'Dados internos', icon: Briefcase },
-                  { id: 'occurrences' as ModalTab, label: 'Ocorrências', icon: AlertTriangle },
-              ]
+                { id: 'internal' as ModalTab, label: 'Dados internos', icon: Briefcase },
+                { id: 'occurrences' as ModalTab, label: 'Ocorrências', icon: AlertTriangle },
+            ]
             : []),
     ];
 
@@ -496,84 +906,303 @@ export function UserDetailModal({
                                 </>
                             )}
 
-                             {activeTab === 'access' && (
-                                 <div className="space-y-5">
-                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                         <InfoCard
-                                             icon={lastSessionIcon}
-                                             label="Último evento de sessão"
-                                             value={getSessionActionLabel(user.last_session_action)}
-                                         />
+                            {activeTab === 'access' && (
+                                <div className="space-y-5">
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <InfoCard
+                                            icon={lastSessionIcon}
+                                            label="Último evento de sessão"
+                                            value={getSessionActionLabel(user.last_session_action)}
+                                        />
 
-                                         <InfoCard
-                                             icon={Clock}
-                                             label="Quando ocorreu"
-                                             value={formatOptionalDateTime(user.last_session_at || user.last_seen_at)}
-                                         />
+                                        <InfoCard
+                                            icon={Clock}
+                                            label="Quando ocorreu"
+                                            value={formatOptionalDateTime(user.last_session_at || user.last_seen_at)}
+                                        />
 
-                                         <InfoCard
-                                             icon={Activity}
-                                             label="Último sinal de atividade"
-                                             value={formatOptionalDateTime(user.last_seen_at || user.last_session_at)}
-                                         />
+                                        <InfoCard
+                                            icon={Activity}
+                                            label="Último sinal de atividade"
+                                            value={formatOptionalDateTime(user.last_seen_at || user.last_session_at)}
+                                        />
 
-                                         <InfoCard
-                                             icon={Shield}
-                                             label="Papel no último acesso"
-                                             value={lastSessionRole || formatRoleLabel(user.role)}
-                                         />
+                                        <InfoCard
+                                            icon={Shield}
+                                            label="Papel no último acesso"
+                                            value={lastSessionRole || formatRoleLabel(user.role)}
+                                        />
 
-                                         {lastSessionStoreName && (
-                                             <InfoCard
-                                                 icon={Store}
-                                                 label="Loja acessada"
-                                                 value={lastSessionStoreName}
-                                             />
-                                         )}
+                                        {lastSessionStoreName && (
+                                            <InfoCard
+                                                icon={Store}
+                                                label="Loja acessada"
+                                                value={lastSessionStoreName}
+                                            />
+                                        )}
 
-                                         {sessionElapsed && (
-                                             <InfoCard
-                                                 icon={Clock}
-                                                 label="Tempo da sessão"
-                                                 value={sessionElapsed}
-                                             />
-                                         )}
-                                     </div>
+                                        {sessionElapsed && (
+                                            <InfoCard
+                                                icon={Clock}
+                                                label="Tempo da sessão"
+                                                value={sessionElapsed}
+                                            />
+                                        )}
+                                    </div>
 
-                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                         <h4 className="mb-2 flex items-center gap-2 font-bold text-gray-900 dark:text-white">
-                                             <Activity size={18} />
-                                             Observações de auditoria
-                                         </h4>
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <h4 className="mb-2 flex items-center gap-2 font-bold text-gray-900 dark:text-white">
+                                            <Activity size={18} />
+                                            Observações de auditoria
+                                        </h4>
 
-                                         <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
-                                             <li>
-                                                 • O último acesso é registrado quando o usuário entra em uma loja
-                                                 no login multi-loja.
-                                             </li>
-                                             <li>
-                                                 • A saída do sistema é registrada quando o usuário clica em sair.
-                                             </li>
-                                             <li>
-                                                 • Usuários que permanecem com a aba aberta podem atualizar o último
-                                                 sinal apenas em eventos específicos do sistema.
-                                             </li>
-                                         </ul>
-                                     </div>
+                                        <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
+                                            <li>
+                                                • O último acesso é registrado quando o usuário entra em uma loja
+                                                no login multi-loja.
+                                            </li>
+                                            <li>
+                                                • A saída do sistema é registrada quando o usuário clica em sair.
+                                            </li>
+                                            <li>
+                                                • Usuários que permanecem com a aba aberta podem atualizar o último
+                                                sinal apenas em eventos específicos do sistema.
+                                            </li>
+                                        </ul>
+                                    </div>
 
-                                     {Object.keys(lastSessionDetails).length > 0 && (
-                                         <details className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                             <summary className="cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                 Ver detalhes técnicos do último evento
-                                             </summary>
+                                    {Object.keys(lastSessionDetails).length > 0 && (
+                                        <details className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                            <summary className="cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-300">
+                                                Ver detalhes técnicos do último evento
+                                            </summary>
 
-                                             <pre className="mt-3 max-h-56 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
-                                                 {JSON.stringify(lastSessionDetails, null, 2)}
-                                             </pre>
-                                         </details>
-                                     )}
-                                 </div>
-                             )}
+                                            <pre className="mt-3 max-h-56 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
+                                                {JSON.stringify(lastSessionDetails, null, 2)}
+                                            </pre>
+                                        </details>
+                                    )}
+                                </div>
+                            )}
+
+                            {activeTab === 'history' && (
+                                <div className="space-y-5">
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div>
+                                                <h4 className="flex items-center gap-2 font-bold text-gray-900 dark:text-white">
+                                                    <Activity size={18} />
+                                                    Histórico completo do usuário
+                                                </h4>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                    Consulte eventos de segurança, ocorrências e auditorias vinculadas a este membro.
+                                                </p>
+                                            </div>
+
+                                            <div className="flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void fetchHistory()}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                >
+                                                    <RefreshCw size={15} />
+                                                    Atualizar
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setHistorySortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'))}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                >
+                                                    <ArrowUpDown size={15} />
+                                                    {historySortOrder === 'asc' ? 'Antigos primeiro' : 'Recentes primeiro'}
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={exportUserHistoryCsv}
+                                                    disabled={fullHistory.length === 0}
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] disabled:opacity-50"
+                                                >
+                                                    <FileDown size={15} />
+                                                    CSV
+                                                </button>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={printUserHistoryReport}
+                                                    disabled={fullHistory.length === 0}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                >
+                                                    <Printer size={15} />
+                                                    Imprimir
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                                            <DateField
+                                                label="De"
+                                                value={historyFilters.dateFrom ?? ''}
+                                                onChange={(value) =>
+                                                    void updateHistoryFilters({ dateFrom: value || null })
+                                                }
+                                            />
+
+                                            <DateField
+                                                label="Até"
+                                                value={historyFilters.dateTo ?? ''}
+                                                onChange={(value) =>
+                                                    void updateHistoryFilters({ dateTo: value || null })
+                                                }
+                                            />
+
+                                            <SelectField
+                                                label="Módulo"
+                                                value={historyFilters.module ?? ''}
+                                                options={[
+                                                    ['', 'Todos'],
+                                                    ['security', 'Segurança'],
+                                                    ['users', 'Usuários'],
+                                                    ['audit', 'Auditoria'],
+                                                ]}
+                                                onChange={(value) =>
+                                                    void updateHistoryFilters({ module: value || null })
+                                                }
+                                            />
+
+                                            <SelectField
+                                                label="Resultado"
+                                                value={historyFilters.outcome ?? ''}
+                                                options={[
+                                                    ['', 'Todos'],
+                                                    ['success', 'Sucesso'],
+                                                    ['failure', 'Falha'],
+                                                    ['info', 'Informativo'],
+                                                    ['low', 'Baixa'],
+                                                    ['medium', 'Média'],
+                                                    ['high', 'Alta'],
+                                                    ['critical', 'Crítica'],
+                                                ]}
+                                                onChange={(value) =>
+                                                    void updateHistoryFilters({ outcome: value || null })
+                                                }
+                                            />
+
+                                            <label className="block">
+                                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                                    Busca
+                                                </span>
+                                                <div className="relative">
+                                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                                    <input
+                                                        type="text"
+                                                        value={historyFilters.search ?? ''}
+                                                        onChange={(event) =>
+                                                            void updateHistoryFilters({
+                                                                search: event.target.value || null,
+                                                            })
+                                                        }
+                                                        placeholder="Buscar..."
+                                                        className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                    />
+                                                </div>
+                                            </label>
+                                        </div>
+
+                                        <div className="mt-3 flex justify-end">
+                                            <button
+                                                type="button"
+                                                onClick={() => void resetHistoryFilters()}
+                                                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                            >
+                                                <Filter size={15} />
+                                                Limpar filtros
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
+                                        Use os filtros para montar um recorte específico do histórico. O botão Imprimir permite gerar uma versão para papel ou salvar como PDF pelo navegador.
+                                    </div>
+
+                                    {historyError && (
+                                        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                                            {historyError}
+                                        </div>
+                                    )}
+
+                                    {historyLoading ? (
+                                        <div className="rounded-xl border border-gray-200 p-8 text-center dark:border-gray-700">
+                                            <Loader className="mx-auto mb-3 h-6 w-6 animate-spin text-[#21A896]" />
+                                            <p className="text-sm text-gray-500">Carregando histórico...</p>
+                                        </div>
+                                    ) : fullHistory.length === 0 ? (
+                                        <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
+                                            <Activity className="mx-auto mb-3 h-8 w-8 text-gray-400" />
+                                            <p className="font-bold text-gray-700 dark:text-gray-200">
+                                                Nenhum evento encontrado
+                                            </p>
+                                            <p className="text-sm text-gray-500">
+                                                Ajuste os filtros ou aguarde novas ações do usuário.
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {fullHistory.map((event) => (
+                                                <div
+                                                    key={`${event.source}-${event.event_id}`}
+                                                    className="rounded-xl border border-gray-200 p-4 dark:border-gray-700"
+                                                >
+                                                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                                        <div>
+                                                            <div className="mb-2 flex flex-wrap items-center gap-2">
+                                                                <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                                    {formatHistoryModule(event.module)}
+                                                                </span>
+                                                                <span className="rounded-full bg-[#21A896]/10 px-2 py-1 text-xs font-bold text-[#21A896]">
+                                                                    {formatHistoryOutcome(event.outcome)}
+                                                                </span>
+                                                                <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                                    {formatHistorySource(event.source)}
+                                                                </span>
+                                                            </div>
+
+                                                            <h5 className="font-bold text-gray-900 dark:text-white">
+                                                                {event.title}
+                                                            </h5>
+
+                                                            <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">
+                                                                {formatHistoryDescription(event)}
+                                                            </p>
+
+                                                            <p className="mt-1 text-xs text-gray-400">
+                                                                {event.action}
+                                                                {event.entity_type ? ` · ${event.entity_type}` : ''}
+                                                            </p>
+                                                        </div>
+
+                                                        <p className="shrink-0 text-xs text-gray-500">
+                                                            {formatOptionalDateTime(event.event_at)}
+                                                        </p>
+                                                    </div>
+
+                                                    {event.metadata && Object.keys(event.metadata).length > 0 && (
+                                                        <details className="mt-3">
+                                                            <summary className="cursor-pointer text-xs font-bold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                                                Ver detalhes técnicos
+                                                            </summary>
+                                                            <pre className="mt-2 max-h-56 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
+                                                                {JSON.stringify(event.metadata, null, 2)}
+                                                            </pre>
+                                                        </details>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {activeTab === 'internal' && canManageUsers && (
                                 <div className="space-y-5">

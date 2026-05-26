@@ -184,4 +184,29 @@ export interface StoreMemberSessionSummaryRow {
   last_session_action: string | null;
   last_session_at: string | null;
   last_session_details: Record<string, unknown> | null;
-}
+};
+
+export type StoreMemberFullHistoryRow = {
+  event_id: string;
+  event_at: string;
+  module: string;
+  action: string;
+  title: string;
+  description: string | null;
+  outcome: string | null;
+  entity_type: string | null;
+  entity_id: string | null;
+  metadata: Record<string, unknown> | null;
+  source: string;
+};
+
+export type StoreMemberFullHistoryFilters = {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  module?: string | null;
+  action?: string | null;
+  outcome?: string | null;
+  search?: string | null;
+  limit?: number;
+  offset?: number;
+};
