@@ -352,6 +352,25 @@ export default function PrivateLayout() {
     }, [openSections]);
 
     const handleLogout = async () => {
+        const activeStoreId = getActiveStoreId();
+
+        if (activeStoreId) {
+            try {
+                await supabase.rpc('log_user_session_event', {
+                    p_store_id: activeStoreId,
+                    p_action: 'session_logout',
+                    p_details: {
+                        source: 'private_layout',
+                        session_started_at: sessionStartTime.toISOString(),
+                        session_elapsed: sessionElapsedTime,
+                    },
+                    p_outcome: 'success',
+                });
+            } catch (error) {
+                console.warn('Não foi possível registrar logout:', error);
+            }
+        }
+
         clearActiveStoreId();
         sessionStorage.removeItem('optmamenu.session.start');
         await supabase.auth.signOut();

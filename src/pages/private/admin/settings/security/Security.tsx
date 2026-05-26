@@ -159,6 +159,10 @@ function formatSecurityLogAction(action?: string): string {
         purchase_cancel: 'Cancelamento de compra',
         user_role_change: 'Alteração de papel de usuário',
         user_status_change: 'Alteração de status de usuário',
+
+        session_store_selected: 'Entrada na loja selecionada',
+        session_logout: 'Saída do sistema',
+        session_login_test: 'Teste de login/sessão',
     };
 
     if (!action) return 'Ação não identificada';
@@ -273,6 +277,27 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
             : 'não definido';
 
         return `${formatSecurityLogAction(actionCode)} · exigência: ${oldRequirement} → ${newRequirement}`;
+    }
+
+    if (log.action === 'session_store_selected') {
+        const storeName = getStringDetail(details, 'store_name') || 'loja selecionada';
+        const role = formatSecurityRole(getStringDetail(details, 'role'));
+        return `${storeName} · acesso como ${role}`;
+    }
+
+    if (log.action === 'session_logout') {
+        const startedAt = getStringDetail(details, 'session_started_at');
+        const elapsed = getStringDetail(details, 'session_elapsed');
+
+        if (elapsed) {
+            return `Tempo de sessão: ${elapsed}`;
+        }
+
+        if (startedAt) {
+            return `Sessão iniciada em ${new Date(startedAt).toLocaleString('pt-BR')}`;
+        }
+
+        return 'Usuário encerrou a sessão.';
     }
 
     const reason = getStringDetail(details, 'reason');
