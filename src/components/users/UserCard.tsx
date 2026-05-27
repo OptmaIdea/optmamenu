@@ -1,5 +1,6 @@
 import React from 'react';
 import type { UserAdmin } from '@/types';
+import type { StoreCustomRole } from '@/types/security';
 import { UserStatusBadge } from './UserStatusBadge';
 import { UserRoleBadge } from './UserRoleBadge';
 import {
@@ -23,7 +24,26 @@ interface UserCardProps {
     onToggleStatus?: (user: UserAdmin) => void;
     onDelete?: (user: UserAdmin) => void;
     showActions?: boolean;
+    canManageUsers?: boolean;
+    customRoles?: StoreCustomRole[];
+    customRoleSaving?: boolean;
+    onSelectCustomRole?: (user: UserAdmin, customRoleId: string | null) => void;
 }
+
+const formatRoleLabel = (role: string | null | undefined) => {
+    const labels: Record<string, string> = {
+        owner: 'Proprietário',
+        admin: 'Administrador',
+        manager: 'Gerente',
+        stock_operator: 'Operador de estoque',
+        cashier: 'Caixa',
+        sales: 'Vendas',
+        staff: 'Equipe',
+        viewer: 'Visualizador',
+    };
+
+    return role ? labels[role] ?? role : 'Não definido';
+};
 
 export function UserCard({
     user,
@@ -32,6 +52,10 @@ export function UserCard({
     onToggleStatus,
     onDelete,
     showActions = true,
+    canManageUsers = false,
+    customRoles = [],
+    customRoleSaving = false,
+    onSelectCustomRole,
 }: UserCardProps) {
     const [showMenu, setShowMenu] = React.useState(false);
     const isProtectedOwner = user.role === 'owner';
@@ -84,6 +108,14 @@ export function UserCard({
                             <UserRoleBadge role={user.role} size="sm" />
                             <UserStatusBadge status={user.status} size="sm" />
                         </div>
+                        {user.custom_role_name && (
+                            <p className="mt-1 text-xs font-bold text-[#21A896]">
+                                {user.custom_role_name}
+                                {user.custom_role_base_role
+                                    ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
+                                    : ''}
+                            </p>
+                        )}
 
                         <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
                             {user.email && (
@@ -132,6 +164,50 @@ export function UserCard({
                             <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
                                 <span className="font-medium">Observações:</span>{' '}
                                 {user.internal_notes}
+                            </div>
+                        )}
+
+                        {canManageUsers && user.role !== 'owner' && (
+                            <div className="mt-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
+                                <label className="block">
+                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                        Função personalizada
+                                    </span>
+
+                                    <select
+                                        value={user.custom_role_id ?? ''}
+                                        disabled={customRoleSaving}
+                                        onChange={(event) => {
+                                            const nextCustomRoleId = event.target.value || null;
+
+                                            if ((user.custom_role_id ?? null) === nextCustomRoleId) {
+                                                return;
+                                            }
+
+                                            onSelectCustomRole?.(user, nextCustomRoleId);
+                                        }}
+                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                    >
+                                        <option value="">Sem função personalizada</option>
+
+                                        {customRoles
+                                            .filter((role) => role.active)
+                                            .map((role) => (
+                                                <option key={role.id} value={role.id}>
+                                                    {role.name} — base: {formatRoleLabel(role.base_role)}
+                                                </option>
+                                            ))}
+                                    </select>
+                                </label>
+
+                                {user.custom_role_name && (
+                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                        Atual: <strong>{user.custom_role_name}</strong>
+                                        {user.custom_role_base_role
+                                            ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
+                                            : ''}
+                                    </p>
+                                )}
                             </div>
                         )}
                     </div>

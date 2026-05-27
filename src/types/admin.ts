@@ -67,6 +67,9 @@ export interface UserAdmin {
     last_session_action?: string | null;
     last_session_at?: string | null;
     last_session_details?: Record<string, unknown> | null;
+    custom_role_id?: string | null;
+    custom_role_name?: string | null;
+    custom_role_base_role?: string | null;
 }
 
 export interface StoreUser {

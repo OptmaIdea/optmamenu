@@ -218,3 +218,28 @@ export type StoreMemberFullHistoryFilters = {
   limit?: number;
   offset?: number;
 };
+
+
+export type StoreCustomRole = {
+  id: string;
+  store_id: string;
+  name: string;
+  description: string | null;
+  base_role: StoreRole | string;
+  active: boolean;
+  permissions: Record<string, boolean>;
+  sensitive_actions: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StoreCustomRoleFormData = {
+  id?: string;
+  name: string;
+  description: string;
+  base_role: StoreRole | string;
+  active: boolean;
+  permissions: Record<string, boolean>;
+  sensitive_actions: Record<string, unknown>;
+};

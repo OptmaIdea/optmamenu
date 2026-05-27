@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
     RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
-    ShieldCheck, User, Store, BadgeCheck
+    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -15,6 +15,7 @@ import { hasEffectivePermission } from '@/utils/permissions';
 import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
 import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermissionsAdmin';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
+import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -418,6 +419,94 @@ export default function Security() {
     const [saving, setSaving] = useState(false);
 
     const [selectedMemberId, setSelectedMemberId] = useState('');
+
+    const {
+        items: customRoles,
+        loading: customRolesLoading,
+        saving: customRolesSaving,
+        refresh: refreshCustomRoles,
+        createCustomRole,
+        updateCustomRole,
+    } = useStoreCustomRoles(true);
+
+    const [customRoleForm, setCustomRoleForm] = useState<{
+        id?: string;
+        name: string;
+        description: string;
+        base_role: string;
+        active: boolean;
+        permissions: Record<string, boolean>;
+        sensitive_actions: Record<string, unknown>;
+    } | null>(null);
+
+    const openNewCustomRoleForm = () => {
+        setCustomRoleForm({
+            name: '',
+            description: '',
+            base_role: 'stock_operator',
+            active: true,
+            permissions: {},
+            sensitive_actions: {},
+        });
+    };
+
+    const openEditCustomRoleForm = (role: {
+        id: string;
+        name: string;
+        description: string | null;
+        base_role: string;
+        active: boolean;
+        permissions: Record<string, boolean>;
+        sensitive_actions: Record<string, unknown>;
+    }) => {
+        setCustomRoleForm({
+            id: role.id,
+            name: role.name,
+            description: role.description ?? '',
+            base_role: role.base_role,
+            active: role.active,
+            permissions: role.permissions ?? {},
+            sensitive_actions: role.sensitive_actions ?? {},
+        });
+    };
+
+    const handleToggleCustomRolePermission = (permissionCode: string, allowed: boolean | null) => {
+        setCustomRoleForm((current) => {
+            if (!current) return current;
+
+            const nextPermissions = { ...current.permissions };
+
+            if (allowed === null) {
+                delete nextPermissions[permissionCode];
+            } else {
+                nextPermissions[permissionCode] = allowed;
+            }
+
+            return {
+                ...current,
+                permissions: nextPermissions,
+            };
+        });
+    };
+
+    const handleSaveCustomRole = async () => {
+        if (!customRoleForm) return;
+
+        if (!customRoleForm.name.trim()) {
+            toast.error('Informe o nome da função personalizada.');
+            return;
+        }
+
+        if (customRoleForm.id) {
+            await updateCustomRole(customRoleForm, 'Alteração da função personalizada pela tela de segurança.');
+        } else {
+            await createCustomRole(customRoleForm);
+        }
+
+        setCustomRoleForm(null);
+        await refreshAdmin();
+        await refreshCustomRoles();
+    };
     const [memberPermissionOverrides, setMemberPermissionOverrides] = useState<Record<string, boolean>>({});
     const {
         securityContext,
@@ -659,6 +748,7 @@ export default function Security() {
                 fetchInitialData(),
                 refreshSecurityContext(),
                 refreshAdmin(),
+                refreshCustomRoles(),
             ]);
             if (store?.id) {
                 await fetchLogs();
@@ -666,7 +756,7 @@ export default function Security() {
         } finally {
             setLoading(false);
         }
-    }, [fetchInitialData, refreshSecurityContext, refreshAdmin, store?.id, fetchLogs]);
+    }, [fetchInitialData, refreshSecurityContext, refreshAdmin, refreshCustomRoles, store?.id, fetchLogs]);
 
     useRefreshFrame(handleRefresh);
 
@@ -981,6 +1071,7 @@ export default function Security() {
         { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck },
         { id: 'logs', label: 'Histórico de atividades', icon: History },
         { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck },
+        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield },
         { id: 'users_perms', label: 'Permissões por usuário', icon: User },
         { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock },
         { id: 'pin_token', label: 'PIN e token', icon: Key },
@@ -2601,8 +2692,305 @@ export default function Security() {
                         </div>
                     </div>
 
+                    {/* FUNÇÕES PERSONALIZADAS */}
+                    <div className={activeTab === 'custom_roles' ? 'block animate-fadeIn' : 'hidden'}>
+                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+                                    Funções personalizadas
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Crie cargos que herdam de um papel base e ajustam permissões específicas.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={openNewCustomRoleForm}
+                                disabled={!canManageSecurity}
+                                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Plus size={16} />
+                                Nova função
+                            </button>
+                        </div>
+
+                        {customRolesLoading ? (
+                            <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
+                                <Loader className="animate-spin text-brand-green" />
+                            </div>
+                        ) : customRoles.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
+                                <Shield className="mx-auto mb-3 h-8 w-8 text-gray-400" />
+                                <p className="font-bold text-gray-700 dark:text-gray-200">
+                                    Nenhuma função personalizada criada
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                    Crie funções como Supervisor de Estoque, Auxiliar de Compras ou Gerente Financeiro.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                {customRoles.map((role) => (
+                                    <div
+                                        key={role.id}
+                                        className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                                    >
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <h4 className="font-black text-gray-900 dark:text-white">
+                                                        {role.name}
+                                                    </h4>
+
+                                                    <span
+                                                        className={`rounded-full px-2 py-1 text-xs font-bold ${
+                                                            role.active
+                                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
+                                                        }`}
+                                                    >
+                                                        {role.active ? 'Ativa' : 'Inativa'}
+                                                    </span>
+                                                </div>
+
+                                                <p className="mt-1 text-sm font-bold text-brand-green">
+                                                    Base: {formatSecurityRole(role.base_role)}
+                                                </p>
+
+                                                {role.description && (
+                                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                        {role.description}
+                                                    </p>
+                                                )}
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => openEditCustomRoleForm(role)}
+                                                disabled={!canManageSecurity}
+                                                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                            >
+                                                Editar
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                                            <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900/40">
+                                                <p className="text-xs text-gray-400">Liberadas</p>
+                                                <p className="font-black text-green-600">
+                                                    {Object.values(role.permissions ?? {}).filter(Boolean).length}
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900/40">
+                                                <p className="text-xs text-gray-400">Bloqueadas</p>
+                                                <p className="font-black text-red-500">
+                                                    {Object.values(role.permissions ?? {}).filter((value) => value === false).length}
+                                                </p>
+                                            </div>
+
+                                            <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900/40">
+                                                <p className="text-xs text-gray-400">Ajustes</p>
+                                                <p className="font-black text-gray-700 dark:text-gray-200">
+                                                    {Object.keys(role.permissions ?? {}).length}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
                 </div>
             </div>
+
+            {customRoleForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                    <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+                        <div className="mb-5 flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900 dark:text-white">
+                                    {customRoleForm.id ? 'Editar função personalizada' : 'Nova função personalizada'}
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Defina um papel base e ajuste permissões específicas deste cargo.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setCustomRoleForm(null)}
+                                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <label className="block">
+                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                    Nome da função
+                                </span>
+                                <input
+                                    value={customRoleForm.name}
+                                    onChange={(event) =>
+                                        setCustomRoleForm((current) =>
+                                            current ? { ...current, name: event.target.value } : current
+                                        )
+                                    }
+                                    placeholder="Ex.: Supervisor de Estoque"
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                />
+                            </label>
+
+                            <label className="block">
+                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                    Papel base
+                                </span>
+                                <select
+                                    value={customRoleForm.base_role}
+                                    onChange={(event) =>
+                                        setCustomRoleForm((current) =>
+                                            current ? { ...current, base_role: event.target.value } : current
+                                        )
+                                    }
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                >
+                                    {ROLE_OPTIONS.filter((role) => role.value !== 'owner').map((role) => (
+                                        <option key={role.value} value={role.value}>
+                                            {role.label}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
+                            <label className="block md:col-span-2">
+                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                    Descrição
+                                </span>
+                                <textarea
+                                    value={customRoleForm.description}
+                                    onChange={(event) =>
+                                        setCustomRoleForm((current) =>
+                                            current ? { ...current, description: event.target.value } : current
+                                        )
+                                    }
+                                    rows={3}
+                                    placeholder="Explique quando este cargo deve ser usado."
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                />
+                            </label>
+
+                            <label className="flex items-center gap-2 rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
+                                <input
+                                    type="checkbox"
+                                    checked={customRoleForm.active}
+                                    onChange={(event) =>
+                                        setCustomRoleForm((current) =>
+                                            current ? { ...current, active: event.target.checked } : current
+                                        )
+                                    }
+                                />
+                                <span className="font-bold text-gray-700 dark:text-gray-300">
+                                    Função ativa
+                                </span>
+                            </label>
+                        </div>
+
+                        <div className="mt-6">
+                            <h4 className="mb-2 font-black text-gray-900 dark:text-white">
+                                Ajustes de permissões
+                            </h4>
+                            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                                “Herdar” usa o papel base. “Liberar” e “Bloquear” sobrescrevem apenas nesta função personalizada.
+                            </p>
+
+                            <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-gray-50 text-gray-600 dark:bg-gray-700/50 dark:text-gray-300">
+                                        <tr>
+                                            <th className="p-3">Permissão</th>
+                                            <th className="p-3">Risco</th>
+                                            <th className="p-3">Ajuste da função</th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                        {permissionMatrix.map((permission) => {
+                                            const value = customRoleForm.permissions?.[permission.permission_code];
+
+                                            return (
+                                                <tr key={permission.permission_code}>
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-gray-800 dark:text-white">
+                                                            {permission.label}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400">
+                                                            {formatPermissionModule(permission.module)} · {formatPermissionAction(permission.action)} · {permission.permission_code}
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="p-3">
+                                                        {renderRiskBadge(permission.risk_level)}
+                                                    </td>
+
+                                                    <td className="p-3">
+                                                        <select
+                                                            value={
+                                                                value === true
+                                                                    ? 'allow'
+                                                                    : value === false
+                                                                        ? 'deny'
+                                                                        : 'inherit'
+                                                            }
+                                                            onChange={(event) => {
+                                                                const next = event.target.value;
+
+                                                                handleToggleCustomRolePermission(
+                                                                    permission.permission_code,
+                                                                    next === 'inherit'
+                                                                        ? null
+                                                                        : next === 'allow'
+                                                                );
+                                                            }}
+                                                            className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                        >
+                                                            <option value="inherit">Herdar do papel base</option>
+                                                            <option value="allow">Liberar nesta função</option>
+                                                            <option value="deny">Bloquear nesta função</option>
+                                                        </select>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setCustomRoleForm(null)}
+                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={handleSaveCustomRole}
+                                disabled={customRolesSaving}
+                                className="rounded-xl bg-brand-green px-4 py-2 text-sm font-bold text-white hover:bg-brand-green/90 disabled:opacity-50"
+                            >
+                                {customRolesSaving ? 'Salvando...' : 'Salvar função'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
 
     );
