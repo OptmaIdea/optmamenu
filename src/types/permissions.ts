@@ -17,8 +17,11 @@ export interface EffectiveStorePermission {
     description: string | null;
     risk_level: PermissionRiskLevel;
     allowed: boolean;
-    source: string;
-    role: string;
+    source?: string;
+    role?: string;
+    role_allowed?: boolean;
+    custom_role_override?: boolean | null;
+    override_value?: boolean | null;
 }
 
 export interface SensitiveActionRequirementResult {

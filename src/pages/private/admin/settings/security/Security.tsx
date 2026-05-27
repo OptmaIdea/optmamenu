@@ -65,6 +65,17 @@ function formatSecurityStatus(status: string | null): string {
     return status ? labels[status] ?? status : 'Não definido';
 }
 
+function formatPermissionSource(source?: string | null): string {
+    const labels: Record<string, string> = {
+        role_template: 'Papel base',
+        custom_role: 'Função personalizada',
+        individual_override: 'Exceção individual',
+        default_denied: 'Bloqueio padrão',
+    };
+
+    return source ? labels[source] ?? source : 'Não informado';
+}
+
 function formatPermissionModule(module: string): string {
     const labels: Record<string, string> = {
         dashboard: 'Painel',
@@ -2008,7 +2019,7 @@ export default function Security() {
 
                                                     {row.source !== 'role_template' && (
                                                         <p className="mt-1 text-xs text-gray-400">
-                                                            Origem atual: {row.source}
+                                                            Origem atual: {formatPermissionSource(row.source)}
                                                         </p>
                                                     )}
                                                 </td>

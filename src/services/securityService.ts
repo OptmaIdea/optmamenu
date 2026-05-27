@@ -20,7 +20,7 @@ const EMPTY_SECURITY_CONTEXT: CurrentUserSecurityContext = {
 };
 
 export async function getCurrentUserSecurityContext(): Promise<CurrentUserSecurityContext> {
-  const { data, error } = await supabase.rpc('get_current_user_security_context');
+  const { data, error } = await supabase.rpc('get_current_user_security_context_v2');
 
   if (error) {
     console.error('Erro ao carregar contexto de segurança:', error);

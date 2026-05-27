@@ -461,9 +461,8 @@ export function UserDetailModal({
             const newRole = getStringMetadata(event.metadata, 'new_role');
             const cleared = event.metadata?.clear_individual_overrides === true;
 
-            return `${targetName} · ${oldRole ? formatRoleLabel(oldRole) : 'função anterior'} → ${
-                newRole ? formatRoleLabel(newRole) : 'nova função'
-            }${cleared ? ' · permissões individuais limpas' : ' · permissões individuais preservadas'}`;
+            return `${targetName} · ${oldRole ? formatRoleLabel(oldRole) : 'função anterior'} → ${newRole ? formatRoleLabel(newRole) : 'nova função'
+                }${cleared ? ' · permissões individuais limpas' : ' · permissões individuais preservadas'}`;
         }
 
 

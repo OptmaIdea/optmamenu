@@ -43,6 +43,11 @@ export interface StoreMembershipContext {
   is_primary_owner: boolean;
   created_at: string;
   updated_at: string;
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
+  custom_role_base_role?: StoreRole | string | null;
+  custom_role_permissions?: Record<string, boolean>;
+  custom_role_sensitive_actions?: Record<string, unknown>;
 }
 
 export interface CurrentUserSecurityContext {
@@ -73,6 +78,9 @@ export interface StoreMemberAdmin {
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
+  custom_role_base_role?: StoreRole | string | null;
 }
 
 export type StoreRole =

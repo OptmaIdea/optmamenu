@@ -73,6 +73,7 @@ type LayoutMembership = {
     role: string;
     status: string;
     is_primary_owner?: boolean;
+    custom_role_name?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -572,8 +573,15 @@ export default function PrivateLayout() {
                                             {activeMembership.store_name}
                                         </p>
                                         <p className="text-[11px] font-bold text-brand-green truncate font-candara uppercase tracking-wide">
-                                            {formatLayoutRole(activeMembership.role)}
+                                            {activeMembership.custom_role_name
+                                                ? activeMembership.custom_role_name
+                                                : formatLayoutRole(activeMembership.role)}
                                         </p>
+                                        {activeMembership.custom_role_name && (
+                                            <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate font-candara">
+                                                Base: {formatLayoutRole(activeMembership.role)}
+                                            </p>
+                                        )}
                                     </div>
                                 )}
                             </div>
