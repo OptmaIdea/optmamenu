@@ -7,6 +7,8 @@ import {
     getCurrentUserSecurityContext,
     getStoreMembers,
     updateStoreMemberStatus,
+    updateStoreMemberProfileDetails,
+    type UpdateStoreMemberProfileDetailsInput,
 } from '@/services/securityService';
 import { createStoreMemberInvite } from '@/services/storeMemberInviteService';
 import { getActiveStoreId } from '@/utils/activeStore';
@@ -25,6 +27,9 @@ interface UsersState {
     deleteUser: (id: string) => Promise<boolean>;
     updateUserStatus: (id: string, status: 'active' | 'inactive' | 'suspended') => Promise<boolean>;
     updateUserRole: (id: string, role: UserRole) => Promise<boolean>;
+    updateUserProfileDetails: (
+        input: UpdateStoreMemberProfileDetailsInput
+    ) => Promise<boolean>;
     fetchStats: () => Promise<void>;
     setFilters: (filters: Partial<UserFilters>) => void;
     resetFilters: () => void;
@@ -72,18 +77,44 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
         id: member.member_id,
         email: member.user_email,
         phone: member.profile_phone,
+        mobile_phone: member.profile_mobile_phone ?? null,
+        whatsapp_phone: member.profile_whatsapp_phone ?? null,
         full_name: member.profile_name || member.user_email || 'Usuário sem nome',
-        cpf: null,
+        cpf: member.profile_cpf ?? null,
+        birthdate: member.profile_birthdate ?? null,
+
+        zip_code: member.profile_zip_code ?? null,
+        address: member.profile_address ?? null,
+        address_number: member.profile_address_number ?? null,
+        complement: member.profile_complement ?? null,
+        district: member.profile_district ?? null,
+        city: member.profile_city ?? null,
+        state: member.profile_state ?? null,
+
+        instagram_url: member.profile_instagram_url ?? null,
+        facebook_url: member.profile_facebook_url ?? null,
+        website_url: member.profile_website_url ?? null,
+
+        internal_alias: member.internal_alias ?? null,
+        job_title: member.job_title ?? null,
+        department: member.department ?? null,
+
         avatar_url: null,
         role,
         status: member.status === 'invited' ? 'invited' : member.status,
+
+        custom_role_id: member.custom_role_id ?? null,
+        custom_role_name: member.custom_role_name ?? null,
+        custom_role_base_role: member.custom_role_base_role ?? null,
+
         is_admin: role === 'owner' || role === 'admin' || role === 'manager',
         is_active: isActive,
         email_verified: false,
         last_sign_in_at: member.last_seen_at,
         created_at: member.created_at,
         updated_at: member.updated_at,
-        internal_notes: null,
+        internal_notes: member.internal_notes ?? null,
+
         stores: [
             {
                 id: member.member_id,
@@ -372,6 +403,28 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         } catch (error: unknown) {
             console.error('Erro ao atualizar permissão:', error);
             toast.error(getErrorMessage(error, 'Erro ao atualizar permissão'));
+            return false;
+        }
+    },
+
+    updateUserProfileDetails: async (input) => {
+        try {
+            await updateStoreMemberProfileDetails(input);
+
+            toast.success('Dados do usuário atualizados com sucesso.');
+
+            await get().fetchUsers();
+
+            return true;
+        } catch (error: unknown) {
+            console.error('Erro ao atualizar dados complementares:', error);
+
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Erro ao atualizar dados do usuário.'
+            );
+
             return false;
         }
     },

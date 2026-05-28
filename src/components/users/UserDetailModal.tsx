@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import type {
     StoreMemberOccurrenceSeverity,
@@ -39,9 +39,38 @@ interface UserDetailModalProps {
     onClose: () => void;
     user: UserAdmin | null;
     canManageUsers?: boolean;
+    onSaveProfileDetails?: (input: {
+        memberId: string;
+
+        profileName?: string | null;
+        profilePhone?: string | null;
+        profileMobilePhone?: string | null;
+        profileWhatsappPhone?: string | null;
+        profileCpf?: string | null;
+        profileBirthdate?: string | null;
+
+        profileZipCode?: string | null;
+        profileAddress?: string | null;
+        profileAddressNumber?: string | null;
+        profileComplement?: string | null;
+        profileDistrict?: string | null;
+        profileCity?: string | null;
+        profileState?: string | null;
+
+        profileInstagramUrl?: string | null;
+        profileFacebookUrl?: string | null;
+        profileWebsiteUrl?: string | null;
+
+        internalAlias?: string | null;
+        jobTitle?: string | null;
+        department?: string | null;
+        internalNotes?: string | null;
+
+        reason?: string | null;
+    }) => Promise<void>;
 }
 
-type ModalTab = 'overview' | 'access' | 'history' | 'internal' | 'occurrences';
+type ModalTab = 'overview' | 'access' | 'history' | 'profile' | 'internal' | 'occurrences';
 
 
 
@@ -130,10 +159,67 @@ export function UserDetailModal({
     onClose,
     user,
     canManageUsers = false,
+    onSaveProfileDetails,
 }: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
     const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
     const [loadedDetailsId, setLoadedDetailsId] = useState<string | null>(null);
+
+    const [profileForm, setProfileForm] = useState({
+        profileName: '',
+        profilePhone: '',
+        profileMobilePhone: '',
+        profileWhatsappPhone: '',
+        profileCpf: '',
+        profileBirthdate: '',
+
+        profileZipCode: '',
+        profileAddress: '',
+        profileAddressNumber: '',
+        profileComplement: '',
+        profileDistrict: '',
+        profileCity: '',
+        profileState: '',
+
+        profileInstagramUrl: '',
+        profileFacebookUrl: '',
+        profileWebsiteUrl: '',
+
+        internalAlias: '',
+        jobTitle: '',
+        department: '',
+        internalNotes: '',
+    });
+
+    useEffect(() => {
+        if (!user) return;
+
+        setProfileForm({
+            profileName: user.full_name ?? '',
+            profilePhone: user.phone ?? '',
+            profileMobilePhone: user.mobile_phone ?? '',
+            profileWhatsappPhone: user.whatsapp_phone ?? '',
+            profileCpf: user.cpf ?? '',
+            profileBirthdate: user.birthdate ?? '',
+
+            profileZipCode: user.zip_code ?? '',
+            profileAddress: user.address ?? '',
+            profileAddressNumber: user.address_number ?? '',
+            profileComplement: user.complement ?? '',
+            profileDistrict: user.district ?? '',
+            profileCity: user.city ?? '',
+            profileState: user.state ?? '',
+
+            profileInstagramUrl: user.instagram_url ?? '',
+            profileFacebookUrl: user.facebook_url ?? '',
+            profileWebsiteUrl: user.website_url ?? '',
+
+            internalAlias: user.internal_alias ?? '',
+            jobTitle: user.job_title ?? '',
+            department: user.department ?? '',
+            internalNotes: user.internal_notes ?? '',
+        });
+    }, [user]);
 
     const {
         details,
@@ -774,6 +860,7 @@ export function UserDetailModal({
 
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
+        { id: 'profile', label: 'Contato e dados', icon: User },
         { id: 'access', label: 'Acesso', icon: Activity },
         { id: 'history', label: 'Histórico', icon: Activity },
         ...(canManageUsers
@@ -957,6 +1044,232 @@ export function UserDetailModal({
                                         <StatCard label="Status" value={user.is_active ? 'Ativo' : 'Inativo'} />
                                     </div>
                                 </>
+                            )}
+
+                            {activeTab === 'profile' && (
+                                <div className="space-y-5">
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
+                                            Dados de contato
+                                        </h4>
+
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                            <InputField
+                                                label="Nome"
+                                                value={profileForm.profileName}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileName: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Telefone"
+                                                value={profileForm.profilePhone}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profilePhone: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Celular"
+                                                value={profileForm.profileMobilePhone}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileMobilePhone: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="WhatsApp"
+                                                value={profileForm.profileWhatsappPhone}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileWhatsappPhone: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="CPF"
+                                                value={profileForm.profileCpf}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileCpf: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Nascimento"
+                                                type="date"
+                                                value={profileForm.profileBirthdate}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileBirthdate: value }))
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
+                                            Endereço
+                                        </h4>
+
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                            <InputField
+                                                label="CEP"
+                                                value={profileForm.profileZipCode}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileZipCode: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Endereço"
+                                                value={profileForm.profileAddress}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileAddress: value }))
+                                                }
+                                                className="md:col-span-2"
+                                            />
+
+                                            <InputField
+                                                label="Número"
+                                                value={profileForm.profileAddressNumber}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileAddressNumber: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Complemento"
+                                                value={profileForm.profileComplement}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileComplement: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Bairro"
+                                                value={profileForm.profileDistrict}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileDistrict: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Cidade"
+                                                value={profileForm.profileCity}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileCity: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Estado"
+                                                value={profileForm.profileState}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileState: value }))
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
+                                            Redes e canais
+                                        </h4>
+
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                            <InputField
+                                                label="Instagram"
+                                                value={profileForm.profileInstagramUrl}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileInstagramUrl: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Facebook"
+                                                value={profileForm.profileFacebookUrl}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileFacebookUrl: value }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Site"
+                                                value={profileForm.profileWebsiteUrl}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profileWebsiteUrl: value }))
+                                                }
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {canManageUsers && (
+                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
+                                                Dados internos da loja
+                                            </h4>
+
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                                <InputField
+                                                    label="Apelido interno"
+                                                    value={profileForm.internalAlias}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, internalAlias: value }))
+                                                    }
+                                                />
+
+                                                <InputField
+                                                    label="Cargo interno"
+                                                    value={profileForm.jobTitle}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, jobTitle: value }))
+                                                    }
+                                                />
+
+                                                <InputField
+                                                    label="Setor"
+                                                    value={profileForm.department}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, department: value }))
+                                                    }
+                                                />
+                                            </div>
+
+                                            <label className="mt-4 block">
+                                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                                    Observações internas
+                                                </span>
+                                                <textarea
+                                                    value={profileForm.internalNotes}
+                                                    onChange={(event) =>
+                                                        setProfileForm((current) => ({
+                                                            ...current,
+                                                            internalNotes: event.target.value,
+                                                        }))
+                                                    }
+                                                    rows={3}
+                                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                />
+                                            </label>
+                                        </div>
+                                    )}
+
+                                    <div className="flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                onSaveProfileDetails?.({
+                                                    memberId: user.id,
+                                                    ...profileForm,
+                                                    reason: 'Atualização pela aba Contato e dados.',
+                                                })
+                                            }
+                                            disabled={!onSaveProfileDetails}
+                                            className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
+                                        >
+                                            Salvar dados
+                                        </button>
+                                    </div>
+                                </div>
                             )}
 
                             {activeTab === 'access' && (
@@ -1260,8 +1573,8 @@ export function UserDetailModal({
                             {activeTab === 'internal' && canManageUsers && (
                                 <div className="space-y-5">
                                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                                        Estes dados são internos da loja e devem ficar restritos a owner,
-                                        admin ou gerente autorizado.
+                                        Estes dados são internos da loja e devem ficar restritos ao proprietário,
+                                        administrador ou gerente autorizado.
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1776,6 +2089,34 @@ function SelectField({
                     </option>
                 ))}
             </select>
+        </label>
+    );
+}
+
+function InputField({
+    label,
+    value,
+    onChange,
+    type = 'text',
+    className = '',
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    type?: string;
+    className?: string;
+}) {
+    return (
+        <label className={`block ${className}`}>
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                {label}
+            </span>
+            <input
+                type={type}
+                value={value}
+                onChange={(event) => onChange(event.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            />
         </label>
     );
 }

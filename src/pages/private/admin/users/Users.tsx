@@ -43,6 +43,7 @@ export default function Users() {
         createUser,
         updateUser,
         updateUserStatus,
+        updateUserProfileDetails,
         deleteUser,
         setFilters,
         resetFilters,
@@ -323,6 +324,20 @@ export default function Users() {
 
         await fetchUsers();
         await refreshSessionSummary();
+        window.dispatchEvent(new Event('optmamenu:security-context-refresh'));
+    };
+
+    const handleSaveProfileDetails = async (input: Parameters<typeof updateUserProfileDetails>[0]) => {
+        const success = await updateUserProfileDetails(input);
+
+        if (!success) return;
+
+        await refreshSessionSummary();
+
+        if (selectedUser?.id === input.memberId) {
+            const refreshedUser = await useUsersStore.getState().fetchUserById(input.memberId);
+            setSelectedUser(refreshedUser);
+        }
     };
 
 
@@ -332,6 +347,10 @@ export default function Users() {
     ) => {
         setFilters({ [key]: value });
     };
+
+    const willClearCustomRoleOnRoleChange =
+        roleChangeConfirmation?.user.custom_role_base_role &&
+        roleChangeConfirmation.user.custom_role_base_role !== roleChangeConfirmation.newRole;
 
     return (
         <PageContainer
@@ -578,6 +597,7 @@ export default function Users() {
                 onClose={() => setShowDetailModal(false)}
                 user={selectedUser}
                 canManageUsers={canManageUsers}
+                onSaveProfileDetails={handleSaveProfileDetails}
             />
 
             {roleChangeConfirmation && (
@@ -598,6 +618,18 @@ export default function Users() {
                                 Esta ação será registrada no histórico de segurança e na Vida do Usuário.
                             </p>
                         </div>
+
+                        {willClearCustomRoleOnRoleChange && roleChangeConfirmation && (
+                            <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
+                                <p>
+                                    Este usuário possui a função personalizada{' '}
+                                    <strong>{roleChangeConfirmation.user.custom_role_name}</strong>, baseada em{' '}
+                                    <strong>{formatRoleLabel(roleChangeConfirmation.user.custom_role_base_role || '')}</strong>.
+                                    Como o novo papel será{' '}
+                                    <strong>{formatRoleLabel(roleChangeConfirmation.newRole)}</strong>, essa função personalizada será removida automaticamente.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                             <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">

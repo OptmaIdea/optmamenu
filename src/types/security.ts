@@ -81,6 +81,29 @@ export interface StoreMemberAdmin {
   custom_role_id?: string | null;
   custom_role_name?: string | null;
   custom_role_base_role?: StoreRole | string | null;
+  custom_role_active?: boolean | null;
+
+  profile_mobile_phone?: string | null;
+  profile_whatsapp_phone?: string | null;
+  profile_cpf?: string | null;
+  profile_birthdate?: string | null;
+
+  profile_zip_code?: string | null;
+  profile_address?: string | null;
+  profile_address_number?: string | null;
+  profile_complement?: string | null;
+  profile_district?: string | null;
+  profile_city?: string | null;
+  profile_state?: string | null;
+
+  profile_instagram_url?: string | null;
+  profile_facebook_url?: string | null;
+  profile_website_url?: string | null;
+
+  internal_alias?: string | null;
+  job_title?: string | null;
+  department?: string | null;
+  internal_notes?: string | null;
 }
 
 export type StoreRole =

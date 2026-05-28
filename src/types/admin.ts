@@ -70,6 +70,26 @@ export interface UserAdmin {
     custom_role_id?: string | null;
     custom_role_name?: string | null;
     custom_role_base_role?: string | null;
+
+    mobile_phone?: string | null;
+    whatsapp_phone?: string | null;
+    birthdate?: string | null;
+
+    zip_code?: string | null;
+    address?: string | null;
+    address_number?: string | null;
+    complement?: string | null;
+    district?: string | null;
+    city?: string | null;
+    state?: string | null;
+
+    instagram_url?: string | null;
+    facebook_url?: string | null;
+    website_url?: string | null;
+
+    internal_alias?: string | null;
+    job_title?: string | null;
+    department?: string | null;
 }
 
 export interface StoreUser {

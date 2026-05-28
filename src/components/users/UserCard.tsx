@@ -62,11 +62,11 @@ export function UserCard({
 
     const initials = user.full_name
         ? user.full_name
-              .split(' ')
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase()
+            .split(' ')
+            .map((n) => n[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase()
         : 'U';
 
     const handleAction = (action: () => void) => {
@@ -191,7 +191,7 @@ export function UserCard({
                                         <option value="">Sem função personalizada</option>
 
                                         {customRoles
-                                            .filter((role) => role.active)
+                                            .filter((role) => role.active && role.base_role === user.role)
                                             .map((role) => (
                                                 <option key={role.id} value={role.id}>
                                                     {role.name} — base: {formatRoleLabel(role.base_role)}
@@ -249,11 +249,10 @@ export function UserCard({
                                                 })
                                             }
                                             disabled={isProtectedOwner}
-                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
-                                                isProtectedOwner
+                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${isProtectedOwner
                                                     ? 'opacity-50 cursor-not-allowed'
                                                     : ''
-                                            }`}
+                                                }`}
                                         >
                                             <Edit2 size={14} />
                                             Editar
@@ -269,11 +268,10 @@ export function UserCard({
                                                 })
                                             }
                                             disabled={isProtectedOwner}
-                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${
-                                                isProtectedOwner
+                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${isProtectedOwner
                                                     ? 'opacity-50 cursor-not-allowed'
                                                     : ''
-                                            }`}
+                                                }`}
                                         >
                                             {user.status === 'active' ? (
                                                 <>
@@ -298,11 +296,10 @@ export function UserCard({
                                                 })
                                             }
                                             disabled={isProtectedOwner}
-                                            className={`w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 ${
-                                                isProtectedOwner
+                                            className={`w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 ${isProtectedOwner
                                                     ? 'opacity-50 cursor-not-allowed'
                                                     : ''
-                                            }`}
+                                                }`}
                                         >
                                             <Trash2 size={14} />
                                             Excluir
