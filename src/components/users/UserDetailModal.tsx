@@ -122,6 +122,20 @@ function formatRoleLabel(role: string): string {
     return labels[role] ?? role;
 }
 
+function formatRoleTextDescription(text: string | null | undefined): string {
+    if (!text) return '';
+
+    return text
+        .replaceAll('stock_operator', 'Operador de estoque')
+        .replaceAll('viewer', 'Visualizador')
+        .replaceAll('admin', 'Administrador')
+        .replaceAll('manager', 'Gerente')
+        .replaceAll('cashier', 'Caixa')
+        .replaceAll('sales', 'Vendas')
+        .replaceAll('staff', 'Equipe')
+        .replaceAll('owner', 'Proprietário');
+}
+
 function formatOccurrenceType(type: StoreMemberOccurrenceType): string {
     const labels: Record<StoreMemberOccurrenceType, string> = {
         note: 'Observação',
@@ -164,6 +178,7 @@ export function UserDetailModal({
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
     const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
     const [loadedDetailsId, setLoadedDetailsId] = useState<string | null>(null);
+    const [savingProfileDetails, setSavingProfileDetails] = useState(false);
 
     const [profileForm, setProfileForm] = useState({
         profileName: '',
@@ -597,7 +612,7 @@ export function UserDetailModal({
                 : 'Usuário encerrou a sessão.';
         }
 
-        return event.description || 'Evento registrado no histórico.';
+        return formatRoleTextDescription(event.description) || 'Evento registrado no histórico.';
     };
 
     const exportUserHistoryCsv = () => {
@@ -858,6 +873,35 @@ export function UserDetailModal({
         }
     };
 
+    const handleSaveProfileDetails = async () => {
+        if (!onSaveProfileDetails || !user) {
+            toast.error('Rotina de salvamento não disponível.');
+            return;
+        }
+
+        try {
+            setSavingProfileDetails(true);
+
+            await onSaveProfileDetails({
+                memberId: user.id,
+                ...profileForm,
+                reason: 'Atualização pela aba Contato e dados.',
+            });
+
+            toast.success('Dados complementares salvos.');
+        } catch (error) {
+            console.error('Erro ao salvar dados complementares no modal:', error);
+
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Não foi possível salvar os dados complementares.'
+            );
+        } finally {
+            setSavingProfileDetails(false);
+        }
+    };
+
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
         { id: 'profile', label: 'Contato e dados', icon: User },
@@ -1012,7 +1056,7 @@ export function UserDetailModal({
                                         <div>
                                             <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
                                                 <Store size={16} />
-                                                Lojas vinculadas
+                                                Vínculo nesta loja
                                             </h4>
                                             <div className="space-y-2">
                                                 {user.stores.map((store) => (
@@ -1022,7 +1066,7 @@ export function UserDetailModal({
                                                     >
                                                         <div>
                                                             <p className="font-medium text-gray-900 dark:text-white">
-                                                                {store.store_name || 'Loja atual'}
+                                                                Loja ativa / contexto atual
                                                             </p>
                                                             <p className="text-xs text-gray-500 dark:text-gray-400">
                                                                 {store.store_slug}
@@ -1256,17 +1300,11 @@ export function UserDetailModal({
                                     <div className="flex justify-end">
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                onSaveProfileDetails?.({
-                                                    memberId: user.id,
-                                                    ...profileForm,
-                                                    reason: 'Atualização pela aba Contato e dados.',
-                                                })
-                                            }
-                                            disabled={!onSaveProfileDetails}
+                                            onClick={handleSaveProfileDetails}
+                                            disabled={!onSaveProfileDetails || savingProfileDetails}
                                             className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
                                         >
-                                            Salvar dados
+                                            {savingProfileDetails ? 'Salvando...' : 'Salvar dados'}
                                         </button>
                                     </div>
                                 </div>

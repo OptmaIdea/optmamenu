@@ -333,11 +333,10 @@ export default function Users() {
         if (!success) return;
 
         await refreshSessionSummary();
+        await fetchUsers();
 
-        if (selectedUser?.id === input.memberId) {
-            const refreshedUser = await useUsersStore.getState().fetchUserById(input.memberId);
-            setSelectedUser(refreshedUser);
-        }
+        const refreshedUser = await useUsersStore.getState().fetchUserById(input.memberId);
+        setSelectedUser(refreshedUser);
     };
 
 
