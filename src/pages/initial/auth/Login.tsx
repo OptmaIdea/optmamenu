@@ -140,20 +140,20 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 pb-24">
+    <div className="min-h-screen bg-[#F8F6F2] dark:bg-gray-950 flex items-center justify-center p-4 pb-24">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <h2 className="text-3xl font-black text-gray-800 dark:text-white font-candara-bold">
+          <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white font-candara-bold">
             {selectingStore ? 'Escolha onde entrar' : 'Acesse sua conta'}
           </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-candara">
+          <p className="mt-2 text-sm text-[#6B6258] dark:text-gray-400 font-candara">
             {selectingStore
               ? 'Selecione a loja ou vínculo de trabalho desta sessão.'
               : 'Faça login para acessar seu painel'}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-[#6B6258]/10 dark:border-gray-800 p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
               <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
@@ -164,7 +164,7 @@ export default function Login() {
           {!selectingStore ? (
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   E-mail
                 </label>
                 <div className="relative">
@@ -177,13 +177,13 @@ export default function Login() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
                     required
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   Senha
                 </label>
                 <div className="relative">
@@ -196,19 +196,19 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400 font-candara">Lembrar-me</span>
+                  <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-brand-green focus:ring-brand-green" />
+                  <span className="text-sm text-[#6B6258] dark:text-gray-400 font-candara">Lembrar-me</span>
                 </label>
                 <Link
                   to="/forgot-password"
-                  className="text-sm font-bold text-[#21A896] hover:text-[#1a867a] transition-colors font-candara"
+                  className="text-sm font-bold text-brand-green hover:text-brand-dark transition-colors font-candara"
                 >
                   Esqueceu a senha?
                 </Link>
@@ -217,7 +217,7 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 bg-brand-green hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -241,8 +241,8 @@ export default function Login() {
                       type="button"
                       onClick={() => setSelectedStoreId(option.store_id)}
                       className={`w-full rounded-2xl border p-4 text-left transition ${selected
-                        ? 'border-[#21A896] bg-[#21A896]/10 ring-2 ring-[#21A896]/20'
-                        : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900/40'
+                        ? 'border-brand-green bg-brand-green/10 ring-2 ring-brand-green/20'
+                        : 'border-[#6B6258]/10 bg-[#F8F6F2] hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900/40'
                         }`}
                     >
                       <div className="flex items-center gap-3">
@@ -254,7 +254,7 @@ export default function Login() {
                               className="h-full w-full object-cover"
                             />
                           ) : (
-                            <Store size={22} className="text-[#21A896]" />
+                            <Store size={22} className="text-brand-green" />
                           )}
                         </div>
 
@@ -262,7 +262,7 @@ export default function Login() {
                           <p className="truncate text-base font-black text-gray-800 dark:text-white">
                             {option.store_name}
                           </p>
-                          <p className="text-sm font-bold text-[#21A896]">
+                          <p className="text-sm font-bold text-brand-green">
                             {formatLoginRole(option.role)}
                           </p>
                           {option.store_slug && (
@@ -271,7 +271,7 @@ export default function Login() {
                         </div>
 
                         {selected && (
-                          <CheckCircle size={22} className="text-[#21A896]" />
+                          <CheckCircle size={22} className="text-brand-green" />
                         )}
                       </div>
                     </button>
@@ -283,7 +283,7 @@ export default function Login() {
                 type="button"
                 onClick={handleConfirmStore}
                 disabled={!selectedStoreId}
-                className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 bg-brand-green hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
               >
                 Continuar
                 <ArrowRight size={18} />
@@ -301,11 +301,11 @@ export default function Login() {
 
           {!selectingStore && (
             <div className="mt-6 text-center">
-              <p className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+              <p className="text-sm text-[#6B6258] dark:text-gray-400 font-candara">
                 Ainda não tem uma conta?{' '}
                 <Link
                   to="/signup"
-                  className="font-bold text-[#21A896] hover:text-[#1a867a] transition-colors"
+                  className="font-bold text-brand-green hover:text-brand-dark transition-colors"
                 >
                   Cadastre-se
                 </Link>

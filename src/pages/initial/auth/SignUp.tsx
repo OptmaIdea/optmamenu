@@ -95,13 +95,13 @@ export default function Signup() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4 py-8">
+    <div className="min-h-screen bg-[#F8F6F2] dark:bg-gray-950 flex items-center justify-center p-4 py-8">
       <div className="max-w-2xl w-full">
         <div className="text-center mb-8">
-          <h2 className="mt-6 text-3xl font-black text-gray-800 dark:text-white font-candara-bold">
+          <h2 className="mt-6 text-3xl font-black text-[#2D2A26] dark:text-white font-candara-bold">
             Criar sua conta
           </h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400 font-candara">
+          <p className="mt-2 text-sm text-[#6B6258] dark:text-gray-400 font-candara">
             Comece a gerenciar seu delivery em minutos
           </p>
         </div>
@@ -110,18 +110,18 @@ export default function Signup() {
         <div className="mb-8 flex items-center justify-center">
           <div className="flex items-center">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 1
-              ? 'bg-[#21A896] text-white'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+              ? 'bg-brand-green text-white'
+              : 'bg-[#6B6258]/10 dark:bg-gray-800 text-[#6B6258] dark:text-gray-400'
               }`}>
               1
             </div>
             <div className={`w-16 h-1 mx-2 ${step >= 2
-              ? 'bg-[#21A896]'
-              : 'bg-gray-200 dark:bg-gray-700'
+              ? 'bg-brand-green'
+              : 'bg-[#6B6258]/10 dark:bg-gray-800'
               }`} />
             <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${step >= 2
-              ? 'bg-[#21A896] text-white'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
+              ? 'bg-brand-green text-white'
+              : 'bg-[#6B6258]/10 dark:bg-gray-800 text-[#6B6258] dark:text-gray-400'
               }`}>
               2
             </div>
@@ -129,7 +129,7 @@ export default function Signup() {
         </div>
 
         {/* Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-[#6B6258]/10 dark:border-gray-800 p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
               <AlertCircle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
@@ -147,7 +147,7 @@ export default function Signup() {
           {step === 1 && (
             <form className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   Nome completo
                 </label>
                 <div className="relative">
@@ -159,13 +159,13 @@ export default function Signup() {
                     value={formData.name}
                     onChange={handleChange}
                     placeholder="Seu nome"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   E-mail
                 </label>
                 <div className="relative">
@@ -177,13 +177,13 @@ export default function Signup() {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="seu@email.com"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   WhatsApp
                 </label>
                 <div className="relative">
@@ -195,13 +195,13 @@ export default function Signup() {
                     value={formData.phone}
                     onChange={handleChange}
                     placeholder="(11) 99999-9999"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   Senha
                 </label>
                 <div className="relative">
@@ -213,13 +213,13 @@ export default function Signup() {
                     value={formData.password}
                     onChange={handleChange}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   Confirmar senha
                 </label>
                 <div className="relative">
@@ -231,7 +231,7 @@ export default function Signup() {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
@@ -239,7 +239,7 @@ export default function Signup() {
               <button
                 type="button"
                 onClick={handleNextStep}
-                className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-6"
+                className="w-full py-3 px-4 bg-brand-green hover:bg-brand-dark text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 mt-6"
               >
                 Continuar
                 <ArrowRight size={18} />
@@ -250,7 +250,7 @@ export default function Signup() {
           {step === 2 && (
             <form onSubmit={handleSignup} className="space-y-5">
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   Nome da sua loja
                 </label>
                 <div className="relative">
@@ -261,17 +261,17 @@ export default function Signup() {
                     value={formData.storeName}
                     onChange={handleChange}
                     placeholder="Ex: Restaurante Sabor"
-                    className="w-full pl-10 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
                   URL da sua loja
                 </label>
                 <div className="flex items-center">
-                  <span className="px-3 py-3 bg-gray-100 dark:bg-gray-700 border border-r-0 border-gray-200 dark:border-gray-600 rounded-l-xl text-gray-500 dark:text-gray-400 text-sm">
+                  <span className="px-3 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-r-0 border-[#6B6258]/20 dark:border-gray-750 rounded-l-xl text-[#6B6258] dark:text-gray-400 text-sm">
                     /s/
                   </span>
                   <input
@@ -280,7 +280,7 @@ export default function Signup() {
                     value={formData.storeSlug}
                     onChange={handleChange}
                     placeholder="restaurante-sabor"
-                    className="flex-1 pl-3 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-r-xl text-gray-800 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896] font-candara"
+                    className="flex-1 pl-3 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-r-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
@@ -295,15 +295,15 @@ export default function Signup() {
                     name="acceptTerms"
                     checked={formData.acceptTerms}
                     onChange={handleChange}
-                    className="mt-1 w-4 h-4 rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]"
+                    className="mt-1 w-4 h-4 rounded border-gray-350 text-brand-green focus:ring-brand-green"
                   />
-                  <span className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+                  <span className="text-sm text-[#6B6258] dark:text-gray-400 font-candara">
                     Li e aceito os{' '}
-                    <Link to="/terms" className="text-[#21A896] hover:underline font-bold" target="_blank">
+                    <Link to="/terms" className="text-brand-green hover:text-brand-dark hover:underline font-bold" target="_blank">
                       Termos de Uso
                     </Link>{' '}
                     e a{' '}
-                    <Link to="/politica-privacidade" className="text-[#21A896] hover:underline font-bold" target="_blank">
+                    <Link to="/politica-privacidade" className="text-brand-green hover:text-brand-dark hover:underline font-bold" target="_blank">
                       Política de Privacidade
                     </Link>
                   </span>
@@ -314,14 +314,14 @@ export default function Signup() {
                 <button
                   type="button"
                   onClick={() => setStep(1)}
-                  className="flex-1 py-3 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-bold rounded-xl transition-colors"
+                  className="flex-1 py-3 px-4 bg-[#F8F6F2] dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-750 text-[#6B6258] dark:text-gray-300 font-bold rounded-xl transition-colors"
                 >
                   Voltar
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 py-3 px-4 bg-brand-green hover:bg-brand-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -334,11 +334,11 @@ export default function Signup() {
           )}
 
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400 font-candara">
+            <p className="text-sm text-[#6B6258] dark:text-gray-400 font-candara">
               Já tem uma conta?{' '}
               <Link
                 to="/login"
-                className="font-bold text-[#21A896] hover:text-[#1a867a] transition-colors"
+                className="font-bold text-brand-green hover:text-brand-dark transition-colors"
               >
                 Fazer login
               </Link>

@@ -42,7 +42,7 @@ dist-ssr/
 
 # Archives
 *.zip
+*.bat
 
 # AI
 .agent/
-.agent/skills

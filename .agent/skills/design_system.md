@@ -170,3 +170,23 @@ O layout da área de administração segue uma estrutura unificada e responsiva 
   </PageContainer>
   ```
 * Não utilize componentes locais de navegação com ícones circulares gigantes no meio das páginas (ex: o antigo `InventoryQuickNav`). As ações e navegações devem ser delegadas à barra de acesso rápido e ao portal superior.
+
+---
+
+## 7. Layout e Páginas Públicas (PublicLayout e Páginas Iniciais)
+
+As páginas públicas de entrada no sistema (Landing Page, Login, Cadastro, Termos de Uso e Política de Privacidade) são encapsuladas pelo `PublicLayout` e devem seguir especificações para garantir elegância e consistência visual:
+
+### 7.1 Fundo e Cores Neutras
+* **Modo Claro:** Utilizar o fundo off-white aconchegante (`bg-[#F8F6F2]`) com texto principal em cinza escuro quente (`text-[#2D2A26]`). Evitar `bg-gray-50`.
+* **Modo Escuro:** O fundo deve ser preto profundo/cinza-escuro premium (`dark:bg-gray-950`) e texto em cinza claro (`dark:text-gray-100`).
+* **Cards e Surfaces:** Usar fundo branco no modo claro (`bg-white`) e cinza escuro no modo escuro (`dark:bg-gray-900`) com bordas translúcidas sutis de classe `border-[#6B6258]/10` (no claro) ou `dark:border-gray-800` (no escuro).
+
+### 7.2 Tipografia
+* Utilizar a fonte padrão `font-sans` configurada globalmente no Tailwind (com suporte à Candara e fallback para Plus Jakarta Sans).
+
+### 7.3 Elementos Visuais e CTAs
+* **Botão CTA Principal:** Sempre que houver um botão de ação primário de destaque (ex: "Começar Agora"), utilizar a classe de utilidade `.button-primary` para aplicar o gradiente vertical e a sombra projetada laranja oficial da marca.
+* **Ícones Informativos:** Em seções informativas de funcionalidades, substituir emojis estáticos por ícones da biblioteca Lucide envolvidos em recipientes circulares translúcidos (`w-16 h-16 rounded-full bg-brand-green/10 text-brand-green`).
+* **Cards Jurídicos / Informativos:** Usar as classes de estilo `.glass-card` e `.card-hover` para criar cartões sofisticados e responsivos com elevação interativa.
+

@@ -10,12 +10,13 @@
 }
 
 @theme {
+  --font-sans: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
   --color-brand-green: #21A896;
   --color-brand-orange: #F26541;
   --color-brand-light: #FBA93C;
   --color-brand-dark: #1A867A;
-  --color-brand-purple: #9333EA;
-  --color-brand-purple-light: #C084FC;
+  --color-brand-purple: #7B2D8E;
+  --color-brand-purple-light: #B77ED8;
   --color-brand-gray: #6B6258;
 }
 

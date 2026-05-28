@@ -65,9 +65,9 @@ export default function PublicLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100 font-sans">
+    <div className="min-h-screen bg-[#F8F6F2] dark:bg-gray-950 text-[#2D2A26] dark:text-gray-100 font-sans">
       {/* Header */}
-      <header className="px-4 sm:px-[5%] py-2.5 flex justify-between items-center bg-white dark:bg-gray-800 border-b-2 border-gray-100 dark:border-gray-700 sticky top-0 z-[1000] shadow-sm transition-colors duration-300">
+      <header className="px-4 sm:px-[5%] py-2.5 flex justify-between items-center bg-white dark:bg-gray-900 border-b border-[#6B6258]/10 dark:border-gray-800 sticky top-0 z-[1000] shadow-sm transition-colors duration-300">
         {/* Logo - Tamanho proporcional */}
         <Link to="/" className="flex items-center shrink-0">
           <picture>
@@ -87,7 +87,7 @@ export default function PublicLayout() {
         <div className="hidden md:flex gap-[15px] items-center">
           <button
             aria-label={isDark ? "Alternar para modo claro" : "Alternar para modo escuro"}
-            className="cursor-pointer px-3 py-1.5 rounded-[20px] border border-gray-300 dark:border-gray-600 text-[13px] flex items-center gap-[5px] hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors bg-transparent text-inherit focus:ring-2 focus:ring-[#21A896] focus:outline-none"
+            className="cursor-pointer px-3 py-1.5 rounded-[20px] border border-gray-300 dark:border-gray-650 text-[13px] flex items-center gap-[5px] hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors bg-transparent text-inherit focus:ring-2 focus:ring-brand-green focus:outline-none"
             onClick={toggleDarkMode}
           >
             {isDark ? (
@@ -99,7 +99,7 @@ export default function PublicLayout() {
 
           <Link
             to="/"
-            className="inline-flex items-center text-[#21A896] hover:text-[#1a867a] transition-colors p-2 rounded-lg focus:ring-2 focus:ring-[#21A896] focus:outline-none focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+            className="inline-flex items-center text-brand-green hover:text-brand-dark transition-colors p-2 rounded-lg focus:ring-2 focus:ring-brand-green focus:outline-none focus:ring-offset-2 dark:focus:ring-offset-gray-900"
             aria-label="Página inicial"
           >
             <Home className="w-5 h-5" />
@@ -107,14 +107,14 @@ export default function PublicLayout() {
 
           <Link
             to="/login"
-            className="text-[#21A896] no-underline font-bold hover:text-[#1a867a] transition-colors px-3 py-2 rounded-lg"
+            className="text-brand-green no-underline font-bold hover:text-brand-dark transition-colors px-3 py-2 rounded-lg"
           >
             Login
           </Link>
 
           <Link
             to="/signup"
-            className="text-[#21A896] no-underline font-bold hover:text-[#1a867a] transition-colors px-3 py-2 rounded-lg"
+            className="text-brand-green no-underline font-bold hover:text-brand-dark transition-colors px-3 py-2 rounded-lg"
           >
             Cadastre-se
           </Link>
@@ -138,9 +138,9 @@ export default function PublicLayout() {
             aria-label="Menu"
           >
             {isMobileMenuOpen ? (
-              <X className="w-6 h-6 text-[#21A896]" />
+              <X className="w-6 h-6 text-brand-green" />
             ) : (
-              <Menu className="w-6 h-6 text-[#21A896]" />
+              <Menu className="w-6 h-6 text-brand-green" />
             )}
           </button>
         </div>
@@ -148,51 +148,51 @@ export default function PublicLayout() {
 
       {/* Mobile Menu Dropdown */}
       {isMobileMenuOpen && (
-        <div className="fixed md:hidden top-[61px] left-0 right-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-lg z-[999] animate-slideDown">
+        <div className="fixed md:hidden top-[61px] left-0 right-0 bg-white dark:bg-gray-900 border-b border-[#6B6258]/10 dark:border-gray-800 shadow-lg z-[999] animate-slideDown">
           <div className="flex flex-col p-4 space-y-3">
             <Link
               to="/"
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="flex items-center gap-3 px-4 py-3 text-[#6B6258] dark:text-gray-300 hover:bg-[#F8F6F2] dark:hover:bg-gray-800 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <Home className="w-5 h-5 text-[#21A896]" />
+              <Home className="w-5 h-5 text-brand-green" />
               <span className="font-medium">Início</span>
             </Link>
 
             <Link
               to="/login"
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="flex items-center gap-3 px-4 py-3 text-[#6B6258] dark:text-gray-300 hover:bg-[#F8F6F2] dark:hover:bg-gray-800 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <LogIn className="w-5 h-5 text-[#21A896]" />
+              <LogIn className="w-5 h-5 text-brand-green" />
               <span className="font-medium">Login</span>
             </Link>
 
             <Link
               to="/signup"
-              className="flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="flex items-center gap-3 px-4 py-3 text-[#6B6258] dark:text-gray-300 hover:bg-[#F8F6F2] dark:hover:bg-gray-800 rounded-lg transition-colors"
               onClick={() => setIsMobileMenuOpen(false)}
             >
-              <UserPlus className="w-5 h-5 text-[#21A896]" />
+              <UserPlus className="w-5 h-5 text-brand-green" />
               <span className="font-medium">Cadastre-se</span>
             </Link>
 
             {/* Links para termos e políticas - APENAS NO MOBILE */}
-            <div className="pt-3 mt-2 border-t border-gray-200 dark:border-gray-700">
+            <div className="pt-3 mt-2 border-t border-[#6B6258]/10 dark:border-gray-800">
               <Link
                 to="/terms"
-                className="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="flex items-center gap-3 px-4 py-3 text-[#6B6258] dark:text-gray-300 hover:bg-[#F8F6F2] dark:hover:bg-gray-800 rounded-lg transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <FileText className="w-5 h-5 text-[#21A896]" />
+                <FileText className="w-5 h-5 text-brand-green" />
                 <span className="font-medium">Termos de Uso</span>
               </Link>
               <Link
                 to="/politica-privacidade"
-                className="flex items-center gap-3 px-4 py-3 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                className="flex items-center gap-3 px-4 py-3 text-[#6B6258] dark:text-gray-300 hover:bg-[#F8F6F2] dark:hover:bg-gray-800 rounded-lg transition-colors"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
-                <Shield className="w-5 h-5 text-[#21A896]" />
+                <Shield className="w-5 h-5 text-brand-green" />
                 <span className="font-medium">Política de Privacidade</span>
               </Link>
             </div>
@@ -206,11 +206,11 @@ export default function PublicLayout() {
           <button
             onClick={scrollToTop}
             className="fixed bottom-24 right-6 md:bottom-28 md:right-8 z-[1000] 
-                     bg-[#21A896] hover:bg-[#1a867a] text-white
+                     bg-brand-green hover:bg-brand-dark text-white
                      w-12 h-12 md:w-14 md:h-14 rounded-full shadow-lg 
                      flex items-center justify-center
                      transition-all duration-300 transform hover:scale-110
-                     focus:outline-none focus:ring-2 focus:ring-[#21A896] focus:ring-offset-2
+                     focus:outline-none focus:ring-2 focus:ring-brand-green focus:ring-offset-2
                      dark:focus:ring-offset-gray-900"
             aria-label="Voltar ao topo"
           >
@@ -221,16 +221,16 @@ export default function PublicLayout() {
       </main>
 
       {/* Footer - SIMPLIFICADO: apenas copyright no mobile, completo no desktop */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 text-center z-[900]">
-        <div className="flex flex-col md:flex-row justify-center items-center gap-4 text-sm text-gray-500 dark:text-gray-400 font-candara">
+      <footer className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-[#6B6258]/10 dark:border-gray-800 p-4 text-center z-[900]">
+        <div className="flex flex-col md:flex-row justify-center items-center gap-4 text-sm text-[#6B6258] dark:text-gray-400 font-candara">
           <p>© {new Date().getFullYear()} OptmaIdea. Todos os direitos reservados.</p>
 
           {/* Links de termos - APENAS NO DESKTOP */}
           <div className="hidden md:flex gap-4">
-            <Link to="/terms" className="hover:text-[#21A896] transition-colors">
+            <Link to="/terms" className="hover:text-brand-green transition-colors">
               Termos de Uso
             </Link>
-            <Link to="/politica-privacidade" className="hover:text-[#21A896] transition-colors">
+            <Link to="/politica-privacidade" className="hover:text-brand-green transition-colors">
               Política de Privacidade
             </Link>
           </div>
