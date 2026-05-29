@@ -142,9 +142,15 @@ function applyFilters(users: UserAdmin[], filters: UserFilters): UserAdmin[] {
         filteredUsers = filteredUsers.filter((user) =>
             [
                 user.full_name,
+                user.internal_alias,
                 user.email,
                 user.phone,
+                user.mobile_phone,
+                user.whatsapp_phone,
                 user.cpf,
+                user.department,
+                user.city,
+                user.district,
             ]
                 .filter(Boolean)
                 .some((value) => String(value).toLowerCase().includes(search))

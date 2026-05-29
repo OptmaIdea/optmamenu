@@ -5,6 +5,7 @@ import type {
     StoreMemberOccurrenceType,
     UserAdmin,
 } from '@/types';
+import type { StoreCustomRole } from '@/types/security';
 import { UserStatusBadge } from './UserStatusBadge';
 import { UserRoleBadge } from './UserRoleBadge';
 import {
@@ -68,14 +69,22 @@ interface UserDetailModalProps {
 
         reason?: string | null;
     }) => Promise<void>;
+    onRequestRoleChange?: (user: UserAdmin, newRole: string) => void;
+    onRequestCustomRoleChange?: (user: UserAdmin, customRoleId: string | null) => void;
+    customRoles?: StoreCustomRole[];
 }
 
-type ModalTab = 'overview' | 'access' | 'history' | 'profile' | 'internal' | 'occurrences';
+type ModalTab =
+    | 'overview'
+    | 'profile'
+    | 'access_role'
+    | 'internal'
+    | 'history'
+    | 'occurrences';
 
 
 
 interface InternalFormState {
-    nickname: string;
     street: string;
     number: string;
     complement: string;
@@ -86,7 +95,6 @@ interface InternalFormState {
     startedAt: string;
     endedAt: string;
     exitReason: string;
-    internalNotes: string;
 }
 
 interface OccurrenceFormState {
@@ -105,6 +113,36 @@ function getStringFromRecord(
     const field = value?.[key];
     return typeof field === 'string' ? field : '';
 }
+
+function safeInputValue(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value);
+}
+
+const EMPTY_PROFILE_FORM = {
+    profileName: '',
+    profilePhone: '',
+    profileMobilePhone: '',
+    profileWhatsappPhone: '',
+    profileCpf: '',
+    profileBirthdate: '',
+
+    profileZipCode: '',
+    profileAddress: '',
+    profileAddressNumber: '',
+    profileComplement: '',
+    profileDistrict: '',
+    profileCity: '',
+    profileState: '',
+
+    profileInstagramUrl: '',
+    profileFacebookUrl: '',
+    profileWebsiteUrl: '',
+
+    internalAlias: '',
+    department: '',
+    internalNotes: '',
+};
 
 function formatRoleLabel(role: string): string {
     const labels: Record<string, string> = {
@@ -174,65 +212,73 @@ export function UserDetailModal({
     user,
     canManageUsers = false,
     onSaveProfileDetails,
+    onRequestRoleChange,
+    onRequestCustomRoleChange,
+    customRoles = [],
 }: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
     const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
     const [loadedDetailsId, setLoadedDetailsId] = useState<string | null>(null);
     const [savingProfileDetails, setSavingProfileDetails] = useState(false);
 
-    const [profileForm, setProfileForm] = useState({
-        profileName: '',
-        profilePhone: '',
-        profileMobilePhone: '',
-        profileWhatsappPhone: '',
-        profileCpf: '',
-        profileBirthdate: '',
+    const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
 
-        profileZipCode: '',
-        profileAddress: '',
-        profileAddressNumber: '',
-        profileComplement: '',
-        profileDistrict: '',
-        profileCity: '',
-        profileState: '',
+    const handleCepChange = async (cepValue: string) => {
+        const formatted = formatCEP(cepValue);
+        setProfileForm((current) => ({ ...current, profileZipCode: formatted }));
 
-        profileInstagramUrl: '',
-        profileFacebookUrl: '',
-        profileWebsiteUrl: '',
-
-        internalAlias: '',
-        jobTitle: '',
-        department: '',
-        internalNotes: '',
-    });
+        const cleanCep = cepValue.replace(/\D/g, '');
+        if (cleanCep.length === 8) {
+            try {
+                const response = await fetch(`https://viacep.com.br/ws/${cleanCep}/json/`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (!data.erro) {
+                        setProfileForm((current) => ({
+                            ...current,
+                            profileAddress: data.logradouro || '',
+                            profileDistrict: data.bairro || '',
+                            profileCity: data.localidade || '',
+                            profileState: data.uf || '',
+                        }));
+                        toast.success('Endereço preenchido pelo CEP.');
+                    }
+                }
+            } catch (error) {
+                console.error('Erro ao buscar CEP:', error);
+            }
+        }
+    };
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            setProfileForm(EMPTY_PROFILE_FORM);
+            return;
+        }
 
         setProfileForm({
-            profileName: user.full_name ?? '',
-            profilePhone: user.phone ?? '',
-            profileMobilePhone: user.mobile_phone ?? '',
-            profileWhatsappPhone: user.whatsapp_phone ?? '',
-            profileCpf: user.cpf ?? '',
-            profileBirthdate: user.birthdate ?? '',
+            profileName: safeInputValue(user.full_name),
+            profilePhone: safeInputValue(user.phone),
+            profileMobilePhone: safeInputValue(user.mobile_phone),
+            profileWhatsappPhone: safeInputValue(user.whatsapp_phone),
+            profileCpf: safeInputValue(user.cpf),
+            profileBirthdate: safeInputValue(user.birthdate),
 
-            profileZipCode: user.zip_code ?? '',
-            profileAddress: user.address ?? '',
-            profileAddressNumber: user.address_number ?? '',
-            profileComplement: user.complement ?? '',
-            profileDistrict: user.district ?? '',
-            profileCity: user.city ?? '',
-            profileState: user.state ?? '',
+            profileZipCode: safeInputValue(user.zip_code),
+            profileAddress: safeInputValue(user.address),
+            profileAddressNumber: safeInputValue(user.address_number),
+            profileComplement: safeInputValue(user.complement),
+            profileDistrict: safeInputValue(user.district),
+            profileCity: safeInputValue(user.city),
+            profileState: safeInputValue(user.state),
 
-            profileInstagramUrl: user.instagram_url ?? '',
-            profileFacebookUrl: user.facebook_url ?? '',
-            profileWebsiteUrl: user.website_url ?? '',
+            profileInstagramUrl: safeInputValue(user.instagram_url),
+            profileFacebookUrl: safeInputValue(user.facebook_url),
+            profileWebsiteUrl: safeInputValue(user.website_url),
 
-            internalAlias: user.internal_alias ?? '',
-            jobTitle: user.job_title ?? '',
-            department: user.department ?? '',
-            internalNotes: user.internal_notes ?? '',
+            internalAlias: safeInputValue(user.internal_alias),
+            department: safeInputValue(user.department),
+            internalNotes: safeInputValue(user.internal_notes),
         });
     }, [user]);
 
@@ -266,6 +312,7 @@ export function UserDetailModal({
         });
     }, [fullHistoryItems, historySortOrder]);
 
+    const isProtectedOwner = user?.role === 'owner';
     const memberStore = user?.stores?.[0] ?? null;
 
     const [internalForm, setInternalForm] = useState<InternalFormState>(() =>
@@ -283,7 +330,16 @@ export function UserDetailModal({
 
     if (isOpen && user?.id && loadedDetailsId !== detailsSyncKey && !loading) {
         setLoadedDetailsId(detailsSyncKey);
-        setInternalForm(getInternalFormFromDetails(details));
+        setInternalForm({
+            ...getInternalFormFromUser(user),
+            ...getInternalFormFromDetails(details),
+        });
+
+        setProfileForm((current) => ({
+            ...current,
+            internalAlias: safeInputValue(details?.nickname || user.internal_alias),
+            internalNotes: safeInputValue(details?.internal_notes || user.internal_notes),
+        }));
     }
 
 
@@ -311,15 +367,7 @@ export function UserDetailModal({
         });
     };
 
-    const formatDateOnly = (dateString: string | null | undefined) => {
-        if (!dateString) return 'Não informado';
 
-        return new Date(`${dateString}T00:00:00`).toLocaleDateString('pt-BR', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric',
-        });
-    };
 
     const formatOptionalDateTime = (dateString: string | null | undefined) => {
         if (!dateString) return 'Sem registro';
@@ -410,6 +458,7 @@ export function UserDetailModal({
             store_role_permission_template_updated: 'Permissão por papel alterada',
             store_member_permissions_updated: 'Permissões individuais alteradas',
             store_member_role_changed: 'Função do usuário alterada',
+            store_member_profile_details_updated: 'Dados do usuário atualizados',
 
             security_settings_change: 'Configurações de segurança alteradas',
             security_settings_updated: 'Configurações de segurança alteradas',
@@ -612,6 +661,19 @@ export function UserDetailModal({
                 : 'Usuário encerrou a sessão.';
         }
 
+        if (event.action === 'store_member_profile_details_updated') {
+            const targetName =
+                getStringMetadata(event.metadata, 'target_user_name') ||
+                getStringMetadata(event.metadata, 'target_user_email') ||
+                'Usuário selecionado';
+
+            const reason = getStringMetadata(event.metadata, 'reason');
+
+            return reason
+                ? `${targetName} · dados cadastrais e internos atualizados. Motivo: ${reason}`
+                : `${targetName} · dados cadastrais e internos atualizados.`;
+        }
+
         return formatRoleTextDescription(event.description) || 'Evento registrado no histórico.';
     };
 
@@ -809,21 +871,33 @@ export function UserDetailModal({
                 storeId: memberStore.store_id,
                 memberId: user.id,
                 userId: memberStore.user_id,
-                nickname: internalForm.nickname.trim() || null,
+                nickname: profileForm.internalAlias.trim() || null,
                 address: {
-                    street: internalForm.street.trim(),
-                    number: internalForm.number.trim(),
-                    complement: internalForm.complement.trim(),
-                    district: internalForm.district.trim(),
-                    city: internalForm.city.trim(),
-                    state: internalForm.state.trim(),
-                    zip_code: internalForm.zipCode.trim(),
+                    street: profileForm.profileAddress.trim() || internalForm.street.trim(),
+                    number: profileForm.profileAddressNumber.trim() || internalForm.number.trim(),
+                    complement: profileForm.profileComplement.trim() || internalForm.complement.trim(),
+                    district: profileForm.profileDistrict.trim() || internalForm.district.trim(),
+                    city: profileForm.profileCity.trim() || internalForm.city.trim(),
+                    state: profileForm.profileState.trim() || internalForm.state.trim(),
+                    zip_code: profileForm.profileZipCode.trim() || internalForm.zipCode.trim(),
                 },
                 startedAt: internalForm.startedAt || null,
                 endedAt: internalForm.endedAt || null,
                 exitReason: internalForm.exitReason.trim() || null,
-                internalNotes: internalForm.internalNotes.trim() || null,
+                internalNotes: profileForm.internalNotes.trim() || null,
             });
+
+            if (onSaveProfileDetails) {
+                await onSaveProfileDetails({
+                    memberId: user.id,
+                    ...profileForm,
+                    internalAlias: profileForm.internalAlias,
+                    jobTitle: null,
+                    department: profileForm.department,
+                    internalNotes: profileForm.internalNotes,
+                    reason: 'Atualização dos dados do usuário.',
+                });
+            }
 
             toast.success('Dados internos salvos com sucesso.');
         } catch {
@@ -885,7 +959,8 @@ export function UserDetailModal({
             await onSaveProfileDetails({
                 memberId: user.id,
                 ...profileForm,
-                reason: 'Atualização pela aba Contato e dados.',
+                jobTitle: null,
+                reason: 'Atualização dos dados do usuário.',
             });
 
             toast.success('Dados complementares salvos.');
@@ -904,8 +979,8 @@ export function UserDetailModal({
 
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
-        { id: 'profile', label: 'Contato e dados', icon: User },
-        { id: 'access', label: 'Acesso', icon: Activity },
+        { id: 'profile', label: 'Cadastro', icon: User },
+        { id: 'access_role', label: 'Acesso e função', icon: Shield },
         { id: 'history', label: 'Histórico', icon: Activity },
         ...(canManageUsers
             ? [
@@ -1000,94 +1075,66 @@ export function UserDetailModal({
 
                         <div className="space-y-6 p-6">
                             {activeTab === 'overview' && (
-                                <>
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                        {user.email && (
-                                            <InfoCard icon={Mail} label="Email" value={user.email} />
-                                        )}
-
-                                        {user.phone && (
-                                            <InfoCard icon={Phone} label="Telefone" value={user.phone} />
-                                        )}
-
-                                        {user.cpf && (
-                                            <InfoCard icon={User} label="CPF" value={user.cpf} />
-                                        )}
-
-                                        <InfoCard
-                                            icon={Shield}
-                                            label="Permissão"
-                                            value={formatRoleLabel(user.role)}
-                                        />
-
-                                        <InfoCard
-                                            icon={Calendar}
-                                            label="Criado em"
-                                            value={formatDate(user.created_at)}
-                                        />
-
-                                        {(user.last_session_at || user.last_seen_at || user.last_sign_in_at) && (
-                                            <InfoCard
-                                                icon={Clock}
-                                                label="Último acesso"
-                                                value={formatDate(
-                                                    user.last_session_at ||
-                                                    user.last_seen_at ||
-                                                    user.last_sign_in_at ||
-                                                    user.created_at
-                                                )}
-                                            />
-                                        )}
-
-                                        <InfoCard
-                                            icon={Briefcase}
-                                            label="Início das atividades"
-                                            value={formatDateOnly(details?.started_at)}
-                                        />
-
-                                        <InfoCard
-                                            icon={Calendar}
-                                            label="Fim das atividades"
-                                            value={formatDateOnly(details?.ended_at)}
-                                        />
-                                    </div>
-
-                                    {user.stores && user.stores.length > 0 && (
-                                        <div>
-                                            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                                <Store size={16} />
-                                                Vínculo nesta loja
-                                            </h4>
-                                            <div className="space-y-2">
-                                                {user.stores.map((store) => (
-                                                    <div
-                                                        key={store.id}
-                                                        className="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50"
-                                                    >
-                                                        <div>
-                                                            <p className="font-medium text-gray-900 dark:text-white">
-                                                                Loja ativa / contexto atual
-                                                            </p>
-                                                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                                                                {store.store_slug}
-                                                            </p>
-                                                        </div>
-                                                        <UserRoleBadge role={store.role} size="sm" />
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    {user.email && (
+                                        <InfoCard icon={Mail} label="Email" value={user.email} />
                                     )}
 
-                                    <div className="grid grid-cols-3 gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
-                                        <StatCard label="É Admin" value={user.is_admin ? 'Sim' : 'Não'} />
-                                        <StatCard
-                                            label="Email Verificado"
-                                            value={user.email_verified ? 'Sim' : 'Não'}
+                                    {user.phone && (
+                                        <InfoCard icon={Phone} label="Telefone" value={user.phone} />
+                                    )}
+
+                                    {user.whatsapp_phone && (
+                                        <InfoCard icon={Phone} label="WhatsApp" value={user.whatsapp_phone} />
+                                    )}
+
+                                    {user.mobile_phone && !user.whatsapp_phone && (
+                                        <InfoCard icon={Phone} label="Celular" value={user.mobile_phone} />
+                                    )}
+
+                                    <InfoCard
+                                        icon={Shield}
+                                        label="Papel no sistema"
+                                        value={formatRoleLabel(user.role)}
+                                    />
+
+                                    {user.custom_role_name && (
+                                        <InfoCard
+                                            icon={Shield}
+                                            label="Função personalizada"
+                                            value={`${user.custom_role_name}${
+                                                user.custom_role_base_role
+                                                    ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
+                                                    : ''
+                                            }`}
                                         />
-                                        <StatCard label="Status" value={user.is_active ? 'Ativo' : 'Inativo'} />
-                                    </div>
-                                </>
+                                    )}
+
+                                    {(user.last_session_at || user.last_seen_at || user.last_sign_in_at) && (
+                                        <InfoCard
+                                            icon={Clock}
+                                            label="Último acesso"
+                                            value={formatDate(
+                                                user.last_session_at ||
+                                                user.last_seen_at ||
+                                                user.last_sign_in_at ||
+                                                user.created_at
+                                            )}
+                                        />
+                                    )}
+
+                                    <InfoCard
+                                        icon={Calendar}
+                                        label="Criado em"
+                                        value={formatDate(user.created_at)}
+                                    />
+
+                                    <InfoCard
+                                        icon={Activity}
+                                        label="Status"
+                                        value={user.status === 'active' ? 'Ativo' : user.status === 'inactive' ? 'Inativo' : user.status}
+                                    />
+                                </div>
                             )}
 
                             {activeTab === 'profile' && (
@@ -1110,7 +1157,7 @@ export function UserDetailModal({
                                                 label="Telefone"
                                                 value={profileForm.profilePhone}
                                                 onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profilePhone: value }))
+                                                    setProfileForm((current) => ({ ...current, profilePhone: formatPhone(value) }))
                                                 }
                                             />
 
@@ -1118,7 +1165,7 @@ export function UserDetailModal({
                                                 label="Celular"
                                                 value={profileForm.profileMobilePhone}
                                                 onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileMobilePhone: value }))
+                                                    setProfileForm((current) => ({ ...current, profileMobilePhone: formatPhone(value) }))
                                                 }
                                             />
 
@@ -1126,7 +1173,7 @@ export function UserDetailModal({
                                                 label="WhatsApp"
                                                 value={profileForm.profileWhatsappPhone}
                                                 onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileWhatsappPhone: value }))
+                                                    setProfileForm((current) => ({ ...current, profileWhatsappPhone: formatPhone(value) }))
                                                 }
                                             />
 
@@ -1134,7 +1181,7 @@ export function UserDetailModal({
                                                 label="CPF"
                                                 value={profileForm.profileCpf}
                                                 onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileCpf: value }))
+                                                    setProfileForm((current) => ({ ...current, profileCpf: formatCPF(value) }))
                                                 }
                                             />
 
@@ -1158,9 +1205,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="CEP"
                                                 value={profileForm.profileZipCode}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileZipCode: value }))
-                                                }
+                                                onChange={handleCepChange}
                                             />
 
                                             <InputField
@@ -1246,56 +1291,7 @@ export function UserDetailModal({
                                         </div>
                                     </div>
 
-                                    {canManageUsers && (
-                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
-                                                Dados internos da loja
-                                            </h4>
 
-                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                                <InputField
-                                                    label="Apelido interno"
-                                                    value={profileForm.internalAlias}
-                                                    onChange={(value) =>
-                                                        setProfileForm((current) => ({ ...current, internalAlias: value }))
-                                                    }
-                                                />
-
-                                                <InputField
-                                                    label="Cargo interno"
-                                                    value={profileForm.jobTitle}
-                                                    onChange={(value) =>
-                                                        setProfileForm((current) => ({ ...current, jobTitle: value }))
-                                                    }
-                                                />
-
-                                                <InputField
-                                                    label="Setor"
-                                                    value={profileForm.department}
-                                                    onChange={(value) =>
-                                                        setProfileForm((current) => ({ ...current, department: value }))
-                                                    }
-                                                />
-                                            </div>
-
-                                            <label className="mt-4 block">
-                                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                                    Observações internas
-                                                </span>
-                                                <textarea
-                                                    value={profileForm.internalNotes}
-                                                    onChange={(event) =>
-                                                        setProfileForm((current) => ({
-                                                            ...current,
-                                                            internalNotes: event.target.value,
-                                                        }))
-                                                    }
-                                                    rows={3}
-                                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                                />
-                                            </label>
-                                        </div>
-                                    )}
 
                                     <div className="flex justify-end">
                                         <button
@@ -1310,8 +1306,69 @@ export function UserDetailModal({
                                 </div>
                             )}
 
-                            {activeTab === 'access' && (
+                            {activeTab === 'access_role' && (
                                 <div className="space-y-5">
+                                    {canManageUsers && (
+                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
+                                                Configurações de Acesso
+                                            </h4>
+
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                <label className="block">
+                                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                                        Papel no sistema
+                                                    </span>
+                                                    <select
+                                                        value={user.role}
+                                                        disabled={isProtectedOwner || !onRequestRoleChange}
+                                                        onChange={(event) => {
+                                                            const nextRole = event.target.value;
+                                                            if (user.role !== nextRole) {
+                                                                onRequestRoleChange?.(user, nextRole);
+                                                            }
+                                                        }}
+                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                    >
+                                                        <option value="viewer">Visualizador</option>
+                                                        <option value="staff">Equipe</option>
+                                                        <option value="sales">Vendas</option>
+                                                        <option value="cashier">Caixa</option>
+                                                        <option value="stock_operator">Operador de estoque</option>
+                                                        <option value="manager">Gerente</option>
+                                                        <option value="admin">Administrador</option>
+                                                    </select>
+                                                </label>
+
+                                                <label className="block">
+                                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                                                        Função personalizada
+                                                    </span>
+                                                    <select
+                                                        value={user.custom_role_id ?? ''}
+                                                        disabled={isProtectedOwner || !onRequestCustomRoleChange}
+                                                        onChange={(event) => {
+                                                            const nextCustomRoleId = event.target.value || null;
+                                                            if ((user.custom_role_id ?? null) !== nextCustomRoleId) {
+                                                                onRequestCustomRoleChange?.(user, nextCustomRoleId);
+                                                            }
+                                                        }}
+                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                    >
+                                                        <option value="">Sem função personalizada</option>
+                                                        {customRoles
+                                                            .filter((role) => role.active && role.base_role === user.role)
+                                                            .map((role) => (
+                                                                <option key={role.id} value={role.id}>
+                                                                    {role.name}
+                                                                </option>
+                                                            ))}
+                                                    </select>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <InfoCard
                                             icon={lastSessionIcon}
@@ -1617,89 +1674,23 @@ export function UserDetailModal({
 
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <TextField
-                                            label="Apelido"
-                                            value={internalForm.nickname}
+                                            label="Apelido interno"
+                                            value={profileForm.internalAlias}
                                             onChange={(value) =>
-                                                setInternalForm((current) => ({
+                                                setProfileForm((current) => ({
                                                     ...current,
-                                                    nickname: value,
+                                                    internalAlias: value,
                                                 }))
                                             }
                                         />
 
                                         <TextField
-                                            label="CEP"
-                                            value={internalForm.zipCode}
+                                            label="Setor"
+                                            value={profileForm.department}
                                             onChange={(value) =>
-                                                setInternalForm((current) => ({
+                                                setProfileForm((current) => ({
                                                     ...current,
-                                                    zipCode: value,
-                                                }))
-                                            }
-                                        />
-
-                                        <TextField
-                                            label="Rua"
-                                            value={internalForm.street}
-                                            onChange={(value) =>
-                                                setInternalForm((current) => ({
-                                                    ...current,
-                                                    street: value,
-                                                }))
-                                            }
-                                        />
-
-                                        <TextField
-                                            label="Número"
-                                            value={internalForm.number}
-                                            onChange={(value) =>
-                                                setInternalForm((current) => ({
-                                                    ...current,
-                                                    number: value,
-                                                }))
-                                            }
-                                        />
-
-                                        <TextField
-                                            label="Complemento"
-                                            value={internalForm.complement}
-                                            onChange={(value) =>
-                                                setInternalForm((current) => ({
-                                                    ...current,
-                                                    complement: value,
-                                                }))
-                                            }
-                                        />
-
-                                        <TextField
-                                            label="Bairro"
-                                            value={internalForm.district}
-                                            onChange={(value) =>
-                                                setInternalForm((current) => ({
-                                                    ...current,
-                                                    district: value,
-                                                }))
-                                            }
-                                        />
-
-                                        <TextField
-                                            label="Cidade"
-                                            value={internalForm.city}
-                                            onChange={(value) =>
-                                                setInternalForm((current) => ({
-                                                    ...current,
-                                                    city: value,
-                                                }))
-                                            }
-                                        />
-
-                                        <TextField
-                                            label="UF"
-                                            value={internalForm.state}
-                                            onChange={(value) =>
-                                                setInternalForm((current) => ({
-                                                    ...current,
-                                                    state: value,
+                                                    department: value,
                                                 }))
                                             }
                                         />
@@ -1740,9 +1731,9 @@ export function UserDetailModal({
 
                                     <TextAreaField
                                         label="Observações internas"
-                                        value={internalForm.internalNotes}
+                                        value={profileForm.internalNotes}
                                         onChange={(value) =>
-                                            setInternalForm((current) => ({
+                                            setProfileForm((current) => ({
                                                 ...current,
                                                 internalNotes: value,
                                             }))
@@ -1953,7 +1944,7 @@ function InfoCard({
 }: {
     icon: typeof User;
     label: string;
-    value: string;
+    value?: string | null;
 }) {
     return (
         <div className="flex items-start gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/50">
@@ -1968,14 +1959,7 @@ function InfoCard({
     );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="text-center">
-            <p className="text-2xl font-bold text-[#21A896]">{value}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
-        </div>
-    );
-}
+
 
 function TextField({
     label,
@@ -1993,7 +1977,7 @@ function TextField({
             </span>
             <input
                 type="text"
-                value={value}
+                value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
@@ -2007,7 +1991,7 @@ function DateField({
     onChange,
 }: {
     label: string;
-    value: string;
+    value?: string | null;
     onChange: (value: string) => void;
 }) {
     return (
@@ -2017,7 +2001,7 @@ function DateField({
             </span>
             <input
                 type="date"
-                value={value}
+                value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
@@ -2031,7 +2015,7 @@ function TextAreaField({
     onChange,
 }: {
     label: string;
-    value: string;
+    value?: string | null;
     onChange: (value: string) => void;
 }) {
     return (
@@ -2040,7 +2024,7 @@ function TextAreaField({
                 {label}
             </span>
             <textarea
-                value={value}
+                value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
                 rows={4}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
@@ -2051,7 +2035,6 @@ function TextAreaField({
 
 function getEmptyInternalForm(): InternalFormState {
     return {
-        nickname: '',
         street: '',
         number: '',
         complement: '',
@@ -2062,7 +2045,6 @@ function getEmptyInternalForm(): InternalFormState {
         startedAt: '',
         endedAt: '',
         exitReason: '',
-        internalNotes: '',
     };
 }
 
@@ -2074,7 +2056,6 @@ function getInternalFormFromDetails(
     }
 
     return {
-        nickname: details.nickname ?? '',
         street: getStringFromRecord(details.address, 'street'),
         number: getStringFromRecord(details.address, 'number'),
         complement: getStringFromRecord(details.address, 'complement'),
@@ -2085,7 +2066,6 @@ function getInternalFormFromDetails(
         startedAt: details.started_at ?? '',
         endedAt: details.ended_at ?? '',
         exitReason: details.exit_reason ?? '',
-        internalNotes: details.internal_notes ?? '',
     };
 }
 
@@ -2107,7 +2087,7 @@ function SelectField({
     onChange,
 }: {
     label: string;
-    value: string;
+    value?: string | null;
     options: Array<[string, string]>;
     onChange: (value: string) => void;
 }) {
@@ -2117,7 +2097,7 @@ function SelectField({
                 {label}
             </span>
             <select
-                value={value}
+                value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
@@ -2139,7 +2119,7 @@ function InputField({
     className = '',
 }: {
     label: string;
-    value: string;
+    value?: string | null;
     onChange: (value: string) => void;
     type?: string;
     className?: string;
@@ -2151,10 +2131,48 @@ function InputField({
             </span>
             <input
                 type={type}
-                value={value}
+                value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
         </label>
     );
+}
+
+function formatCPF(value: string): string {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 3) return numbers;
+    if (numbers.length <= 6) return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
+    if (numbers.length <= 9) return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6)}`;
+    return `${numbers.slice(0, 3)}.${numbers.slice(3, 6)}.${numbers.slice(6, 9)}-${numbers.slice(9, 11)}`;
+}
+
+function formatCEP(value: string): string {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 5) return numbers;
+    return `${numbers.slice(0, 5)}-${numbers.slice(5, 8)}`;
+}
+
+function formatPhone(value: string): string {
+    const numbers = value.replace(/\D/g, '');
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+}
+
+function getInternalFormFromUser(user: UserAdmin | null | undefined): InternalFormState {
+    if (!user) return getEmptyInternalForm();
+    return {
+        street: user.address ?? '',
+        number: user.address_number ?? '',
+        complement: user.complement ?? '',
+        district: user.district ?? '',
+        city: user.city ?? '',
+        state: user.state ?? '',
+        zipCode: user.zip_code ?? '',
+        startedAt: '',
+        endedAt: '',
+        exitReason: '',
+    };
 }

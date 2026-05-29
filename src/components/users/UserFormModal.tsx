@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import type { UserAdmin, UserFormData, UserRole } from '@/types';
 import { X } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface UserFormModalProps {
     isOpen: boolean;
@@ -88,6 +89,10 @@ export function UserFormModal({
     };
 
     const handleFormSubmit = async (data: UserFormData) => {
+        if (!data.email.includes('@')) {
+            toast.error('Por favor, insira um e-mail válido.');
+            return;
+        }
         await onSubmit(data);
         handleClose();
     };

@@ -8,7 +8,7 @@ import {
     Phone,
     Calendar,
     MoreVertical,
-    Edit2,
+    UserSearch,
     Trash2,
     Ban,
     CheckCircle,
@@ -48,14 +48,9 @@ const formatRoleLabel = (role: string | null | undefined) => {
 export function UserCard({
     user,
     onView,
-    onEdit,
     onToggleStatus,
     onDelete,
     showActions = true,
-    canManageUsers = false,
-    customRoles = [],
-    customRoleSaving = false,
-    onSelectCustomRole,
 }: UserCardProps) {
     const [showMenu, setShowMenu] = React.useState(false);
     const isProtectedOwner = user.role === 'owner';
@@ -108,6 +103,16 @@ export function UserCard({
                             <UserRoleBadge role={user.role} size="sm" />
                             <UserStatusBadge status={user.status} size="sm" />
                         </div>
+                        {user.internal_alias && user.internal_alias !== user.full_name && (
+                            <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                Apelido interno: {user.internal_alias}
+                            </p>
+                        )}
+                        {user.department && (
+                            <p className="mt-1 text-xs font-bold text-[#21A896]">
+                                Setor: {user.department}
+                            </p>
+                        )}
                         {user.custom_role_name && (
                             <p className="mt-1 text-xs font-bold text-[#21A896]">
                                 {user.custom_role_name}
@@ -128,6 +133,18 @@ export function UserCard({
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <Phone size={14} className="shrink-0" />
                                     <span>{user.phone}</span>
+                                </div>
+                            )}
+                            {user.whatsapp_phone && (
+                                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                    <Phone size={14} className="shrink-0" />
+                                    <span>WhatsApp: {user.whatsapp_phone}</span>
+                                </div>
+                            )}
+                            {user.mobile_phone && !user.whatsapp_phone && (
+                                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                    <Phone size={14} className="shrink-0" />
+                                    <span>Celular: {user.mobile_phone}</span>
                                 </div>
                             )}
                             {user.cpf && (
@@ -166,50 +183,6 @@ export function UserCard({
                                 {user.internal_notes}
                             </div>
                         )}
-
-                        {canManageUsers && user.role !== 'owner' && (
-                            <div className="mt-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700" onClick={(e) => e.stopPropagation()}>
-                                <label className="block">
-                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                        Função personalizada
-                                    </span>
-
-                                    <select
-                                        value={user.custom_role_id ?? ''}
-                                        disabled={customRoleSaving}
-                                        onChange={(event) => {
-                                            const nextCustomRoleId = event.target.value || null;
-
-                                            if ((user.custom_role_id ?? null) === nextCustomRoleId) {
-                                                return;
-                                            }
-
-                                            onSelectCustomRole?.(user, nextCustomRoleId);
-                                        }}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                    >
-                                        <option value="">Sem função personalizada</option>
-
-                                        {customRoles
-                                            .filter((role) => role.active && role.base_role === user.role)
-                                            .map((role) => (
-                                                <option key={role.id} value={role.id}>
-                                                    {role.name} — base: {formatRoleLabel(role.base_role)}
-                                                </option>
-                                            ))}
-                                    </select>
-                                </label>
-
-                                {user.custom_role_name && (
-                                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                                        Atual: <strong>{user.custom_role_name}</strong>
-                                        {user.custom_role_base_role
-                                            ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
-                                            : ''}
-                                    </p>
-                                )}
-                            </div>
-                        )}
                     </div>
                 </div>
 
@@ -235,27 +208,8 @@ export function UserCard({
                                             onClick={() => handleAction(() => onView(user))}
                                             className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                                         >
-                                            <Edit2 size={14} />
-                                            Ver detalhes
-                                        </button>
-                                    )}
-                                    {onEdit && (
-                                        <button
-                                            onClick={() =>
-                                                handleAction(() => {
-                                                    if (!isProtectedOwner) {
-                                                        onEdit(user);
-                                                    }
-                                                })
-                                            }
-                                            disabled={isProtectedOwner}
-                                            className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${isProtectedOwner
-                                                    ? 'opacity-50 cursor-not-allowed'
-                                                    : ''
-                                                }`}
-                                        >
-                                            <Edit2 size={14} />
-                                            Editar
+                                            <UserSearch size={16} />
+                                            Detalhes do usuário
                                         </button>
                                     )}
                                     {onToggleStatus && (

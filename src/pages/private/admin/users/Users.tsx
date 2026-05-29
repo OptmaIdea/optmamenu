@@ -172,28 +172,6 @@ export default function Users() {
         setShowDetailModal(true);
     };
 
-    const handleEditUser = (user: UserAdmin) => {
-        if (user.role === 'owner') {
-            toast.info('A alteração do proprietário será tratada em uma rotina específica de titularidade.');
-            return;
-        }
-
-        const summary = sessionSummaryByMemberId.get(user.id);
-
-        setSelectedUser({
-            ...user,
-            ...(summary
-                ? {
-                    last_seen_at: summary.last_seen_at,
-                    last_session_action: summary.last_session_action,
-                    last_session_at: summary.last_session_at,
-                    last_session_details: summary.last_session_details,
-                }
-                : {}),
-        });
-        setFormMode('edit');
-        setShowFormModal(true);
-    };
 
     const handleCreateUser = () => {
         if (!canManageUsers) {
@@ -553,19 +531,9 @@ export default function Users() {
                             key={user.id}
                             user={user}
                             onView={handleViewUser}
-                            onEdit={handleEditUser}
                             onToggleStatus={handleToggleStatus}
                             onDelete={handleDeleteUser}
                             canManageUsers={canManageUsers}
-                            customRoles={customRoles}
-                            customRoleSaving={customRoleSaving}
-                            onSelectCustomRole={(u, roleId) => {
-                                setCustomRoleConfirmation({
-                                    user: u,
-                                    customRoleId: roleId,
-                                    clearOverrides: false,
-                                });
-                            }}
                         />
                     ))}
                 </div>
@@ -596,6 +564,21 @@ export default function Users() {
                 onClose={() => setShowDetailModal(false)}
                 user={selectedUser}
                 canManageUsers={canManageUsers}
+                customRoles={customRoles}
+                onRequestRoleChange={(user, newRole) => {
+                    setRoleChangeConfirmation({
+                        user,
+                        newRole,
+                        clearOverrides: false,
+                    });
+                }}
+                onRequestCustomRoleChange={(user, customRoleId) => {
+                    setCustomRoleConfirmation({
+                        user,
+                        customRoleId,
+                        clearOverrides: false,
+                    });
+                }}
                 onSaveProfileDetails={handleSaveProfileDetails}
             />
 
