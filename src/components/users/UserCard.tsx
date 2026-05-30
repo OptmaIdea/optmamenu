@@ -25,6 +25,7 @@ interface UserCardProps {
     onDelete?: (user: UserAdmin) => void;
     showActions?: boolean;
     canManageUsers?: boolean;
+    canViewSensitiveUserData?: boolean;
     customRoles?: StoreCustomRole[];
     customRoleSaving?: boolean;
     onSelectCustomRole?: (user: UserAdmin, customRoleId: string | null) => void;
@@ -51,6 +52,7 @@ export function UserCard({
     onToggleStatus,
     onDelete,
     showActions = true,
+    canViewSensitiveUserData = false,
 }: UserCardProps) {
     const [showMenu, setShowMenu] = React.useState(false);
     const isProtectedOwner = user.role === 'owner';
@@ -147,7 +149,7 @@ export function UserCard({
                                     <span>Celular: {user.mobile_phone}</span>
                                 </div>
                             )}
-                            {user.cpf && (
+                            {canViewSensitiveUserData && user.cpf && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <span className="font-medium">CPF:</span>
                                     <span>{user.cpf}</span>
@@ -177,7 +179,7 @@ export function UserCard({
                             )}
                         </div>
 
-                        {user.internal_notes && (
+                        {canViewSensitiveUserData && user.internal_notes && (
                             <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2">
                                 <span className="font-medium">Observações:</span>{' '}
                                 {user.internal_notes}

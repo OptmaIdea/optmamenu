@@ -40,6 +40,8 @@ interface UserDetailModalProps {
     onClose: () => void;
     user: UserAdmin | null;
     canManageUsers?: boolean;
+    canViewSensitiveUserData?: boolean;
+    canManageSensitiveUserData?: boolean;
     onSaveProfileDetails?: (input: {
         memberId: string;
 
@@ -211,6 +213,8 @@ export function UserDetailModal({
     onClose,
     user,
     canManageUsers = false,
+    canViewSensitiveUserData = false,
+    canManageSensitiveUserData = false,
     onSaveProfileDetails,
     onRequestRoleChange,
     onRequestCustomRoleChange,
@@ -482,6 +486,8 @@ export function UserDetailModal({
             purchase_cancel: 'Cancelamento de compra',
             user_role_change: 'Alteração de papel de usuário',
             user_status_change: 'Alteração de status de usuário',
+            sensitive_view: 'Ver dados sens�veis',
+            sensitive_manage: 'Gerenciar dados sens�veis',
 
             session_store_selected: 'Entrada na loja selecionada',
             session_logout: 'Saída do sistema',
@@ -541,6 +547,8 @@ export function UserDetailModal({
             'loyalty.manage': 'Fidelidade · Gerenciar',
             'users.view': 'Usuários · Ver',
             'users.manage': 'Usuários · Gerenciar',
+            'users.sensitive.view': 'Usu�rios � Ver dados sens�veis',
+            'users.sensitive.manage': 'Usu�rios � Gerenciar dados sens�veis',
             'security.view': 'Segurança · Ver',
             'security.manage': 'Segurança · Gerenciar',
         };
@@ -1177,25 +1185,32 @@ export function UserDetailModal({
                                                 }
                                             />
 
-                                            <InputField
-                                                label="CPF"
-                                                value={profileForm.profileCpf}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileCpf: formatCPF(value) }))
-                                                }
-                                            />
+                                            {canViewSensitiveUserData && (
+                                                <>
+                                                    <InputField
+                                                        label="CPF"
+                                                        value={profileForm.profileCpf}
+                                                        disabled={!canManageSensitiveUserData}
+                                                        onChange={(value) =>
+                                                            setProfileForm((current) => ({ ...current, profileCpf: formatCPF(value) }))
+                                                        }
+                                                    />
 
-                                            <InputField
-                                                label="Nascimento"
-                                                type="date"
-                                                value={profileForm.profileBirthdate}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileBirthdate: value }))
-                                                }
-                                            />
+                                                    <InputField
+                                                        label="Nascimento"
+                                                        type="date"
+                                                        value={profileForm.profileBirthdate}
+                                                        disabled={!canManageSensitiveUserData}
+                                                        onChange={(value) =>
+                                                            setProfileForm((current) => ({ ...current, profileBirthdate: value }))
+                                                        }
+                                                    />
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 
+                                    {canViewSensitiveUserData && (
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                         <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
                                             Endereço
@@ -1205,12 +1220,14 @@ export function UserDetailModal({
                                             <InputField
                                                 label="CEP"
                                                 value={profileForm.profileZipCode}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={handleCepChange}
                                             />
 
                                             <InputField
                                                 label="Endereço"
                                                 value={profileForm.profileAddress}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileAddress: value }))
                                                 }
@@ -1220,6 +1237,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Número"
                                                 value={profileForm.profileAddressNumber}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileAddressNumber: value }))
                                                 }
@@ -1228,6 +1246,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Complemento"
                                                 value={profileForm.profileComplement}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileComplement: value }))
                                                 }
@@ -1236,6 +1255,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Bairro"
                                                 value={profileForm.profileDistrict}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileDistrict: value }))
                                                 }
@@ -1244,6 +1264,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Cidade"
                                                 value={profileForm.profileCity}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileCity: value }))
                                                 }
@@ -1252,12 +1273,14 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Estado"
                                                 value={profileForm.profileState}
+                                                disabled={!canManageSensitiveUserData}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileState: value }))
                                                 }
                                             />
                                         </div>
                                     </div>
+                                    )}
 
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                         <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
@@ -1729,9 +1752,11 @@ export function UserDetailModal({
                                         }
                                     />
 
+                                    {canViewSensitiveUserData && (
                                     <TextAreaField
                                         label="Observações internas"
                                         value={profileForm.internalNotes}
+                                        disabled={!canManageSensitiveUserData}
                                         onChange={(value) =>
                                             setProfileForm((current) => ({
                                                 ...current,
@@ -1739,6 +1764,7 @@ export function UserDetailModal({
                                             }))
                                         }
                                     />
+                                    )}
 
                                     <div className="flex justify-end">
                                         <button
@@ -2012,10 +2038,12 @@ function DateField({
 function TextAreaField({
     label,
     value,
+    disabled = false,
     onChange,
 }: {
     label: string;
     value?: string | null;
+    disabled?: boolean;
     onChange: (value: string) => void;
 }) {
     return (
@@ -2025,9 +2053,10 @@ function TextAreaField({
             </span>
             <textarea
                 value={value ?? ''}
+                disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
                 rows={4}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
             />
         </label>
     );
@@ -2117,12 +2146,14 @@ function InputField({
     onChange,
     type = 'text',
     className = '',
+    disabled = false,
 }: {
     label: string;
     value?: string | null;
     onChange: (value: string) => void;
     type?: string;
     className?: string;
+    disabled?: boolean;
 }) {
     return (
         <label className={`block ${className}`}>
@@ -2132,8 +2163,9 @@ function InputField({
             <input
                 type={type}
                 value={value ?? ''}
+                disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
             />
         </label>
     );

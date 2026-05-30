@@ -85,6 +85,14 @@ export default function Users() {
         cancelInvite,
     } = useStoreMemberInvites(operationalStoreId);
     const canManageUsers = hasEffectivePermission(permissions, 'users.manage');
+    const canViewSensitiveUserData =
+        hasEffectivePermission(permissions, 'users.sensitive.view') ||
+        hasEffectivePermission(permissions, 'users.sensitive.manage') ||
+        hasEffectivePermission(permissions, 'security.manage');
+
+    const canManageSensitiveUserData =
+        hasEffectivePermission(permissions, 'users.sensitive.manage') ||
+        hasEffectivePermission(permissions, 'security.manage');
 
     const {
         items: sessionSummary,
@@ -534,6 +542,7 @@ export default function Users() {
                             onToggleStatus={handleToggleStatus}
                             onDelete={handleDeleteUser}
                             canManageUsers={canManageUsers}
+                            canViewSensitiveUserData={canViewSensitiveUserData}
                         />
                     ))}
                 </div>
@@ -564,6 +573,8 @@ export default function Users() {
                 onClose={() => setShowDetailModal(false)}
                 user={selectedUser}
                 canManageUsers={canManageUsers}
+                canViewSensitiveUserData={canViewSensitiveUserData}
+                canManageSensitiveUserData={canManageSensitiveUserData}
                 customRoles={customRoles}
                 onRequestRoleChange={(user, newRole) => {
                     setRoleChangeConfirmation({

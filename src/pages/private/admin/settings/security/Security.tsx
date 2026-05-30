@@ -109,6 +109,8 @@ function formatPermissionAction(action: string): string {
         confirm: 'Confirmar',
         cancel: 'Cancelar',
         manage: 'Gerenciar',
+        sensitive_view: 'Ver dados sensíveis',
+        sensitive_manage: 'Gerenciar dados sensíveis',
     };
 
     return labels[action] ?? action;
@@ -172,6 +174,8 @@ function formatSecurityLogAction(action?: string): string {
         purchase_cancel: 'Cancelamento de compra',
         user_role_change: 'Alteração de papel de usuário',
         user_status_change: 'Alteração de status de usuário',
+        sensitive_view: 'Ver dados sens�veis',
+        sensitive_manage: 'Gerenciar dados sens�veis',
 
         session_store_selected: 'Entrada na loja selecionada',
         session_logout: 'Saída do sistema',
@@ -210,6 +214,13 @@ function formatBooleanPermission(value: unknown): string {
 }
 
 function formatPermissionLabelFromCode(code: string): string {
+    const labels: Record<string, string> = {
+        'users.sensitive.view': 'Usuários · Ver dados sensíveis',
+        'users.sensitive.manage': 'Usuários · Gerenciar dados sensíveis',
+    };
+
+    if (labels[code]) return labels[code];
+
     const [module, action] = code.split('.');
 
     if (!module || !action) return code;
