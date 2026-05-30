@@ -88,7 +88,6 @@ export interface UserAdmin {
     website_url?: string | null;
 
     internal_alias?: string | null;
-    job_title?: string | null;
     department?: string | null;
 }
 

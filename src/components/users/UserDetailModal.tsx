@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+﻿import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import type {
     StoreMemberOccurrenceSeverity,
@@ -148,7 +148,7 @@ const EMPTY_PROFILE_FORM = {
 
 function formatRoleLabel(role: string): string {
     const labels: Record<string, string> = {
-        owner: 'Proprietário',
+        owner: 'ProprietÃ¡rio',
         super_admin: 'Super Administrador',
         admin: 'Administrador',
         manager: 'Gerente',
@@ -173,19 +173,19 @@ function formatRoleTextDescription(text: string | null | undefined): string {
         .replaceAll('cashier', 'Caixa')
         .replaceAll('sales', 'Vendas')
         .replaceAll('staff', 'Equipe')
-        .replaceAll('owner', 'Proprietário');
+        .replaceAll('owner', 'ProprietÃ¡rio');
 }
 
 function formatOccurrenceType(type: StoreMemberOccurrenceType): string {
     const labels: Record<StoreMemberOccurrenceType, string> = {
-        note: 'Observação',
-        warning: 'Advertência',
+        note: 'ObservaÃ§Ã£o',
+        warning: 'AdvertÃªncia',
         praise: 'Elogio',
         training: 'Treinamento',
         incident: 'Incidente',
-        role_change: 'Mudança de função',
-        absence: 'Ausência',
-        exit: 'Saída',
+        role_change: 'MudanÃ§a de funÃ§Ã£o',
+        absence: 'AusÃªncia',
+        exit: 'SaÃ­da',
         other: 'Outro',
     };
 
@@ -196,9 +196,9 @@ function formatSeverity(severity: StoreMemberOccurrenceSeverity): string {
     const labels: Record<StoreMemberOccurrenceSeverity, string> = {
         info: 'Informativo',
         low: 'Baixa',
-        medium: 'Média',
+        medium: 'MÃ©dia',
         high: 'Alta',
-        critical: 'Crítica',
+        critical: 'CrÃ­tica',
     };
 
     return labels[severity];
@@ -245,7 +245,7 @@ export function UserDetailModal({
                             profileCity: data.localidade || '',
                             profileState: data.uf || '',
                         }));
-                        toast.success('Endereço preenchido pelo CEP.');
+                        toast.success('EndereÃ§o preenchido pelo CEP.');
                     }
                 }
             } catch (error) {
@@ -388,8 +388,8 @@ export function UserDetailModal({
     const getSessionActionLabel = (action: string | null | undefined) => {
         const labels: Record<string, string> = {
             session_store_selected: 'Entrada na loja selecionada',
-            session_logout: 'Saída do sistema',
-            session_login_test: 'Teste de sessão',
+            session_logout: 'SaÃ­da do sistema',
+            session_login_test: 'Teste de sessÃ£o',
         };
 
         return action ? labels[action] ?? action : 'Sem evento registrado';
@@ -418,8 +418,8 @@ export function UserDetailModal({
 
     const formatHistoryModule = (module: string) => {
         const labels: Record<string, string> = {
-            security: 'Segurança',
-            users: 'Usuários',
+            security: 'SeguranÃ§a',
+            users: 'UsuÃ¡rios',
             audit: 'Auditoria',
             stock: 'Estoque',
             purchases: 'Compras',
@@ -436,9 +436,9 @@ export function UserDetailModal({
             failure: 'Falha',
             info: 'Informativo',
             low: 'Baixa',
-            medium: 'Média',
+            medium: 'MÃ©dia',
             high: 'Alta',
-            critical: 'Crítica',
+            critical: 'CrÃ­tica',
         };
 
         return outcome ? labels[outcome] ?? outcome : 'Sem resultado';
@@ -446,55 +446,57 @@ export function UserDetailModal({
 
     const formatHistorySource = (source: string | null | undefined) => {
         const labels: Record<string, string> = {
-            store_security_logs: 'Registro de segurança',
-            store_member_occurrences: 'Ocorrência do usuário',
+            store_security_logs: 'Registro de seguranÃ§a',
+            store_member_occurrences: 'OcorrÃªncia do usuÃ¡rio',
             audit_logs: 'Auditoria operacional',
-            stock_movements: 'Movimentação de estoque',
+            stock_movements: 'MovimentaÃ§Ã£o de estoque',
             operational_timeline: 'Linha do tempo operacional',
         };
 
-        return source ? labels[source] ?? source : 'Origem não identificada';
+        return source ? labels[source] ?? source : 'Origem nÃ£o identificada';
     };
 
     const formatHistoryActionLabel = (action: string | null | undefined): string => {
         const labels: Record<string, string> = {
-            store_sensitive_action_rule_updated: 'Regra de ação sensível alterada',
-            store_role_permission_template_updated: 'Permissão por papel alterada',
-            store_member_permissions_updated: 'Permissões individuais alteradas',
-            store_member_role_changed: 'Função do usuário alterada',
-            store_member_profile_details_updated: 'Dados do usuário atualizados',
+            store_sensitive_action_rule_updated: 'Regra de aÃ§Ã£o sensÃ­vel alterada',
+            store_role_permission_template_updated: 'PermissÃ£o por papel alterada',
+            store_member_permissions_updated: 'PermissÃµes individuais alteradas',
+            store_member_role_changed: 'FunÃ§Ã£o do usuÃ¡rio alterada',
+            store_member_profile_details_updated: 'Dados do usuÃ¡rio atualizados',
+            store_custom_role_assigned: 'Função personalizada atribuída',
+            store_custom_role_removed: 'Função personalizada removida',
 
-            security_settings_change: 'Configurações de segurança alteradas',
-            security_settings_updated: 'Configurações de segurança alteradas',
-            security_context_refreshed: 'Contexto de segurança atualizado',
+            security_settings_change: 'ConfiguraÃ§Ãµes de seguranÃ§a alteradas',
+            security_settings_updated: 'ConfiguraÃ§Ãµes de seguranÃ§a alteradas',
+            security_context_refreshed: 'Contexto de seguranÃ§a atualizado',
 
             user_pin_created: 'PIN cadastrado',
             user_pin_updated: 'PIN alterado',
             user_pin_validated: 'PIN validado',
-            user_pin_validation_failed: 'Falha na validação do PIN',
+            user_pin_validation_failed: 'Falha na validaÃ§Ã£o do PIN',
             user_pin_unblocked: 'PIN desbloqueado',
 
             store_master_password_reset: 'Senha master redefinida',
             login_password_changed: 'Senha de login alterada',
 
-            sensitive_token_created: 'Token de ação sensível criado',
-            sensitive_token_validated: 'Token de ação sensível validado',
-            sensitive_token_validation_failed: 'Falha na validação do token',
+            sensitive_token_created: 'Token de aÃ§Ã£o sensÃ­vel criado',
+            sensitive_token_validated: 'Token de aÃ§Ã£o sensÃ­vel validado',
+            sensitive_token_validation_failed: 'Falha na validaÃ§Ã£o do token',
 
-            product_delete: 'Exclusão/descontinuação de produto',
+            product_delete: 'ExclusÃ£o/descontinuaÃ§Ã£o de produto',
             stock_adjustment: 'Ajuste de estoque',
             purchase_cancel: 'Cancelamento de compra',
-            user_role_change: 'Alteração de papel de usuário',
-            user_status_change: 'Alteração de status de usuário',
-            sensitive_view: 'Ver dados sens�veis',
-            sensitive_manage: 'Gerenciar dados sens�veis',
+            user_role_change: 'AlteraÃ§Ã£o de papel de usuÃ¡rio',
+            user_status_change: 'AlteraÃ§Ã£o de status de usuÃ¡rio',
+            sensitive_view: 'Ver dados sensíveis',
+            sensitive_manage: 'Gerenciar dados sensíveis',
 
             session_store_selected: 'Entrada na loja selecionada',
-            session_logout: 'Saída do sistema',
-            session_login_test: 'Teste de login/sessão',
+            session_logout: 'SaÃ­da do sistema',
+            session_login_test: 'Teste de login/sessÃ£o',
         };
 
-        return action ? labels[action] ?? action : 'Ação desconhecida';
+        return action ? labels[action] ?? action : 'AÃ§Ã£o desconhecida';
     };
 
     const getStringMetadata = (
@@ -518,39 +520,39 @@ export function UserDetailModal({
 
     const formatPermissionLabelFromCode = (code: string) => {
         const labels: Record<string, string> = {
-            'dashboard.view': 'Painel · Ver',
-            'reports.view': 'Relatórios · Ver',
-            'products.view': 'Produtos · Ver',
-            'products.create': 'Produtos · Criar',
-            'products.update': 'Produtos · Editar',
-            'products.delete': 'Produtos · Excluir',
-            'stock.view': 'Estoque · Ver',
-            'stock.transfer': 'Estoque · Transferir',
-            'stock.adjust': 'Estoque · Ajustar',
-            'purchases.view': 'Compras · Ver',
-            'purchases.create': 'Compras · Criar',
-            'purchases.confirm': 'Compras · Confirmar',
-            'purchases.cancel': 'Compras · Cancelar',
-            'suppliers.view': 'Fornecedores · Ver',
-            'suppliers.manage': 'Fornecedores · Gerenciar',
-            'orders.view': 'Pedidos · Ver',
-            'orders.manage': 'Pedidos · Gerenciar',
-            'orders.cancel': 'Pedidos · Cancelar',
-            'cashbook.view': 'Livro diário · Ver',
-            'cashbook.create': 'Livro diário · Criar',
-            'cashbook.cancel': 'Livro diário · Cancelar',
-            'clients.view': 'Clientes · Ver',
-            'clients.manage': 'Clientes · Gerenciar',
-            'marketing.view': 'Marketing · Ver',
-            'marketing.manage': 'Marketing · Gerenciar',
-            'loyalty.view': 'Fidelidade · Ver',
-            'loyalty.manage': 'Fidelidade · Gerenciar',
-            'users.view': 'Usuários · Ver',
-            'users.manage': 'Usuários · Gerenciar',
-            'users.sensitive.view': 'Usu�rios � Ver dados sens�veis',
-            'users.sensitive.manage': 'Usu�rios � Gerenciar dados sens�veis',
-            'security.view': 'Segurança · Ver',
-            'security.manage': 'Segurança · Gerenciar',
+            'dashboard.view': 'Painel Â· Ver',
+            'reports.view': 'RelatÃ³rios Â· Ver',
+            'products.view': 'Produtos Â· Ver',
+            'products.create': 'Produtos Â· Criar',
+            'products.update': 'Produtos Â· Editar',
+            'products.delete': 'Produtos Â· Excluir',
+            'stock.view': 'Estoque Â· Ver',
+            'stock.transfer': 'Estoque Â· Transferir',
+            'stock.adjust': 'Estoque Â· Ajustar',
+            'purchases.view': 'Compras Â· Ver',
+            'purchases.create': 'Compras Â· Criar',
+            'purchases.confirm': 'Compras Â· Confirmar',
+            'purchases.cancel': 'Compras Â· Cancelar',
+            'suppliers.view': 'Fornecedores Â· Ver',
+            'suppliers.manage': 'Fornecedores Â· Gerenciar',
+            'orders.view': 'Pedidos Â· Ver',
+            'orders.manage': 'Pedidos Â· Gerenciar',
+            'orders.cancel': 'Pedidos Â· Cancelar',
+            'cashbook.view': 'Livro diÃ¡rio Â· Ver',
+            'cashbook.create': 'Livro diÃ¡rio Â· Criar',
+            'cashbook.cancel': 'Livro diÃ¡rio Â· Cancelar',
+            'clients.view': 'Clientes Â· Ver',
+            'clients.manage': 'Clientes Â· Gerenciar',
+            'marketing.view': 'Marketing Â· Ver',
+            'marketing.manage': 'Marketing Â· Gerenciar',
+            'loyalty.view': 'Fidelidade Â· Ver',
+            'loyalty.manage': 'Fidelidade Â· Gerenciar',
+            'users.view': 'UsuÃ¡rios Â· Ver',
+            'users.manage': 'UsuÃ¡rios Â· Gerenciar',
+            'users.sensitive.view': 'Usuários · Ver dados sensíveis',
+            'users.sensitive.manage': 'Usuários · Gerenciar dados sensíveis',
+            'security.view': 'SeguranÃ§a Â· Ver',
+            'security.manage': 'SeguranÃ§a Â· Gerenciar',
         };
 
         if (labels[code]) return labels[code];
@@ -558,7 +560,7 @@ export function UserDetailModal({
         const [module, action] = code.split('.');
         if (!module || !action) return code;
 
-        return `${module} · ${action}`;
+        return `${module} Â· ${action}`;
     };
 
     const formatPermissionValue = (value: unknown) => {
@@ -591,7 +593,7 @@ export function UserDetailModal({
             .map((code) => {
                 return `${formatPermissionLabelFromCode(code)}: ${formatPermissionValue(
                     oldPermissions[code]
-                )} → ${formatPermissionValue(newPermissions[code])}`;
+                )} â†’ ${formatPermissionValue(newPermissions[code])}`;
             })
             .join(' | ');
     };
@@ -605,7 +607,7 @@ export function UserDetailModal({
             return (
                 getPermissionChangeSummaryFromMetadata(event.metadata) ||
                 event.description ||
-                'Permissões individuais revisadas.'
+                'PermissÃµes individuais revisadas.'
             );
         }
 
@@ -613,14 +615,14 @@ export function UserDetailModal({
             const targetName =
                 getStringMetadata(event.metadata, 'target_user_name') ||
                 getStringMetadata(event.metadata, 'target_user_email') ||
-                'Usuário selecionado';
+                'UsuÃ¡rio selecionado';
 
             const oldRole = getStringMetadata(event.metadata, 'old_role');
             const newRole = getStringMetadata(event.metadata, 'new_role');
             const cleared = event.metadata?.clear_individual_overrides === true;
 
-            return `${targetName} · ${oldRole ? formatRoleLabel(oldRole) : 'função anterior'} → ${newRole ? formatRoleLabel(newRole) : 'nova função'
-                }${cleared ? ' · permissões individuais limpas' : ' · permissões individuais preservadas'}`;
+            return `${targetName} Â· ${oldRole ? formatRoleLabel(oldRole) : 'funÃ§Ã£o anterior'} â†’ ${newRole ? formatRoleLabel(newRole) : 'nova funÃ§Ã£o'
+                }${cleared ? ' Â· permissÃµes individuais limpas' : ' Â· permissÃµes individuais preservadas'}`;
         }
 
 
@@ -633,10 +635,10 @@ export function UserDetailModal({
             const parts = [
                 role ? `Papel: ${formatRoleLabel(role)}` : null,
                 permissionCode ? formatPermissionLabelFromCode(permissionCode) : null,
-                `${formatPermissionValue(oldAllowed)} → ${formatPermissionValue(newAllowed)}`,
+                `${formatPermissionValue(oldAllowed)} â†’ ${formatPermissionValue(newAllowed)}`,
             ].filter(Boolean);
 
-            return parts.join(' · ');
+            return parts.join(' Â· ');
         }
 
         if (event.action === 'store_sensitive_action_rule_updated') {
@@ -645,19 +647,19 @@ export function UserDetailModal({
             const newRule = getRecordMetadata(event.metadata, 'new_rule');
 
             const oldRequirement =
-                typeof oldRule.requirement === 'string' ? oldRule.requirement : 'não definido';
+                typeof oldRule.requirement === 'string' ? oldRule.requirement : 'nÃ£o definido';
 
             const newRequirement =
-                typeof newRule.requirement === 'string' ? newRule.requirement : 'não definido';
+                typeof newRule.requirement === 'string' ? newRule.requirement : 'nÃ£o definido';
 
-            return `${actionCode ?? 'Ação sensível'} · exigência: ${oldRequirement} → ${newRequirement}`;
+            return `${actionCode ?? 'AÃ§Ã£o sensÃ­vel'} Â· exigÃªncia: ${oldRequirement} â†’ ${newRequirement}`;
         }
 
         if (event.action === 'session_store_selected') {
             const storeName = getStringMetadata(event.metadata, 'store_name');
             const role = getStringMetadata(event.metadata, 'role');
 
-            return `${storeName ?? 'Loja selecionada'} · acesso como ${role ? formatRoleLabel(role) : 'papel não informado'
+            return `${storeName ?? 'Loja selecionada'} Â· acesso como ${role ? formatRoleLabel(role) : 'papel nÃ£o informado'
                 }`;
         }
 
@@ -665,33 +667,33 @@ export function UserDetailModal({
             const elapsed = getStringMetadata(event.metadata, 'session_elapsed');
 
             return elapsed
-                ? `Tempo de sessão: ${elapsed}`
-                : 'Usuário encerrou a sessão.';
+                ? `Tempo de sessÃ£o: ${elapsed}`
+                : 'UsuÃ¡rio encerrou a sessÃ£o.';
         }
 
         if (event.action === 'store_member_profile_details_updated') {
             const targetName =
                 getStringMetadata(event.metadata, 'target_user_name') ||
                 getStringMetadata(event.metadata, 'target_user_email') ||
-                'Usuário selecionado';
+                'UsuÃ¡rio selecionado';
 
             const reason = getStringMetadata(event.metadata, 'reason');
 
             return reason
-                ? `${targetName} · dados cadastrais e internos atualizados. Motivo: ${reason}`
-                : `${targetName} · dados cadastrais e internos atualizados.`;
+                ? `${targetName} Â· dados cadastrais e internos atualizados. Motivo: ${reason}`
+                : `${targetName} Â· dados cadastrais e internos atualizados.`;
         }
 
-        return formatRoleTextDescription(event.description) || 'Evento registrado no histórico.';
+        return formatRoleTextDescription(event.description) || 'Evento registrado no histÃ³rico.';
     };
 
     const exportUserHistoryCsv = () => {
         const headers = [
             'Data/Hora',
-            'Módulo',
-            'Ação',
-            'Título',
-            'Descrição',
+            'MÃ³dulo',
+            'AÃ§Ã£o',
+            'TÃ­tulo',
+            'DescriÃ§Ã£o',
             'Resultado',
             'Entidade',
             'Origem',
@@ -700,7 +702,7 @@ export function UserDetailModal({
         const rows = fullHistory.map((item) => [
             formatOptionalDateTime(item.event_at),
             formatHistoryModule(item.module),
-            item.action,
+            formatHistoryActionLabel(item.action),
             formatHistoryActionLabel(item.title || item.action),
             formatHistoryDescription(item),
             formatHistoryOutcome(item.outcome),
@@ -735,7 +737,7 @@ export function UserDetailModal({
         const printWindow = window.open('', '_blank', 'width=1100,height=800');
 
         if (!printWindow) {
-            toast.error('Não foi possível abrir a janela de impressão.');
+            toast.error('NÃ£o foi possÃ­vel abrir a janela de impressÃ£o.');
             return;
         }
 
@@ -759,7 +761,7 @@ export function UserDetailModal({
             <html>
                 <head>
                     <meta charset="utf-8" />
-                    <title>Histórico do usuário - ${user.full_name}</title>
+                    <title>HistÃ³rico do usuÃ¡rio - ${user.full_name}</title>
                     <style>
                         * {
                             box-sizing: border-box;
@@ -827,22 +829,22 @@ export function UserDetailModal({
                 </head>
                 <body>
                     <header>
-                        <h1>Histórico do usuário</h1>
-                        <p><strong>Usuário:</strong> ${user.full_name}</p>
-                        <p><strong>E-mail:</strong> ${user.email ?? 'Não informado'}</p>
+                        <h1>HistÃ³rico do usuÃ¡rio</h1>
+                        <p><strong>UsuÃ¡rio:</strong> ${user.full_name}</p>
+                        <p><strong>E-mail:</strong> ${user.email ?? 'NÃ£o informado'}</p>
                         <p><strong>Papel atual:</strong> ${formatRoleLabel(user.role)}</p>
                         <p><strong>Status:</strong> ${user.status}</p>
                         <p class="muted"><strong>Emitido em:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-                        <p class="muted">Relatório gerado a partir dos filtros aplicados na tela.</p>
+                        <p class="muted">RelatÃ³rio gerado a partir dos filtros aplicados na tela.</p>
                     </header>
 
                     <table>
                         <thead>
                             <tr>
                                 <th>Data/Hora</th>
-                                <th>Módulo</th>
+                                <th>MÃ³dulo</th>
                                 <th>Evento</th>
-                                <th>Descrição</th>
+                                <th>DescriÃ§Ã£o</th>
                                 <th>Resultado</th>
                                 <th>Origem</th>
                             </tr>
@@ -870,7 +872,7 @@ export function UserDetailModal({
 
     const handleSaveInternalDetails = async () => {
         if (!memberStore) {
-            toast.error('Vínculo de loja não encontrado para este usuário.');
+            toast.error('VÃ­nculo de loja nÃ£o encontrado para este usuÃ¡rio.');
             return;
         }
 
@@ -903,24 +905,24 @@ export function UserDetailModal({
                     jobTitle: null,
                     department: profileForm.department,
                     internalNotes: profileForm.internalNotes,
-                    reason: 'Atualização dos dados do usuário.',
+                    reason: 'AtualizaÃ§Ã£o dos dados do usuÃ¡rio.',
                 });
             }
 
             toast.success('Dados internos salvos com sucesso.');
         } catch {
-            toast.error('Não foi possível salvar os dados internos.');
+            toast.error('NÃ£o foi possÃ­vel salvar os dados internos.');
         }
     };
 
     const handleAddOccurrence = async () => {
         if (!memberStore) {
-            toast.error('Vínculo de loja não encontrado para este usuário.');
+            toast.error('VÃ­nculo de loja nÃ£o encontrado para este usuÃ¡rio.');
             return;
         }
 
         if (!occurrenceForm.title.trim()) {
-            toast.error('Informe um título para a ocorrência.');
+            toast.error('Informe um tÃ­tulo para a ocorrÃªncia.');
             return;
         }
 
@@ -949,15 +951,15 @@ export function UserDetailModal({
                 visibleToMember: false,
             });
 
-            toast.success('Ocorrência registrada com sucesso.');
+            toast.success('OcorrÃªncia registrada com sucesso.');
         } catch {
-            toast.error('Não foi possível registrar a ocorrência.');
+            toast.error('NÃ£o foi possÃ­vel registrar a ocorrÃªncia.');
         }
     };
 
     const handleSaveProfileDetails = async () => {
         if (!onSaveProfileDetails || !user) {
-            toast.error('Rotina de salvamento não disponível.');
+            toast.error('Rotina de salvamento nÃ£o disponÃ­vel.');
             return;
         }
 
@@ -968,7 +970,7 @@ export function UserDetailModal({
                 memberId: user.id,
                 ...profileForm,
                 jobTitle: null,
-                reason: 'Atualização dos dados do usuário.',
+                reason: 'AtualizaÃ§Ã£o dos dados do usuÃ¡rio.',
             });
 
             toast.success('Dados complementares salvos.');
@@ -978,7 +980,7 @@ export function UserDetailModal({
             toast.error(
                 error instanceof Error
                     ? error.message
-                    : 'Não foi possível salvar os dados complementares.'
+                    : 'NÃ£o foi possÃ­vel salvar os dados complementares.'
             );
         } finally {
             setSavingProfileDetails(false);
@@ -986,14 +988,14 @@ export function UserDetailModal({
     };
 
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
-        { id: 'overview', label: 'Visão geral', icon: User },
+        { id: 'overview', label: 'VisÃ£o geral', icon: User },
         { id: 'profile', label: 'Cadastro', icon: User },
-        { id: 'access_role', label: 'Acesso e função', icon: Shield },
-        { id: 'history', label: 'Histórico', icon: Activity },
+        { id: 'access_role', label: 'Acesso e funÃ§Ã£o', icon: Shield },
+        { id: 'history', label: 'HistÃ³rico', icon: Activity },
         ...(canManageUsers
             ? [
                 { id: 'internal' as ModalTab, label: 'Dados internos', icon: Briefcase },
-                { id: 'occurrences' as ModalTab, label: 'Ocorrências', icon: AlertTriangle },
+                { id: 'occurrences' as ModalTab, label: 'OcorrÃªncias', icon: AlertTriangle },
             ]
             : []),
     ];
@@ -1109,19 +1111,25 @@ export function UserDetailModal({
                                     {user.custom_role_name && (
                                         <InfoCard
                                             icon={Shield}
-                                            label="Função personalizada"
-                                            value={`${user.custom_role_name}${
-                                                user.custom_role_base_role
-                                                    ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
+                                            label="FunÃ§Ã£o personalizada"
+                                            value={`${user.custom_role_name}${user.custom_role_base_role
+                                                    ? ` Â· base: ${formatRoleLabel(user.custom_role_base_role)}`
                                                     : ''
-                                            }`}
+                                                }`}
+                                        />
+                                    )}
+                                    {user.department && (
+                                        <InfoCard
+                                            icon={Briefcase}
+                                            label="Setor"
+                                            value={user.department}
                                         />
                                     )}
 
                                     {(user.last_session_at || user.last_seen_at || user.last_sign_in_at) && (
                                         <InfoCard
                                             icon={Clock}
-                                            label="Último acesso"
+                                            label="Ãšltimo acesso"
                                             value={formatDate(
                                                 user.last_session_at ||
                                                 user.last_seen_at ||
@@ -1211,75 +1219,75 @@ export function UserDetailModal({
                                     </div>
 
                                     {canViewSensitiveUserData && (
-                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                        <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
-                                            Endereço
-                                        </h4>
+                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
+                                                EndereÃ§o
+                                            </h4>
 
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                            <InputField
-                                                label="CEP"
-                                                value={profileForm.profileZipCode}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={handleCepChange}
-                                            />
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                                <InputField
+                                                    label="CEP"
+                                                    value={profileForm.profileZipCode}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={handleCepChange}
+                                                />
 
-                                            <InputField
-                                                label="Endereço"
-                                                value={profileForm.profileAddress}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileAddress: value }))
-                                                }
-                                                className="md:col-span-2"
-                                            />
+                                                <InputField
+                                                    label="EndereÃ§o"
+                                                    value={profileForm.profileAddress}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, profileAddress: value }))
+                                                    }
+                                                    className="md:col-span-2"
+                                                />
 
-                                            <InputField
-                                                label="Número"
-                                                value={profileForm.profileAddressNumber}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileAddressNumber: value }))
-                                                }
-                                            />
+                                                <InputField
+                                                    label="NÃºmero"
+                                                    value={profileForm.profileAddressNumber}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, profileAddressNumber: value }))
+                                                    }
+                                                />
 
-                                            <InputField
-                                                label="Complemento"
-                                                value={profileForm.profileComplement}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileComplement: value }))
-                                                }
-                                            />
+                                                <InputField
+                                                    label="Complemento"
+                                                    value={profileForm.profileComplement}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, profileComplement: value }))
+                                                    }
+                                                />
 
-                                            <InputField
-                                                label="Bairro"
-                                                value={profileForm.profileDistrict}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileDistrict: value }))
-                                                }
-                                            />
+                                                <InputField
+                                                    label="Bairro"
+                                                    value={profileForm.profileDistrict}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, profileDistrict: value }))
+                                                    }
+                                                />
 
-                                            <InputField
-                                                label="Cidade"
-                                                value={profileForm.profileCity}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileCity: value }))
-                                                }
-                                            />
+                                                <InputField
+                                                    label="Cidade"
+                                                    value={profileForm.profileCity}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, profileCity: value }))
+                                                    }
+                                                />
 
-                                            <InputField
-                                                label="Estado"
-                                                value={profileForm.profileState}
-                                                disabled={!canManageSensitiveUserData}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profileState: value }))
-                                                }
-                                            />
+                                                <InputField
+                                                    label="Estado"
+                                                    value={profileForm.profileState}
+                                                    disabled={!canManageSensitiveUserData}
+                                                    onChange={(value) =>
+                                                        setProfileForm((current) => ({ ...current, profileState: value }))
+                                                    }
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
                                     )}
 
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
@@ -1331,10 +1339,14 @@ export function UserDetailModal({
 
                             {activeTab === 'access_role' && (
                                 <div className="space-y-5">
+                                    <div className="rounded-xl border border-[#21A896]/20 bg-[#21A896]/10 p-3 text-sm text-gray-700 dark:border-[#21A896]/30 dark:bg-[#21A896]/10 dark:text-gray-200">
+                                        Papel no sistema define o acesso base. Função personalizada aplica ajustes específicos de permissão compatíveis com esse papel.
+                                    </div>
+
                                     {canManageUsers && (
                                         <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                             <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
-                                                Configurações de Acesso
+                                                ConfiguraÃ§Ãµes de Acesso
                                             </h4>
 
                                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -1365,7 +1377,7 @@ export function UserDetailModal({
 
                                                 <label className="block">
                                                     <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                                        Função personalizada
+                                                        FunÃ§Ã£o personalizada
                                                     </span>
                                                     <select
                                                         value={user.custom_role_id ?? ''}
@@ -1378,7 +1390,7 @@ export function UserDetailModal({
                                                         }}
                                                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                                     >
-                                                        <option value="">Sem função personalizada</option>
+                                                        <option value="">Sem funÃ§Ã£o personalizada</option>
                                                         {customRoles
                                                             .filter((role) => role.active && role.base_role === user.role)
                                                             .map((role) => (
@@ -1395,7 +1407,7 @@ export function UserDetailModal({
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <InfoCard
                                             icon={lastSessionIcon}
-                                            label="Último evento de sessão"
+                                            label="Ãšltimo evento de sessÃ£o"
                                             value={getSessionActionLabel(user.last_session_action)}
                                         />
 
@@ -1407,13 +1419,13 @@ export function UserDetailModal({
 
                                         <InfoCard
                                             icon={Activity}
-                                            label="Último sinal de atividade"
+                                            label="Ãšltimo sinal de atividade"
                                             value={formatOptionalDateTime(user.last_seen_at || user.last_session_at)}
                                         />
 
                                         <InfoCard
                                             icon={Shield}
-                                            label="Papel no último acesso"
+                                            label="Papel no Ãºltimo acesso"
                                             value={lastSessionRole || formatRoleLabel(user.role)}
                                         />
 
@@ -1428,7 +1440,7 @@ export function UserDetailModal({
                                         {sessionElapsed && (
                                             <InfoCard
                                                 icon={Clock}
-                                                label="Tempo da sessão"
+                                                label="Tempo da sessÃ£o"
                                                 value={sessionElapsed}
                                             />
                                         )}
@@ -1437,20 +1449,20 @@ export function UserDetailModal({
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                         <h4 className="mb-2 flex items-center gap-2 font-bold text-gray-900 dark:text-white">
                                             <Activity size={18} />
-                                            Observações de auditoria
+                                            ObservaÃ§Ãµes de auditoria
                                         </h4>
 
                                         <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-300">
                                             <li>
-                                                • O último acesso é registrado quando o usuário entra em uma loja
+                                                â€¢ O Ãºltimo acesso Ã© registrado quando o usuÃ¡rio entra em uma loja
                                                 no login multi-loja.
                                             </li>
                                             <li>
-                                                • A saída do sistema é registrada quando o usuário clica em sair.
+                                                â€¢ A saÃ­da do sistema Ã© registrada quando o usuÃ¡rio clica em sair.
                                             </li>
                                             <li>
-                                                • Usuários que permanecem com a aba aberta podem atualizar o último
-                                                sinal apenas em eventos específicos do sistema.
+                                                â€¢ UsuÃ¡rios que permanecem com a aba aberta podem atualizar o Ãºltimo
+                                                sinal apenas em eventos especÃ­ficos do sistema.
                                             </li>
                                         </ul>
                                     </div>
@@ -1458,7 +1470,7 @@ export function UserDetailModal({
                                     {Object.keys(lastSessionDetails).length > 0 && (
                                         <details className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                             <summary className="cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                Ver detalhes técnicos do último evento
+                                                Ver detalhes tÃ©cnicos do Ãºltimo evento
                                             </summary>
 
                                             <pre className="mt-3 max-h-56 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
@@ -1476,10 +1488,10 @@ export function UserDetailModal({
                                             <div>
                                                 <h4 className="flex items-center gap-2 font-bold text-gray-900 dark:text-white">
                                                     <Activity size={18} />
-                                                    Histórico completo do usuário
+                                                    HistÃ³rico completo do usuÃ¡rio
                                                 </h4>
                                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                                    Consulte eventos de segurança, ocorrências e auditorias vinculadas a este membro.
+                                                    Consulte eventos de seguranÃ§a, ocorrÃªncias e auditorias vinculadas a este membro.
                                                 </p>
                                             </div>
 
@@ -1534,7 +1546,7 @@ export function UserDetailModal({
                                             />
 
                                             <DateField
-                                                label="Até"
+                                                label="AtÃ©"
                                                 value={historyFilters.dateTo ?? ''}
                                                 onChange={(value) =>
                                                     void updateHistoryFilters({ dateTo: value || null })
@@ -1542,12 +1554,12 @@ export function UserDetailModal({
                                             />
 
                                             <SelectField
-                                                label="Módulo"
+                                                label="MÃ³dulo"
                                                 value={historyFilters.module ?? ''}
                                                 options={[
                                                     ['', 'Todos'],
-                                                    ['security', 'Segurança'],
-                                                    ['users', 'Usuários'],
+                                                    ['security', 'SeguranÃ§a'],
+                                                    ['users', 'UsuÃ¡rios'],
                                                     ['audit', 'Auditoria'],
                                                 ]}
                                                 onChange={(value) =>
@@ -1564,9 +1576,9 @@ export function UserDetailModal({
                                                     ['failure', 'Falha'],
                                                     ['info', 'Informativo'],
                                                     ['low', 'Baixa'],
-                                                    ['medium', 'Média'],
+                                                    ['medium', 'MÃ©dia'],
                                                     ['high', 'Alta'],
-                                                    ['critical', 'Crítica'],
+                                                    ['critical', 'CrÃ­tica'],
                                                 ]}
                                                 onChange={(value) =>
                                                     void updateHistoryFilters({ outcome: value || null })
@@ -1607,7 +1619,7 @@ export function UserDetailModal({
                                     </div>
 
                                     <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-300">
-                                        Use os filtros para montar um recorte específico do histórico. O botão Imprimir permite gerar uma versão para papel ou salvar como PDF pelo navegador.
+                                        Use os filtros para montar um recorte especÃ­fico do histÃ³rico. O botÃ£o Imprimir permite gerar uma versÃ£o para papel ou salvar como PDF pelo navegador.
                                     </div>
 
                                     {historyError && (
@@ -1619,7 +1631,7 @@ export function UserDetailModal({
                                     {historyLoading ? (
                                         <div className="rounded-xl border border-gray-200 p-8 text-center dark:border-gray-700">
                                             <Loader className="mx-auto mb-3 h-6 w-6 animate-spin text-[#21A896]" />
-                                            <p className="text-sm text-gray-500">Carregando histórico...</p>
+                                            <p className="text-sm text-gray-500">Carregando histÃ³rico...</p>
                                         </div>
                                     ) : fullHistory.length === 0 ? (
                                         <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
@@ -1628,7 +1640,7 @@ export function UserDetailModal({
                                                 Nenhum evento encontrado
                                             </p>
                                             <p className="text-sm text-gray-500">
-                                                Ajuste os filtros ou aguarde novas ações do usuário.
+                                                Ajuste os filtros ou aguarde novas aÃ§Ãµes do usuÃ¡rio.
                                             </p>
                                         </div>
                                     ) : (
@@ -1662,7 +1674,7 @@ export function UserDetailModal({
 
                                                             <p className="mt-1 text-xs text-gray-400">
                                                                 {event.action}
-                                                                {event.entity_type ? ` · ${event.entity_type}` : ''}
+                                                                {event.entity_type ? ` Â· ${event.entity_type}` : ''}
                                                             </p>
                                                         </div>
 
@@ -1674,7 +1686,7 @@ export function UserDetailModal({
                                                     {event.metadata && Object.keys(event.metadata).length > 0 && (
                                                         <details className="mt-3">
                                                             <summary className="cursor-pointer text-xs font-bold text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
-                                                                Ver detalhes técnicos
+                                                                Ver detalhes tÃ©cnicos
                                                             </summary>
                                                             <pre className="mt-2 max-h-56 overflow-auto rounded-lg bg-gray-950 p-3 text-xs text-gray-100">
                                                                 {JSON.stringify(event.metadata, null, 2)}
@@ -1691,7 +1703,7 @@ export function UserDetailModal({
                             {activeTab === 'internal' && canManageUsers && (
                                 <div className="space-y-5">
                                     <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                                        Estes dados são internos da loja e devem ficar restritos ao proprietário,
+                                        Estes dados sÃ£o internos da loja e devem ficar restritos ao proprietÃ¡rio,
                                         administrador ou gerente autorizado.
                                     </div>
 
@@ -1719,7 +1731,7 @@ export function UserDetailModal({
                                         />
 
                                         <DateField
-                                            label="Início das atividades"
+                                            label="InÃ­cio das atividades"
                                             value={internalForm.startedAt}
                                             onChange={(value) =>
                                                 setInternalForm((current) => ({
@@ -1742,7 +1754,7 @@ export function UserDetailModal({
                                     </div>
 
                                     <TextAreaField
-                                        label="Motivo da saída"
+                                        label="Motivo da saÃ­da"
                                         value={internalForm.exitReason}
                                         onChange={(value) =>
                                             setInternalForm((current) => ({
@@ -1753,17 +1765,17 @@ export function UserDetailModal({
                                     />
 
                                     {canViewSensitiveUserData && (
-                                    <TextAreaField
-                                        label="Observações internas"
-                                        value={profileForm.internalNotes}
-                                        disabled={!canManageSensitiveUserData}
-                                        onChange={(value) =>
-                                            setProfileForm((current) => ({
-                                                ...current,
-                                                internalNotes: value,
-                                            }))
-                                        }
-                                    />
+                                        <TextAreaField
+                                            label="ObservaÃ§Ãµes internas"
+                                            value={profileForm.internalNotes}
+                                            disabled={!canManageSensitiveUserData}
+                                            onChange={(value) =>
+                                                setProfileForm((current) => ({
+                                                    ...current,
+                                                    internalNotes: value,
+                                                }))
+                                            }
+                                        />
                                     )}
 
                                     <div className="flex justify-end">
@@ -1788,7 +1800,7 @@ export function UserDetailModal({
                                 <div className="space-y-5">
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                         <h4 className="mb-3 font-bold text-gray-900 dark:text-white">
-                                            Nova ocorrência
+                                            Nova ocorrÃªncia
                                         </h4>
 
                                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -1796,14 +1808,14 @@ export function UserDetailModal({
                                                 label="Tipo"
                                                 value={occurrenceForm.occurrenceType}
                                                 options={[
-                                                    ['note', 'Observação'],
-                                                    ['warning', 'Advertência'],
+                                                    ['note', 'ObservaÃ§Ã£o'],
+                                                    ['warning', 'AdvertÃªncia'],
                                                     ['praise', 'Elogio'],
                                                     ['training', 'Treinamento'],
                                                     ['incident', 'Incidente'],
-                                                    ['role_change', 'Mudança de função'],
-                                                    ['absence', 'Ausência'],
-                                                    ['exit', 'Saída'],
+                                                    ['role_change', 'MudanÃ§a de funÃ§Ã£o'],
+                                                    ['absence', 'AusÃªncia'],
+                                                    ['exit', 'SaÃ­da'],
                                                     ['other', 'Outro'],
                                                 ]}
                                                 onChange={(value) =>
@@ -1820,9 +1832,9 @@ export function UserDetailModal({
                                                 options={[
                                                     ['info', 'Informativo'],
                                                     ['low', 'Baixa'],
-                                                    ['medium', 'Média'],
+                                                    ['medium', 'MÃ©dia'],
                                                     ['high', 'Alta'],
-                                                    ['critical', 'Crítica'],
+                                                    ['critical', 'CrÃ­tica'],
                                                 ]}
                                                 onChange={(value) =>
                                                     setOccurrenceForm((current) => ({
@@ -1846,7 +1858,7 @@ export function UserDetailModal({
 
                                         <div className="mt-4 space-y-4">
                                             <TextField
-                                                label="Título"
+                                                label="TÃ­tulo"
                                                 value={occurrenceForm.title}
                                                 onChange={(value) =>
                                                     setOccurrenceForm((current) => ({
@@ -1857,7 +1869,7 @@ export function UserDetailModal({
                                             />
 
                                             <TextAreaField
-                                                label="Descrição"
+                                                label="DescriÃ§Ã£o"
                                                 value={occurrenceForm.description}
                                                 onChange={(value) =>
                                                     setOccurrenceForm((current) => ({
@@ -1878,7 +1890,7 @@ export function UserDetailModal({
                                                         }))
                                                     }
                                                 />
-                                                Visível ao membro no futuro
+                                                VisÃ­vel ao membro no futuro
                                             </label>
 
                                             <div className="flex justify-end">
@@ -1893,7 +1905,7 @@ export function UserDetailModal({
                                                     ) : (
                                                         <Plus size={16} />
                                                     )}
-                                                    Registrar ocorrência
+                                                    Registrar ocorrÃªncia
                                                 </button>
                                             </div>
                                         </div>
@@ -1901,12 +1913,12 @@ export function UserDetailModal({
 
                                     <div>
                                         <h4 className="mb-3 font-bold text-gray-900 dark:text-white">
-                                            Histórico de ocorrências
+                                            HistÃ³rico de ocorrÃªncias
                                         </h4>
 
                                         {occurrences.length === 0 ? (
                                             <p className="rounded-xl bg-gray-50 p-4 text-sm text-gray-500 dark:bg-gray-700/50">
-                                                Nenhuma ocorrência registrada.
+                                                Nenhuma ocorrÃªncia registrada.
                                             </p>
                                         ) : (
                                             <div className="space-y-3">

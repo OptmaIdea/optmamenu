@@ -96,7 +96,6 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
         website_url: member.profile_website_url ?? null,
 
         internal_alias: member.internal_alias ?? null,
-        job_title: member.job_title ?? null,
         department: member.department ?? null,
 
         avatar_url: null,

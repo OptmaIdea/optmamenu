@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 import { timezoneUtils } from '@/utils/timezoneUtils';
@@ -42,7 +42,7 @@ function getErrorMessage(error: unknown, fallback = 'Erro inesperado'): string {
 
 function formatSecurityRole(role: string | null): string {
     const labels: Record<string, string> = {
-        owner: 'Proprietário',
+        owner: 'ProprietÃ¡rio',
         admin: 'Administrador',
         manager: 'Gerente',
         stock_operator: 'Operador de estoque',
@@ -52,7 +52,7 @@ function formatSecurityRole(role: string | null): string {
         viewer: 'Visualizador',
     };
 
-    return role ? labels[role] ?? role : 'Não definido';
+    return role ? labels[role] ?? role : 'NÃ£o definido';
 }
 
 function formatSecurityStatus(status: string | null): string {
@@ -63,36 +63,36 @@ function formatSecurityStatus(status: string | null): string {
         invited: 'Convidado',
     };
 
-    return status ? labels[status] ?? status : 'Não definido';
+    return status ? labels[status] ?? status : 'NÃ£o definido';
 }
 
 function formatPermissionSource(source?: string | null): string {
     const labels: Record<string, string> = {
         role_template: 'Papel base',
-        custom_role: 'Função personalizada',
-        individual_override: 'Exceção individual',
-        default_denied: 'Bloqueio padrão',
+        custom_role: 'FunÃ§Ã£o personalizada',
+        individual_override: 'ExceÃ§Ã£o individual',
+        default_denied: 'Bloqueio padrÃ£o',
     };
 
-    return source ? labels[source] ?? source : 'Não informado';
+    return source ? labels[source] ?? source : 'NÃ£o informado';
 }
 
 function formatPermissionModule(module: string): string {
     const labels: Record<string, string> = {
         dashboard: 'Painel',
-        reports: 'Relatórios',
+        reports: 'RelatÃ³rios',
         products: 'Produtos',
         stock: 'Estoque',
         purchases: 'Compras',
         suppliers: 'Fornecedores',
         orders: 'Pedidos',
-        cashbook: 'Livro diário',
+        cashbook: 'Livro diÃ¡rio',
         customers: 'Clientes',
         marketing: 'Marketing',
         loyalty: 'Fidelidade',
-        users: 'Usuários',
-        security: 'Segurança',
-        settings: 'Configurações',
+        users: 'UsuÃ¡rios',
+        security: 'SeguranÃ§a',
+        settings: 'ConfiguraÃ§Ãµes',
     };
 
     return labels[module] ?? module;
@@ -109,8 +109,8 @@ function formatPermissionAction(action: string): string {
         confirm: 'Confirmar',
         cancel: 'Cancelar',
         manage: 'Gerenciar',
-        sensitive_view: 'Ver dados sensíveis',
-        sensitive_manage: 'Gerenciar dados sensíveis',
+        sensitive_view: 'Ver dados sensÃ­veis',
+        sensitive_manage: 'Gerenciar dados sensÃ­veis',
     };
 
     return labels[action] ?? action;
@@ -118,71 +118,74 @@ function formatPermissionAction(action: string): string {
 
 function formatSensitiveRequirement(requirement?: string): string {
     const labels: Record<string, string> = {
-        none: 'Nenhuma exigência',
+        none: 'Nenhuma exigÃªncia',
         pin: 'PIN',
         master_password: 'Senha master',
         pin_or_master: 'PIN ou senha master',
-        owner_approval: 'Aprovação do proprietário',
+        owner_approval: 'AprovaÃ§Ã£o do proprietÃ¡rio',
         token: 'Token interno',
         pin_and_token: 'PIN + token interno',
     };
 
-    return requirement ? labels[requirement] ?? requirement : 'Não definido';
+    return requirement ? labels[requirement] ?? requirement : 'NÃ£o definido';
 }
 
 function formatSensitiveReason(reason?: string): string {
     const labels: Record<string, string> = {
         allowed: 'Permitido',
-        not_authenticated: 'Usuário não autenticado',
-        not_store_member: 'Usuário não vinculado à loja',
-        action_rule_not_found: 'Regra não encontrada',
-        action_disabled: 'Ação desabilitada',
+        not_authenticated: 'UsuÃ¡rio nÃ£o autenticado',
+        not_store_member: 'UsuÃ¡rio nÃ£o vinculado Ã  loja',
+        action_rule_not_found: 'Regra nÃ£o encontrada',
+        action_disabled: 'AÃ§Ã£o desabilitada',
         insufficient_role: 'Papel insuficiente',
-        missing_store_id: 'Loja não definida',
+        missing_store_id: 'Loja nÃ£o definida',
         empty_response: 'Resposta vazia',
     };
 
-    return reason ? labels[reason] ?? reason : 'Não definido';
+    return reason ? labels[reason] ?? reason : 'NÃ£o definido';
 }
 
 function formatSecurityLogAction(action?: string): string {
     const labels: Record<string, string> = {
-        store_sensitive_action_rule_updated: 'Regra de ação sensível alterada',
-        store_role_permission_template_updated: 'Permissão por papel alterada',
-        store_member_permissions_updated: 'Permissões individuais alteradas',
-        store_member_role_changed: 'Função do usuário alterada',
+        store_sensitive_action_rule_updated: 'Regra de aÃ§Ã£o sensÃ­vel alterada',
+        store_role_permission_template_updated: 'PermissÃ£o por papel alterada',
+        store_member_permissions_updated: 'PermissÃµes individuais alteradas',
+        store_member_role_changed: 'FunÃ§Ã£o do usuÃ¡rio alterada',
+        store_member_profile_details_updated: 'Dados do usuário atualizados',
+        store_custom_role_assigned: 'Função personalizada atribuída',
+        store_custom_role_removed: 'Função personalizada removida',
 
-        security_settings_change: 'Configurações de segurança alteradas',
-        security_settings_updated: 'Configurações de segurança alteradas',
-        security_context_refreshed: 'Contexto de segurança atualizado',
+        security_settings_change: 'ConfiguraÃ§Ãµes de seguranÃ§a alteradas',
+        security_settings_updated: 'ConfiguraÃ§Ãµes de seguranÃ§a alteradas',
+        security_context_refreshed: 'Contexto de seguranÃ§a atualizado',
 
         user_pin_created: 'PIN cadastrado',
         user_pin_updated: 'PIN alterado',
         user_pin_validated: 'PIN validado',
-        user_pin_validation_failed: 'Falha na validação do PIN',
+        user_pin_validation_failed: 'Falha na validaÃ§Ã£o do PIN',
         user_pin_unblocked: 'PIN desbloqueado',
 
         store_master_password_reset: 'Senha master redefinida',
         login_password_changed: 'Senha de login alterada',
 
-        sensitive_token_created: 'Token de ação sensível criado',
-        sensitive_token_validated: 'Token de ação sensível validado',
-        sensitive_token_validation_failed: 'Falha na validação do token',
+        sensitive_token_created: 'Token de aÃ§Ã£o sensÃ­vel criado',
+        sensitive_token_validated: 'Token de aÃ§Ã£o sensÃ­vel validado',
+        sensitive_token_validation_failed: 'Falha na validaÃ§Ã£o do token',
 
-        product_delete: 'Exclusão/descontinuação de produto',
+        product_delete: 'ExclusÃ£o/descontinuaÃ§Ã£o de produto',
         stock_adjustment: 'Ajuste de estoque',
         purchase_cancel: 'Cancelamento de compra',
-        user_role_change: 'Alteração de papel de usuário',
-        user_status_change: 'Alteração de status de usuário',
-        sensitive_view: 'Ver dados sens�veis',
-        sensitive_manage: 'Gerenciar dados sens�veis',
+        user_role_change: 'AlteraÃ§Ã£o de papel de usuÃ¡rio',
+        user_status_change: 'AlteraÃ§Ã£o de status de usuÃ¡rio',
+        sensitive_view: 'Ver dados sensíveis',
+        sensitive_manage: 'Gerenciar dados sensíveis',
 
         session_store_selected: 'Entrada na loja selecionada',
-        session_logout: 'Saída do sistema',
-        session_login_test: 'Teste de login/sessão',
+        session_logout: 'SaÃ­da do sistema',
+        session_login_test: 'Teste de login/sessÃ£o',
     };
 
-    if (!action) return 'Ação não identificada';
+    if (!action) return 'AÃ§Ã£o nÃ£o identificada';
 
     return labels[action] ?? action
         .replaceAll('_', ' ')
@@ -215,8 +218,8 @@ function formatBooleanPermission(value: unknown): string {
 
 function formatPermissionLabelFromCode(code: string): string {
     const labels: Record<string, string> = {
-        'users.sensitive.view': 'Usuários · Ver dados sensíveis',
-        'users.sensitive.manage': 'Usuários · Gerenciar dados sensíveis',
+        'users.sensitive.view': 'UsuÃ¡rios Â· Ver dados sensÃ­veis',
+        'users.sensitive.manage': 'UsuÃ¡rios Â· Gerenciar dados sensÃ­veis',
     };
 
     if (labels[code]) return labels[code];
@@ -225,7 +228,7 @@ function formatPermissionLabelFromCode(code: string): string {
 
     if (!module || !action) return code;
 
-    return `${formatPermissionModule(module)} · ${formatPermissionAction(action)}`;
+    return `${formatPermissionModule(module)} Â· ${formatPermissionAction(action)}`;
 }
 
 function getPermissionChangesSummary(details: Record<string, unknown>): string | null {
@@ -252,7 +255,7 @@ function getPermissionChangesSummary(details: Record<string, unknown>): string |
             const oldValue = formatBooleanPermission(oldPermissions[code]);
             const newValue = formatBooleanPermission(newPermissions[code]);
 
-            return `${label}: ${oldValue} → ${newValue}`;
+            return `${label}: ${oldValue} â†’ ${newValue}`;
         })
         .join(' | ');
 }
@@ -265,34 +268,34 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
             getStringDetail(details, 'target_user_name') ||
             getStringDetail(details, 'target_user_email') ||
             getStringDetail(details, 'target_user_id') ||
-            'usuário selecionado';
+            'usuÃ¡rio selecionado';
 
         const targetRole = formatSecurityRole(getStringDetail(details, 'target_role'));
 
         const changes = getPermissionChangesSummary(details);
 
         if (changes) {
-            return `${targetName} (${targetRole}) · ${changes}`;
+            return `${targetName} (${targetRole}) Â· ${changes}`;
         }
 
-        return `${targetName} (${targetRole}) · permissões revisadas`;
+        return `${targetName} (${targetRole}) Â· permissÃµes revisadas`;
     }
 
     if (log.action === 'store_member_role_changed') {
         const targetName =
             getStringDetail(details, 'target_user_name') ||
             getStringDetail(details, 'target_user_email') ||
-            'usuário selecionado';
+            'usuÃ¡rio selecionado';
 
         const oldRole = formatSecurityRole(getStringDetail(details, 'old_role'));
         const newRole = formatSecurityRole(getStringDetail(details, 'new_role'));
 
         const cleared = details.clear_individual_overrides === true;
 
-        return `${targetName} · ${oldRole} → ${newRole}${
+        return `${targetName} Â· ${oldRole} â†’ ${newRole}${
             cleared
-                ? ' · permissões individuais limpas'
-                : ' · permissões individuais preservadas'
+                ? ' Â· permissÃµes individuais limpas'
+                : ' Â· permissÃµes individuais preservadas'
         }`;
     }
 
@@ -302,29 +305,29 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         const oldAllowed = details.old_allowed;
         const newAllowed = details.new_allowed;
 
-        return `${role} · ${permissionCode ? formatPermissionLabelFromCode(permissionCode) : 'permissão'}: ${formatBooleanPermission(oldAllowed)} → ${formatBooleanPermission(newAllowed)}`;
+        return `${role} Â· ${permissionCode ? formatPermissionLabelFromCode(permissionCode) : 'permissÃ£o'}: ${formatBooleanPermission(oldAllowed)} â†’ ${formatBooleanPermission(newAllowed)}`;
     }
 
     if (log.action === 'store_sensitive_action_rule_updated') {
-        const actionCode = getStringDetail(details, 'action_code') ?? 'ação sensível';
+        const actionCode = getStringDetail(details, 'action_code') ?? 'aÃ§Ã£o sensÃ­vel';
         const oldRule = getRecordDetail(details, 'old_rule');
         const newRule = getRecordDetail(details, 'new_rule');
 
         const oldRequirement = typeof oldRule.requirement === 'string'
             ? formatSensitiveRequirement(oldRule.requirement)
-            : 'não definido';
+            : 'nÃ£o definido';
 
         const newRequirement = typeof newRule.requirement === 'string'
             ? formatSensitiveRequirement(newRule.requirement)
-            : 'não definido';
+            : 'nÃ£o definido';
 
-        return `${formatSecurityLogAction(actionCode)} · exigência: ${oldRequirement} → ${newRequirement}`;
+        return `${formatSecurityLogAction(actionCode)} Â· exigÃªncia: ${oldRequirement} â†’ ${newRequirement}`;
     }
 
     if (log.action === 'session_store_selected') {
         const storeName = getStringDetail(details, 'store_name') || 'loja selecionada';
         const role = formatSecurityRole(getStringDetail(details, 'role'));
-        return `${storeName} · acesso como ${role}`;
+        return `${storeName} Â· acesso como ${role}`;
     }
 
     if (log.action === 'session_logout') {
@@ -332,14 +335,14 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         const elapsed = getStringDetail(details, 'session_elapsed');
 
         if (elapsed) {
-            return `Tempo de sessão: ${elapsed}`;
+            return `Tempo de sessÃ£o: ${elapsed}`;
         }
 
         if (startedAt) {
-            return `Sessão iniciada em ${new Date(startedAt).toLocaleString('pt-BR')}`;
+            return `SessÃ£o iniciada em ${new Date(startedAt).toLocaleString('pt-BR')}`;
         }
 
-        return 'Usuário encerrou a sessão.';
+        return 'UsuÃ¡rio encerrou a sessÃ£o.';
     }
 
     const reason = getStringDetail(details, 'reason');
@@ -351,7 +354,7 @@ function renderRiskBadge(risk: string) {
     if (cleanRisk === 'critical') {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/50">
-                Crítico
+                CrÃ­tico
             </span>
         );
     }
@@ -365,7 +368,7 @@ function renderRiskBadge(risk: string) {
     if (cleanRisk === 'medium') {
         return (
             <span className="inline-flex items-center gap-1 rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-bold text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-900/50">
-                Médio
+                MÃ©dio
             </span>
         );
     }
@@ -377,7 +380,7 @@ function renderRiskBadge(risk: string) {
 }
 
 const ROLE_PERMISSION_COLUMNS = [
-    { role: 'owner', key: 'owner_allowed', label: 'Proprietário' },
+    { role: 'owner', key: 'owner_allowed', label: 'ProprietÃ¡rio' },
     { role: 'admin', key: 'admin_allowed', label: 'Admin' },
     { role: 'manager', key: 'manager_allowed', label: 'Gerente' },
     { role: 'stock_operator', key: 'stock_operator_allowed', label: 'Estoque' },
@@ -392,13 +395,13 @@ const SENSITIVE_REQUIREMENT_OPTIONS = [
     { value: 'pin', label: 'PIN' },
     { value: 'master_password', label: 'Senha master' },
     { value: 'pin_or_master', label: 'PIN ou senha master' },
-    { value: 'owner_approval', label: 'Aprovação do proprietário' },
+    { value: 'owner_approval', label: 'AprovaÃ§Ã£o do proprietÃ¡rio' },
     { value: 'token', label: 'Token interno' },
     { value: 'pin_and_token', label: 'PIN + token' },
 ] as const;
 
 const ROLE_OPTIONS = [
-    { value: 'owner', label: 'Proprietário' },
+    { value: 'owner', label: 'ProprietÃ¡rio' },
     { value: 'admin', label: 'Admin' },
     { value: 'manager', label: 'Gerente' },
     { value: 'stock_operator', label: 'Estoque' },
@@ -504,12 +507,12 @@ export default function Security() {
         if (!customRoleForm) return;
 
         if (!customRoleForm.name.trim()) {
-            toast.error('Informe o nome da função personalizada.');
+            toast.error('Informe o nome da funÃ§Ã£o personalizada.');
             return;
         }
 
         if (customRoleForm.id) {
-            await updateCustomRole(customRoleForm, 'Alteração da função personalizada pela tela de segurança.');
+            await updateCustomRole(customRoleForm, 'AlteraÃ§Ã£o da funÃ§Ã£o personalizada pela tela de seguranÃ§a.');
         } else {
             await createCustomRole(customRoleForm);
         }
@@ -534,7 +537,7 @@ export default function Security() {
     );
 
     const currentStoreId = activeMembership?.store_id ?? getActiveStoreId();
-    const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
+    const currentStoreName = activeMembership?.store_name ?? 'Loja nÃ£o selecionada';
     const currentStoreSlug = activeMembership?.store_slug ?? '';
     const currentRole = activeMembership?.role ?? null;
 
@@ -724,7 +727,7 @@ export default function Security() {
                 .single();
 
             if (storeSettingsError) {
-                console.error('Erro ao buscar configurações avançadas da loja:', storeSettingsError);
+                console.error('Erro ao buscar configuraÃ§Ãµes avanÃ§adas da loja:', storeSettingsError);
             }
 
             if (adminStore) {
@@ -806,7 +809,7 @@ export default function Security() {
             return;
         }
         if (passwordData.new !== passwordData.confirm) {
-            setMessage('Erro: As senhas não conferem.');
+            setMessage('Erro: As senhas nÃ£o conferem.');
             return;
         }
 
@@ -817,11 +820,11 @@ export default function Security() {
 
             setMessage('Senha de login alterada com sucesso!');
             setPasswordData({ current: '', new: '', confirm: '' });
-            await logAction('Alteração de Senha de Login', {}, 'success');
+            await logAction('AlteraÃ§Ã£o de Senha de Login', {}, 'success');
         } catch (error: unknown) {
             const errorMessage = getErrorMessage(error, 'Erro ao alterar senha.');
             setMessage('Erro ao alterar senha: ' + errorMessage);
-            await logAction('Alteração de Senha de Login', { error: errorMessage }, 'failure');
+            await logAction('AlteraÃ§Ã£o de Senha de Login', { error: errorMessage }, 'failure');
         } finally {
             setSaving(false);
         }
@@ -833,7 +836,7 @@ export default function Security() {
         setMessage('');
 
         if (!store?.id) {
-            setMessage('Erro: Loja não encontrada.');
+            setMessage('Erro: Loja nÃ£o encontrada.');
             return;
         }
 
@@ -843,12 +846,12 @@ export default function Security() {
         }
 
         if (masterPasswordData.newMaster !== masterPasswordData.confirmMaster) {
-            setMessage('Erro: A confirmação da nova senha master não confere.');
+            setMessage('Erro: A confirmaÃ§Ã£o da nova senha master nÃ£o confere.');
             return;
         }
 
         const confirmed = window.confirm(
-            'Deseja redefinir a senha master da loja?\n\nEssa senha será usada em operações sensíveis, como cancelamento de entrada.'
+            'Deseja redefinir a senha master da loja?\n\nEssa senha serÃ¡ usada em operaÃ§Ãµes sensÃ­veis, como cancelamento de entrada.'
         );
         if (!confirmed) return;
 
@@ -856,7 +859,7 @@ export default function Security() {
         try {
             const { data: { user }, error: userError } = await supabase.auth.getUser();
             if (userError) throw userError;
-            if (!user?.email) throw new Error('Usuário autenticado sem e-mail.');
+            if (!user?.email) throw new Error('UsuÃ¡rio autenticado sem e-mail.');
 
             const { error: reauthError } = await supabase.auth.signInWithPassword({
                 email: user.email,
@@ -864,7 +867,7 @@ export default function Security() {
             });
 
             if (reauthError) {
-                throw new Error('Senha do usuário inválida.');
+                throw new Error('Senha do usuÃ¡rio invÃ¡lida.');
             }
 
             const { error: rpcError } = await supabase.rpc('reset_store_master_password', {
@@ -883,12 +886,12 @@ export default function Security() {
                 confirmMaster: ''
             });
 
-            await logAction('Redefinição de Senha Master', {}, 'success');
+            await logAction('RedefiniÃ§Ã£o de Senha Master', {}, 'success');
         } catch (error: unknown) {
             const errorMessage = getErrorMessage(error, 'Erro ao redefinir senha master.');
             console.error('Master password reset error:', error);
             setMessage('Erro ao redefinir senha master: ' + errorMessage);
-            await logAction('Redefinição de Senha Master', { error: errorMessage }, 'failure');
+            await logAction('RedefiniÃ§Ã£o de Senha Master', { error: errorMessage }, 'failure');
         } finally {
             setSaving(false);
         }
@@ -896,11 +899,11 @@ export default function Security() {
 
     // PIN validation
     const validateStockPin = (pin: string, document: string): string | null => {
-        if (!/^\d{6}$/.test(pin)) return 'O PIN deve ter exatamente 6 dígitos numéricos.';
-        if ('0123456789'.includes(pin) || '9876543210'.includes(pin)) return 'O PIN não pode ser uma sequência simples.';
-        if (/^(\d)\1+$/.test(pin)) return 'O PIN não pode ter todos os números iguais.';
+        if (!/^\d{6}$/.test(pin)) return 'O PIN deve ter exatamente 6 dÃ­gitos numÃ©ricos.';
+        if ('0123456789'.includes(pin) || '9876543210'.includes(pin)) return 'O PIN nÃ£o pode ser uma sequÃªncia simples.';
+        if (/^(\d)\1+$/.test(pin)) return 'O PIN nÃ£o pode ter todos os nÃºmeros iguais.';
         const cleanDoc = document?.replace(/\D/g, '') || '';
-        if (cleanDoc.includes(pin)) return 'O PIN não pode ser parte do seu CPF/CNPJ.';
+        if (cleanDoc.includes(pin)) return 'O PIN nÃ£o pode ser parte do seu CPF/CNPJ.';
         const digits = pin.split('').map(Number);
         let isArithmetic = true;
         const diff = digits[1] - digits[0];
@@ -910,15 +913,15 @@ export default function Security() {
                 break;
             }
         }
-        if (isArithmetic) return 'O PIN não pode ser uma sequência muito simples (progressão aritmética).';
+        if (isArithmetic) return 'O PIN nÃ£o pode ser uma sequÃªncia muito simples (progressÃ£o aritmÃ©tica).';
         const p1 = parseInt(pin.substring(0, 2));
         const p2 = parseInt(pin.substring(2, 4));
         const p3 = parseInt(pin.substring(4, 6));
         if ((p2 - p1 === p3 - p2) && (p2 - p1 !== 0)) {
-            return 'O PIN contém uma sequência previsível de pares numéricos.';
+            return 'O PIN contÃ©m uma sequÃªncia previsÃ­vel de pares numÃ©ricos.';
         }
-        if (pin.substring(0, 3) === pin.substring(3, 6)) return 'O PIN não pode repetir a mesma sequência (ex: 123123).';
-        if (p1 === p2 && p2 === p3) return 'O PIN não pode repetir os mesmos pares (ex: 101010).';
+        if (pin.substring(0, 3) === pin.substring(3, 6)) return 'O PIN nÃ£o pode repetir a mesma sequÃªncia (ex: 123123).';
+        if (p1 === p2 && p2 === p3) return 'O PIN nÃ£o pode repetir os mesmos pares (ex: 101010).';
         return null;
     };
 
@@ -932,7 +935,7 @@ export default function Security() {
         if (error) throw error;
 
         setMessage(wasExistingPin ? 'PIN alterado com sucesso!' : 'PIN cadastrado com sucesso!');
-        await logAction(wasExistingPin ? 'Alteração de PIN' : 'Criação de PIN', {}, 'success');
+        await logAction(wasExistingPin ? 'AlteraÃ§Ã£o de PIN' : 'CriaÃ§Ã£o de PIN', {}, 'success');
 
         setPinData('******');
 
@@ -944,7 +947,7 @@ export default function Security() {
         setMessage('');
 
         if (pinData === '******') {
-            toast.info('Nenhuma alteração no PIN.');
+            toast.info('Nenhuma alteraÃ§Ã£o no PIN.');
             return;
         }
 
@@ -961,7 +964,7 @@ export default function Security() {
             } catch (error: unknown) {
                 const errorMessage = getErrorMessage(error, 'Erro ao cadastrar PIN.');
                 setMessage('Erro ao cadastrar PIN: ' + errorMessage);
-                await logAction('Tentativa de Criação de PIN', { error: errorMessage }, 'failure');
+                await logAction('Tentativa de CriaÃ§Ã£o de PIN', { error: errorMessage }, 'failure');
             } finally {
                 setSaving(false);
             }
@@ -978,12 +981,12 @@ export default function Security() {
 
     const handleAdvancedSave = async () => {
         if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar configurações de segurança.');
+            toast.error('VocÃª nÃ£o tem permissÃ£o para alterar configuraÃ§Ãµes de seguranÃ§a.');
             return;
         }
 
         if (!hasPin) {
-            toast.error('Configure o PIN de segurança antes de alterar configurações avançadas.');
+            toast.error('Configure o PIN de seguranÃ§a antes de alterar configuraÃ§Ãµes avanÃ§adas.');
             return;
         }
 
@@ -1051,10 +1054,10 @@ export default function Security() {
                 if (updateError) throw updateError;
 
                 setStore({ ...store, token_expiry_seconds: tokenExpiry, max_token_attempts: maxAttempts });
-                setMessage('Configurações avançadas salvas com sucesso!');
+                setMessage('ConfiguraÃ§Ãµes avanÃ§adas salvas com sucesso!');
                 await fetchInitialData();
                 await logAction(
-                    'Alteração de Configurações de Token',
+                    'AlteraÃ§Ã£o de ConfiguraÃ§Ãµes de Token',
                     { token_expiry: tokenExpiry, max_attempts: maxAttempts },
                     'success'
                 );
@@ -1062,14 +1065,14 @@ export default function Security() {
 
             setPinAuthModal({ isOpen: false, pin: '', showPin: false, action: null, error: '' });
         } catch (error: unknown) {
-            const errorMessage = getErrorMessage(error, 'Erro ao executar ação protegida.');
+            const errorMessage = getErrorMessage(error, 'Erro ao executar aÃ§Ã£o protegida.');
             setMessage('Erro: ' + errorMessage);
             await logAction(
                 pinAuthModal.action === 'unblock'
                     ? 'Tentativa de Desbloqueio'
                     : pinAuthModal.action === 'save_pin'
-                        ? 'Tentativa de Gravação PIN'
-                        : 'Tentativa de Alteração de Configurações',
+                        ? 'Tentativa de GravaÃ§Ã£o PIN'
+                        : 'Tentativa de AlteraÃ§Ã£o de ConfiguraÃ§Ãµes',
                 { error: errorMessage },
                 'failure'
             );
@@ -1080,11 +1083,11 @@ export default function Security() {
 
     const tabs = [
         { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck },
-        { id: 'logs', label: 'Histórico de atividades', icon: History },
-        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck },
-        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield },
-        { id: 'users_perms', label: 'Permissões por usuário', icon: User },
-        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock },
+        { id: 'logs', label: 'HistÃ³rico de atividades', icon: History },
+        { id: 'roles', label: 'PermissÃµes por papel', icon: BadgeCheck },
+        { id: 'custom_roles', label: 'FunÃ§Ãµes personalizadas', icon: Shield },
+        { id: 'users_perms', label: 'PermissÃµes por usuÃ¡rio', icon: User },
+        { id: 'sensitive_actions', label: 'AÃ§Ãµes sensÃ­veis', icon: Lock },
         { id: 'pin_token', label: 'PIN e token', icon: Key },
     ];
 
@@ -1125,7 +1128,7 @@ export default function Security() {
             const requirement = await getActionRequirement('product_delete');
             setProductDeleteRequirement(JSON.stringify(requirement, null, 2));
         } catch (error: unknown) {
-            const message = getErrorMessage(error, 'Erro ao testar ação sensível');
+            const message = getErrorMessage(error, 'Erro ao testar aÃ§Ã£o sensÃ­vel');
             setProductDeleteRequirement(message);
         }
     };
@@ -1157,12 +1160,12 @@ export default function Security() {
         currentAllowed: boolean
     ) => {
         if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar permissões.');
+            toast.error('VocÃª nÃ£o tem permissÃ£o para alterar permissÃµes.');
             return;
         }
 
         if (role === 'owner') {
-            toast.info('O proprietário sempre mantém acesso total.');
+            toast.info('O proprietÃ¡rio sempre mantÃ©m acesso total.');
             return;
         }
 
@@ -1171,13 +1174,13 @@ export default function Security() {
                 role,
                 permissionCode,
                 allowed: !currentAllowed,
-                reason: `${!currentAllowed ? 'Liberação' : 'Bloqueio'} da permissão ${permissionCode} para o papel ${formatSecurityRole(role)} pela tela de segurança.`,
+                reason: `${!currentAllowed ? 'LiberaÃ§Ã£o' : 'Bloqueio'} da permissÃ£o ${permissionCode} para o papel ${formatSecurityRole(role)} pela tela de seguranÃ§a.`,
             });
 
-            toast.success('Permissão atualizada.');
+            toast.success('PermissÃ£o atualizada.');
             await fetchLogs();
         } catch (error: unknown) {
-            toast.error(getErrorMessage(error, 'Erro ao atualizar permissão.'));
+            toast.error(getErrorMessage(error, 'Erro ao atualizar permissÃ£o.'));
         }
     };
 
@@ -1203,7 +1206,7 @@ export default function Security() {
         }>
     ) => {
         if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar ações sensíveis.');
+            toast.error('VocÃª nÃ£o tem permissÃ£o para alterar aÃ§Ãµes sensÃ­veis.');
             return;
         }
 
@@ -1221,13 +1224,13 @@ export default function Security() {
             await updateSensitiveAction({
                 actionCode: row.action_code,
                 ...next,
-                reason: `Alteração da regra ${row.action_code} pela tela de segurança.`,
+                reason: `AlteraÃ§Ã£o da regra ${row.action_code} pela tela de seguranÃ§a.`,
             });
 
-            toast.success('Regra sensível atualizada.');
+            toast.success('Regra sensÃ­vel atualizada.');
             await fetchLogs();
         } catch (error: unknown) {
-            toast.error(getErrorMessage(error, 'Erro ao atualizar ação sensível.'));
+            toast.error(getErrorMessage(error, 'Erro ao atualizar aÃ§Ã£o sensÃ­vel.'));
         }
     };
 
@@ -1255,12 +1258,12 @@ export default function Security() {
 
     const handleSaveMemberOverrides = async () => {
         if (!selectedMemberId) {
-            toast.error('Selecione um usuário.');
+            toast.error('Selecione um usuÃ¡rio.');
             return;
         }
 
         if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar permissões individuais.');
+            toast.error('VocÃª nÃ£o tem permissÃ£o para alterar permissÃµes individuais.');
             return;
         }
 
@@ -1269,14 +1272,14 @@ export default function Security() {
                 memberId: selectedMemberId,
                 permissions: memberPermissionOverrides,
                 sensitiveActions: {},
-                reason: 'Alteração de permissões individuais pela tela de segurança.',
+                reason: 'AlteraÃ§Ã£o de permissÃµes individuais pela tela de seguranÃ§a.',
             });
 
-            toast.success('Permissões individuais salvas.');
+            toast.success('PermissÃµes individuais salvas.');
             await fetchMembersForPermissions();
             await fetchLogs();
         } catch (error: unknown) {
-            toast.error(getErrorMessage(error, 'Erro ao salvar permissões individuais.'));
+            toast.error(getErrorMessage(error, 'Erro ao salvar permissÃµes individuais.'));
         }
     };
 
@@ -1325,15 +1328,15 @@ export default function Security() {
                             <div className="bg-white dark:bg-gray-900 w-full max-w-md p-6 rounded-2xl shadow-xl animate-zoomIn">
                                 <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
                                     <Lock size={20} className="text-red-500" />
-                                    Autorização com PIN de Segurança
+                                    AutorizaÃ§Ã£o com PIN de SeguranÃ§a
                                 </h3>
                                 <p className="text-gray-500 mb-4">
-                                    Digite o PIN de segurança para{' '}
+                                    Digite o PIN de seguranÃ§a para{' '}
                                     {pinAuthModal.action === 'save_pin'
                                         ? 'alterar/cadastrar o PIN'
                                         : pinAuthModal.action === 'unblock'
                                             ? 'desbloquear o PIN'
-                                            : 'salvar as configurações avançadas'}
+                                            : 'salvar as configuraÃ§Ãµes avanÃ§adas'}
                                     .
                                 </p>
 
@@ -1341,7 +1344,7 @@ export default function Security() {
                                     <div className="relative mb-4">
                                         <input
                                             type={pinAuthModal.showPin ? 'text' : 'password'}
-                                            placeholder="PIN de 6 dígitos"
+                                            placeholder="PIN de 6 dÃ­gitos"
                                             className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white pr-10 font-mono tracking-widest"
                                             value={pinAuthModal.pin}
                                             onChange={e =>
@@ -1408,10 +1411,10 @@ export default function Security() {
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                                    Contexto de Segurança do Usuário
+                                    Contexto de SeguranÃ§a do UsuÃ¡rio
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Visualize a loja atual, papel, status, PIN e permissões vinculadas ao usuário logado.
+                                    Visualize a Loja ativa / contexto atual, papel, status, PIN e permissÃµes vinculadas ao usuÃ¡rio logado.
                                 </p>
                             </div>
 
@@ -1437,13 +1440,13 @@ export default function Security() {
                                             <User size={20} />
                                         </div>
                                         <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
-                                            Usuário
+                                            UsuÃ¡rio
                                         </p>
                                         <p className="mt-1 break-all text-sm font-bold text-gray-800 dark:text-white">
-                                            {securityContext?.profile?.name || securityContext?.email || 'Usuário'}
+                                            {securityContext?.profile?.name || securityContext?.email || 'UsuÃ¡rio'}
                                         </p>
                                         <p className="mt-1 break-all text-xs text-gray-500">
-                                            {securityContext?.email || 'E-mail não identificado'}
+                                            {securityContext?.email || 'E-mail nÃ£o identificado'}
                                         </p>
                                     </div>
 
@@ -1452,13 +1455,13 @@ export default function Security() {
                                             <Store size={20} />
                                         </div>
                                         <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
-                                            Loja atual
+                                            Loja ativa / contexto atual
                                         </p>
                                         <p className="mt-1 text-sm font-bold text-gray-800 dark:text-white">
                                             {currentStoreName}
                                         </p>
                                         <p className="mt-1 text-xs text-gray-500">
-                                            {currentStoreSlug ? `/${currentStoreSlug}` : 'Slug não definido'}
+                                            {currentStoreSlug ? `/${currentStoreSlug}` : 'Slug nÃ£o definido'}
                                         </p>
                                     </div>
 
@@ -1485,10 +1488,10 @@ export default function Security() {
                                             PIN
                                         </p>
                                         <p className="mt-1 text-sm font-bold text-gray-800 dark:text-white">
-                                            {hasPin ? 'Configurado' : 'Não configurado'}
+                                            {hasPin ? 'Configurado' : 'NÃ£o configurado'}
                                         </p>
                                         <p className="mt-1 text-xs text-gray-500">
-                                            PIN individual do usuário
+                                            PIN individual do usuÃ¡rio
                                         </p>
                                     </div>
                                 </div>
@@ -1501,17 +1504,17 @@ export default function Security() {
                                         </h4>
 
                                         <div className="space-y-2 text-sm">
-                                            <InfoLine label="Store ID" value={currentStoreId || 'Não definido'} />
-                                            <InfoLine label="É proprietário?" value={isOwner ? 'Sim' : 'Não'} />
-                                            <InfoLine label="Perfil administrativo?" value={isAdminLike ? 'Sim' : 'Não'} />
-                                            <InfoLine label="Global admin" value={securityContext?.is_global_admin ? 'Sim' : 'Não'} />
+                                            <InfoLine label="Store ID" value={currentStoreId || 'NÃ£o definido'} />
+                                            <InfoLine label="Ã‰ proprietÃ¡rio?" value={isOwner ? 'Sim' : 'NÃ£o'} />
+                                            <InfoLine label="Perfil administrativo?" value={isAdminLike ? 'Sim' : 'NÃ£o'} />
+                                            <InfoLine label="Global admin" value={securityContext?.is_global_admin ? 'Sim' : 'NÃ£o'} />
                                         </div>
                                     </div>
 
                                     <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
                                         <h4 className="mb-3 flex items-center gap-2 font-bold text-gray-800 dark:text-white">
                                             <Lock size={18} className="text-brand-green" />
-                                            Ações sensíveis
+                                            AÃ§Ãµes sensÃ­veis
                                         </h4>
 
                                         {activeMembership?.sensitive_actions &&
@@ -1521,7 +1524,7 @@ export default function Security() {
                                             </pre>
                                         ) : (
                                             <p className="text-sm text-gray-500">
-                                                Nenhuma ação sensível específica registrada ainda.
+                                                Nenhuma aÃ§Ã£o sensÃ­vel especÃ­fica registrada ainda.
                                             </p>
                                         )}
                                     </div>
@@ -1531,10 +1534,10 @@ export default function Security() {
                                     <div className="mb-3 flex items-center justify-between gap-3">
                                         <div>
                                             <h4 className="font-bold text-gray-800 dark:text-white">
-                                                Permissões efetivas
+                                                PermissÃµes efetivas
                                             </h4>
                                             <p className="text-xs text-gray-500">
-                                                Permissões resolvidas a partir do papel atual e possíveis sobrescritas.
+                                                PermissÃµes resolvidas a partir do papel atual e possÃ­veis sobrescritas.
                                             </p>
                                         </div>
 
@@ -1549,7 +1552,7 @@ export default function Security() {
                                         </div>
                                     ) : permissions.length === 0 ? (
                                         <p className="text-sm text-gray-500">
-                                            Nenhuma permissão carregada.
+                                            Nenhuma permissÃ£o carregada.
                                         </p>
                                     ) : (
                                         <div className="space-y-4">
@@ -1570,7 +1573,7 @@ export default function Security() {
                                                                 }
                                                                 title={permission.description ?? permission.permission_code}
                                                             >
-                                                                {permission.allowed ? '✓ ' : '— '}
+                                                                {permission.allowed ? 'âœ“ ' : 'â€” '}
                                                                 {formatPermissionAction(permission.action)}
                                                             </span>
                                                         ))}
@@ -1585,10 +1588,10 @@ export default function Security() {
                                     <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                         <div>
                                             <h4 className="font-bold text-gray-800 dark:text-white">
-                                                Teste de ação sensível
+                                                Teste de aÃ§Ã£o sensÃ­vel
                                             </h4>
                                             <p className="text-xs text-gray-500">
-                                                Consulta a regra efetiva para exclusão/descontinuação de produto.
+                                                Consulta a regra efetiva para exclusÃ£o/descontinuaÃ§Ã£o de produto.
                                             </p>
                                         </div>
 
@@ -1626,11 +1629,11 @@ export default function Security() {
                                                                 value={formatSensitiveReason(parsed.reason)}
                                                             />
                                                             <InfoLine
-                                                                label="Exigência"
+                                                                label="ExigÃªncia"
                                                                 value={formatSensitiveRequirement(parsed.requirement)}
                                                             />
                                                             <InfoLine
-                                                                label="Papel mínimo"
+                                                                label="Papel mÃ­nimo"
                                                                 value={formatSecurityRole(parsed.min_role ?? null)}
                                                             />
                                                             <InfoLine
@@ -1639,7 +1642,7 @@ export default function Security() {
                                                             />
                                                             <InfoLine
                                                                 label="PIN configurado"
-                                                                value={parsed.has_pin ? 'Sim' : 'Não'}
+                                                                value={parsed.has_pin ? 'Sim' : 'NÃ£o'}
                                                             />
                                                         </div>
                                                     );
@@ -1654,14 +1657,14 @@ export default function Security() {
                                         </div>
                                     ) : (
                                         <p className="text-sm text-gray-500">
-                                            Clique para consultar a exigência atual da ação sensível.
+                                            Clique para consultar a exigÃªncia atual da aÃ§Ã£o sensÃ­vel.
                                         </p>
                                     )}
                                 </div>
 
                                 <div className="rounded-xl border border-gray-100 p-4 dark:border-gray-700">
                                     <h4 className="mb-3 font-bold text-gray-800 dark:text-white">
-                                        Lojas vinculadas
+                                        Vínculos e lojas
                                     </h4>
 
                                     {securityContext?.memberships?.length ? (
@@ -1682,7 +1685,7 @@ export default function Security() {
 
                                                     <div className="flex flex-wrap gap-2 text-xs">
                                                         <span className="rounded-full bg-green-100 px-2 py-1 font-bold text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                                                            {formatSecurityRole(membership.role)}
+                                                            Papel neste vínculo: {formatSecurityRole(membership.role)}
                                                         </span>
                                                         <span className="rounded-full bg-gray-100 px-2 py-1 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                                             {formatSecurityStatus(membership.status)}
@@ -1725,11 +1728,11 @@ export default function Security() {
                             <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4 rounded-xl mb-6">
                                 <div className="flex items-center gap-2 text-yellow-800 dark:text-yellow-200 font-bold mb-2">
                                     <AlertCircle size={20} />
-                                    Configuração Necessária
+                                    ConfiguraÃ§Ã£o NecessÃ¡ria
                                 </div>
                                 <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
-                                    A tabela de logs de segurança ainda não foi criada no banco de dados.
-                                    Para ativar o histórico, execute o seguinte comando SQL no seu painel Supabase:
+                                    A tabela de logs de seguranÃ§a ainda nÃ£o foi criada no banco de dados.
+                                    Para ativar o histÃ³rico, execute o seguinte comando SQL no seu painel Supabase:
                                 </p>
                                 <pre className="bg-yellow-100 dark:bg-black/30 p-3 rounded-lg text-xs overflow-x-auto select-all font-mono text-yellow-900 dark:text-yellow-100 border border-yellow-200 dark:border-yellow-800">
                                     {`create table if not exists public.store_security_logs (
@@ -1764,14 +1767,14 @@ export default function Security() {
                                 />
                                 <input
                                     type="text"
-                                    placeholder="Filtrar por usuário"
+                                    placeholder="Filtrar por usuÃ¡rio"
                                     value={logFilters.user}
                                     onChange={e => setLogFilters(prev => ({ ...prev, user: e.target.value }))}
                                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                                 />
                                 <input
                                     type="text"
-                                    placeholder="Filtrar por ação"
+                                    placeholder="Filtrar por aÃ§Ã£o"
                                     value={logFilters.action}
                                     onChange={e => setLogFilters(prev => ({ ...prev, action: e.target.value }))}
                                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -1805,8 +1808,8 @@ export default function Security() {
                                 <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
                                     <tr>
                                         <th className="p-3 rounded-l-lg">Data/Hora</th>
-                                        <th className="p-3">Usuário</th>
-                                        <th className="p-3">Ação</th>
+                                        <th className="p-3">UsuÃ¡rio</th>
+                                        <th className="p-3">AÃ§Ã£o</th>
                                         <th className="p-3 rounded-r-lg">Resultado</th>
                                     </tr>
                                 </thead>
@@ -1817,7 +1820,7 @@ export default function Security() {
                                                 {loadingLogs ? 'Carregando...' : 'Nenhuma atividade encontrada para os filtros aplicados.'}
                                                 {!loadingLogs && (
                                                     <p className="text-xs mt-2 text-yellow-500">
-                                                        Se atividades não aparecem após ações, verifique se a tabela
+                                                        Se atividades nÃ£o aparecem apÃ³s aÃ§Ãµes, verifique se a tabela
                                                         {' '}store_security_logs existe no banco de dados.
                                                     </p>
                                                 )}
@@ -1832,7 +1835,7 @@ export default function Security() {
                                                 <td className="p-3 font-medium text-gray-700 dark:text-gray-300">
                                                     <div>
                                                         <p className="font-bold text-gray-700 dark:text-gray-300">
-                                                            {log.user_name || log.user_email || 'Usuário não identificado'}
+                                                            {log.user_name || log.user_email || 'UsuÃ¡rio nÃ£o identificado'}
                                                         </p>
                                                         {log.user_email && (
                                                             <p className="text-xs text-gray-400">
@@ -1852,10 +1855,6 @@ export default function Security() {
                                                                 {formatSecurityLogDetails(log)}
                                                             </p>
                                                         )}
-
-                                                        <p className="mt-0.5 text-[11px] text-gray-400">
-                                                            {log.action}
-                                                        </p>
                                                     </div>
                                                 </td>
                                                 <td className="p-3">
@@ -1877,15 +1876,15 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* PERMISSÕES POR PAPEL */}
+                    {/* PERMISSÃ•ES POR PAPEL */}
                     <div className={activeTab === 'roles' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                                    Matriz de Permissões por Papel
+                                    Matriz de PermissÃµes por Papel
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Esta tabela mostra as permissões padrão configuradas no sistema para cada papel.
+                                    Esta tabela mostra as permissÃµes padrÃ£o configuradas no sistema para cada papel.
                                 </p>
                             </div>
                             <button
@@ -1900,7 +1899,7 @@ export default function Security() {
 
                         {adminError && (
                             <div className="p-4 rounded-xl mb-6 bg-red-50 border border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
-                                <p className="font-semibold">Erro ao carregar matriz de permissões:</p>
+                                <p className="font-semibold">Erro ao carregar matriz de permissÃµes:</p>
                                 <p className="text-sm mt-1">{adminError}</p>
                             </div>
                         )}
@@ -1911,14 +1910,14 @@ export default function Security() {
                             </div>
                         ) : permissionMatrix.length === 0 ? (
                             <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
-                                Nenhuma permissão configurada ou erro na leitura do banco.
+                                Nenhuma permissÃ£o configurada ou erro na leitura do banco.
                             </div>
                         ) : (
                             <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
                                 <table className="w-full text-left text-sm whitespace-nowrap">
                                     <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
                                         <tr>
-                                            <th className="p-3">Permissão</th>
+                                            <th className="p-3">PermissÃ£o</th>
                                             <th className="p-3">Risco</th>
                                             {ROLE_PERMISSION_COLUMNS.map((column) => (
                                                 <th key={column.role} className="p-3 text-center">
@@ -1975,7 +1974,7 @@ export default function Security() {
                                                                             : `Liberar para ${column.label}`
                                                                 }
                                                             >
-                                                                {allowed ? '✓' : '—'}
+                                                                {allowed ? 'âœ“' : 'â€”'}
                                                             </button>
                                                         </td>
                                                     );
@@ -1988,15 +1987,15 @@ export default function Security() {
                         )}
                     </div>
 
-                    {/* PERMISSÕES POR USUÁRIO */}
+                    {/* PERMISSÃ•ES POR USUÃRIO */}
                     <div className={activeTab === 'users_perms' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                                    Permissões Individuais por Usuário
+                                    PermissÃµes Individuais por UsuÃ¡rio
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Configure exceções específicas sem alterar o padrão do papel.
+                                    Configure exceÃ§Ãµes especÃ­ficas sem alterar o padrÃ£o do papel.
                                 </p>
                             </div>
 
@@ -2007,13 +2006,13 @@ export default function Security() {
                                 className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {adminLoading.saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                                Salvar permissões
+                                Salvar permissÃµes
                             </button>
                         </div>
 
                         <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
                             <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                Usuário/membro
+                                UsuÃ¡rio/membro
                             </label>
 
                             <select
@@ -2025,14 +2024,14 @@ export default function Security() {
                                 <option value="">Selecione um membro</option>
                                 {selectableMembers.map((member) => (
                                     <option key={member.member_id} value={member.member_id}>
-                                        {member.user_name} — {formatSecurityRole(member.role)} — {member.user_email || 'sem e-mail'}
+                                        {member.user_name} â€” {formatSecurityRole(member.role)} â€” {member.user_email || 'sem e-mail'}
                                     </option>
                                 ))}
                             </select>
 
                             {selectableMembers.length === 0 && (
                                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                    Nenhum membro editável apareceu no contexto atual. Se necessário, criaremos uma RPC para listar todos os membros da loja.
+                                    Nenhum membro editÃ¡vel apareceu no contexto atual. Se necessÃ¡rio, criaremos uma RPC para listar todos os membros da loja.
                                 </p>
                             )}
                         </div>
@@ -2043,10 +2042,10 @@ export default function Security() {
                                     <User size={24} />
                                 </div>
                                 <h4 className="text-base font-bold text-gray-800 dark:text-white mb-2">
-                                    Selecione um usuário
+                                    Selecione um usuÃ¡rio
                                 </h4>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                                    Escolha um membro para visualizar permissões herdadas e configurar exceções individuais.
+                                    Escolha um membro para visualizar permissÃµes herdadas e configurar exceÃ§Ãµes individuais.
                                 </p>
                             </div>
                         ) : adminLoading.memberDetail ? (
@@ -2055,14 +2054,14 @@ export default function Security() {
                             </div>
                         ) : memberPermissionDetail.length === 0 ? (
                             <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
-                                Nenhuma permissão encontrada para este membro.
+                                Nenhuma permissÃ£o encontrada para este membro.
                             </div>
                         ) : (
                             <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
                                 <table className="w-full text-left text-sm whitespace-nowrap">
                                     <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
                                         <tr>
-                                            <th className="p-3">Permissão</th>
+                                            <th className="p-3">PermissÃ£o</th>
                                             <th className="p-3">Risco</th>
                                             <th className="p-3 text-center">Papel</th>
                                             <th className="p-3 text-center">Efetivo</th>
@@ -2077,7 +2076,7 @@ export default function Security() {
                                                         {row.label}
                                                     </div>
                                                     <div className="text-xs text-gray-400">
-                                                        {formatPermissionModule(row.module)} · {formatPermissionAction(row.action)} · {row.permission_code}
+                                                        {formatPermissionModule(row.module)} Â· {formatPermissionAction(row.action)} Â· {row.permission_code}
                                                     </div>
                                                     {row.description && (
                                                         <div className="text-xs text-gray-500 mt-0.5">
@@ -2115,8 +2114,8 @@ export default function Security() {
                                                         className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                                                     >
                                                         <option value="inherit">Herdar do papel</option>
-                                                        <option value="allow">Liberar para este usuário</option>
-                                                        <option value="deny">Bloquear para este usuário</option>
+                                                        <option value="allow">Liberar para este usuÃ¡rio</option>
+                                                        <option value="deny">Bloquear para este usuÃ¡rio</option>
                                                     </select>
 
                                                     {row.source !== 'role_template' && (
@@ -2133,15 +2132,15 @@ export default function Security() {
                         )}
                     </div>
 
-                    {/* AÇÕES SENSÍVEIS */}
+                    {/* AÃ‡Ã•ES SENSÃVEIS */}
                     <div className={activeTab === 'sensitive_actions' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                                    Configuração de Ações Sensíveis
+                                    ConfiguraÃ§Ã£o de AÃ§Ãµes SensÃ­veis
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Essas ações exigem autorizações adicionais do operador ou administrador (PIN, Token, Senha Master, aprovação do dono).
+                                    Essas aÃ§Ãµes exigem autorizaÃ§Ãµes adicionais do operador ou administrador (PIN, Token, Senha Master, aprovaÃ§Ã£o do dono).
                                 </p>
                             </div>
                             <button
@@ -2156,7 +2155,7 @@ export default function Security() {
 
                         {adminError && (
                             <div className="p-4 rounded-xl mb-6 bg-red-50 border border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
-                                <p className="font-semibold">Erro ao carregar ações sensíveis:</p>
+                                <p className="font-semibold">Erro ao carregar aÃ§Ãµes sensÃ­veis:</p>
                                 <p className="text-sm mt-1">{adminError}</p>
                             </div>
                         )}
@@ -2167,21 +2166,21 @@ export default function Security() {
                             </div>
                         ) : sensitiveActionsMatrix.length === 0 ? (
                             <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
-                                Nenhuma ação sensível configurada ou erro na leitura do banco.
+                                Nenhuma aÃ§Ã£o sensÃ­vel configurada ou erro na leitura do banco.
                             </div>
                         ) : (
                             <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
                                 <table className="w-full text-left text-sm whitespace-nowrap">
                                     <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
                                         <tr>
-                                            <th className="p-3">Ação Sensível</th>
+                                            <th className="p-3">AÃ§Ã£o SensÃ­vel</th>
                                             <th className="p-3">Risco</th>
-                                            <th className="p-3">Exigência</th>
-                                            <th className="p-3">Papel Mínimo</th>
+                                            <th className="p-3">ExigÃªncia</th>
+                                            <th className="p-3">Papel MÃ­nimo</th>
                                             <th className="p-3 text-center">Habilitado</th>
                                             <th className="p-3 text-center">Token</th>
-                                            <th className="p-3">Expiração</th>
-                                            <th className="p-3">Tentativas Máx.</th>
+                                            <th className="p-3">ExpiraÃ§Ã£o</th>
+                                            <th className="p-3">Tentativas MÃ¡x.</th>
                                             <th className="p-3 text-center">Motivo</th>
                                         </tr>
                                     </thead>
@@ -2323,7 +2322,7 @@ export default function Security() {
 
                     {/* PIN E TOKEN */}
                     <div className={activeTab === 'pin_token' ? 'block space-y-8 animate-fadeIn' : 'hidden'}>
-                        {/* PIN de Segurança */}
+                        {/* PIN de SeguranÃ§a */}
                         <div className="bg-red-50 dark:bg-red-900/10 border border-red-100 dark:border-red-900/30 p-6 rounded-xl">
                             <div className="flex flex-col md:flex-row md:items-start gap-4">
                                 <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-full text-red-600 shrink-0 w-fit">
@@ -2331,10 +2330,10 @@ export default function Security() {
                                 </div>
                                 <div className="flex-1 w-full">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
-                                        PIN de Segurança
+                                        PIN de SeguranÃ§a
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
-                                        Este PIN é utilizado para autorizar funções específicas do sistema que exigem validação em tempo de execução.
+                                        Este PIN Ã© utilizado para autorizar funÃ§Ãµes especÃ­ficas do sistema que exigem validaÃ§Ã£o em tempo de execuÃ§Ã£o.
                                     </p>
 
                                     {store?.config?.pin_blocked ? (
@@ -2344,7 +2343,7 @@ export default function Security() {
                                                 PIN BLOQUEADO
                                             </div>
                                             <p className="text-sm text-gray-500 mb-4">
-                                                O acesso foi bloqueado após muitas tentativas incorretas.
+                                                O acesso foi bloqueado apÃ³s muitas tentativas incorretas.
                                             </p>
                                             <button
                                                 type="button"
@@ -2382,7 +2381,7 @@ export default function Security() {
                                                         onClick={() => {
                                                             setShowPin(!showPin);
                                                             if (pinData.length > 0 && !showPin) {
-                                                                logAction('Visualização de PIN', { field: 'pin_input' }, 'success').catch(console.error);
+                                                                logAction('VisualizaÃ§Ã£o de PIN', { field: 'pin_input' }, 'success').catch(console.error);
                                                             }
                                                         }}
                                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
@@ -2394,13 +2393,13 @@ export default function Security() {
                                                 <div className="text-xs text-gray-400 md:max-w-xs">
                                                     {store?.stock_password_hash ? (
                                                         <span className="text-yellow-600 dark:text-yellow-500 block mb-1">
-                                                            O PIN atual está oculto por segurança. Digite um novo para alterar.
+                                                            O PIN atual estÃ¡ oculto por seguranÃ§a. Digite um novo para alterar.
                                                         </span>
                                                     ) : (
-                                                        <span className="block mb-1">Defina um PIN de 6 números.</span>
+                                                        <span className="block mb-1">Defina um PIN de 6 nÃºmeros.</span>
                                                     )}
                                                     <span className="opacity-75">
-                                                        * 6 números | Sem sequências | Sem repetições
+                                                        * 6 nÃºmeros | Sem sequÃªncias | Sem repetiÃ§Ãµes
                                                     </span>
                                                 </div>
                                             </div>
@@ -2494,13 +2493,13 @@ export default function Security() {
                                         Redefinir Senha Master da Loja
                                     </h3>
                                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        Usada em operações sensíveis (como cancelamentos de entradas).
+                                        Usada em operaÃ§Ãµes sensÃ­veis (como cancelamentos de entradas).
                                     </p>
                                 </div>
                                 <form onSubmit={handleMasterPasswordReset} className="space-y-4">
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                            Senha do Usuário
+                                            Senha do UsuÃ¡rio
                                         </label>
                                         <div className="relative">
                                             <input
@@ -2543,7 +2542,7 @@ export default function Security() {
                                                     })
                                                 }
                                                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
-                                                placeholder="Mínimo 6 caracteres"
+                                                placeholder="MÃ­nimo 6 caracteres"
                                                 required
                                             />
                                             <button
@@ -2613,7 +2612,7 @@ export default function Security() {
                             </div>
                         </div>
 
-                        {/* Configurações Avançadas de Token */}
+                        {/* ConfiguraÃ§Ãµes AvanÃ§adas de Token */}
                         <div className="bg-purple-50 dark:bg-purple-900/10 border border-purple-100 dark:border-purple-900/30 p-6 rounded-xl">
                             <div className="flex flex-col md:flex-row md:items-start gap-4">
                                 <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full text-purple-600 shrink-0 w-fit">
@@ -2621,17 +2620,17 @@ export default function Security() {
                                 </div>
                                 <div className="flex-1 w-full">
                                     <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
-                                        Configurações do Token de Ação Sensível
+                                        ConfiguraÃ§Ãµes do Token de AÃ§Ã£o SensÃ­vel
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                                        Ajuste o tempo de expiração e o número máximo de tentativas do token usado em ações sensíveis da loja.
-                                        As alterações exigem o PIN de segurança.
+                                        Ajuste o tempo de expiraÃ§Ã£o e o nÃºmero mÃ¡ximo de tentativas do token usado em aÃ§Ãµes sensÃ­veis da loja.
+                                        As alteraÃ§Ãµes exigem o PIN de seguranÃ§a.
                                     </p>
 
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                ⏳ Tempo de expiração do token
+                                                â³ Tempo de expiraÃ§Ã£o do token
                                             </label>
                                             <span className="text-sm font-mono bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-full text-purple-800 dark:text-purple-300">
                                                 {tokenExpiry} segundos
@@ -2648,7 +2647,7 @@ export default function Security() {
                                         />
                                         <div className="flex justify-between text-xs text-gray-500 mt-1">
                                             <span>15s</span>
-                                            <span>15s (padrão)</span>
+                                            <span>15s (padrÃ£o)</span>
                                             <span>60s</span>
                                         </div>
                                     </div>
@@ -2656,7 +2655,7 @@ export default function Security() {
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                🔁 Máximo de tentativas por token
+                                                ðŸ” MÃ¡ximo de tentativas por token
                                             </label>
                                             <span className="text-sm font-mono bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-full text-purple-800 dark:text-purple-300">
                                                 {maxAttempts} {maxAttempts === 1 ? 'tentativa' : 'tentativas'}
@@ -2681,12 +2680,12 @@ export default function Security() {
                                     <div className="mt-6 pt-4 border-t border-purple-200 gap-3 dark:border-purple-800/30 flex justify-end">
                                         {!hasPin && (
                                             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                                                Configure o PIN de segurança antes de alterar as configurações avançadas.
+                                                Configure o PIN de seguranÃ§a antes de alterar as configuraÃ§Ãµes avanÃ§adas.
                                             </div>
                                         )}
                                         {!canManageSecurity && (
                                             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
-                                                Você não tem permissão para alterar configurações de segurança.
+                                                VocÃª nÃ£o tem permissÃ£o para alterar configuraÃ§Ãµes de seguranÃ§a.
                                             </div>
                                         )}
                                         <button
@@ -2695,7 +2694,7 @@ export default function Security() {
                                             className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             <Save size={18} />
-                                            {saving ? 'Salvando...' : 'Salvar configurações'}
+                                            {saving ? 'Salvando...' : 'Salvar configuraÃ§Ãµes'}
                                         </button>
                                     </div>
                                 </div>
@@ -2703,15 +2702,15 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* FUNÇÕES PERSONALIZADAS */}
+                    {/* FUNÃ‡Ã•ES PERSONALIZADAS */}
                     <div className={activeTab === 'custom_roles' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                                    Funções personalizadas
+                                    FunÃ§Ãµes personalizadas
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Crie cargos que herdam de um papel base e ajustam permissões específicas.
+                                    Crie cargos que herdam de um papel base e ajustam permissÃµes especÃ­ficas.
                                 </p>
                             </div>
 
@@ -2722,7 +2721,7 @@ export default function Security() {
                                 className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <Plus size={16} />
-                                Nova função
+                                Nova funÃ§Ã£o
                             </button>
                         </div>
 
@@ -2734,10 +2733,10 @@ export default function Security() {
                             <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
                                 <Shield className="mx-auto mb-3 h-8 w-8 text-gray-400" />
                                 <p className="font-bold text-gray-700 dark:text-gray-200">
-                                    Nenhuma função personalizada criada
+                                    Nenhuma funÃ§Ã£o personalizada criada
                                 </p>
                                 <p className="text-sm text-gray-500">
-                                    Crie funções como Supervisor de Estoque, Auxiliar de Compras ou Gerente Financeiro.
+                                    Crie funÃ§Ãµes como Supervisor de Estoque, Auxiliar de Compras ou Gerente Financeiro.
                                 </p>
                             </div>
                         ) : (
@@ -2823,10 +2822,10 @@ export default function Security() {
                         <div className="mb-5 flex items-start justify-between gap-4">
                             <div>
                                 <h3 className="text-lg font-black text-gray-900 dark:text-white">
-                                    {customRoleForm.id ? 'Editar função personalizada' : 'Nova função personalizada'}
+                                    {customRoleForm.id ? 'Editar funÃ§Ã£o personalizada' : 'Nova funÃ§Ã£o personalizada'}
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Defina um papel base e ajuste permissões específicas deste cargo.
+                                    Defina um papel base e ajuste permissÃµes especÃ­ficas deste cargo.
                                 </p>
                             </div>
 
@@ -2842,7 +2841,7 @@ export default function Security() {
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <label className="block">
                                 <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                    Nome da função
+                                    Nome da funÃ§Ã£o
                                 </span>
                                 <input
                                     value={customRoleForm.name}
@@ -2879,7 +2878,7 @@ export default function Security() {
 
                             <label className="block md:col-span-2">
                                 <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                    Descrição
+                                    DescriÃ§Ã£o
                                 </span>
                                 <textarea
                                     value={customRoleForm.description}
@@ -2905,26 +2904,26 @@ export default function Security() {
                                     }
                                 />
                                 <span className="font-bold text-gray-700 dark:text-gray-300">
-                                    Função ativa
+                                    FunÃ§Ã£o ativa
                                 </span>
                             </label>
                         </div>
 
                         <div className="mt-6">
                             <h4 className="mb-2 font-black text-gray-900 dark:text-white">
-                                Ajustes de permissões
+                                Ajustes de permissÃµes
                             </h4>
                             <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                                “Herdar” usa o papel base. “Liberar” e “Bloquear” sobrescrevem apenas nesta função personalizada.
+                                â€œHerdarâ€ usa o papel base. â€œLiberarâ€ e â€œBloquearâ€ sobrescrevem apenas nesta funÃ§Ã£o personalizada.
                             </p>
 
                             <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-gray-50 text-gray-600 dark:bg-gray-700/50 dark:text-gray-300">
                                         <tr>
-                                            <th className="p-3">Permissão</th>
+                                            <th className="p-3">PermissÃ£o</th>
                                             <th className="p-3">Risco</th>
-                                            <th className="p-3">Ajuste da função</th>
+                                            <th className="p-3">Ajuste da funÃ§Ã£o</th>
                                         </tr>
                                     </thead>
 
@@ -2939,7 +2938,7 @@ export default function Security() {
                                                             {permission.label}
                                                         </div>
                                                         <div className="text-xs text-gray-400">
-                                                            {formatPermissionModule(permission.module)} · {formatPermissionAction(permission.action)} · {permission.permission_code}
+                                                            {formatPermissionModule(permission.module)} Â· {formatPermissionAction(permission.action)} Â· {permission.permission_code}
                                                         </div>
                                                     </td>
 
@@ -2969,8 +2968,8 @@ export default function Security() {
                                                             className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                                                         >
                                                             <option value="inherit">Herdar do papel base</option>
-                                                            <option value="allow">Liberar nesta função</option>
-                                                            <option value="deny">Bloquear nesta função</option>
+                                                            <option value="allow">Liberar nesta funÃ§Ã£o</option>
+                                                            <option value="deny">Bloquear nesta funÃ§Ã£o</option>
                                                         </select>
                                                     </td>
                                                 </tr>
@@ -2996,7 +2995,7 @@ export default function Security() {
                                 disabled={customRolesSaving}
                                 className="rounded-xl bg-brand-green px-4 py-2 text-sm font-bold text-white hover:bg-brand-green/90 disabled:opacity-50"
                             >
-                                {customRolesSaving ? 'Salvando...' : 'Salvar função'}
+                                {customRolesSaving ? 'Salvando...' : 'Salvar funÃ§Ã£o'}
                             </button>
                         </div>
                     </div>
