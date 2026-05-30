@@ -34,6 +34,12 @@ import {
 } from 'lucide-react';
 import { useStoreMemberDetails } from '@/hooks/useStoreMemberDetails';
 import { useStoreMemberFullHistory } from '@/hooks/security/useStoreMemberFullHistory';
+import {
+    createStoreMemberOccurrenceV2,
+    getStoreMemberAccessTimeline,
+    updateStoreMemberStatus,
+    type StoreMemberAccessTimelineItem,
+} from '@/services/securityService';
 
 interface UserDetailModalProps {
     isOpen: boolean;
@@ -73,6 +79,10 @@ interface UserDetailModalProps {
     }) => Promise<void>;
     onRequestRoleChange?: (user: UserAdmin, newRole: string) => void;
     onRequestCustomRoleChange?: (user: UserAdmin, customRoleId: string | null) => void;
+    onOccurrenceSaved?: (input: {
+        user: UserAdmin;
+        occurrenceType: OccurrenceFormType;
+    }) => Promise<void>;
     customRoles?: StoreCustomRole[];
 }
 
@@ -99,14 +109,121 @@ interface InternalFormState {
     exitReason: string;
 }
 
+type OccurrenceFormType = StoreMemberOccurrenceType | 'return_from_suspension';
+
 interface OccurrenceFormState {
-    occurrenceType: StoreMemberOccurrenceType;
+    occurrenceType: OccurrenceFormType;
     severity: StoreMemberOccurrenceSeverity;
     title: string;
     description: string;
     occurredAt: string;
+    occurredTime: string;
     visibleToMember: boolean;
+    newRole: string;
+    newCustomRoleId: string;
+    clearIndividualOverrides: boolean;
 }
+
+type OccurrenceTypeOption = {
+    value: OccurrenceFormType;
+    label: string;
+    severity: StoreMemberOccurrenceSeverity;
+    sensitive: boolean;
+    requiresDescription: boolean;
+    help?: string;
+};
+
+const OCCURRENCE_TYPE_OPTIONS = ([
+    {
+        value: 'admission',
+        label: 'Admissão',
+        severity: 'critical',
+        sensitive: true,
+        requiresDescription: true,
+        help: 'Inicia ou reativa o acesso do colaborador à loja.',
+    },
+    {
+        value: 'warning',
+        label: 'Advertência',
+        severity: 'medium',
+        sensitive: false,
+        requiresDescription: false,
+    },
+    {
+        value: 'role_change',
+        label: 'Alteração de função',
+        severity: 'medium',
+        sensitive: true,
+        requiresDescription: true,
+        help: 'Registra alteração de papel no sistema e/ou função personalizada.',
+    },
+    {
+        value: 'absence',
+        label: 'Ausência',
+        severity: 'medium',
+        sensitive: false,
+        requiresDescription: false,
+    },
+    {
+        value: 'exit',
+        label: 'Desligamento',
+        severity: 'critical',
+        sensitive: true,
+        requiresDescription: true,
+        help: 'Encerra o vínculo e inativa o acesso do colaborador à loja.',
+    },
+    {
+        value: 'praise',
+        label: 'Elogio',
+        severity: 'low',
+        sensitive: false,
+        requiresDescription: false,
+    },
+    {
+        value: 'incident',
+        label: 'Incidente',
+        severity: 'high',
+        sensitive: false,
+        requiresDescription: false,
+    },
+    {
+        value: 'note',
+        label: 'Observação',
+        severity: 'info',
+        sensitive: false,
+        requiresDescription: false,
+    },
+    {
+        value: 'other',
+        label: 'Outro',
+        severity: 'info',
+        sensitive: false,
+        requiresDescription: false,
+    },
+    {
+        value: 'return_from_suspension',
+        label: 'Retorno de suspensão',
+        severity: 'info',
+        sensitive: true,
+        requiresDescription: false,
+        help: 'Remove a suspensão temporária e libera novamente o acesso à loja.',
+    },
+    {
+        value: 'suspension',
+        label: 'Suspensão',
+        severity: 'critical',
+        sensitive: true,
+        requiresDescription: true,
+        help: 'Suspende temporariamente o acesso do colaborador à loja.',
+    },
+    {
+        value: 'training',
+        label: 'Treinamento',
+        severity: 'low',
+        sensitive: false,
+        requiresDescription: false,
+    },
+] satisfies OccurrenceTypeOption[]).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
 
 function getStringFromRecord(
     value: Record<string, unknown> | null | undefined,
@@ -176,16 +293,32 @@ function formatRoleTextDescription(text: string | null | undefined): string {
         .replaceAll('owner', 'Proprietário');
 }
 
-function formatOccurrenceType(type: StoreMemberOccurrenceType): string {
+function isReactivationOccurrence(
+    type: StoreMemberOccurrenceType,
+    metadata: Record<string, unknown> | null | undefined
+): boolean {
+    return type === 'other' && metadata?.event_type === 'reactivation';
+}
+
+function formatOccurrenceType(
+    type: StoreMemberOccurrenceType,
+    metadata?: Record<string, unknown> | null
+): string {
+    if (isReactivationOccurrence(type, metadata)) {
+        return 'Reativação de acesso';
+    }
+
     const labels: Record<StoreMemberOccurrenceType, string> = {
+        admission: 'Admissão',
         note: 'Observação',
         warning: 'Advertência',
         praise: 'Elogio',
         training: 'Treinamento',
         incident: 'Incidente',
-        role_change: 'Mudança de função',
+        role_change: 'Alteração de função',
         absence: 'Ausência',
-        exit: 'Saída',
+        exit: 'Desligamento',
+        suspension: 'Suspensão',
         other: 'Outro',
     };
 
@@ -204,8 +337,59 @@ function formatSeverity(severity: StoreMemberOccurrenceSeverity): string {
     return labels[severity];
 }
 
-function todayInputValue(): string {
-    return new Date().toISOString().slice(0, 10);
+function buildOccurrenceTimestamp(date?: string, time?: string): string | null {
+    if (!date || !time) return null;
+
+    return new Date(`${date}T${time}:00`).toISOString();
+}
+
+function getEmptyOccurrenceForm(): OccurrenceFormState {
+    return {
+        occurrenceType: 'note',
+        severity: 'info',
+        title: '',
+        description: '',
+        occurredAt: '',
+        occurredTime: '',
+        visibleToMember: false,
+        newRole: '',
+        newCustomRoleId: '',
+        clearIndividualOverrides: false,
+    };
+}
+
+function getAvailableOccurrenceTypes(userStatus: string) {
+    return OCCURRENCE_TYPE_OPTIONS.filter((option) => {
+        if (option.value === 'admission') {
+            return userStatus === 'inactive';
+        }
+
+        if (option.value === 'suspension') {
+            return userStatus === 'active';
+        }
+
+        if (option.value === 'return_from_suspension') {
+            return userStatus === 'suspended';
+        }
+
+        if (option.value === 'exit') {
+            return userStatus === 'active' || userStatus === 'suspended';
+        }
+
+        return true;
+    });
+}
+
+function formatStatusLabel(status: string | null | undefined): string {
+    const labels: Record<string, string> = {
+        active: 'Ativo',
+        inactive: 'Inativo',
+        suspended: 'Suspenso',
+        invited: 'Convidado',
+        pending: 'Pendente',
+    };
+
+    return status ? labels[status] ?? status : 'Não informado';
 }
 
 export function UserDetailModal({
@@ -218,6 +402,7 @@ export function UserDetailModal({
     onSaveProfileDetails,
     onRequestRoleChange,
     onRequestCustomRoleChange,
+    onOccurrenceSaved,
     customRoles = [],
 }: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
@@ -292,8 +477,8 @@ export function UserDetailModal({
         loading,
         saving,
         error,
+        refresh,
         saveDetails,
-        addOccurrence,
     } = useStoreMemberDetails(isOpen && user ? user.id : null);
 
     const {
@@ -348,14 +533,34 @@ export function UserDetailModal({
 
 
 
-    const [occurrenceForm, setOccurrenceForm] = useState<OccurrenceFormState>({
-        occurrenceType: 'note',
-        severity: 'info',
-        title: '',
-        description: '',
-        occurredAt: todayInputValue(),
-        visibleToMember: false,
-    });
+    const [accessTimeline, setAccessTimeline] = useState<StoreMemberAccessTimelineItem[]>([]);
+    const [loadingAccessTimeline, setLoadingAccessTimeline] = useState(false);
+
+    const [occurrenceForm, setOccurrenceForm] = useState<OccurrenceFormState>(() =>
+        getEmptyOccurrenceForm()
+    );
+
+    const loadAccessTimeline = async () => {
+        if (!user || !memberStore?.store_id) return;
+
+        try {
+            setLoadingAccessTimeline(true);
+
+            const items = await getStoreMemberAccessTimeline(memberStore.store_id, user.id);
+            setAccessTimeline(items);
+        } catch (error) {
+            console.error('Erro ao carregar ciclos de acesso:', error);
+        } finally {
+            setLoadingAccessTimeline(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isOpen && user) {
+            void loadAccessTimeline();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen, user?.id, memberStore?.store_id]);
 
     const initials = getInitials(user?.full_name);
 
@@ -497,6 +702,43 @@ export function UserDetailModal({
         };
 
         return action ? labels[action] ?? action : 'Ação desconhecida';
+    };
+
+    const formatHistoryEventLabel = (event: {
+        source: string;
+        action: string;
+        title: string | null;
+        metadata: Record<string, unknown> | null;
+    }): string => {
+        if (
+            event.source === 'store_member_occurrences' &&
+            isReactivationOccurrence(event.action as StoreMemberOccurrenceType, event.metadata)
+        ) {
+            return 'Reativação de acesso';
+        }
+
+        return formatHistoryActionLabel(event.title || event.action);
+    };
+
+    const formatAccessEventLabel = (item: StoreMemberAccessTimelineItem): string => {
+        if (
+            item.event_type === 'other' &&
+            item.metadata?.event_type === 'reactivation' &&
+            item.old_status === 'suspended'
+        ) {
+            return 'Retorno de suspensão';
+        }
+
+        if (item.event_type === 'other' && item.metadata?.event_type === 'reactivation') {
+            return 'Reativação de acesso';
+        }
+
+        if (item.event_type === 'admission') return 'Admissão';
+        if (item.event_type === 'suspension') return 'Suspensão';
+        if (item.event_type === 'exit') return 'Desligamento';
+        if (item.event_type === 'role_change') return 'Alteração de função';
+
+        return item.event_label;
     };
 
     const getStringMetadata = (
@@ -703,7 +945,7 @@ export function UserDetailModal({
             formatOptionalDateTime(item.event_at),
             formatHistoryModule(item.module),
             formatHistoryActionLabel(item.action),
-            formatHistoryActionLabel(item.title || item.action),
+            formatHistoryEventLabel(item),
             formatHistoryDescription(item),
             formatHistoryOutcome(item.outcome),
             item.entity_type ?? '',
@@ -747,7 +989,7 @@ export function UserDetailModal({
                     <tr>
                         <td>${formatOptionalDateTime(event.event_at)}</td>
                         <td>${formatHistoryModule(event.module)}</td>
-                        <td>${formatHistoryActionLabel(event.title || event.action)}</td>
+                        <td>${formatHistoryEventLabel(event)}</td>
                         <td>${formatHistoryDescription(event)}</td>
                         <td>${formatHistoryOutcome(event.outcome)}</td>
                         <td>${formatHistorySource(event.source)}</td>
@@ -921,37 +1163,103 @@ export function UserDetailModal({
             return;
         }
 
-        if (!occurrenceForm.title.trim()) {
-            toast.error('Informe um título para a ocorrência.');
+        const occurrenceType = occurrenceForm.occurrenceType;
+        const description = occurrenceForm.description.trim();
+        const selectedType = OCCURRENCE_TYPE_OPTIONS.find(
+            (item) => item.value === occurrenceType
+        );
+
+        if (selectedType?.requiresDescription && !description) {
+            toast.error(`Informe o motivo/descrição para ${selectedType.label}.`);
             return;
         }
 
+        if (occurrenceType === 'return_from_suspension') {
+            try {
+                await updateStoreMemberStatus({
+                    memberId: user.id,
+                    status: 'active',
+                    reason: description || 'Retorno de suspensão.',
+                });
+
+                await refresh();
+                await fetchHistory();
+                await loadAccessTimeline();
+
+                setOccurrenceForm(getEmptyOccurrenceForm());
+
+                if (onOccurrenceSaved) {
+                    await onOccurrenceSaved({
+                        user,
+                        occurrenceType,
+                    });
+                    return;
+                }
+
+                toast.success('Suspensão removida e acesso reativado.');
+            } catch {
+                toast.error('Não foi possível remover a suspensão.');
+            }
+
+            return;
+        }
+
+        const metadata =
+            occurrenceType === 'role_change' || occurrenceType === 'admission'
+                ? {
+                    new_role: occurrenceForm.newRole || user.role,
+                    new_custom_role_id: occurrenceForm.newCustomRoleId || null,
+                    clear_individual_overrides: occurrenceForm.clearIndividualOverrides,
+                }
+                : {};
+
         try {
-            await addOccurrence({
-                storeId: memberStore.store_id,
+            const result = await createStoreMemberOccurrenceV2({
                 memberId: user.id,
-                userId: memberStore.user_id,
-                occurrenceType: occurrenceForm.occurrenceType,
-                severity: occurrenceForm.severity,
-                title: occurrenceForm.title.trim(),
-                description: occurrenceForm.description.trim() || null,
-                occurredAt: occurrenceForm.occurredAt
-                    ? `${occurrenceForm.occurredAt}T12:00:00`
-                    : null,
+                occurrenceType,
+                severity: selectedType?.severity ?? occurrenceForm.severity,
+                title: occurrenceForm.title.trim() || selectedType?.label || null,
+                description: description || null,
+                occurredAt: buildOccurrenceTimestamp(
+                    occurrenceForm.occurredAt,
+                    occurrenceForm.occurredTime
+                ),
                 visibleToMember: occurrenceForm.visibleToMember,
-                createdByEmail: null,
+                metadata: {
+                    ...metadata,
+                    origin: 'user_detail_modal',
+                },
             });
 
-            setOccurrenceForm({
-                occurrenceType: 'note',
-                severity: 'info',
-                title: '',
-                description: '',
-                occurredAt: todayInputValue(),
-                visibleToMember: false,
-            });
+            if (!result) return;
 
-            toast.success('Ocorrência registrada com sucesso.');
+            const savedOccurrenceType = occurrenceType;
+
+            await refresh();
+            await fetchHistory();
+            await loadAccessTimeline();
+
+            setOccurrenceForm(getEmptyOccurrenceForm());
+
+            if (onOccurrenceSaved) {
+                await onOccurrenceSaved({
+                    user,
+                    occurrenceType: savedOccurrenceType,
+                });
+                return;
+            }
+
+            toast.success(
+                savedOccurrenceType === 'exit'
+                    ? 'Desligamento registrado e acesso inativado.'
+                    : savedOccurrenceType === 'suspension'
+                        ? 'Suspensão registrada e acesso suspenso.'
+                        : savedOccurrenceType === 'admission'
+                            ? 'Admissão/retorno registrado e acesso ativado.'
+                            : savedOccurrenceType === 'role_change'
+                                ? 'Alteração de função registrada.'
+                                : 'Ocorrência registrada.'
+            );
         } catch {
             toast.error('Não foi possível registrar a ocorrência.');
         }
@@ -1148,7 +1456,15 @@ export function UserDetailModal({
                                     <InfoCard
                                         icon={Activity}
                                         label="Status"
-                                        value={user.status === 'active' ? 'Ativo' : user.status === 'inactive' ? 'Inativo' : user.status}
+                                        value={
+                                            user.status === 'active'
+                                                ? 'Ativo'
+                                                : user.status === 'inactive'
+                                                    ? 'Inativo'
+                                                    : user.status === 'suspended'
+                                                        ? 'Suspenso'
+                                                        : user.status
+                                        }
                                     />
                                 </div>
                             )}
@@ -1467,6 +1783,83 @@ export function UserDetailModal({
                                         </ul>
                                     </div>
 
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                            <div>
+                                                <h4 className="font-bold text-gray-900 dark:text-white">
+                                                    Ciclos de acesso
+                                                </h4>
+                                                <p className="text-sm text-gray-500">
+                                                    Entradas, suspensões, desligamentos, retornos e alterações de função.
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => void loadAccessTimeline()}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                            >
+                                                <RefreshCw size={15} />
+                                                Atualizar
+                                            </button>
+                                        </div>
+
+                                        {loadingAccessTimeline ? (
+                                            <p className="text-sm text-gray-500">Carregando timeline...</p>
+                                        ) : accessTimeline.length === 0 ? (
+                                            <p className="text-sm text-gray-500">
+                                                Nenhum ciclo de acesso registrado.
+                                            </p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {accessTimeline.map((item) => (
+                                                    <div
+                                                        key={item.event_id}
+                                                        className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/50"
+                                                    >
+                                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                                            <div>
+                                                                <p className="font-bold text-gray-900 dark:text-white">
+                                                                    {formatAccessEventLabel(item)}
+                                                                </p>
+                                                                <p className="text-sm text-gray-500">
+                                                                    {formatOptionalDateTime(item.event_at)}
+                                                                </p>
+                                                            </div>
+
+                                                            {item.resulting_status && (
+                                                                <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                                                                    Status: {formatStatusLabel(item.resulting_status)}
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {item.description && (
+                                                            <p className="mt-2 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">
+                                                                {item.description}
+                                                            </p>
+                                                        )}
+
+                                                        {(item.old_role || item.new_role) && (
+                                                            <p className="mt-2 text-xs text-gray-500">
+                                                                Papel:{' '}
+                                                                {item.old_role ? formatRoleLabel(item.old_role) : '-'}
+                                                                {' -> '}
+                                                                {item.new_role ? formatRoleLabel(item.new_role) : '-'}
+                                                            </p>
+                                                        )}
+
+                                                        {item.created_by_email && (
+                                                            <p className="mt-2 text-xs text-gray-400">
+                                                                Registrado por: {item.created_by_email}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {Object.keys(lastSessionDetails).length > 0 && (
                                         <details className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                             <summary className="cursor-pointer text-sm font-bold text-gray-700 dark:text-gray-300">
@@ -1665,17 +2058,13 @@ export function UserDetailModal({
                                                             </div>
 
                                                             <h5 className="font-bold text-gray-900 dark:text-white">
-                                                                {formatHistoryActionLabel(event.title || event.action)}
+                                                                {formatHistoryEventLabel(event)}
                                                             </h5>
 
                                                             <p className="mt-1 whitespace-pre-wrap text-sm text-gray-600 dark:text-gray-300">
                                                                 {formatHistoryDescription(event)}
                                                             </p>
 
-                                                            <p className="mt-1 text-xs text-gray-400">
-                                                                {event.action}
-                                                                {event.entity_type ? ` · ${event.entity_type}` : ''}
-                                                            </p>
                                                         </div>
 
                                                         <p className="shrink-0 text-xs text-gray-500">
@@ -1803,26 +2192,30 @@ export function UserDetailModal({
                                             Nova ocorrência
                                         </h4>
 
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                                             <SelectField
                                                 label="Tipo"
                                                 value={occurrenceForm.occurrenceType}
-                                                options={[
-                                                    ['note', 'Observação'],
-                                                    ['warning', 'Advertência'],
-                                                    ['praise', 'Elogio'],
-                                                    ['training', 'Treinamento'],
-                                                    ['incident', 'Incidente'],
-                                                    ['role_change', 'Mudança de função'],
-                                                    ['absence', 'Ausência'],
-                                                    ['exit', 'Saída'],
-                                                    ['other', 'Outro'],
-                                                ]}
+                                                options={getAvailableOccurrenceTypes(user.status).map((option) => [
+                                                    option.value,
+                                                    option.label,
+                                                ])}
                                                 onChange={(value) =>
-                                                    setOccurrenceForm((current) => ({
-                                                        ...current,
-                                                        occurrenceType: value as StoreMemberOccurrenceType,
-                                                    }))
+                                                    setOccurrenceForm((current) => {
+                                                        const selectedType = OCCURRENCE_TYPE_OPTIONS.find(
+                                                            (option) => option.value === value
+                                                        );
+
+                                                        return {
+                                                            ...current,
+                                                            occurrenceType: value as OccurrenceFormType,
+                                                            severity: selectedType?.severity ?? current.severity,
+                                                            newRole:
+                                                                value === 'role_change' || value === 'admission'
+                                                                    ? current.newRole || user.role
+                                                                    : current.newRole,
+                                                        };
+                                                    })
                                                 }
                                             />
 
@@ -1845,7 +2238,7 @@ export function UserDetailModal({
                                             />
 
                                             <DateField
-                                                label="Data"
+                                                label="Data da ocorrência — opcional"
                                                 value={occurrenceForm.occurredAt}
                                                 onChange={(value) =>
                                                     setOccurrenceForm((current) => ({
@@ -1854,9 +2247,24 @@ export function UserDetailModal({
                                                     }))
                                                 }
                                             />
+
+                                            <TimeField
+                                                label="Hora da ocorrência — opcional"
+                                                value={occurrenceForm.occurredTime}
+                                                onChange={(value) =>
+                                                    setOccurrenceForm((current) => ({
+                                                        ...current,
+                                                        occurredTime: value,
+                                                    }))
+                                                }
+                                            />
                                         </div>
 
                                         <div className="mt-4 space-y-4">
+                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                Se não informar data e hora, será usado o horário atual do sistema.
+                                            </p>
+
                                             <TextField
                                                 label="Título"
                                                 value={occurrenceForm.title}
@@ -1879,6 +2287,82 @@ export function UserDetailModal({
                                                 }
                                             />
 
+                                            {(occurrenceForm.occurrenceType === 'role_change' ||
+                                                occurrenceForm.occurrenceType === 'admission') && (
+                                                    <div className="space-y-3">
+                                                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                                                            {occurrenceForm.occurrenceType === 'admission'
+                                                                ? 'Defina o papel e a função personalizada que o colaborador terá ao iniciar/retornar.'
+                                                                : 'Defina o novo papel e/ou função personalizada do colaborador.'}
+                                                        </p>
+
+                                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                            <SelectField
+                                                                label="Novo papel no sistema"
+                                                                value={occurrenceForm.newRole || user.role}
+                                                                options={[
+                                                                    ['admin', 'Administrador'],
+                                                                    ['manager', 'Gerente'],
+                                                                    ['stock_operator', 'Operador de estoque'],
+                                                                    ['cashier', 'Caixa'],
+                                                                    ['sales', 'Vendas'],
+                                                                    ['staff', 'Equipe'],
+                                                                    ['viewer', 'Visualizador'],
+                                                                ]}
+                                                                onChange={(value) =>
+                                                                    setOccurrenceForm((current) => ({
+                                                                        ...current,
+                                                                        newRole: value,
+                                                                        newCustomRoleId: '',
+                                                                    }))
+                                                                }
+                                                            />
+
+                                                            <SelectField
+                                                                label="Função personalizada"
+                                                                value={occurrenceForm.newCustomRoleId}
+                                                                options={[
+                                                                    ['', 'Sem função personalizada'],
+                                                                    ...customRoles
+                                                                        .filter(
+                                                                            (role) =>
+                                                                                role.active &&
+                                                                                role.base_role ===
+                                                                                (occurrenceForm.newRole || user.role)
+                                                                        )
+                                                                        .map((role) => [
+                                                                            role.id,
+                                                                            `${role.name} — base: ${formatRoleLabel(role.base_role)}`,
+                                                                        ] as [string, string]),
+                                                                ]}
+                                                                onChange={(value) =>
+                                                                    setOccurrenceForm((current) => ({
+                                                                        ...current,
+                                                                        newCustomRoleId: value,
+                                                                    }))
+                                                                }
+                                                            />
+
+                                                            <label className="flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300 md:col-span-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={occurrenceForm.clearIndividualOverrides}
+                                                                    onChange={(event) =>
+                                                                        setOccurrenceForm((current) => ({
+                                                                            ...current,
+                                                                            clearIndividualOverrides: event.target.checked,
+                                                                        }))
+                                                                    }
+                                                                    className="mt-1"
+                                                                />
+                                                                <span>
+                                                                    Limpar permissões individuais ao aplicar esta alteração.
+                                                                </span>
+                                                            </label>
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
                                                 <input
                                                     type="checkbox"
@@ -1893,6 +2377,43 @@ export function UserDetailModal({
                                                 Visível ao membro no futuro
                                             </label>
 
+                                            {occurrenceForm.occurrenceType === 'admission' && (
+                                                <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-100">
+                                                    Esta ocorrência irá ativar o acesso do colaborador à loja e iniciar um novo ciclo de vínculo.
+                                                </div>
+                                            )}
+
+                                            {occurrenceForm.occurrenceType === 'suspension' && (
+                                                <div className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800 dark:border-orange-900/40 dark:bg-orange-900/20 dark:text-orange-100">
+                                                    Esta ocorrência irá suspender temporariamente o acesso do colaborador. Ao tentar acessar a loja, ele deverá ver um aviso de acesso suspenso.
+                                                </div>
+                                            )}
+
+                                            {occurrenceForm.occurrenceType === 'return_from_suspension' && (
+                                                <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800 dark:border-green-900/40 dark:bg-green-900/20 dark:text-green-100">
+                                                    Esta ação remove a suspensão temporária e libera novamente o acesso à loja.
+                                                </div>
+                                            )}
+
+                                            {occurrenceForm.occurrenceType === 'exit' && (
+                                                <div className="flex gap-3 rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-100">
+                                                    <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" />
+                                                    <div>
+                                                        <p className="font-bold">Esta ocorrência irá encerrar o vínculo e inativar o acesso do colaborador à loja.</p>
+                                                        <p className="mt-1">
+                                                            Ele deixará de visualizar esta loja no próximo login/atualização de sessão.
+                                                        </p>
+                                                        <p className="mt-1">O histórico será preservado.</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {occurrenceForm.occurrenceType === 'role_change' && (
+                                                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900/40 dark:bg-blue-900/20 dark:text-blue-100">
+                                                    Esta ocorrência irá registrar e aplicar uma alteração de papel no sistema e/ou função personalizada.
+                                                </div>
+                                            )}
+
                                             <div className="flex justify-end">
                                                 <button
                                                     type="button"
@@ -1905,7 +2426,15 @@ export function UserDetailModal({
                                                     ) : (
                                                         <Plus size={16} />
                                                     )}
-                                                    Registrar ocorrência
+                                                    {occurrenceForm.occurrenceType === 'exit'
+                                                        ? 'Registrar desligamento e inativar acesso'
+                                                        : occurrenceForm.occurrenceType === 'suspension'
+                                                            ? 'Registrar suspensão e suspender acesso'
+                                                            : occurrenceForm.occurrenceType === 'return_from_suspension'
+                                                                ? 'Registrar retorno de suspensão'
+                                                                : occurrenceForm.occurrenceType === 'admission'
+                                                                    ? 'Registrar admissão/retorno e ativar acesso'
+                                                                    : 'Registrar ocorrência'}
                                                 </button>
                                             </div>
                                         </div>
@@ -1932,7 +2461,8 @@ export function UserDetailModal({
                                                                 <div className="flex flex-wrap items-center gap-2">
                                                                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
                                                                         {formatOccurrenceType(
-                                                                            occurrence.occurrence_type
+                                                                            occurrence.occurrence_type,
+                                                                            occurrence.metadata
                                                                         )}
                                                                     </span>
                                                                     <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
@@ -2039,6 +2569,30 @@ function DateField({
             </span>
             <input
                 type="date"
+                value={value ?? ''}
+                onChange={(event) => onChange(event.target.value)}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+            />
+        </label>
+    );
+}
+
+function TimeField({
+    label,
+    value,
+    onChange,
+}: {
+    label: string;
+    value?: string | null;
+    onChange: (value: string) => void;
+}) {
+    return (
+        <label className="block">
+            <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                {label}
+            </span>
+            <input
+                type="time"
                 value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"

@@ -25,7 +25,11 @@ interface UsersState {
     createUser: (data: UserFormData) => Promise<UserAdmin | null>;
     updateUser: (id: string, data: Partial<UserFormData>) => Promise<boolean>;
     deleteUser: (id: string) => Promise<boolean>;
-    updateUserStatus: (id: string, status: 'active' | 'inactive' | 'suspended') => Promise<boolean>;
+    updateUserStatus: (
+        id: string,
+        status: 'active' | 'inactive' | 'suspended',
+        reason?: string
+    ) => Promise<boolean>;
     updateUserRole: (id: string, role: UserRole) => Promise<boolean>;
     updateUserProfileDetails: (
         input: UpdateStoreMemberProfileDetailsInput
@@ -105,6 +109,7 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
         custom_role_id: member.custom_role_id ?? null,
         custom_role_name: member.custom_role_name ?? null,
         custom_role_base_role: member.custom_role_base_role ?? null,
+        accepted_at: member.accepted_at ?? null,
 
         is_admin: role === 'owner' || role === 'admin' || role === 'manager',
         is_active: isActive,
@@ -366,15 +371,22 @@ export const useUsersStore = create<UsersState>((set, get) => ({
         }
     },
 
-    updateUserStatus: async (id, status) => {
+    updateUserStatus: async (id, status, reason) => {
         try {
             await updateStoreMemberStatus({
                 memberId: id,
                 status: status as StoreMemberStatus,
-                reason: 'Alteração de status pela tela de usuários',
+                reason: reason ?? 'Alteração de status pela tela de usuários',
             });
 
-            toast.success(`Usuário ${status === 'active' ? 'ativado' : 'desativado'} com sucesso`);
+            const statusLabel =
+                status === 'active'
+                    ? 'reativado'
+                    : status === 'suspended'
+                        ? 'suspenso'
+                        : 'inativado';
+
+            toast.success(`Usuário ${statusLabel} com sucesso`);
             await get().fetchUsers();
             return true;
         } catch (error: unknown) {

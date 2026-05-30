@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Mail, Lock, ArrowRight, AlertCircle, Store, CheckCircle } from 'lucide-react';
+import { toast } from 'sonner';
 import { clearActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
 import type { LoginStoreOption } from '@/types/security';
 
@@ -35,6 +36,13 @@ export default function Login() {
 
   const finishLoginWithStore = async (storeId: string) => {
     const selectedStore = storeOptions.find((option) => option.store_id === storeId);
+
+    if (selectedStore?.status === 'suspended') {
+      toast.warning(
+        `Seu acesso à loja ${selectedStore.store_name} está suspenso. Procure o responsável.`
+      );
+      return;
+    }
 
     setActiveStoreId(storeId);
 
@@ -86,13 +94,15 @@ export default function Login() {
         throw new Error('Nenhuma loja ativa vinculada a este usuário.');
       }
 
-      if (options.length === 1) {
+      const activeOptions = options.filter((option) => option.status === 'active');
+
+      if (options.length === 1 && options[0].status === 'active') {
         await finishLoginWithStore(options[0].store_id);
         return;
       }
 
       setStoreOptions(options);
-      setSelectedStoreId(options[0].store_id);
+      setSelectedStoreId(activeOptions[0]?.store_id ?? '');
       setSelectingStore(true);
     } catch (error: unknown) {
       const message =
@@ -234,13 +244,26 @@ export default function Login() {
               <div className="space-y-3">
                 {storeOptions.map((option) => {
                   const selected = selectedStoreId === option.store_id;
+                  const suspended = option.status === 'suspended';
 
                   return (
                     <button
                       key={option.store_id}
                       type="button"
-                      onClick={() => setSelectedStoreId(option.store_id)}
-                      className={`w-full rounded-2xl border p-4 text-left transition ${selected
+                      disabled={suspended}
+                      onClick={() => {
+                        if (suspended) {
+                          toast.warning(
+                            `Seu acesso à loja ${option.store_name} está suspenso. Procure o responsável.`
+                          );
+                          return;
+                        }
+
+                        setSelectedStoreId(option.store_id);
+                      }}
+                      className={`w-full rounded-2xl border p-4 text-left transition ${suspended
+                        ? 'cursor-not-allowed opacity-60 border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20'
+                        : selected
                         ? 'border-brand-green bg-brand-green/10 ring-2 ring-brand-green/20'
                         : 'border-[#6B6258]/10 bg-[#F8F6F2] hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900/40'
                         }`}
@@ -264,6 +287,11 @@ export default function Login() {
                           </p>
                           <p className="text-sm font-bold text-brand-green">
                             {formatLoginRole(option.role)}
+                            {suspended && (
+                              <span className="ml-2 rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700 dark:bg-orange-900/50 dark:text-orange-200">
+                                Suspenso
+                              </span>
+                            )}
                           </p>
                           {option.store_slug && (
                             <p className="text-xs text-gray-400">/{option.store_slug}</p>

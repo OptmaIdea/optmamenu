@@ -42,9 +42,7 @@ export default function Users() {
         fetchStats,
         createUser,
         updateUser,
-        updateUserStatus,
         updateUserProfileDetails,
-        deleteUser,
         setFilters,
         resetFilters,
     } = useUsersStore();
@@ -73,7 +71,6 @@ export default function Users() {
         );
     }, [securityContext?.memberships, securityContext?.primary_membership, activeStoreId]);
 
-    const currentMemberId = activeMembership?.member_id ?? null;
     const operationalStoreId = activeMembership?.store_id ?? activeStoreId ?? null;
 
     const { permissions } = usePermissions(operationalStoreId);
@@ -192,40 +189,6 @@ export default function Users() {
         setShowFormModal(true);
     };
 
-    const handleToggleStatus = async (user: UserAdmin) => {
-        const newStatus = user.status === 'active' ? 'inactive' : 'active';
-
-        if (user.id === currentMemberId && newStatus !== 'active') {
-            toast.error('Você não pode desativar ou suspender seu próprio usuário.');
-            return;
-        }
-
-        if (user.role === 'owner' && newStatus !== 'active') {
-            toast.error('O proprietário principal não pode ser desativado por esta tela.');
-            return;
-        }
-
-        await updateUserStatus(user.id, newStatus);
-        await refreshSessionSummary();
-    };
-
-    const handleDeleteUser = async (user: UserAdmin) => {
-        if (user.id === currentMemberId) {
-            toast.error('Você não pode desativar seu próprio usuário.');
-            return;
-        }
-
-        if (user.role === 'owner') {
-            toast.error('O proprietário principal não pode ser desativado por esta tela.');
-            return;
-        }
-
-        if (window.confirm(`Tem certeza que deseja desativar o usuário "${user.full_name}"?`)) {
-            await deleteUser(user.id);
-            await refreshSessionSummary();
-        }
-    };
-
     const handleFormSubmit = async (data: UserFormData) => {
         if (formMode === 'create') {
             await createUser(data);
@@ -325,6 +288,50 @@ export default function Users() {
         setSelectedUser(refreshedUser);
     };
 
+    const handleOccurrenceSaved = async (input: {
+        user: UserAdmin;
+        occurrenceType: string;
+    }) => {
+        if (input.occurrenceType === 'exit') {
+            setShowDetailModal(false);
+        }
+
+        await fetchUsers();
+        await fetchStats();
+        await refreshSessionSummary();
+
+        const refreshedUser = await useUsersStore.getState().fetchUserById(input.user.id);
+        const fallbackStatus =
+            input.occurrenceType === 'exit'
+                ? 'inactive'
+                : input.occurrenceType === 'suspension'
+                    ? 'suspended'
+                    : input.occurrenceType === 'admission' ||
+                        input.occurrenceType === 'return_from_suspension'
+                        ? 'active'
+                        : input.user.status;
+
+        setSelectedUser(refreshedUser ?? {
+            ...input.user,
+            status: fallbackStatus as UserAdmin['status'],
+            is_active: fallbackStatus === 'active',
+        });
+
+        if (input.occurrenceType === 'exit') {
+            toast.success('Desligamento registrado e acesso inativado.');
+        } else if (input.occurrenceType === 'suspension') {
+            toast.success('Suspensão registrada e acesso suspenso.');
+        } else if (input.occurrenceType === 'admission') {
+            toast.success('Admissão/retorno registrado e acesso ativado.');
+        } else if (input.occurrenceType === 'return_from_suspension') {
+            toast.success('Suspensão removida e acesso reativado.');
+        } else if (input.occurrenceType === 'role_change') {
+            toast.success('Alteração de função registrada.');
+        } else {
+            toast.success('Ocorrência registrada.');
+        }
+    };
+
 
     const handleFilterChange = <K extends keyof UserFilters>(
         key: K,
@@ -341,6 +348,8 @@ export default function Users() {
         <PageContainer
             title="Usuários"
             subtitle="Gerencie os usuários do sistema e suas permissões"
+            category="Configurações"
+            flat
         >
             {/* Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -539,8 +548,6 @@ export default function Users() {
                             key={user.id}
                             user={user}
                             onView={handleViewUser}
-                            onToggleStatus={handleToggleStatus}
-                            onDelete={handleDeleteUser}
                             canManageUsers={canManageUsers}
                             canViewSensitiveUserData={canViewSensitiveUserData}
                         />
@@ -591,6 +598,7 @@ export default function Users() {
                     });
                 }}
                 onSaveProfileDetails={handleSaveProfileDetails}
+                onOccurrenceSaved={handleOccurrenceSaved}
             />
 
             {roleChangeConfirmation && (

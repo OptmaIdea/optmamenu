@@ -75,30 +75,23 @@ export async function getStoreMemberOccurrences(
 export async function createStoreMemberOccurrence(
     input: StoreMemberOccurrenceInput
 ): Promise<StoreMemberOccurrence> {
-    const payload = {
-        store_id: input.storeId,
-        member_id: input.memberId,
-        user_id: input.userId,
-        occurrence_type: input.occurrenceType,
-        severity: input.severity ?? 'info',
-        title: input.title,
-        description: input.description ?? null,
-        occurred_at: input.occurredAt ?? new Date().toISOString(),
-        visible_to_member: input.visibleToMember ?? false,
-        created_by_email: input.createdByEmail ?? null,
-        metadata: input.metadata ?? {},
-    };
-
-    const { data, error } = await supabase
-        .from('store_member_occurrences')
-        .insert(payload)
-        .select('*')
-        .single();
+    const { data, error } = await supabase.rpc('create_store_member_occurrence_v2', {
+        p_member_id: input.memberId,
+        p_occurrence_type: input.occurrenceType,
+        p_severity: input.severity ?? 'info',
+        p_title: input.title,
+        p_description: input.description ?? null,
+        p_occurred_at: input.occurredAt || null,
+        p_visible_to_member: input.visibleToMember ?? false,
+        p_metadata: input.metadata ?? {
+            origin: 'user_detail_modal',
+        },
+    });
 
     if (error) {
         console.error('Erro ao criar ocorrência do membro:', error);
         throw error;
     }
 
-    return data as StoreMemberOccurrence;
+    return (Array.isArray(data) ? data[0] : data) as StoreMemberOccurrence;
 }

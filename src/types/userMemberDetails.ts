@@ -1,4 +1,5 @@
 export type StoreMemberOccurrenceType =
+    | 'admission'
     | 'note'
     | 'warning'
     | 'praise'
@@ -7,6 +8,7 @@ export type StoreMemberOccurrenceType =
     | 'role_change'
     | 'absence'
     | 'exit'
+    | 'suspension'
     | 'other';
 
 export type StoreMemberOccurrenceSeverity =

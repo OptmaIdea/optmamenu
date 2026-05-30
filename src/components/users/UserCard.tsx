@@ -71,6 +71,15 @@ export function UserCard({
         setShowMenu(false);
     };
 
+    const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (!onView) return;
+
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onView(user);
+        }
+    };
+
     const lastAccessAt = user.last_session_at || user.last_seen_at;
 
     const lastSessionLabel =
@@ -88,7 +97,14 @@ export function UserCard({
                 : Clock;
 
     return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow">
+        <div
+            role={onView ? 'button' : undefined}
+            tabIndex={onView ? 0 : undefined}
+            onClick={() => onView?.(user)}
+            onKeyDown={handleCardKeyDown}
+            className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow ${onView ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#21A896]' : ''
+                }`}
+        >
             <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                     {/* Avatar */}
@@ -189,8 +205,8 @@ export function UserCard({
                 </div>
 
                 {/* Actions Menu */}
-                {showActions && (
-                    <div className="relative">
+                {showActions && (onToggleStatus || onDelete) && (
+                    <div className="relative" onClick={(event) => event.stopPropagation()}>
                         <button
                             onClick={() => setShowMenu(!showMenu)}
                             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -204,7 +220,7 @@ export function UserCard({
                                     className="fixed inset-0 z-10"
                                     onClick={() => setShowMenu(false)}
                                 />
-                                <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                                <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
                                     {onView && (
                                         <button
                                             onClick={() => handleAction(() => onView(user))}
@@ -232,17 +248,17 @@ export function UserCard({
                                             {user.status === 'active' ? (
                                                 <>
                                                     <Ban size={14} />
-                                                    Desativar
+                                                    Suspender temporariamente
                                                 </>
                                             ) : (
                                                 <>
                                                     <CheckCircle size={14} />
-                                                    Ativar
+                                                    Reativar acesso
                                                 </>
                                             )}
                                         </button>
                                     )}
-                                    {onDelete && (
+                                    {onDelete && user.status === 'invited' && !user.accepted_at && (
                                         <button
                                             onClick={() =>
                                                 handleAction(() => {
@@ -258,7 +274,7 @@ export function UserCard({
                                                 }`}
                                         >
                                             <Trash2 size={14} />
-                                            Excluir
+                                            Cancelar convite
                                         </button>
                                     )}
                                 </div>

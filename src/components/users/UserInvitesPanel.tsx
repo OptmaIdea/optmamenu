@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { Clock, Mail, RefreshCw, XCircle } from 'lucide-react';
+import { Clock, Mail, RefreshCw, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import type { StoreMemberInvite } from '@/types/storeMemberInvites';
 import type { StoreMemberRole } from '@/types/security';
 
@@ -54,6 +55,7 @@ export function UserInvitesPanel({
     onCancel,
 }: UserInvitesPanelProps) {
     const pendingInvites = invites.filter((invite) => invite.status === 'pending');
+    const [isCollapsed, setIsCollapsed] = useState(pendingInvites.length === 0);
 
     if (invites.length === 0) {
         return null;
@@ -76,15 +78,27 @@ export function UserInvitesPanel({
 
     return (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
-            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h3 className="flex items-center gap-2 text-sm font-bold text-amber-800 dark:text-amber-300">
-                        <Clock size={16} />
-                        Convites de usuários
-                    </h3>
-                    <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">
-                        {pendingInvites.length} convite(s) pendente(s) aguardando aceite.
-                    </p>
+            <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${isCollapsed ? '' : 'mb-3'}`}>
+                <div
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    className="group flex flex-1 cursor-pointer select-none items-start gap-2 rounded-lg p-1 -m-1 transition-colors hover:bg-amber-100/50 dark:hover:bg-amber-900/20"
+                >
+                    <div className="flex-1">
+                        <h3 className="flex items-center gap-2 text-sm font-bold text-amber-800 dark:text-amber-300">
+                            <Clock size={16} />
+                            <span>Convites de usuários</span>
+                            <span className="transition-transform duration-200 group-hover:scale-110">
+                                {isCollapsed ? (
+                                    <ChevronDown size={16} className="text-amber-600 dark:text-amber-400" />
+                                ) : (
+                                    <ChevronUp size={16} className="text-amber-600 dark:text-amber-400" />
+                                )}
+                            </span>
+                        </h3>
+                        <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/80">
+                            {pendingInvites.length} convite(s) pendente(s) aguardando aceite.
+                        </p>
+                    </div>
                 </div>
 
                 <button
@@ -98,44 +112,46 @@ export function UserInvitesPanel({
                 </button>
             </div>
 
-            <div className="space-y-2">
-                {invites.map((invite) => (
-                    <div
-                        key={invite.invite_id}
-                        className="flex flex-col gap-3 rounded-xl bg-white p-3 shadow-sm dark:bg-gray-900/60 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                        <div className="flex items-start gap-3">
-                            <div className="mt-0.5 rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                                <Mail size={16} />
+            {!isCollapsed && (
+                <div className="space-y-2">
+                    {invites.map((invite) => (
+                        <div
+                            key={invite.invite_id}
+                            className="flex flex-col gap-3 rounded-xl bg-white p-3 shadow-sm dark:bg-gray-900/60 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5 rounded-xl bg-amber-100 p-2 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                                    <Mail size={16} />
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                        {invite.email}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Papel: {formatRole(invite.role)} · Status: {formatStatus(invite.status)}
+                                    </p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        Expira em: {formatDate(invite.expires_at)}
+                                    </p>
+                                </div>
                             </div>
 
-                            <div>
-                                <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                    {invite.email}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Papel: {formatRole(invite.role)} · Status: {formatStatus(invite.status)}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Expira em: {formatDate(invite.expires_at)}
-                                </p>
-                            </div>
+                            {invite.status === 'pending' && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleCancel(invite)}
+                                    disabled={saving}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/30"
+                                >
+                                    <XCircle size={15} />
+                                    Cancelar
+                                </button>
+                            )}
                         </div>
-
-                        {invite.status === 'pending' && (
-                            <button
-                                type="button"
-                                onClick={() => handleCancel(invite)}
-                                disabled={saving}
-                                className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-60 dark:text-red-400 dark:hover:bg-red-950/30"
-                            >
-                                <XCircle size={15} />
-                                Cancelar
-                            </button>
-                        )}
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

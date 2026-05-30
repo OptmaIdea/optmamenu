@@ -104,6 +104,76 @@ export async function updateStoreMemberRole(params: {
   return Array.isArray(data) ? ((data[0] ?? null) as StoreMemberAdmin | null) : null;
 }
 
+export type StoreMemberAccessTimelineItem = {
+    event_id: string;
+    event_at: string;
+    event_type: string;
+    event_label: string;
+    severity: string;
+    title: string;
+    description: string | null;
+    resulting_status: string | null;
+    old_status: string | null;
+    old_role: string | null;
+    new_role: string | null;
+    old_custom_role_id: string | null;
+    new_custom_role_id: string | null;
+    visible_to_member: boolean;
+    created_by: string | null;
+    created_by_email: string | null;
+    metadata: Record<string, unknown> | null;
+};
+
+export async function getStoreMemberAccessTimeline(
+    storeId: string,
+    memberId: string
+): Promise<StoreMemberAccessTimelineItem[]> {
+    const { data, error } = await supabase.rpc('get_store_member_access_timeline', {
+        p_store_id: storeId,
+        p_member_id: memberId,
+    });
+
+    if (error) {
+        console.error('Erro ao carregar timeline de acesso do colaborador:', error);
+        throw error;
+    }
+
+    return Array.isArray(data) ? (data as StoreMemberAccessTimelineItem[]) : [];
+}
+
+export type CreateStoreMemberOccurrenceInput = {
+    memberId: string;
+    occurrenceType: string;
+    severity: string;
+    title?: string | null;
+    description?: string | null;
+    occurredAt?: string | null;
+    visibleToMember?: boolean;
+    metadata?: Record<string, unknown>;
+};
+
+export async function createStoreMemberOccurrenceV2(
+    input: CreateStoreMemberOccurrenceInput
+) {
+    const { data, error } = await supabase.rpc('create_store_member_occurrence_v2', {
+        p_member_id: input.memberId,
+        p_occurrence_type: input.occurrenceType,
+        p_severity: input.severity,
+        p_title: input.title ?? null,
+        p_description: input.description ?? null,
+        p_occurred_at: input.occurredAt ?? null,
+        p_visible_to_member: input.visibleToMember ?? false,
+        p_metadata: input.metadata ?? {},
+    });
+
+    if (error) {
+        console.error('Erro ao registrar ocorrência do usuário:', error);
+        throw error;
+    }
+
+    return Array.isArray(data) ? data[0] ?? null : data;
+}
+
 export type UpdateStoreMemberProfileDetailsInput = {
     memberId: string;
 

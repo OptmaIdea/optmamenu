@@ -70,6 +70,7 @@ export interface UserAdmin {
     custom_role_id?: string | null;
     custom_role_name?: string | null;
     custom_role_base_role?: string | null;
+    accepted_at?: string | null;
 
     mobile_phone?: string | null;
     whatsapp_phone?: string | null;
