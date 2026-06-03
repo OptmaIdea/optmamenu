@@ -7,6 +7,7 @@ type Props = {
     templatePrivacyPolicy: string;
     templateTermsOfUse: string;
     templateCookiePolicy: string;
+    disabled?: boolean;
 };
 
 export default function LegalTab({
@@ -15,6 +16,7 @@ export default function LegalTab({
     templatePrivacyPolicy,
     templateTermsOfUse,
     templateCookiePolicy,
+    disabled = false,
 }: Props) {
     return (
         <div className="block animate-fadeIn">
@@ -32,20 +34,22 @@ export default function LegalTab({
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail do DPO</label>
                                             <input
                                                 type="email"
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                                                 value={store.dpo_email || ''}
                                                 onChange={e => setStore({ ...store, dpo_email: e.target.value })}
                                                 placeholder="dpo@suaempresa.com"
+                                                disabled={disabled}
                                             />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Outro Contato (Telefone/Endereço)</label>
                                             <input
                                                 type="text"
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                                                 value={store.dpo_contact || ''}
                                                 onChange={e => setStore({ ...store, dpo_contact: e.target.value })}
                                                 placeholder="Ex: (11) 99999-9999"
+                                                disabled={disabled}
                                             />
                                         </div>
                                     </div>
@@ -62,16 +66,18 @@ export default function LegalTab({
                                             <button
                                                 type="button"
                                                 onClick={() => setStore({ ...store, privacy_policy_text: templatePrivacyPolicy.replace('[Nome da Loja]', store.name).replace('[Data atual]', new Date().toLocaleDateString()) })}
-                                                className="text-xs text-brand-green hover:underline font-bold"
+                                                className="text-xs text-brand-green hover:underline font-bold disabled:opacity-50 disabled:no-underline"
+                                                disabled={disabled}
                                             >
                                                 Preencher com Modelo Padrão
                                             </button>
                                         </div>
                                         <textarea
-                                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-64 font-mono text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+                                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-64 font-mono text-sm bg-gray-55 dark:bg-gray-800 text-gray-800 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             value={store.privacy_policy_text || ''}
                                             onChange={e => setStore({ ...store, privacy_policy_text: e.target.value })}
                                             placeholder="# Política de Privacidade..."
+                                            disabled={disabled}
                                         />
                                     </div>
 
@@ -84,16 +90,18 @@ export default function LegalTab({
                                             <button
                                                 type="button"
                                                 onClick={() => setStore({ ...store, terms_of_use_text: templateTermsOfUse.replace('[Nome da Loja]', store.name) })}
-                                                className="text-xs text-brand-green hover:underline font-bold"
+                                                className="text-xs text-brand-green hover:underline font-bold disabled:opacity-50 disabled:no-underline"
+                                                disabled={disabled}
                                             >
                                                 Preencher com Modelo Padrão
                                             </button>
                                         </div>
                                         <textarea
-                                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-64 font-mono text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+                                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-64 font-mono text-sm bg-gray-55 dark:bg-gray-800 text-gray-800 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             value={store.terms_of_use_text || ''}
                                             onChange={e => setStore({ ...store, terms_of_use_text: e.target.value })}
                                             placeholder="# Termos de Uso..."
+                                            disabled={disabled}
                                         />
                                     </div>
 
@@ -106,16 +114,18 @@ export default function LegalTab({
                                             <button
                                                 type="button"
                                                 onClick={() => setStore({ ...store, cookie_policy_text: templateCookiePolicy })}
-                                                className="text-xs text-brand-green hover:underline font-bold"
+                                                className="text-xs text-brand-green hover:underline font-bold disabled:opacity-50 disabled:no-underline"
+                                                disabled={disabled}
                                             >
                                                 Preencher com Modelo Padrão
                                             </button>
                                         </div>
                                         <textarea
-                                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-48 font-mono text-sm bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+                                            className="w-full p-4 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-48 font-mono text-sm bg-gray-55 dark:bg-gray-800 text-gray-800 dark:text-gray-200 disabled:opacity-60 disabled:cursor-not-allowed"
                                             value={store.cookie_policy_text || ''}
                                             onChange={e => setStore({ ...store, cookie_policy_text: e.target.value })}
                                             placeholder="# Política de Cookies..."
+                                            disabled={disabled}
                                         />
                                     </div>
                                 </div>
@@ -129,6 +139,7 @@ export default function LegalTab({
                                                 className="mt-1 accent-brand-green w-5 h-5"
                                                 checked={store.consents.terms_accepted}
                                                 onChange={e => setStore({ ...store, consents: { ...store.consents, terms_accepted: e.target.checked } })}
+                                                disabled={disabled}
                                             />
                                             <span className="text-sm text-gray-600 dark:text-gray-300">
                                                 Declaro que li e aceito os Termos de Uso e a Política de Privacidade da plataforma.
@@ -141,6 +152,7 @@ export default function LegalTab({
                                                 className="mt-1 accent-brand-green w-5 h-5"
                                                 checked={store.consents.responsibility_accepted}
                                                 onChange={e => setStore({ ...store, consents: { ...store.consents, responsibility_accepted: e.target.checked } })}
+                                                disabled={disabled}
                                             />
                                             <span className="text-sm text-gray-600 dark:text-gray-300">
                                                 Reconheço que sou inteiramente responsável pelas informações cadastradas e pelos produtos vendidos.
@@ -153,6 +165,7 @@ export default function LegalTab({
                                                 className="mt-1 accent-brand-green w-5 h-5"
                                                 checked={store.consents.no_illicit_accepted}
                                                 onChange={e => setStore({ ...store, consents: { ...store.consents, no_illicit_accepted: e.target.checked } })}
+                                                disabled={disabled}
                                             />
                                             <span className="text-sm text-gray-600 dark:text-gray-300">
                                                 Declaro que não utilizarei a plataforma para fins ilícitos e que sou o único responsável pelo conteúdo inserido.
@@ -169,6 +182,7 @@ export default function LegalTab({
                                                     checked={store.consents.channels.whatsapp}
                                                     onChange={e => setStore({ ...store, consents: { ...store.consents, channels: { ...store.consents.channels, whatsapp: e.target.checked } } })}
                                                     className="accent-brand-green"
+                                                    disabled={disabled}
                                                 /> WhatsApp
                                             </label>
                                             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -177,6 +191,7 @@ export default function LegalTab({
                                                     checked={store.consents.channels.sms}
                                                     onChange={e => setStore({ ...store, consents: { ...store.consents, channels: { ...store.consents.channels, sms: e.target.checked } } })}
                                                     className="accent-brand-green"
+                                                    disabled={disabled}
                                                 /> SMS
                                             </label>
                                             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
@@ -185,6 +200,7 @@ export default function LegalTab({
                                                     checked={store.consents.channels.email}
                                                     onChange={e => setStore({ ...store, consents: { ...store.consents, channels: { ...store.consents.channels, email: e.target.checked } } })}
                                                     className="accent-brand-green"
+                                                    disabled={disabled}
                                                 /> E-mail
                                             </label>
                                         </div>

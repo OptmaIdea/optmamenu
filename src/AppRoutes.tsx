@@ -69,6 +69,7 @@ const Users = lazy(() => import('@/pages/private/admin/users/Users'));
 const Legal = lazy(() => import('@/pages/private/admin/support/Legal'));
 const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));
 const Settings = lazy(() => import('@/pages/private/admin/settings/storeSettings/StoreSettings'));
+const Profile = lazy(() => import('@/pages/private/admin/settings/profile/Profile'));
 const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
 const Security = lazy(() => import('@/pages/private/admin/settings/security/Security'));
@@ -171,6 +172,8 @@ export default function AppRoutes() {
             //Settings Section
             <Route path="/admin/config" element={<Appearance />} />
             <Route path="/admin/settings" element={<Settings />} />
+            <Route path="/admin/my-profile" element={<Profile />} />
+            <Route path="/admin/meus-dados" element={<Profile />} />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
             <Route path="/admin/security" element={<Security />} />

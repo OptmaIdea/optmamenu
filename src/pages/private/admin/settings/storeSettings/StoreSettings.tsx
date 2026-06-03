@@ -12,6 +12,8 @@ import LegalTab from './tabs/LegalTab';
 import { TEMPLATE_PRIVACY_POLICY, TEMPLATE_TERMS_OF_USE, TEMPLATE_COOKIE_POLICY } from '@/constants/legalTemplates';
 import { getActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 
 
 // Helper to get initials
@@ -26,7 +28,19 @@ const getInitials = (name: string) => {
 
 
 export default function StoreSettings() {
-    const { securityContext, loading: loadingSecurityContext } = useSecurityContext();
+    const { securityContext, isOwner, loading: loadingSecurityContext } = useSecurityContext();
+
+    const activeStoreIdFromStorage = getActiveStoreId();
+    const fallbackStoreId = securityContext?.primary_membership?.store_id ?? null;
+    const activeStoreId = activeStoreIdFromStorage ?? fallbackStoreId;
+
+    const { permissions } = usePermissions(activeStoreId);
+
+    const canManageStoreSettings =
+        isOwner ||
+        hasEffectivePermission(permissions, 'settings.manage') ||
+        hasEffectivePermission(permissions, 'security.manage');
+
     const [activeTab, setActiveTab] = useState('corporate');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -393,6 +407,11 @@ export default function StoreSettings() {
             icon={<UserCircle className="text-[#21A896]" size={28} />}
             flat
         >
+            {!canManageStoreSettings && (
+                <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 mb-6">
+                    Você pode visualizar estes dados, mas não possui permissão para alterá-los.
+                </div>
+            )}
 
             {message && (
                 <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300' : 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'}`}>
@@ -414,22 +433,27 @@ export default function StoreSettings() {
                         )}
 
                         {/* Overlay for upload */}
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
-                            <label htmlFor="logo-upload" className="cursor-pointer text-white font-bold text-xs flex flex-col items-center">
-                                <span className="mb-1">Alterar</span>
-                                <FileText size={16} />
-                            </label>
-                        </div>
+                        {canManageStoreSettings && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
+                                <label htmlFor="logo-upload" className="cursor-pointer text-white font-bold text-xs flex flex-col items-center">
+                                    <span className="mb-1">Alterar</span>
+                                    <FileText size={16} />
+                                </label>
+                            </div>
+                        )}
                     </div>
-                    <label htmlFor="logo-upload" className="absolute bottom-0 right-0 bg-brand-green text-white p-2 rounded-full shadow-md cursor-pointer hover:brightness-110 transition">
-                        <User size={16} />
-                    </label>
+                    {canManageStoreSettings && (
+                        <label htmlFor="logo-upload" className="absolute bottom-0 right-0 bg-brand-green text-white p-2 rounded-full shadow-md cursor-pointer hover:brightness-110 transition">
+                            <User size={16} />
+                        </label>
+                    )}
                     <input
                         id="logo-upload"
                         type="file"
                         accept="image/*"
                         className="hidden"
                         onChange={handleLogoChange}
+                        disabled={!canManageStoreSettings}
                     />
                 </div>
 
@@ -455,12 +479,15 @@ export default function StoreSettings() {
                         <User size={16} className="text-gray-400" />
                         <input
                             type="text"
-                            className="font-bold text-gray-700 dark:text-gray-200 bg-transparent outline-none w-40"
+                            className="font-bold text-gray-700 dark:text-gray-200 bg-transparent outline-none w-40 disabled:opacity-60"
                             value={userData?.name || ''}
-                            onChange={(e) => setUserData(prev => prev ? { ...prev, name: e.target.value } : null)}
+                            onChange={e => setUserData(prev => prev ? { ...prev, name: e.target.value } : null)}
                             placeholder="Seu Nome"
+                            disabled={!canManageStoreSettings}
                         />
-                        <span className="text-xs text-brand-green cursor-pointer hover:underline" title="O nome será salvo ao clicar em 'Salvar Alterações'">Editar</span>
+                        {canManageStoreSettings && (
+                            <span className="text-xs text-brand-green cursor-pointer hover:underline" title="O nome será salvo ao clicar em 'Salvar Alterações'">Editar</span>
+                        )}
                     </div>
                     <div className="bg-white dark:bg-gray-900 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm flex items-center gap-2">
                         <Mail size={16} className="text-gray-400" />
@@ -495,7 +522,7 @@ export default function StoreSettings() {
                 {/* Tab Content */}
                 <div className="p-6 md:p-8">
                     {activeTab === 'corporate' && (
-                        <CorporateTab store={store} setStore={setStore} />
+                        <CorporateTab store={store} setStore={setStore} disabled={!canManageStoreSettings} />
                     )}
                     {activeTab === 'address' && (
                         <AddressTab
@@ -506,10 +533,11 @@ export default function StoreSettings() {
                             loadingCities={loadingCities}
                             searchingCep={searchingCep}
                             handleZipLookup={handleZipLookup}
+                            disabled={!canManageStoreSettings}
                         />
                     )}
                     {activeTab === 'contacts' && (
-                        <ContactsTab store={store} setStore={setStore} />
+                        <ContactsTab store={store} setStore={setStore} disabled={!canManageStoreSettings} />
                     )}
                     {activeTab === 'legal' && (
                         <LegalTab
@@ -518,22 +546,25 @@ export default function StoreSettings() {
                             templatePrivacyPolicy={TEMPLATE_PRIVACY_POLICY}
                             templateTermsOfUse={TEMPLATE_TERMS_OF_USE}
                             templateCookiePolicy={TEMPLATE_COOKIE_POLICY}
+                            disabled={!canManageStoreSettings}
                         />
                     )}
                 </div>
 
                 {/* Save Button Area */}
-                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                    <button
-                        type="submit"
-                        disabled={saving || !store.consents.terms_accepted || !store.consents.no_illicit_accepted}
-                        className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={!store.consents.terms_accepted ? "Aceite os termos para salvar" : ""}
-                    >
-                        <Save size={24} />
-                        {saving ? 'Salvando...' : 'Salvar Alterações'}
-                    </button>
-                </div>
+                {canManageStoreSettings && (
+                    <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end p-6 md:p-8">
+                        <button
+                            type="submit"
+                            disabled={saving || !store.consents.terms_accepted || !store.consents.no_illicit_accepted}
+                            className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={!store.consents.terms_accepted ? "Aceite os termos para salvar" : ""}
+                        >
+                            <Save size={24} />
+                            {saving ? 'Salvando...' : 'Salvar Alterações'}
+                        </button>
+                    </div>
+                )}
             </form>
         </PageContainer>
     );

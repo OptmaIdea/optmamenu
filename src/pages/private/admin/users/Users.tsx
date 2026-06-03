@@ -600,6 +600,13 @@ export default function Users() {
                 }}
                 onSaveProfileDetails={handleSaveProfileDetails}
                 onOccurrenceSaved={handleOccurrenceSaved}
+                onAvatarUpdated={async (avatarUrl) => {
+                    setSelectedUser((current) =>
+                        current ? { ...current, avatar_url: avatarUrl, profile_avatar_url: avatarUrl } : current
+                    );
+                    await fetchUsers();
+                    window.dispatchEvent(new Event('optmamenu:security-context-refresh'));
+                }}
             />
 
             {roleChangeConfirmation && (

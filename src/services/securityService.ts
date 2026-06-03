@@ -244,3 +244,56 @@ export async function updateStoreMemberProfileDetails(
 
     return Array.isArray(data) ? data[0] ?? null : data;
 }
+
+export type UpdateCurrentUserProfileInput = {
+    name?: string | null;
+    internalAlias?: string | null;
+    phone?: string | null;
+    mobilePhone?: string | null;
+    whatsappPhone?: string | null;
+    birthdate?: string | null;
+    zipCode?: string | null;
+    address?: string | null;
+    addressNumber?: string | null;
+    complement?: string | null;
+    district?: string | null;
+    city?: string | null;
+    state?: string | null;
+    instagramUrl?: string | null;
+    facebookUrl?: string | null;
+    websiteUrl?: string | null;
+    avatarUrl?: string | null;
+    cpf?: string | null;
+};
+
+export async function updateCurrentUserProfile(
+    input: UpdateCurrentUserProfileInput
+) {
+    const { data, error } = await supabase.rpc('update_current_user_profile', {
+        p_name: input.name ?? null,
+        p_internal_alias: input.internalAlias ?? null,
+        p_phone: input.phone ?? null,
+        p_mobile_phone: input.mobilePhone ?? null,
+        p_whatsapp_phone: input.whatsappPhone ?? null,
+        p_birthdate: input.birthdate || null,
+        p_zip_code: input.zipCode ?? null,
+        p_address: input.address ?? null,
+        p_address_number: input.addressNumber ?? null,
+        p_complement: input.complement ?? null,
+        p_district: input.district ?? null,
+        p_city: input.city ?? null,
+        p_state: input.state ?? null,
+        p_instagram_url: input.instagramUrl ?? null,
+        p_facebook_url: input.facebookUrl ?? null,
+        p_website_url: input.websiteUrl ?? null,
+        p_avatar_url: input.avatarUrl ?? null,
+        p_cpf: input.cpf ?? null,
+    });
+
+    if (error) {
+        console.error('Erro ao atualizar perfil do próprio usuário:', error);
+        throw error;
+    }
+
+    return data;
+}

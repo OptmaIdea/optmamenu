@@ -27,6 +27,8 @@ export interface SecurityProfile {
   is_active?: boolean;
   created_at?: string;
   updated_at?: string;
+  profile_avatar_url?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface StoreMembershipContext {
@@ -50,6 +52,8 @@ export interface StoreMembershipContext {
   custom_role_sensitive_actions?: Record<string, unknown>;
   access_blocked?: boolean | null;
   access_message?: string | null;
+  profile_avatar_url?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface CurrentUserSecurityContext {
@@ -105,6 +109,13 @@ export interface StoreMemberAdmin {
   internal_alias?: string | null;
   department?: string | null;
   internal_notes?: string | null;
+
+  profile_avatar_url?: string | null;
+  avatar_url?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+  exit_reason?: string | null;
+  status_reason?: string | null;
 }
 
 export type StoreRole =

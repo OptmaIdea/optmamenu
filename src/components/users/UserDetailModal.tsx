@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { toast } from 'sonner';
 import type {
     StoreMemberOccurrenceSeverity,
@@ -40,6 +40,7 @@ import {
     updateStoreMemberStatus,
     type StoreMemberAccessTimelineItem,
 } from '@/services/securityService';
+import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 
 interface UserDetailModalProps {
     isOpen: boolean;
@@ -84,6 +85,7 @@ interface UserDetailModalProps {
         occurrenceType: OccurrenceFormType;
     }) => Promise<void>;
     customRoles?: StoreCustomRole[];
+    onAvatarUpdated?: (avatarUrl: string) => void;
 }
 
 type ModalTab =
@@ -404,11 +406,13 @@ export function UserDetailModal({
     onRequestCustomRoleChange,
     onOccurrenceSaved,
     customRoles = [],
+    onAvatarUpdated,
 }: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
     const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
     const [loadedDetailsId, setLoadedDetailsId] = useState<string | null>(null);
     const [savingProfileDetails, setSavingProfileDetails] = useState(false);
+    const [savingAvatar, setSavingAvatar] = useState(false);
 
     const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
 
@@ -1295,6 +1299,39 @@ export function UserDetailModal({
         }
     };
 
+    const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+
+        if (!file || !user) return;
+
+        try {
+            setSavingAvatar(true);
+
+            const { avatarUrl } = await uploadStoreMemberAvatar({
+                memberId: user.id,
+                userId: user.user_id || user.stores?.[0]?.user_id || '',
+                file,
+                reason: 'Alteração de avatar pela aba Cadastro.',
+            });
+
+            toast.success('Avatar atualizado.');
+
+            if (onAvatarUpdated) {
+                onAvatarUpdated(avatarUrl);
+            }
+        } catch (error) {
+            console.error('Erro ao atualizar avatar:', error);
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : 'Não foi possível atualizar o avatar.'
+            );
+        } finally {
+            setSavingAvatar(false);
+            event.target.value = '';
+        }
+    };
+
     const tabs: Array<{ id: ModalTab; label: string; icon: typeof User }> = [
         { id: 'overview', label: 'Visão geral', icon: User },
         { id: 'profile', label: 'Cadastro', icon: User },
@@ -1334,8 +1371,16 @@ export function UserDetailModal({
                         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/30">
                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-linear-to-br from-[#21A896] to-[#1A867A] text-2xl font-bold text-white">
-                                        {initials}
+                                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] text-2xl font-bold text-white">
+                                        {user.avatar_url ? (
+                                            <img
+                                                src={user.avatar_url}
+                                                alt={user.full_name || 'Avatar do usuário'}
+                                                className="h-full w-full object-cover"
+                                            />
+                                        ) : (
+                                            <span>{initials}</span>
+                                        )}
                                     </div>
                                     <div>
                                         <h3 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -1471,6 +1516,47 @@ export function UserDetailModal({
 
                             {activeTab === 'profile' && (
                                 <div className="space-y-5">
+                                    <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <div className="flex items-center gap-4">
+                                            <div className="h-20 w-20 overflow-hidden rounded-full bg-[#21A896] text-white flex items-center justify-center text-xl font-black relative shrink-0">
+                                                {savingAvatar && (
+                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                                        <Loader className="h-6 w-6 animate-spin text-white" />
+                                                    </div>
+                                                )}
+                                                {user.avatar_url ? (
+                                                    <img
+                                                        src={user.avatar_url}
+                                                        alt={user.full_name || 'Avatar do usuário'}
+                                                        className="h-full w-full object-cover"
+                                                    />
+                                                ) : (
+                                                    <span>{getInitials(user.full_name || user.email)}</span>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <p className="font-bold text-gray-900 dark:text-white">
+                                                    Foto/avatar
+                                                </p>
+                                                <p className="text-sm text-gray-500">
+                                                    Esta imagem será usada para identificar o colaborador no sistema.
+                                                </p>
+
+                                                <label className={`mt-3 inline-flex cursor-pointer items-center rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#188b7c] ${savingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                    Alterar foto
+                                                    <input
+                                                        type="file"
+                                                        accept="image/png,image/jpeg,image/webp"
+                                                        className="hidden"
+                                                        disabled={savingAvatar}
+                                                        onChange={handleAvatarChange}
+                                                    />
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
                                         <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
                                             Dados de contato

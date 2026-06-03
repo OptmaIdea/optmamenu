@@ -54,7 +54,8 @@ import {
     Store as StoreIcon,
     Power,
     RefreshCw,
-    Bell
+    Bell,
+    Building
 } from 'lucide-react';
 
 type MenuItem = {
@@ -78,6 +79,8 @@ type LayoutMembership = {
     custom_role_name?: string | null;
     access_blocked?: boolean | null;
     access_message?: string | null;
+    profile_avatar_url?: string | null;
+    avatar_url?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -181,7 +184,8 @@ export default function PrivateLayout() {
             { path: '/admin/stock-settings', icon: SlidersHorizontal, label: 'Configurações de Estoque' },
         ],
         settings: [
-            { path: '/admin/settings', icon: UserCircle, label: 'Meus Dados' },
+            { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
+            { path: '/admin/settings', icon: Building, label: 'Dados da Loja' },
             { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
@@ -290,7 +294,14 @@ export default function PrivateLayout() {
                             user.user_metadata?.phone_number ||
                             '',
                         email: securityContext.email || user.email || '',
-                        avatar: user.user_metadata?.avatar_url,
+                        avatar:
+                            securityContext.profile?.profile_avatar_url ||
+                            securityContext.profile?.avatar_url ||
+                            primaryMembership?.profile_avatar_url ||
+                            primaryMembership?.avatar_url ||
+                            memberships[0]?.profile_avatar_url ||
+                            memberships[0]?.avatar_url ||
+                            user.user_metadata?.avatar_url,
                     });
                     setLoadingStore(false);
                     return;
@@ -310,7 +321,12 @@ export default function PrivateLayout() {
                         user.user_metadata?.phone_number ||
                         '',
                     email: securityContext.email || user.email || '',
-                    avatar: user.user_metadata?.avatar_url
+                    avatar:
+                        securityContext.profile?.profile_avatar_url ||
+                        securityContext.profile?.avatar_url ||
+                        selectedMembership?.profile_avatar_url ||
+                        selectedMembership?.avatar_url ||
+                        user.user_metadata?.avatar_url
                 });
             } catch (error) {
                 console.error('Erro ao carregar contexto de segurança:', error);
@@ -347,6 +363,12 @@ export default function PrivateLayout() {
 
         initialize();
 
+        const handleSecurityRefresh = () => {
+            void initialize();
+        };
+
+        window.addEventListener('optmamenu:security-context-refresh', handleSecurityRefresh);
+
         // Favicon Logic - Force reload to avoid cache issues on tablets
         const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
         if (link) {
@@ -356,6 +378,10 @@ export default function PrivateLayout() {
             newLink.href = '/assets/OptmaMenuLogo.ico?' + Date.now();
             link.parentNode?.replaceChild(newLink, link);
         }
+
+        return () => {
+            window.removeEventListener('optmamenu:security-context-refresh', handleSecurityRefresh);
+        };
     }, [navigate]);
 
     useOrderMonitor(storeId || undefined);
@@ -615,23 +641,17 @@ export default function PrivateLayout() {
                                 className={`rounded-xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${isSidebarCollapsed ? 'p-1.5 flex justify-center' : 'p-2 flex items-center gap-3'
                                     }`}
                             >
-                                {userData.avatar ? (
-                                    <img
-                                        src={userData.avatar}
-                                        alt={userData.name}
-                                        className={`${isSidebarCollapsed ? 'w-8 h-8' : 'w-10 h-10'
-                                            } rounded-full object-cover border border-gray-200 dark:border-gray-600`}
-                                        title={isSidebarCollapsed ? userData.name : ''}
-                                    />
-                                ) : (
-                                    <div
-                                        className={`${isSidebarCollapsed ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
-                                            } rounded-full bg-brand-green/10 dark:bg-brand-green/20 flex items-center justify-center text-brand-green font-black`}
-                                        title={isSidebarCollapsed ? userData.name : ''}
-                                    >
-                                        {getInitials(userData.name)}
-                                    </div>
-                                )}
+                                <div className={`${isSidebarCollapsed ? 'h-8 w-8 text-[11px]' : 'h-12 w-12 text-sm'} overflow-hidden rounded-full bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600`} title={isSidebarCollapsed ? userData.name : ''}>
+                                    {userData.avatar ? (
+                                        <img
+                                            src={userData.avatar}
+                                            alt={userData.name}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        <span className="text-teal-800 dark:text-teal-200 font-black">{getInitials(userData.name)}</span>
+                                    )}
+                                </div>
 
                                 {!isSidebarCollapsed && (
                                     <div className="flex-1 overflow-hidden">

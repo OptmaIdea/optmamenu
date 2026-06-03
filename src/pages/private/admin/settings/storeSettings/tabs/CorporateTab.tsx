@@ -4,9 +4,10 @@ import type { StoreData } from '../storeSettings.types';
 type Props = {
     store: StoreData;
     setStore: (value: StoreData) => void;
+    disabled?: boolean;
 };
 
-export default function CorporateTab({ store, setStore }: Props) {
+export default function CorporateTab({ store, setStore, disabled = false }: Props) {
     return (
         <div className="space-y-6 animate-fadeIn">
             <div className="flex gap-6 p-4 bg-gray-50 dark:bg-gray-700/30 rounded-xl">
@@ -17,6 +18,7 @@ export default function CorporateTab({ store, setStore }: Props) {
                         checked={store.doc_type === 'PF'}
                         onChange={() => setStore({ ...store, doc_type: 'PF' })}
                         className="accent-brand-green w-5 h-5"
+                        disabled={disabled}
                     />
                     <span className="font-bold text-gray-700 dark:text-gray-200">Pessoa Física</span>
                 </label>
@@ -27,6 +29,7 @@ export default function CorporateTab({ store, setStore }: Props) {
                         checked={store.doc_type === 'PJ'}
                         onChange={() => setStore({ ...store, doc_type: 'PJ' })}
                         className="accent-brand-green w-5 h-5"
+                        disabled={disabled}
                     />
                     <span className="font-bold text-gray-700 dark:text-gray-200">Pessoa Jurídica</span>
                 </label>
@@ -39,10 +42,11 @@ export default function CorporateTab({ store, setStore }: Props) {
                     </label>
                     <input
                         type="text"
-                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                         value={store.legal_name || ''}
                         onChange={e => setStore({ ...store, legal_name: e.target.value })}
                         required
+                        disabled={disabled}
                     />
                 </div>
 
@@ -52,11 +56,12 @@ export default function CorporateTab({ store, setStore }: Props) {
                     </label>
                     <input
                         type="text"
-                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                         value={store.document || ''}
                         placeholder={store.doc_type === 'PF' ? '000.000.000-00' : '00.000.000/0001-00'}
                         onChange={e => setStore({ ...store, document: e.target.value })}
                         required
+                        disabled={disabled}
                     />
                 </div>
 
@@ -66,17 +71,19 @@ export default function CorporateTab({ store, setStore }: Props) {
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nome Fantasia</label>
                             <input
                                 type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={store.fantasy_name || ''}
                                 onChange={e => setStore({ ...store, fantasy_name: e.target.value })}
+                                disabled={disabled}
                             />
                         </div>
                         <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tipo de Estabelecimento</label>
                             <select
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={store.establishment_type || ''}
                                 onChange={e => setStore({ ...store, establishment_type: e.target.value })}
+                                disabled={disabled}
                             >
                                 <option value="Matriz">Matriz</option>
                                 <option value="Filial">Filial</option>
@@ -97,11 +104,12 @@ export default function CorporateTab({ store, setStore }: Props) {
                         </label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                             value={store.name || ''}
                             onChange={e => setStore({ ...store, name: e.target.value })}
                             placeholder="Ex: Gelinhares"
                             required
+                            disabled={disabled}
                         />
                     </div>
                     <div>
@@ -115,7 +123,7 @@ export default function CorporateTab({ store, setStore }: Props) {
                                 </span>
                                 <input
                                     type="text"
-                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-r-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition lowercase font-bold"
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-r-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition lowercase font-bold disabled:opacity-60 disabled:cursor-not-allowed"
                                     value={store.slug || ''}
                                     onChange={e =>
                                         setStore({
@@ -125,6 +133,7 @@ export default function CorporateTab({ store, setStore }: Props) {
                                     }
                                     placeholder="sua-loja"
                                     required
+                                    disabled={disabled}
                                 />
                             </div>
                             {store.slug && (
@@ -145,10 +154,11 @@ export default function CorporateTab({ store, setStore }: Props) {
                             Descrição Curta
                         </label>
                         <textarea
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-24 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none h-24 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                             value={store.description || ''}
                             onChange={e => setStore({ ...store, description: e.target.value })}
                             placeholder="Ex: O melhor açaí da região, entregue rapidinho!"
+                            disabled={disabled}
                         />
                     </div>
                 </div>

@@ -48,11 +48,13 @@ export type UserStatus =
 
 export interface UserAdmin {
     id: string;
+    user_id?: string;
     email: string | null;
     phone: string | null;
     full_name: string | null;
     cpf: string | null;
     avatar_url: string | null;
+    profile_avatar_url?: string | null;
     role: UserRole;
     status: UserStatus;
     is_admin: boolean;
@@ -90,6 +92,11 @@ export interface UserAdmin {
 
     internal_alias?: string | null;
     department?: string | null;
+
+    started_at?: string | null;
+    ended_at?: string | null;
+    exit_reason?: string | null;
+    status_reason?: string | null;
 }
 
 export interface StoreUser {

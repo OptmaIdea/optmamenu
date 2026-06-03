@@ -46,6 +46,16 @@ const formatRoleLabel = (role: string | null | undefined) => {
     return role ? labels[role] ?? role : 'Não definido';
 };
 
+function getInitials(name?: string | null): string {
+    if (!name) return 'U';
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return 'U';
+    if (parts.length === 1) {
+        return parts[0].slice(0, 2).toUpperCase();
+    }
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
 export function UserCard({
     user,
     onView,
@@ -57,14 +67,7 @@ export function UserCard({
     const [showMenu, setShowMenu] = React.useState(false);
     const isProtectedOwner = user.role === 'owner';
 
-    const initials = user.full_name
-        ? user.full_name
-            .split(' ')
-            .map((n) => n[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase()
-        : 'U';
+    const initials = getInitials(user.full_name || user.email);
 
     const handleAction = (action: () => void) => {
         action();
@@ -108,8 +111,16 @@ export function UserCard({
             <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                     {/* Avatar */}
-                    <div className="w-12 h-12 rounded-full bg-linear-to-br from-[#21A896] to-[#1A867A] flex items-center justify-center text-white font-bold text-lg shrink-0">
-                        {initials}
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] flex items-center justify-center text-white font-bold text-lg shrink-0">
+                        {user.avatar_url ? (
+                            <img
+                                src={user.avatar_url}
+                                alt={user.full_name || 'Avatar do usuário'}
+                                className="h-full w-full object-cover"
+                            />
+                        ) : (
+                            <span>{initials}</span>
+                        )}
                     </div>
 
                     {/* Info */}

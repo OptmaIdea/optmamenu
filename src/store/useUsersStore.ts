@@ -79,6 +79,7 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
 
     return {
         id: member.member_id,
+        user_id: member.user_id,
         email: member.user_email,
         phone: member.profile_phone,
         mobile_phone: member.profile_mobile_phone ?? null,
@@ -102,7 +103,8 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
         internal_alias: member.internal_alias ?? null,
         department: member.department ?? null,
 
-        avatar_url: null,
+        avatar_url: member.profile_avatar_url || member.avatar_url || null,
+        profile_avatar_url: member.profile_avatar_url ?? null,
         role,
         status: member.status === 'invited' ? 'invited' : member.status,
 
@@ -118,6 +120,11 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
         created_at: member.created_at,
         updated_at: member.updated_at,
         internal_notes: member.internal_notes ?? null,
+
+        started_at: member.started_at ?? null,
+        ended_at: member.ended_at ?? null,
+        exit_reason: member.exit_reason ?? null,
+        status_reason: member.status_reason ?? null,
 
         stores: [
             {
