@@ -203,13 +203,14 @@ export type LoginStoreOption = {
   store_name: string;
   store_slug: string | null;
   store_logo_url: string | null;
-  role: StoreRole | string;
+  role: string;
   status: string;
+  status_reason?: string | null;
   is_owner: boolean;
   is_primary_owner: boolean;
-  sort_order: number | null;
   access_blocked?: boolean | null;
   access_message?: string | null;
+  sort_order: number;
 };
 
 export interface StoreMemberSessionSummaryRow {

@@ -101,7 +101,7 @@ export default function Login() {
       if (!options.length) {
         await supabase.auth.signOut();
         clearActiveStoreId();
-        throw new Error('Nenhuma loja ativa vinculada a este usuário.');
+        throw new Error('Você não possui acesso a nenhuma loja.');
       }
 
       const activeOptions = options.filter(
@@ -111,13 +111,11 @@ export default function Login() {
       setStoreOptions(options);
       setSelectedStoreId(activeOptions[0]?.store_id ?? '');
 
-      if (!activeOptions.length) {
-        setError(
-          'Voc\u00ea n\u00e3o possui acesso ativo a nenhuma loja. Alguns v\u00ednculos podem estar suspensos.'
-        );
-      }
+      const hasSuspendedOptions = options.some(
+        (option) => option.status === 'suspended' || option.access_blocked === true
+      );
 
-      if (activeOptions.length === 1) {
+      if (activeOptions.length === 1 && options.length === 1 && !hasSuspendedOptions) {
         await finishLoginWithStore(activeOptions[0].store_id, options);
         return;
       }
@@ -260,6 +258,14 @@ export default function Login() {
             </form>
           ) : (
             <div className="space-y-5">
+              {storeOptions.filter(o => o.status === 'active' && o.access_blocked !== true).length === 0 && (
+                <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl flex items-start gap-3 text-amber-800 dark:text-amber-300">
+                  <AlertCircle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-sm font-bold font-candara">
+                    Você não possui acesso ativo a nenhuma loja. Se alguma loja aparecer como suspensa, toque nela para ver o aviso ou procure o responsável.
+                  </p>
+                </div>
+              )}
               <div className="space-y-3">
                 {storeOptions.map((option) => {
                   const selected = selectedStoreId === option.store_id;
@@ -285,8 +291,8 @@ export default function Login() {
                       className={`w-full rounded-2xl border p-4 text-left transition ${isSuspended
                         ? 'cursor-not-allowed opacity-60 border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20'
                         : selected
-                        ? 'border-brand-green bg-brand-green/10 ring-2 ring-brand-green/20'
-                        : 'border-[#6B6258]/10 bg-[#F8F6F2] hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900/40'
+                          ? 'border-brand-green bg-brand-green/10 ring-2 ring-brand-green/20'
+                          : 'border-[#6B6258]/10 bg-[#F8F6F2] hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900/40'
                         }`}
                     >
                       <div className="flex items-center gap-3">

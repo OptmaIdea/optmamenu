@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
     RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
-    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus
+    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -256,7 +256,7 @@ function getPermissionChangesSummary(details: Record<string, unknown>): string |
             const oldValue = formatBooleanPermission(oldPermissions[code]);
             const newValue = formatBooleanPermission(newPermissions[code]);
 
-            return `${label}: ${oldValue} â†’ ${newValue}`;
+            return `${label}: ${oldValue} \u2192 ${newValue}`;
         })
         .join(' | ');
 }
@@ -293,11 +293,10 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
 
         const cleared = details.clear_individual_overrides === true;
 
-        return `${targetName} · ${oldRole} â†’ ${newRole}${
-            cleared
+        return `${targetName} · ${oldRole} \u2192 ${newRole}${cleared
                 ? ' · permissões individuais limpas'
                 : ' · permissões individuais preservadas'
-        }`;
+            }`;
     }
 
     if (log.action === 'store_role_permission_template_updated') {
@@ -306,7 +305,7 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         const oldAllowed = details.old_allowed;
         const newAllowed = details.new_allowed;
 
-        return `${role} · ${permissionCode ? formatPermissionLabelFromCode(permissionCode) : 'permissão'}: ${formatBooleanPermission(oldAllowed)} â†’ ${formatBooleanPermission(newAllowed)}`;
+        return `${role} · ${permissionCode ? formatPermissionLabelFromCode(permissionCode) : 'permissão'}: ${formatBooleanPermission(oldAllowed)} \u2192 ${formatBooleanPermission(newAllowed)}`;
     }
 
     if (log.action === 'store_sensitive_action_rule_updated') {
@@ -322,7 +321,7 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
             ? formatSensitiveRequirement(newRule.requirement)
             : 'não definido';
 
-        return `${formatSecurityLogAction(actionCode)} · exigência: ${oldRequirement} â†’ ${newRequirement}`;
+        return `${formatSecurityLogAction(actionCode)} · exigência: ${oldRequirement} \u2192 ${newRequirement}`;
     }
 
     if (log.action === 'session_store_selected') {
@@ -1580,8 +1579,8 @@ export default function Security() {
                                                                 }
                                                                 title={permission.description ?? permission.permission_code}
                                                             >
-                                                                {permission.allowed ? 'âœ“ ' : 'â€” '}
-                                                                {formatPermissionAction(permission.action)}
+                                                                {permission.allowed ? <Check size={12} className="inline mr-1 align-middle" /> : <X size={12} className="inline mr-1 align-middle" />}
+                                                                <span className="align-middle">{formatPermissionAction(permission.action)}</span>
                                                             </span>
                                                         ))}
                                                     </div>
@@ -1926,76 +1925,78 @@ export default function Security() {
                                 Nenhuma permissão configurada ou erro na leitura do banco.
                             </div>
                         ) : (
-                            <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
-                                <table className="w-full text-left text-sm whitespace-nowrap">
-                                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
-                                        <tr>
-                                            <th className="p-3">Permissão</th>
-                                            <th className="p-3">Risco</th>
-                                            {ROLE_PERMISSION_COLUMNS.map((column) => (
-                                                <th key={column.role} className="p-3 text-center">
-                                                    {column.label}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                        {permissionMatrix.map((row) => (
-                                            <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                <td className="p-3">
-                                                    <div className="font-bold text-gray-800 dark:text-white">
-                                                        {row.label}
-                                                    </div>
-                                                    <div className="text-xs text-gray-400">
-                                                        {row.module}.{row.action} ({row.permission_code})
-                                                    </div>
-                                                    {row.description && (
-                                                        <div className="text-xs text-gray-500 mt-0.5">{row.description}</div>
-                                                    )}
-                                                </td>
-                                                <td className="p-3">
-                                                    {renderRiskBadge(row.risk_level)}
-                                                </td>
-                                                {ROLE_PERMISSION_COLUMNS.map((column) => {
-                                                    const allowed = Boolean(row[column.key]);
-                                                    const disabled =
-                                                        column.role === 'owner' ||
-                                                        !canManageSecurity ||
-                                                        adminLoading.saving;
-
-                                                    return (
-                                                        <td key={column.role} className="p-3 text-center">
-                                                            <button
-                                                                type="button"
-                                                                disabled={disabled}
-                                                                onClick={() =>
-                                                                    handleToggleRolePermission(
-                                                                        row.permission_code,
-                                                                        column.role,
-                                                                        allowed
-                                                                    )
-                                                                }
-                                                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black transition ${allowed
-                                                                    ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-200 dark:border-green-900/50 dark:bg-green-900/30 dark:text-green-300'
-                                                                    : 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
-                                                                    } ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
-                                                                title={
-                                                                    column.role === 'owner'
-                                                                        ? 'Owner sempre tem acesso total'
-                                                                        : allowed
-                                                                            ? `Remover de ${column.label}`
-                                                                            : `Liberar para ${column.label}`
-                                                                }
-                                                            >
-                                                                {allowed ? 'âœ“' : 'â€”'}
-                                                            </button>
-                                                        </td>
-                                                    );
-                                                })}
+                            <div className="w-full max-w-[1280px] overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 shadow-sm">
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-[1120px] w-full text-left text-sm whitespace-nowrap">
+                                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                                            <tr>
+                                                <th className="p-3">Permissão</th>
+                                                <th className="p-3">Risco</th>
+                                                {ROLE_PERMISSION_COLUMNS.map((column) => (
+                                                    <th key={column.role} className="p-3 text-center">
+                                                        {column.label}
+                                                    </th>
+                                                ))}
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                                            {permissionMatrix.map((row) => (
+                                                <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-gray-800 dark:text-white">
+                                                            {row.label}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400">
+                                                            {row.module}.{row.action} ({row.permission_code})
+                                                        </div>
+                                                        {row.description && (
+                                                            <div className="text-xs text-gray-500 mt-0.5">{row.description}</div>
+                                                        )}
+                                                    </td>
+                                                    <td className="p-3">
+                                                        {renderRiskBadge(row.risk_level)}
+                                                    </td>
+                                                    {ROLE_PERMISSION_COLUMNS.map((column) => {
+                                                        const allowed = Boolean(row[column.key]);
+                                                        const disabled =
+                                                            column.role === 'owner' ||
+                                                            !canManageSecurity ||
+                                                            adminLoading.saving;
+
+                                                        return (
+                                                            <td key={column.role} className="p-3 text-center">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={disabled}
+                                                                    onClick={() =>
+                                                                        handleToggleRolePermission(
+                                                                            row.permission_code,
+                                                                            column.role,
+                                                                            allowed
+                                                                        )
+                                                                    }
+                                                                    className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-black transition ${allowed
+                                                                        ? 'border-green-200 bg-green-100 text-green-700 hover:bg-green-200 dark:border-green-900/50 dark:bg-green-900/30 dark:text-green-300'
+                                                                        : 'border-gray-200 bg-gray-100 text-gray-400 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500'
+                                                                        } ${disabled ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
+                                                                    title={
+                                                                        column.role === 'owner'
+                                                                            ? 'Owner sempre tem acesso total'
+                                                                            : allowed
+                                                                                ? `Remover de ${column.label}`
+                                                                                : `Liberar para ${column.label}`
+                                                                    }
+                                                                >
+                                                                    {allowed ? <Check size={14} /> : <X size={14} />}
+                                                                </button>
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -2767,11 +2768,10 @@ export default function Security() {
                                                     </h4>
 
                                                     <span
-                                                        className={`rounded-full px-2 py-1 text-xs font-bold ${
-                                                            role.active
+                                                        className={`rounded-full px-2 py-1 text-xs font-bold ${role.active
                                                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
                                                                 : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {role.active ? 'Ativa' : 'Inativa'}
                                                     </span>
