@@ -9,6 +9,7 @@ import {
   DollarSign,
   MessageCircle,
   CheckCircle,
+  LayoutDashboard,
 } from 'lucide-react';
 
 // Componentes
@@ -306,9 +307,11 @@ export default function Dashboard() {
     <PageContainer
       title="Dashboard"
       subtitle="Visão completa da sua operação em tempo real"
+      category="Dashboard"
+      icon={<LayoutDashboard size={28} className="text-[#21A896]" />}
       lastUpdated={lastUpdated}
       onRefresh={fetchDashboardData}
-      withoutHeader={true}
+      flat
     >
       {(stats.zeroStockCount > 0 || stats.lowStockCount > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

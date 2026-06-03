@@ -9,7 +9,6 @@ import {
     Megaphone,
     MessageCircle,
     Plus,
-    RefreshCw,
     Save,
     Send,
     Sparkles,
@@ -18,6 +17,7 @@ import {
     X,
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import {
     MarketingCenterService,
     type CampaignPreparedRecipient,
@@ -264,7 +264,6 @@ export default function MarketingCenterPage() {
 
     const [data, setData] = useState<MarketingCenterData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [refreshingSegments, setRefreshingSegments] = useState(false);
     const [savingSegment, setSavingSegment] = useState(false);
     const [savingCampaign, setSavingCampaign] = useState(false);
     const [previewingRecipients, setPreviewingRecipients] = useState(false);
@@ -303,7 +302,6 @@ export default function MarketingCenterPage() {
         if (!storeId) return;
 
         try {
-            setRefreshingSegments(true);
             setError(null);
             setMessage(null);
             const result = await MarketingCenterService.refreshSegments(storeId);
@@ -319,7 +317,6 @@ export default function MarketingCenterPage() {
             console.error('Erro ao atualizar segmentos:', err);
             setError(err instanceof Error ? err.message : 'Erro ao atualizar segmentos.');
         } finally {
-            setRefreshingSegments(false);
         }
     }
 
@@ -716,51 +713,34 @@ export default function MarketingCenterPage() {
     }
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-sm font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
-                            <Megaphone size={14} />
-                            Marketing
-                        </div>
-                        <h1 className="mt-3 text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">
-                            Segmentos e promoções
-                        </h1>
-                        <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-400">
-                            Organize públicos, campanhas e mensagens dirigidas para WhatsApp, e-mail e ações futuras.
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                        <button
-                            type="button"
-                            onClick={handleRefreshSegments}
-                            disabled={refreshingSegments}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                            {refreshingSegments ? <Loader2 className="animate-spin" size={18} /> : <RefreshCw size={18} />}
-                            Atualizar segmentos
-                        </button>
-                        <button
-                            type="button"
-                            onClick={openNewSegment}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-purple-200 px-5 py-3 text-sm font-black text-purple-700 transition hover:bg-purple-50 dark:border-purple-900/50 dark:text-purple-200 dark:hover:bg-purple-950/30"
-                        >
-                            <Plus size={18} />
-                            Novo segmento
-                        </button>
-                        <button
-                            type="button"
-                            onClick={openNewCampaign}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-purple-600 px-5 py-3 text-sm font-black text-white transition hover:bg-purple-700"
-                        >
-                            <Sparkles size={18} />
-                            Nova campanha
-                        </button>
-                    </div>
+        <PageContainer
+            title="Segmentos e promoções"
+            subtitle="Organize públicos, campanhas e mensagens dirigidas para WhatsApp, e-mail e ações futuras."
+            category="Comercial"
+            icon={<Megaphone size={28} className="text-[#21A896]" />}
+            onRefresh={handleRefreshSegments}
+            action={
+                <div className="flex flex-wrap gap-2">
+                    <button
+                        type="button"
+                        onClick={openNewSegment}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-200 px-4 py-2 text-sm font-black text-purple-700 transition hover:bg-purple-50 dark:border-purple-900/50 dark:text-purple-200 dark:hover:bg-purple-950/30"
+                    >
+                        <Plus size={16} />
+                        Novo segmento
+                    </button>
+                    <button
+                        type="button"
+                        onClick={openNewCampaign}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-purple-600 px-4 py-2 text-sm font-black text-white transition hover:bg-purple-700"
+                    >
+                        <Sparkles size={16} />
+                        Nova campanha
+                    </button>
                 </div>
-            </div>
+            }
+            flat
+        >
 
             {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
@@ -1360,7 +1340,7 @@ export default function MarketingCenterPage() {
                     </form>
                 </Modal>
             )}
-        </div>
+        </PageContainer>
     );
 }
 

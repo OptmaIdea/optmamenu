@@ -482,8 +482,10 @@ export default function StockMovementsPage() {
       <PageContainer
         title={selectedProduct ? `Movimentações: ${selectedProduct.name}` : 'Movimentações de Estoque'}
         subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
+        category="Produtos"
+        icon={<History size={28} className="text-[#21A896]" />}
         onRefresh={loadMovements}
-        withoutHeader={true}
+        flat
       >
       {(selectedProduct || selectedProductIds.length > 0 || filters.productId || filters.productIds) && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">

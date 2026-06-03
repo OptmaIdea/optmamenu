@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, RefreshCw, ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { Filter, ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
+import PageContainer from '@/components/common/PageContainer';
 
 
 export default function Orders() {
@@ -248,42 +249,30 @@ export default function Orders() {
     };
 
     return (
-        <div className="p-6 max-w-7xl mx-auto animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
-                        <ShoppingBag className="text-brand-green" size={32} />
-                        Pedidos
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Gerencie os pedidos chegando em tempo real.</p>
-                </div>
-
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="relative flex-1 md:w-48">
-                        <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-700 dark:text-gray-400" size={18} />
-                        <select
-                            value={filterStatus}
-                            onChange={(e) => setFilterStatus(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-400 rounded-xl focus:ring-2 focus:ring-brand-green outline-none appearance-none"
-                        >
-                            <option value="all">Todos os Status</option>
-                            <option value="reserved">Novos</option>
-                            <option value="confirmed">Em Preparo</option>
-                            <option value="completed">Finalizados</option>
-                            <option value="cancelled">Cancelados</option>
-                        </select>
-                    </div>
-
-                    <button
-                        onClick={() => fetchOrders()}
-                        className="p-2 bg-gray-100 dark:bg-gray-700 rounded-xl text-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                        title="Atualizar Lista"
+        <PageContainer
+            title="Pedidos"
+            subtitle="Gerencie os pedidos chegando em tempo real."
+            category="Comercial"
+            icon={<ShoppingBag className="text-[#21A896]" size={28} />}
+            onRefresh={fetchOrders}
+            action={
+                <div className="relative flex-1 md:w-48">
+                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={15} />
+                    <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-250 dark:border-gray-700 text-gray-700 dark:text-gray-400 rounded-xl focus:ring-2 focus:ring-brand-green outline-none appearance-none text-xs font-bold"
                     >
-                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-                    </button>
+                        <option value="all">Todos os Status</option>
+                        <option value="reserved">Novos</option>
+                        <option value="confirmed">Em Preparo</option>
+                        <option value="completed">Finalizados</option>
+                        <option value="cancelled">Cancelados</option>
+                    </select>
                 </div>
-            </div>
+            }
+            flat
+        >
 
             {/* Kanban / List */}
             {orders.length === 0 && !loading ? (
@@ -484,6 +473,6 @@ export default function Orders() {
                     })}
                 </div>
             )}
-        </div>
+        </PageContainer>
     );
 }

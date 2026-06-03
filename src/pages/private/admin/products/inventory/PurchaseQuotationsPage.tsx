@@ -873,8 +873,10 @@ export default function PurchaseQuotationsPage() {
             <PageContainer
                 title="Cotações"
                 subtitle="Acesso rápido às cotações salvas para fornecedores."
+                category="Produtos"
+                icon={<FileText size={28} className="text-[#21A896]" />}
                 onRefresh={() => loadQuotations(storeId, { silent: true })}
-                withoutHeader={true}
+                flat
             >
             <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">

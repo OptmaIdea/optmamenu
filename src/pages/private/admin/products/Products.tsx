@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Archive } from 'lucide-react';
+import { Plus, Archive, Package } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AdminProductViewModal from '@/pages/private/admin/products/products/components/AdminProductViewModal';
 import ProductDeleteConfirmModal from '@/pages/private/admin/products/products/components/ProductDeleteConfirmModal';
@@ -200,9 +200,11 @@ export default function ProductsPage() {
             <PageContainer
                 title="Produtos"
                 subtitle="Gerencie seu catálogo"
+                category="Produtos"
+                icon={<Package size={28} className="text-[#21A896]" />}
                 lastUpdated={lastUpdated}
                 onRefresh={handleRefresh}
-                withoutHeader={true}
+                flat
             >
                 {/* Main Content */}
                 {!hasAnyProducts ? (

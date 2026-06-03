@@ -349,6 +349,7 @@ export default function Users() {
             title="Usuários"
             subtitle="Gerencie os usuários do sistema e suas permissões"
             category="Configurações"
+            icon={<UsersIcon size={28} className="text-[#21A896]" />}
             flat
         >
             {/* Stats */}

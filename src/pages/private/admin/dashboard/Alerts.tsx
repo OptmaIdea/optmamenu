@@ -1,7 +1,7 @@
 // src/pages/private/admin/dashboard/Alerts.tsx
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Package, TrendingUp, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Package, TrendingUp, AlertCircle } from 'lucide-react';
 
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
@@ -66,36 +66,24 @@ export default function Alerts() {
   const isLoading = storeLoading || loading;
 
   return (
-    <PageContainer title={title}>
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <div className="text-sm opacity-70">
-          {refreshedAt ? (
-            <>
-              Atualizado em <span className="font-black">{refreshedAt.toLocaleString()}</span>
-            </>
-          ) : (
-            <>—</>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => refresh()}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 dark:border-gray-800 px-3 py-2 text-sm font-black hover:bg-gray-50 dark:hover:bg-gray-900 transition"
-          >
-            <RefreshCw size={16} />
-            Atualizar
-          </button>
-
-          <Link
-            to="/admin/inventory"
-            className="inline-flex items-center gap-2 rounded-xl bg-[#7D3CF0] px-3 py-2 text-sm font-black text-white hover:opacity-90 transition"
-          >
-            <Package size={16} />
-            Ver estoque
-          </Link>
-        </div>
-      </div>
+    <PageContainer
+      title={title}
+      subtitle={store?.name ? `Alertas de estoque para a loja ${store.name}` : "Acompanhe alertas de estoque crítico, baixo e excessos"}
+      category="Dashboard"
+      icon={<AlertCircle size={28} className="text-[#21A896]" />}
+      lastUpdated={refreshedAt ?? undefined}
+      onRefresh={refresh}
+      action={
+        <Link
+          to="/admin/inventory"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-3.5 py-2 text-sm font-black text-white hover:opacity-90 transition shadow-sm"
+        >
+          <Package size={16} />
+          Ver estoque
+        </Link>
+      }
+      flat
+    >
 
       {error && (
         <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/10 dark:text-red-200">

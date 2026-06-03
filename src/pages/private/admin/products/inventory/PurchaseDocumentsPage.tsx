@@ -19,6 +19,7 @@ import {
   ShieldAlert,
   Trash2,
   XCircle,
+  History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { PurchaseQuotationsPanel } from './components/PurchaseQuotationsPanel';
@@ -812,8 +813,10 @@ export default function PurchaseDocumentsPage() {
       <PageContainer
         title="Compras e Entradas"
         subtitle="Crie rascunhos de compra por sugestão, revise documentos e confirme entradas no estoque"
+        category="Produtos"
+        icon={<History size={28} className="text-[#21A896]" />}
         onRefresh={fetchAll}
-        withoutHeader={true}
+        flat
       >
       {pageError ? (
         <AlertBanner type="error" title="Atenção" message={pageError} />

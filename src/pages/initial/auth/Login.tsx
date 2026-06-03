@@ -34,14 +34,24 @@ export default function Login() {
 
   const [error, setError] = useState('');
 
-  const finishLoginWithStore = async (storeId: string) => {
-    const selectedStore = storeOptions.find((option) => option.store_id === storeId);
+  const finishLoginWithStore = async (
+    storeId: string,
+    options = storeOptions
+  ) => {
+    const selectedStore = options.find((option) => option.store_id === storeId);
 
-    if (selectedStore?.status === 'suspended') {
-      toast.warning(
-        `Seu acesso à loja ${selectedStore.store_name} está suspenso. Procure o responsável.`
-      );
-      return;
+    if (selectedStore) {
+      const isSuspended =
+        selectedStore.status === 'suspended' || selectedStore.access_blocked === true;
+
+      const message =
+        selectedStore.access_message ||
+        `Seu acesso à loja ${selectedStore.store_name} está suspenso. Procure o responsável.`;
+
+      if (isSuspended) {
+        toast.warning(message);
+        return;
+      }
     }
 
     setActiveStoreId(storeId);
@@ -53,7 +63,7 @@ export default function Login() {
       store_name: selectedStore?.store_name ?? null,
       store_slug: selectedStore?.store_slug ?? null,
       role: selectedStore?.role ?? null,
-      multiple_store_options: storeOptions.length,
+      multiple_store_options: options.length,
     });
 
     navigate('/admin', { replace: true });
@@ -94,15 +104,24 @@ export default function Login() {
         throw new Error('Nenhuma loja ativa vinculada a este usuário.');
       }
 
-      const activeOptions = options.filter((option) => option.status === 'active');
-
-      if (options.length === 1 && options[0].status === 'active') {
-        await finishLoginWithStore(options[0].store_id);
-        return;
-      }
+      const activeOptions = options.filter(
+        (option) => option.status === 'active' && option.access_blocked !== true
+      );
 
       setStoreOptions(options);
       setSelectedStoreId(activeOptions[0]?.store_id ?? '');
+
+      if (!activeOptions.length) {
+        setError(
+          'Voc\u00ea n\u00e3o possui acesso ativo a nenhuma loja. Alguns v\u00ednculos podem estar suspensos.'
+        );
+      }
+
+      if (activeOptions.length === 1) {
+        await finishLoginWithStore(activeOptions[0].store_id, options);
+        return;
+      }
+
       setSelectingStore(true);
     } catch (error: unknown) {
       const message =
@@ -244,24 +263,26 @@ export default function Login() {
               <div className="space-y-3">
                 {storeOptions.map((option) => {
                   const selected = selectedStoreId === option.store_id;
-                  const suspended = option.status === 'suspended';
+                  const isSuspended =
+                    option.status === 'suspended' || option.access_blocked === true;
+                  const message =
+                    option.access_message ||
+                    `Seu acesso à loja ${option.store_name} está suspenso. Procure o responsável.`;
 
                   return (
                     <button
                       key={option.store_id}
                       type="button"
-                      disabled={suspended}
+                      aria-disabled={isSuspended}
                       onClick={() => {
-                        if (suspended) {
-                          toast.warning(
-                            `Seu acesso à loja ${option.store_name} está suspenso. Procure o responsável.`
-                          );
+                        if (isSuspended) {
+                          toast.warning(message);
                           return;
                         }
 
                         setSelectedStoreId(option.store_id);
                       }}
-                      className={`w-full rounded-2xl border p-4 text-left transition ${suspended
+                      className={`w-full rounded-2xl border p-4 text-left transition ${isSuspended
                         ? 'cursor-not-allowed opacity-60 border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20'
                         : selected
                         ? 'border-brand-green bg-brand-green/10 ring-2 ring-brand-green/20'
@@ -285,16 +306,21 @@ export default function Login() {
                           <p className="truncate text-base font-black text-gray-800 dark:text-white">
                             {option.store_name}
                           </p>
-                          <p className="text-sm font-bold text-brand-green">
-                            {formatLoginRole(option.role)}
-                            {suspended && (
-                              <span className="ml-2 rounded-full bg-orange-100 px-2 py-1 text-xs text-orange-700 dark:bg-orange-900/50 dark:text-orange-200">
+                          <p className="text-sm font-bold text-brand-green flex items-center flex-wrap gap-2">
+                            <span>{formatLoginRole(option.role)}</span>
+                            {isSuspended && (
+                              <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 dark:bg-orange-900/50 dark:text-orange-200">
                                 Suspenso
                               </span>
                             )}
                           </p>
                           {option.store_slug && (
                             <p className="text-xs text-gray-400">/{option.store_slug}</p>
+                          )}
+                          {isSuspended && (
+                            <p className="mt-2 text-xs text-orange-700 dark:text-orange-300">
+                              {message}
+                            </p>
                           )}
                         </div>
 

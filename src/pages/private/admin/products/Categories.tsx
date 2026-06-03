@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, ArrowUpDown, Package } from 'lucide-react';
+import { Plus, Search, ArrowUpDown, Package, Layers } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -122,8 +122,11 @@ export default function CategoriesPage() {
             <PageContainer
                 title="Categorias"
                 subtitle="Gerencie as categorias do seu cardápio"
+                category="Produtos"
+                icon={<Layers size={28} className="text-[#21A896]" />}
                 lastUpdated={lastUpdated}
                 onRefresh={refresh}
+                flat
                 action={
                     <div className="flex gap-2">
                         <Link

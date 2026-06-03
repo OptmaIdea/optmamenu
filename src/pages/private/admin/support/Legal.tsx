@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Shield, FileText, Lock, Cookie, Scale, ChevronRight } from 'lucide-react';
+import PageContainer from '@/components/common/PageContainer';
 
 export default function Legal() {
     const [activeTab, setActiveTab] = useState('adesao');
@@ -289,10 +290,13 @@ export default function Legal() {
     };
 
     return (
-        <div className="max-w-7xl mx-auto p-4 md:p-8 animate-fadeIn pb-24 md:pb-8">
-            <h1 className="text-3xl font-black text-gray-800 dark:text-white mb-2 tracking-tight">Documentos Legais</h1>
-            <p className="text-gray-500 dark:text-gray-400 mb-8">Consulte os termos que regem o uso da plataforma OptmaMenu.</p>
-
+        <PageContainer
+            title="Termos Legais"
+            subtitle="Leia os termos de serviço, políticas de privacidade e contratos de licença"
+            category="Suporte"
+            icon={<FileText size={28} className="text-[#21A896]" />}
+            flat
+        >
             <div className="flex flex-col md:flex-row gap-8">
                 {/* Sidebar Navigation */}
                 <nav className="w-full md:w-64 flex flex-col gap-2 shrink-0">
@@ -301,7 +305,7 @@ export default function Legal() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center justify-between p-4 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id
-                                ? 'bg-brand-green text-white shadow-lg shadow-brand-green/20'
+                                ? 'bg-[#21A896] text-white shadow-lg shadow-[#21A896]/20'
                                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600'
                                 }`}
                         >
@@ -319,6 +323,6 @@ export default function Legal() {
                     {renderContent()}
                 </main>
             </div>
-        </div>
+        </PageContainer>
     );
 }

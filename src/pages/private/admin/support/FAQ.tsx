@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { HelpCircle, Search, ChevronDown, Users, Settings, CreditCard, Smartphone } from 'lucide-react';
 import type { FAQItem } from '@/types';
+import PageContainer from '@/components/common/PageContainer';
 
 export default function FAQ() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -196,15 +197,13 @@ export default function FAQ() {
     });
 
     return (
-        <div className="max-w-5xl mx-auto p-4 md:p-8 animate-fadeIn pb-24 md:pb-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-black text-gray-800 dark:text-white mb-2 tracking-tight flex items-center gap-3">
-                    <HelpCircle className="text-brand-green" size={32} />
-                    Perguntas Frequentes
-                </h1>
-                <p className="text-gray-500 dark:text-gray-400">Encontre respostas rápidas sobre o uso do OptmaMenu</p>
-            </div>
-
+        <PageContainer
+            title="FAQ"
+            subtitle="Dúvidas frequentes e respostas sobre o funcionamento da plataforma"
+            category="Suporte"
+            icon={<HelpCircle size={28} className="text-[#21A896]" />}
+            flat
+        >
             {/* Search Bar */}
             <div className="relative mb-6">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -213,7 +212,7 @@ export default function FAQ() {
                     placeholder="Buscar pergunta..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-brand-green focus:border-transparent"
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
                 />
             </div>
 
@@ -224,7 +223,7 @@ export default function FAQ() {
                         key={cat.id}
                         onClick={() => setActiveCategory(cat.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition ${activeCategory === cat.id
-                            ? 'bg-brand-green text-white shadow-lg shadow-brand-green/20'
+                            ? 'bg-[#21A896] text-white shadow-lg shadow-[#21A896]/20'
                             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
                             }`}
                     >
@@ -269,20 +268,20 @@ export default function FAQ() {
             </div>
 
             {/* Contact Support */}
-            <div className="mt-12 bg-gradient-to-r from-brand-green/10 to-blue-500/10 dark:from-brand-green/20 dark:to-blue-500/20 p-6 rounded-2xl border border-brand-green/20">
+            <div className="mt-12 bg-gradient-to-r from-[#21A896]/10 to-blue-500/10 dark:from-[#21A896]/20 dark:to-blue-500/20 p-6 rounded-2xl border border-[#21A896]/20">
                 <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2">Não encontrou sua resposta?</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
                     Nossa equipe de suporte está pronta para ajudar você!
                 </p>
                 <div className="flex flex-wrap gap-4 text-sm">
-                    <a href="mailto:suporte@optmasolutions.com.br" className="text-brand-green font-bold hover:underline">
+                    <a href="mailto:suporte@optmasolutions.com.br" className="text-[#21A896] font-bold hover:underline">
                         📧 suporte@optmasolutions.com.br
                     </a>
-                    <a href="https://wa.me/5562982433802" target="_blank" rel="noopener noreferrer" className="text-brand-green font-bold hover:underline">
+                    <a href="https://wa.me/5562982433802" target="_blank" rel="noopener noreferrer" className="text-[#21A896] font-bold hover:underline">
                         💬 WhatsApp: (62) 98243-3802
                     </a>
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }

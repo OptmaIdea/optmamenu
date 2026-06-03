@@ -48,6 +48,8 @@ export interface StoreMembershipContext {
   custom_role_base_role?: StoreRole | string | null;
   custom_role_permissions?: Record<string, boolean>;
   custom_role_sensitive_actions?: Record<string, unknown>;
+  access_blocked?: boolean | null;
+  access_message?: string | null;
 }
 
 export interface CurrentUserSecurityContext {
@@ -206,6 +208,8 @@ export type LoginStoreOption = {
   is_owner: boolean;
   is_primary_owner: boolean;
   sort_order: number | null;
+  access_blocked?: boolean | null;
+  access_message?: string | null;
 };
 
 export interface StoreMemberSessionSummaryRow {

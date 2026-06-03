@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { Clock, Save, Plus, Trash2, Calendar, AlertCircle, Loader, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import type { StoreHour, StoreException } from '@/types';
+import PageContainer from '@/components/common/PageContainer';
 
 
 const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -173,17 +174,13 @@ export default function Hours() {
     if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-[#21A896]" /></div>;
 
     return (
-        <div className="max-w-6xl mx-auto p-6 md:p-8 animate-fade-in">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
-                        <Clock className="text-[#21A896]" size={32} />
-                        Horários de Funcionamento
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Configure sua grade semanal e dias especiais (feriados).</p>
-                </div>
-            </div>
+        <PageContainer
+            title="Horários de Funcionamento"
+            subtitle="Configure sua grade semanal e dias especiais (feriados)."
+            category="Configurações"
+            icon={<Clock className="text-[#21A896]" size={28} />}
+            flat
+        >
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* WEEKLY SCHEDULE */}
@@ -504,6 +501,6 @@ export default function Hours() {
                     <strong>Como funciona:</strong> O sistema verifica primeiro se há uma "Exceção" (Feriado) para a data de hoje. Se houver, usa o horário da exceção. Se não houver, usa o horário da "Grade Semanal".
                 </p>
             </div>
-        </div>
+        </PageContainer>
     );
 }

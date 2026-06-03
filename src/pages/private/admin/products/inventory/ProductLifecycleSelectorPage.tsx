@@ -189,9 +189,11 @@ export default function ProductLifecycleSelectorPage() {
       <PageContainer
         title="Vida do produto"
         subtitle="Selecione um produto para abrir sua visão 360º de estoque, movimentações e auditoria."
+        category="Produtos"
+        icon={<Activity size={28} className="text-[#21A896]" />}
         lastUpdated={lastUpdated}
         onRefresh={handleRefresh}
-        withoutHeader={true}
+        flat
       >
         <EmptyState
           icon={<Boxes className="h-5 w-5" />}
@@ -206,9 +208,11 @@ export default function ProductLifecycleSelectorPage() {
     <PageContainer
       title="Vida do produto"
       subtitle="Selecione um produto para abrir sua visão 360º de estoque, movimentações e auditoria."
+      category="Produtos"
+      icon={<Activity size={28} className="text-[#21A896]" />}
       lastUpdated={lastUpdated}
       onRefresh={handleRefresh}
-      withoutHeader={true}
+      flat
     >
       {selected.length > 0 && (
         <div className="rounded-2xl bg-[#21A896]/10 border border-[#21A896]/30 p-4 flex flex-wrap items-center gap-3">

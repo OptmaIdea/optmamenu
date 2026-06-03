@@ -8,6 +8,7 @@ import {
     Store,
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import {
     CommercialSettingsService,
     type CommercialSettingsStore,
@@ -139,38 +140,27 @@ export default function CommercialSettingsPage() {
     }
 
     return (
-        <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6">
-            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            <Settings size={14} />
-                            Comercial
-                        </div>
-
-                        <h1 className="mt-3 text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">
-                            Configurações comerciais
-                        </h1>
-
-                        <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                            Configure a loja pública, o catálogo, o endereço por slug, WhatsApp,
-                            local de venda e regras comerciais básicas.
-                        </p>
-                    </div>
-
-                    {publicUrl && (
-                        <a
-                            href={publicUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                            <ExternalLink size={16} />
-                            Abrir loja
-                        </a>
-                    )}
-                </div>
-            </div>
+        <PageContainer
+            title="Configurações comerciais"
+            subtitle="Configure a loja pública, o catálogo, o endereço por slug, WhatsApp, local de venda e regras comerciais básicas."
+            category="Comercial"
+            icon={<Settings size={28} className="text-[#21A896]" />}
+            onRefresh={loadData}
+            action={
+                publicUrl && (
+                    <a
+                        href={publicUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 shadow-sm"
+                    >
+                        <ExternalLink size={16} />
+                        Abrir loja
+                    </a>
+                )
+            }
+            flat
+        >
 
             {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
@@ -398,6 +388,6 @@ export default function CommercialSettingsPage() {
                     </button>
                 </aside>
             </div>
-        </div>
+        </PageContainer>
     );
 }

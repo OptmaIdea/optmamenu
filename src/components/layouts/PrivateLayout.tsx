@@ -2,6 +2,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo, useLayoutEffect } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { getCurrentUserSecurityContext } from '@/services/securityService';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -25,6 +26,7 @@ import {
     Layers,
     Menu,
     ChevronLeft,
+    ChevronDown,
     Moon,
     Sun,
     BarChart2,
@@ -74,6 +76,8 @@ type LayoutMembership = {
     status: string;
     is_primary_owner?: boolean;
     custom_role_name?: string | null;
+    access_blocked?: boolean | null;
+    access_message?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -113,6 +117,7 @@ export default function PrivateLayout() {
     const navigate = useNavigate();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [isQuickAccessOpen, setIsQuickAccessOpen] = useState(false);
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
@@ -242,6 +247,23 @@ export default function PrivateLayout() {
                     primaryMembership ??
                     memberships[0] ??
                     null;
+
+                if (selectedMembership) {
+                    const isSuspended =
+                        selectedMembership.status === 'suspended' ||
+                        selectedMembership.access_blocked === true;
+
+                    if (isSuspended) {
+                        const message =
+                            selectedMembership.access_message ||
+                            `Seu acesso à loja ${selectedMembership.store_name} está suspenso. Procure o responsável.`;
+
+                        toast.warning(message);
+                        clearActiveStoreId();
+                        navigate('/login', { replace: true });
+                        return;
+                    }
+                }
 
                 if (storedActiveStoreId && !selectedMembership) {
                     clearActiveStoreId();
@@ -831,21 +853,61 @@ export default function PrivateLayout() {
 
                 {/* Quick Access Bar */}
                 <div className="bg-white dark:bg-gray-800 border-b border-gray-100 dark:border-gray-700 px-4 md:px-8 py-2.5 flex items-center justify-between flex-wrap gap-2 z-20 shrink-0">
-                    <div className="flex items-center gap-1.5 overflow-x-auto custom-scrollbar no-scrollbar py-0.5 min-w-0">
+                    <div className="flex items-center gap-1.5 py-0.5 min-w-0">
                         {siblingItems.length > 0 ? (
-                            siblingItems.map((item) => {
-                                const SiblingIcon = item.icon;
-                                return (
-                                    <Link
-                                        key={item.path}
-                                        to={item.path}
-                                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors border border-gray-100 dark:border-gray-700 shrink-0"
+                            <>
+                                {/* Telas grandes: lista de links inline */}
+                                <div className="hidden xl:flex items-center gap-1.5 overflow-x-auto custom-scrollbar no-scrollbar min-w-0">
+                                    {siblingItems.map((item) => {
+                                        const SiblingIcon = item.icon;
+                                        return (
+                                            <Link
+                                                key={item.path}
+                                                to={item.path}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors border border-gray-100 dark:border-gray-700 shrink-0"
+                                            >
+                                                <SiblingIcon size={13} className="text-gray-400 dark:text-gray-500" />
+                                                <span>{item.label}</span>
+                                            </Link>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* Telas menores (desktop compactado/tablet/mobile): menu suspenso por hover/clique */}
+                                <div
+                                    className="relative xl:hidden"
+                                    onMouseEnter={() => setIsQuickAccessOpen(true)}
+                                    onMouseLeave={() => setIsQuickAccessOpen(false)}
+                                >
+                                    <button
+                                        onClick={() => setIsQuickAccessOpen(!isQuickAccessOpen)}
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-bold text-gray-600 dark:text-gray-300 transition-all border border-gray-150 dark:border-gray-700 shrink-0 cursor-pointer shadow-sm"
                                     >
-                                        <SiblingIcon size={13} className="text-gray-400 dark:text-gray-500" />
-                                        <span>{item.label}</span>
-                                    </Link>
-                                );
-                            })
+                                        <SlidersHorizontal size={13} className="text-gray-400 dark:text-gray-500" />
+                                        <span>Acesso Rápido</span>
+                                        <ChevronDown size={13} className={`text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isQuickAccessOpen ? 'rotate-180' : ''}`} />
+                                    </button>
+
+                                    {isQuickAccessOpen && (
+                                        <div className="absolute left-0 mt-1.5 w-60 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl py-1.5 z-50 animate-fadeIn flex flex-col gap-0.5">
+                                            {siblingItems.map((item) => {
+                                                const SiblingIcon = item.icon;
+                                                return (
+                                                    <Link
+                                                        key={item.path}
+                                                        to={item.path}
+                                                        onClick={() => setIsQuickAccessOpen(false)}
+                                                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-[#21A896]/10 hover:text-[#21A896] dark:hover:bg-[#21A896]/20 transition-all rounded-lg mx-1"
+                                                    >
+                                                        <SiblingIcon size={14} className="text-gray-400 dark:text-gray-500" />
+                                                        <span>{item.label}</span>
+                                                    </Link>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
                         ) : (
                             <span className="text-[10px] font-black text-gray-400 dark:text-gray-500 uppercase tracking-widest select-none">
                                 Menu de Operação

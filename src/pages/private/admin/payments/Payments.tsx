@@ -1,21 +1,15 @@
-import { CreditCard, DollarSign, Wallet, ShieldCheck } from 'lucide-react';
+import { CreditCard, Wallet, ShieldCheck } from 'lucide-react';
+import PageContainer from '@/components/common/PageContainer';
 
 export default function Payments() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-8">
-            <div className="max-w-4xl mx-auto">
-                {/* Header */}
-                <div className="text-center mb-12">
-                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-500 rounded-full mb-6 shadow-lg">
-                        <DollarSign className="text-white" size={40} />
-                    </div>
-                    <h1 className="text-4xl font-black text-gray-800 dark:text-white mb-4">
-                        Pagamentos & Financeiro
-                    </h1>
-                    <p className="text-lg text-gray-600 dark:text-gray-400">
-                        Gerencie suas vendas e recebimentos em um só lugar
-                    </p>
-                </div>
+        <PageContainer
+            title="Pagamentos & Financeiro"
+            subtitle="Gerencie suas vendas e recebimentos em um só lugar."
+            category="Configurações"
+            icon={<CreditCard className="text-[#21A896]" size={28} />}
+            flat
+        >
 
                 {/* Coming Soon Card */}
                 <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 p-8 md:p-12">
@@ -87,7 +81,6 @@ export default function Payments() {
                         </a>
                     </p>
                 </div>
-            </div>
-        </div>
+        </PageContainer>
     );
 }

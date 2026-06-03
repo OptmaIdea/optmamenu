@@ -1,18 +1,15 @@
 import { BookOpen, Server, Shield, Smartphone, Zap } from 'lucide-react';
+import PageContainer from '@/components/common/PageContainer';
 
 export default function Documentation() {
     return (
-        <div className="max-w-6xl mx-auto p-4 md:p-8 animate-fadeIn pb-24 md:pb-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white mb-2 tracking-tight flex items-center gap-3">
-                        <BookOpen className="text-brand-green" size={32} />
-                        Documentação do Sistema
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400">Guia técnico e visão geral da plataforma OptmaMenu.</p>
-                </div>
-            </div>
-
+        <PageContainer
+            title="Documentação"
+            subtitle="Manuais de instrução, tutoriais passo a passo e dicas de uso do sistema"
+            category="Suporte"
+            icon={<BookOpen size={28} className="text-[#21A896]" />}
+            flat
+        >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                 {/* Tech Stack */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -61,18 +58,18 @@ export default function Documentation() {
             {/* Features */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-8">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                    <Smartphone className="text-brand-green" /> Funcionalidades Principais
+                    <Smartphone className="text-[#21A896]" /> Funcionalidades Principais
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-brand-green/50 transition">
+                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#21A896]/50 transition">
                         <h3 className="font-bold text-gray-800 dark:text-white mb-2">Pedido Online</h3>
                         <p className="text-sm text-gray-500">Catálogo digital completo com carrinho, variações de produtos e checkout via WhatsApp/Integração.</p>
                     </div>
-                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-brand-green/50 transition">
+                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#21A896]/50 transition">
                         <h3 className="font-bold text-gray-800 dark:text-white mb-2">Painel Administrativo</h3>
                         <p className="text-sm text-gray-500">Gestão completa de pedidos (Kanban), produtos, categorias, estoque e configurações da loja.</p>
                     </div>
-                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-brand-green/50 transition">
+                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#21A896]/50 transition">
                         <h3 className="font-bold text-gray-800 dark:text-white mb-2">Fidelidade & CRM</h3>
                         <p className="text-sm text-gray-500">Sistema de pontos automático, cadastro de clientes e histórico de pedidos.</p>
                     </div>
@@ -100,6 +97,6 @@ export default function Documentation() {
                 <p>Versão do Sistema: <strong>1.0.0-beta</strong></p>
                 <p>Build: {new Date().toLocaleDateString()}</p>
             </div>
-        </div>
+        </PageContainer>
     );
 }

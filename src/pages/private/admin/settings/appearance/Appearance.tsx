@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import type { StoreConfig } from '@/types';
 import StorePreview from '@/components/admin/StorePreview';
+import PageContainer from '@/components/common/PageContainer';
 
 interface ColorInputProps {
     label: string;
@@ -266,25 +267,23 @@ export default function Config() {
     if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-brand-green" /></div>;
 
     return (
-        <div className="max-w-6xl mx-auto p-6 md:p-8">
-            {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
-                        <Smartphone className="text-brand-green" size={32} />
-                        Personalização
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Configure o comportamento e a aparência do seu App.</p>
-                </div>
+        <PageContainer
+            title="Personalização"
+            subtitle="Configure o comportamento e a aparência do seu App."
+            category="Configurações"
+            icon={<Smartphone className="text-[#21A896]" size={28} />}
+            action={
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="w-full bg-brand-green hover:bg-green-600 text-white px-8 py-4 rounded-xl font-bold shadow-lg shadow-green-200 dark:shadow-none flex items-center justify-center gap-2 transition disabled:opacity-70"
+                    className="bg-[#21A896] hover:bg-[#1a867a] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
                 >
-                    {saving ? <Loader className="animate-spin" size={20} /> : <Save size={20} />}
-                    Salvar Configurações
+                    {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
+                    <span>Salvar Configurações</span>
                 </button>
-            </div>
+            }
+            flat
+        >
 
             {message && (
                 <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 shadow-sm border animate-fade-in ${message.type === 'error' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-green-50 border-green-100 text-green-700'}`}>
@@ -676,6 +675,6 @@ export default function Config() {
                     </div>
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }

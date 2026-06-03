@@ -20,6 +20,7 @@ import {
   Truck,
   ChevronUp,
   ChevronDown,
+  FileText,
 } from 'lucide-react';
 
 // ─── Mapas de status local ────────────────────────────────────────────────────
@@ -396,7 +397,9 @@ export default function InventoryByLocationPage() {
       <PageContainer
         title="Estoque por local"
         subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
-        withoutHeader={true}
+        category="Produtos"
+        icon={<FileText size={28} className="text-[#21A896]" />}
+        flat
       >
         <EmptyState
           icon={<PackageSearch className="h-5 w-5" />}
@@ -423,7 +426,9 @@ export default function InventoryByLocationPage() {
       <PageContainer
         title="Estoque por local"
         subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
-        withoutHeader={true}
+        category="Produtos"
+        icon={<FileText size={28} className="text-[#21A896]" />}
+        flat
       >
 
       {/* Cards gerenciais */}

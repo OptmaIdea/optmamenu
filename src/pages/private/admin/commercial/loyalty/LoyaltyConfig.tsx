@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Save, Loader, Gift, Award, Settings, ToggleLeft, ToggleRight, DollarSign, Calendar, UserPlus, Stamp, Layers, List, UserCheck, AlertTriangle, FileText } from 'lucide-react';
+import { Save, Loader, Gift, Award, Settings, ToggleLeft, ToggleRight, DollarSign, Calendar, UserPlus, Stamp, Layers, List, UserCheck, AlertTriangle, FileText, Heart } from 'lucide-react';
 import { toast } from 'sonner';
+import PageContainer from '@/components/common/PageContainer';
 
 // New Components
 // New Components
@@ -125,38 +126,36 @@ export default function LoyaltyConfig() {
     ];
 
     return (
-        <div className="max-w-6xl mx-auto p-4 md:p-8 animate-fadeIn pb-24 md:pb-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
-                        <Award className="text-brand-green" size={32} />
-                        {program.name ? `Programa de fidelidade ${program.name}` : 'Programa de fidelidade'}
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">
-                        Configure níveis, aceleração por categoria e recompensas exclusivas.
-                    </p>
-                </div>
+        <PageContainer
+            title="Fidelidade"
+            subtitle="Configure regras do programa de fidelidade, cashback e pontuação por compra"
+            category="Comercial"
+            icon={<Heart size={28} className="text-[#21A896]" />}
+            onRefresh={fetchProgramData}
+            action={
                 <div className="flex gap-2">
                     <button
                         onClick={() => setProgram({ ...program, is_active: !program.is_active })}
-                        className={`px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition ${program.is_active
+                        className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-2 transition text-xs ${program.is_active
                             ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                             : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
                             }`}
                     >
-                        {program.is_active ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
+                        {program.is_active ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                         {program.is_active ? 'Programa Ativo' : 'Programa Inativo'}
                     </button>
                     <button
                         onClick={handleSaveProgram}
                         disabled={saving}
-                        className="bg-brand-green hover:bg-green-600 text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-green-200 dark:shadow-none flex items-center gap-2 transition disabled:opacity-70"
+                        className="bg-[#21A896] hover:bg-[#1b8f80] text-white px-4 py-1.5 rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition disabled:opacity-70 text-xs"
                     >
-                        {saving ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
+                        {saving ? <Loader className="animate-spin" size={14} /> : <Save size={14} />}
                         Salvar
                     </button>
                 </div>
-            </div>
+            }
+            flat
+        >
 
             {/* Navigation Tabs */}
             <div className="flex overflow-x-auto gap-2 mb-8 border-b border-gray-200 dark:border-gray-700 pb-1 no-scrollbar">
@@ -388,6 +387,6 @@ export default function LoyaltyConfig() {
                     <LegalTerms programId={program.id} />
                 )}
             </div>
-        </div>
+        </PageContainer>
     );
 }

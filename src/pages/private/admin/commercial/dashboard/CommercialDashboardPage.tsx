@@ -7,7 +7,6 @@ import {
     CreditCard,
     Loader2,
     Package,
-    RefreshCw,
     ShoppingBag,
     TrendingDown,
     TrendingUp,
@@ -15,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import {
     CommercialDashboardService,
     type CommercialDashboardData,
@@ -138,56 +138,37 @@ export default function CommercialDashboardPage() {
     }
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            <BarChart3 size={14} />
-                            Comercial
-                        </div>
+        <PageContainer
+            title="Dashboard comercial"
+            subtitle="Visão inicial de vendas, pedidos, caixa, clientes, produtos e fidelidade."
+            category="Comercial"
+            icon={<BarChart3 size={28} className="text-[#21A896]" />}
+            onRefresh={loadDashboard}
+            action={
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                    <label className="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400">
+                        Início
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(event) => setStartDate(event.target.value)}
+                            className="mt-1 block rounded-xl border border-gray-250 dark:border-gray-700 px-3 py-1.5 text-xs font-bold dark:bg-gray-800 dark:text-white outline-none"
+                        />
+                    </label>
 
-                        <h1 className="mt-3 text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">
-                            Dashboard comercial
-                        </h1>
-
-                        <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-400">
-                            Visão inicial de vendas, pedidos, caixa, clientes, produtos e fidelidade.
-                        </p>
-                    </div>
-
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-                        <label className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                            Início
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(event) => setStartDate(event.target.value)}
-                                className="mt-1 block rounded-xl border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                            />
-                        </label>
-
-                        <label className="text-xs font-bold text-gray-600 dark:text-gray-300">
-                            Fim
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(event) => setEndDate(event.target.value)}
-                                className="mt-1 block rounded-xl border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                            />
-                        </label>
-
-                        <button
-                            type="button"
-                            onClick={loadDashboard}
-                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
-                        >
-                            <RefreshCw size={18} />
-                            Atualizar
-                        </button>
-                    </div>
+                    <label className="text-[10px] font-black uppercase text-gray-500 dark:text-gray-400">
+                        Fim
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(event) => setEndDate(event.target.value)}
+                            className="mt-1 block rounded-xl border border-gray-250 dark:border-gray-700 px-3 py-1.5 text-xs font-bold dark:bg-gray-800 dark:text-white outline-none"
+                        />
+                    </label>
                 </div>
-            </div>
+            }
+            flat
+        >
 
             {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
@@ -519,6 +500,6 @@ export default function CommercialDashboardPage() {
                     </div>
                 </div>
             </section>
-        </div>
+        </PageContainer>
     );
 }

@@ -10,6 +10,7 @@ import {
     SlidersHorizontal,
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import {
     StockSettingsService,
     type ProductStockRule,
@@ -397,37 +398,24 @@ export default function StockSettingsPage() {
     }
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-semibold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                            <SlidersHorizontal size={14} />
-                            Estoque
-                        </div>
-
-                        <h1 className="mt-3 text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">
-                            Configurações de estoque
-                        </h1>
-
-                        <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-400">
-                            Configure mínimo/máximo global por produto e distribua os limites entre os locais
-                            da loja, como estoque principal e loja física.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saving || !selectedProductId || loadingRules}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                        Salvar regras
-                    </button>
-                </div>
-            </div>
-
+        <PageContainer
+            title="Configurações de estoque"
+            subtitle="Configure mínimo/máximo global por produto e distribua os limites entre os locais da loja, como estoque principal e loja física."
+            category="Produtos"
+            icon={<SlidersHorizontal size={28} className="text-[#21A896]" />}
+            action={
+                <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving || !selectedProductId || loadingRules}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                    {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                    Salvar regras
+                </button>
+            }
+            flat
+        >
             {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
                     {error}
@@ -786,6 +774,6 @@ export default function StockSettingsPage() {
                     </section>
                 </main>
             </div>
-        </div>
+        </PageContainer>
     );
 }

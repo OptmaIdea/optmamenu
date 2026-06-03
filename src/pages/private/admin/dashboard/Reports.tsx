@@ -58,6 +58,9 @@ export default function ReportsPage() {
         <PageContainer
             title="Relatórios"
             subtitle="Gere e imprima relatórios gerenciais do seu negócio"
+            category="Dashboard"
+            icon={<FileText size={28} className="text-[#21A896]" />}
+            flat
         >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {reports.map((report, index) => (

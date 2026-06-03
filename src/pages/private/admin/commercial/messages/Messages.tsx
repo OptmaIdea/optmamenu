@@ -14,6 +14,7 @@ import {
     FileText
 } from 'lucide-react';
 import { toast } from 'sonner';
+import PageContainer from '@/components/common/PageContainer';
 
 export default function AdminMessages() {
     const [activeTab, setActiveTab] = useState<'send' | 'history'>('send');
@@ -165,37 +166,36 @@ export default function AdminMessages() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto p-4 md:p-8 animate-fadeIn">
-            <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3 italic uppercase tracking-tighter">
-                        <MessageSquare className="text-brand-green" size={32} />
-                        Centro de Mensagens
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1 font-medium">Comunique-se diretamente com seus clientes.</p>
-                </div>
-
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-2xl shadow-inner border border-gray-200 dark:border-gray-700">
+        <PageContainer
+            title="Mensagens"
+            subtitle="Comunique-se diretamente com seus clientes."
+            category="Comercial"
+            icon={<MessageSquare size={28} className="text-[#21A896]" />}
+            onRefresh={activeTab === 'history' ? fetchHistory : undefined}
+            action={
+                <div className="flex bg-gray-150 dark:bg-gray-800 p-1.5 rounded-2xl shadow-inner border border-gray-200 dark:border-gray-700">
                     <button
                         onClick={() => setActiveTab('send')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'send'
-                            ? 'bg-white dark:bg-gray-700 text-brand-green shadow-sm'
+                        className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${activeTab === 'send'
+                            ? 'bg-white dark:bg-gray-700 text-[#21A896] shadow-sm'
                             : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                             }`}
                     >
-                        <Send size={18} /> ENVIAR NOVA
+                        <Send size={15} /> ENVIAR NOVA
                     </button>
                     <button
                         onClick={() => setActiveTab('history')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'history'
-                            ? 'bg-white dark:bg-gray-700 text-brand-green shadow-sm'
+                        className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${activeTab === 'history'
+                            ? 'bg-white dark:bg-gray-700 text-[#21A896] shadow-sm'
                             : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                             }`}
                     >
-                        <History size={18} /> HISTÓRICO
+                        <History size={15} /> HISTÓRICO
                     </button>
                 </div>
-            </header>
+            }
+            flat
+        >
 
             <div className="grid grid-cols-1 gap-8">
                 {activeTab === 'send' && (
@@ -462,7 +462,7 @@ export default function AdminMessages() {
                     </div>
                 </div>
             )}
-        </div>
+        </PageContainer>
     );
 }
 

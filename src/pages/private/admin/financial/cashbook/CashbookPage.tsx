@@ -14,9 +14,11 @@ import {
     History,
     Search,
     Save,
-    X
+    X,
+    WalletCards
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import { CashbookService, type CashbookDirection, type CashbookEntry, type CashbookSummary } from '@/services/cashbookService';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
@@ -263,37 +265,34 @@ export default function CashbookPage() {
     if (loadingStore || loading) return <LoadingSpinner />;
 
     return (
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                    <h1 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
-                        Livro diário de caixa
-                    </h1>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 font-medium">
-                        Gerencie entradas, saídas e lançamentos financeiros simples da loja.
-                    </p>
-                </div>
-
+        <PageContainer
+            title="Livro diário de caixa"
+            subtitle="Gerencie entradas, saídas e lançamentos financeiros simples da loja."
+            category="Financeiro"
+            icon={<WalletCards size={28} className="text-[#21A896]" />}
+            onRefresh={loadData}
+            action={
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
                         onClick={() => openCreateForm('in')}
-                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm active:scale-95"
+                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
                     >
-                        <Plus size={18} />
+                        <Plus size={16} />
                         Nova Entrada
                     </button>
                     <button
                         type="button"
                         onClick={() => openCreateForm('out')}
-                        className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition shadow-sm active:scale-95"
+                        className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
                     >
-                        <Minus size={18} />
+                        <Minus size={16} />
                         Nova Saída
                     </button>
                 </div>
-            </div>
+            }
+            flat
+        >
 
             {/* Stats Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -714,6 +713,6 @@ export default function CashbookPage() {
                     </div>
                 </div>
             )}
-        </div>
+        </PageContainer>
     );
 }

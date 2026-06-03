@@ -13,6 +13,7 @@ interface PageContainerProps {
   className?: string;
   withoutHeader?: boolean;
   flat?: boolean;
+  icon?: ReactNode;
 }
 
 export default function PageContainer({
@@ -25,7 +26,8 @@ export default function PageContainer({
   onRefresh,
   className = '',
   withoutHeader = false,
-  flat = false
+  flat = false,
+  icon
 }: PageContainerProps) {
   return (
     <div className={`max-w-7xl mx-auto animate-fadeIn ${className}`}>
@@ -40,7 +42,8 @@ export default function PageContainer({
                     {category}
                   </p>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                  {icon}
                   <h1 className="text-2xl md:text-3xl font-black text-gray-800 dark:text-white font-candara-bold tracking-tight">
                     {title}
                   </h1>
@@ -91,7 +94,8 @@ export default function PageContainer({
                     {category}
                   </p>
                 )}
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
+                  {icon}
                   <h1 className="text-2xl md:text-3xl font-black text-gray-800 dark:text-white font-candara-bold tracking-tight">
                     {title}
                   </h1>

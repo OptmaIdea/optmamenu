@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import {
     Customers360Service,
     type CustomerListItem,
@@ -160,35 +161,24 @@ export default function Customers() {
     }
 
     return (
-        <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            <Users size={14} />
-                            Comercial
-                        </div>
-
-                        <h1 className="mt-3 text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">
-                            Clientes
-                        </h1>
-
-                        <p className="mt-2 max-w-3xl text-sm text-gray-600 dark:text-gray-400">
-                            Gerencie clientes diretos, clientes de WhatsApp/loja pública e acompanhe
-                            pedidos, pontos, origem e governança dos dados.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={() => navigate('/admin/customers/new')}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700"
-                    >
-                        <Plus size={18} />
-                        Novo cliente
-                    </button>
-                </div>
-            </div>
+        <PageContainer
+            title="Clientes"
+            subtitle="Gerencie clientes diretos, clientes de WhatsApp/loja pública e acompanhe pedidos, pontos, origem e governança dos dados."
+            category="Comercial"
+            icon={<Users size={28} className="text-[#21A896]" />}
+            onRefresh={loadCustomers}
+            action={
+                <button
+                    type="button"
+                    onClick={() => navigate('/admin/customers/new')}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1b8f80]"
+                >
+                    <Plus size={18} />
+                    Novo cliente
+                </button>
+            }
+            flat
+        >
 
             {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
@@ -378,6 +368,6 @@ export default function Customers() {
                     </div>
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }

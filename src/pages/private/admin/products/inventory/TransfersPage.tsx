@@ -652,7 +652,9 @@ export default function TransfersPage() {
       <PageContainer
         title="Transferências"
         subtitle="Gestão de transferências entre locais de estoque."
-        withoutHeader={true}
+        category="Produtos"
+        icon={<ArrowRightLeft size={28} className="text-[#21A896]" />}
+        flat
       >
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
           <button
@@ -701,8 +703,10 @@ export default function TransfersPage() {
       <PageContainer
         title="Transferências"
         subtitle="Gestão de transferências entre locais de estoque."
+        category="Produtos"
+        icon={<ArrowRightLeft size={28} className="text-[#21A896]" />}
         onRefresh={refresh}
-        withoutHeader={true}
+        flat
       >
 
       {prefillTransfer && (

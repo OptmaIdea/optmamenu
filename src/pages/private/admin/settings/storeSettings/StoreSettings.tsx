@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText } from 'lucide-react';
+import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import bcrypt from 'bcryptjs';
 import type { StoreData, IBGEState, IBGECity } from './storeSettings.types';
+import PageContainer from '@/components/common/PageContainer';
 import CorporateTab from './tabs/CorporateTab';
 import AddressTab from './tabs/AddressTab';
 import ContactsTab from './tabs/ContactsTab';
@@ -385,9 +386,13 @@ export default function StoreSettings() {
     ];
 
     return (
-        <div className="max-w-5xl mx-auto p-4 md:p-8">
-            <h1 className="text-3xl font-black text-gray-800 dark:text-gray-100 mb-2">Dados da Loja</h1>
-            <p className="text-gray-500 dark:text-gray-400 mb-8">Preencha as informações para ativar seu cardápio digital.</p>
+        <PageContainer
+            title="Dados da Loja"
+            subtitle="Preencha as informações para ativar seu cardápio digital."
+            category="Configurações"
+            icon={<UserCircle className="text-[#21A896]" size={28} />}
+            flat
+        >
 
             {message && (
                 <div className={`p-4 rounded-xl mb-6 flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300' : 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'}`}>
@@ -530,6 +535,6 @@ export default function StoreSettings() {
                     </button>
                 </div>
             </form>
-        </div>
+        </PageContainer>
     );
 }

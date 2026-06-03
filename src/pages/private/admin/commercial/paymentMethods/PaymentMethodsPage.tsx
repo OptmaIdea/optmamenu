@@ -6,7 +6,6 @@ import {
     Landmark,
     MoreHorizontal,
     QrCode,
-    RefreshCw,
     Ticket,
     ToggleLeft,
     ToggleRight,
@@ -15,6 +14,7 @@ import {
     WalletCards,
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import PageContainer from '@/components/common/PageContainer';
 import {
     PaymentMethodsService,
     type PaymentMethodCode,
@@ -128,61 +128,40 @@ export default function PaymentMethodsPage() {
     }
 
     return (
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-            <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                            Comercial
-                        </div>
-
-                        <h1 className="mt-3 text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
-                            Formas de pagamento
-                        </h1>
-
-                        <p className="mt-2 max-w-2xl text-sm text-gray-600 dark:text-gray-400">
-                            Configure quais formas de pagamento a loja aceita. Esta base será usada
-                            no pedido público, vendas diretas e livro diário de caixa.
-                        </p>
-                    </div>
-
-                    <button
-                        type="button"
-                        onClick={loadMethods}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                        <RefreshCw size={16} />
-                        Atualizar
-                    </button>
+        <PageContainer
+            title="Formas de pagamento"
+            subtitle="Configure quais formas de pagamento a loja aceita. Esta base será usada no pedido público, vendas diretas e livro diário de caixa."
+            category="Comercial"
+            icon={<WalletCards size={28} className="text-[#21A896]" />}
+            onRefresh={loadMethods}
+            flat
+        >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-150 dark:border-gray-700 p-4">
+                    <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                        Cadastradas
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">
+                        {methods.length}
+                    </p>
                 </div>
 
-                <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-800">
-                        <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
-                            Cadastradas
-                        </p>
-                        <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">
-                            {methods.length}
-                        </p>
-                    </div>
+                <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-900/40">
+                    <p className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-300">
+                        Públicas
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-emerald-900 dark:text-emerald-100">
+                        {publicMethodsCount}
+                    </p>
+                </div>
 
-                    <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-900/20">
-                        <p className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-300">
-                            Públicas
-                        </p>
-                        <p className="mt-2 text-2xl font-black text-emerald-900 dark:text-emerald-100">
-                            {publicMethodsCount}
-                        </p>
-                    </div>
-
-                    <div className="rounded-2xl bg-blue-50 p-4 dark:bg-blue-900/20">
-                        <p className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-300">
-                            Entram no caixa
-                        </p>
-                        <p className="mt-2 text-2xl font-black text-blue-900 dark:text-blue-100">
-                            {cashbookMethodsCount}
-                        </p>
-                    </div>
+                <div className="rounded-2xl bg-blue-50 p-4 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40">
+                    <p className="text-xs font-semibold uppercase text-blue-700 dark:text-blue-300">
+                        Entram no caixa
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-blue-900 dark:text-blue-100">
+                        {cashbookMethodsCount}
+                    </p>
                 </div>
             </div>
 
@@ -313,6 +292,6 @@ export default function PaymentMethodsPage() {
                 <strong>Nota da Fase 8:</strong> esta tela configura as formas aceitas.
                 O lançamento financeiro no livro diário de caixa será tratado na Sprint 8.6.
             </div>
-        </div>
+        </PageContainer>
     );
 }

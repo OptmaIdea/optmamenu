@@ -9,14 +9,15 @@ import {
   Filter,
   Info,
   Package,
-  RefreshCw,
   Search,
   ShoppingBag,
   Truck,
   X,
   XCircle,
+  BarChart2,
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import PageContainer from '@/components/common/PageContainer';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import { supabase } from '@/lib/supabase';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
@@ -411,20 +412,13 @@ export default function Activity() {
   if (loadingStore) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#21A896] dark:text-[#37d0bb]">
-            Linha do tempo operacional
-          </p>
-          <h1 className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">
-            Atividades recentes
-          </h1>
-          <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-            Acompanhe cotações, compras, transferências, movimentações e eventos de fornecedores em uma visão única.
-          </p>
-        </div>
-
+    <PageContainer
+      title="Atividades recentes"
+      subtitle="Acompanhe cotações, compras, transferências, movimentações e eventos de fornecedores em uma visão única."
+      category="Dashboard"
+      icon={<BarChart2 size={28} className="text-[#21A896]" />}
+      onRefresh={fetchEvents}
+      action={
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
@@ -437,16 +431,6 @@ export default function Activity() {
 
           <button
             type="button"
-            onClick={() => void fetchEvents()}
-            disabled={loading}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-
-          <button
-            type="button"
             onClick={handleExportCsv}
             disabled={filteredEvents.length === 0}
             className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#21A896] px-3 text-sm font-semibold text-white transition hover:bg-[#1b8f80] disabled:opacity-60"
@@ -455,7 +439,9 @@ export default function Activity() {
             Exportar CSV
           </button>
         </div>
-      </div>
+      }
+      flat
+    >
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -667,6 +653,6 @@ export default function Activity() {
           })}
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 }

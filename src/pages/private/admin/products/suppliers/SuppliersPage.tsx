@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Search, Plus, Pencil, /* Power, PowerOff, */ Package,
   Activity, BarChart3, Eye, Download, FileText,
-  XCircle, ShoppingBag, Flame, Zap,
+  XCircle, ShoppingBag, Flame, Zap, Truck,
 } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -199,9 +199,11 @@ export default function SuppliersPage() {
       <PageContainer
         title="Fornecedores"
         subtitle="Cadastre a origem das entradas para facilitar compras e reposição."
+        category="Produtos"
+        icon={<Truck size={28} className="text-[#21A896]" />}
         lastUpdated={lastUpdated}
         onRefresh={fetchSuppliers}
-        withoutHeader={true}
+        flat
       >
       <div className="flex flex-col gap-6">
         {/* Stats */}

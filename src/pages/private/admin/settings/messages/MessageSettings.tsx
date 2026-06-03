@@ -1,8 +1,8 @@
-// src\pages\private\admin\settings\messages\MessageSettings.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Save, Loader, MessageCircle, CheckCircle, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
+import PageContainer from '@/components/common/PageContainer';
 
 type StoreMessageSettings = {
     id: string;
@@ -83,27 +83,23 @@ export default function MessageSettings() {
     if (!store) return <div className="p-10 text-center">Loja não encontrada.</div>;
 
     return (
-        <div className="max-w-4xl mx-auto p-6 md:p-8 animate-fade-in">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
-                <div>
-                    <h1 className="text-3xl font-black text-gray-800 dark:text-white flex items-center gap-3">
-                        <MessageCircle className="text-brand-green" size={32} />
-                        Envio de Mensagens
-                    </h1>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">
-                        Configure as notificações automáticas por WhatsApp e SMS.
-                    </p>
-                </div>
-
+        <PageContainer
+            title="Envio de Mensagens"
+            subtitle="Configure as notificações automáticas por WhatsApp e SMS."
+            category="Configurações"
+            icon={<MessageCircle className="text-[#21A896]" size={28} />}
+            action={
                 <button
                     onClick={handleSave}
                     disabled={saving}
-                    className="bg-brand-green text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-green-600 transition disabled:opacity-50 shadow-lg shadow-green-200 dark:shadow-none"
+                    className="bg-[#21A896] hover:bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-sm cursor-pointer text-sm"
                 >
-                    {saving ? <Loader size={20} className="animate-spin" /> : <Save size={20} />}
-                    Salvar Alterações
+                    {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                    <span>Salvar Alterações</span>
                 </button>
-            </div>
+            }
+            flat
+        >
 
             <div className="space-y-8">
                 {/* 1. CONSENTIMENTO */}
@@ -203,6 +199,6 @@ export default function MessageSettings() {
                     )}
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }
