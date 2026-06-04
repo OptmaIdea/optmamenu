@@ -126,6 +126,24 @@ function mapStoreMemberToUserAdmin(member: StoreMemberAdmin): UserAdmin {
         exit_reason: member.exit_reason ?? null,
         status_reason: member.status_reason ?? null,
 
+        member_email: member.member_email ?? null,
+        member_phone: member.member_phone ?? null,
+        member_mobile_phone: member.member_mobile_phone ?? null,
+        member_whatsapp_phone: member.member_whatsapp_phone ?? null,
+        member_avatar_url: member.member_avatar_url ?? null,
+        member_zip_code: member.member_zip_code ?? null,
+        member_address: member.member_address ?? null,
+        member_address_number: member.member_address_number ?? null,
+        member_complement: member.member_complement ?? null,
+        member_district: member.member_district ?? null,
+        member_city: member.member_city ?? null,
+        member_state: member.member_state ?? null,
+
+        profile_name: member.profile_name ?? null,
+        profile_phone: member.profile_phone ?? null,
+        profile_mobile_phone: member.profile_mobile_phone ?? null,
+        profile_whatsapp_phone: member.profile_whatsapp_phone ?? null,
+
         stores: [
             {
                 id: member.member_id,

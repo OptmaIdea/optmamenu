@@ -97,6 +97,24 @@ export interface UserAdmin {
     ended_at?: string | null;
     exit_reason?: string | null;
     status_reason?: string | null;
+
+    member_email?: string | null;
+    member_phone?: string | null;
+    member_mobile_phone?: string | null;
+    member_whatsapp_phone?: string | null;
+    member_avatar_url?: string | null;
+    member_zip_code?: string | null;
+    member_address?: string | null;
+    member_address_number?: string | null;
+    member_complement?: string | null;
+    member_district?: string | null;
+    member_city?: string | null;
+    member_state?: string | null;
+
+    profile_name?: string | null;
+    profile_phone?: string | null;
+    profile_mobile_phone?: string | null;
+    profile_whatsapp_phone?: string | null;
 }
 
 export interface StoreUser {

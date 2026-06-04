@@ -67,7 +67,25 @@ export function UserCard({
     const [showMenu, setShowMenu] = React.useState(false);
     const isProtectedOwner = user.role === 'owner';
 
-    const initials = getInitials(user.full_name || user.email);
+    const displayName =
+        user.profile_name ||
+        user.internal_alias ||
+        user.email ||
+        'Usuário';
+
+    const displayAvatar =
+        user.member_avatar_url ||
+        user.profile_avatar_url ||
+        null;
+
+    const displayPhone =
+        user.member_whatsapp_phone ||
+        user.member_mobile_phone ||
+        user.profile_whatsapp_phone ||
+        user.profile_mobile_phone ||
+        user.profile_phone;
+
+    const initials = getInitials(displayName);
 
     const handleAction = (action: () => void) => {
         action();
@@ -112,10 +130,10 @@ export function UserCard({
                 <div className="flex items-start gap-4 flex-1">
                     {/* Avatar */}
                     <div className="w-12 h-12 rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] flex items-center justify-center text-white font-bold text-lg shrink-0">
-                        {user.avatar_url ? (
+                        {displayAvatar ? (
                             <img
-                                src={user.avatar_url}
-                                alt={user.full_name || 'Avatar do usuário'}
+                                src={displayAvatar}
+                                alt={displayName}
                                 className="h-full w-full object-cover"
                             />
                         ) : (
@@ -127,12 +145,12 @@ export function UserCard({
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold text-gray-900 dark:text-white truncate">
-                                {user.full_name || 'Sem nome'}
+                                {displayName}
                             </h3>
                             <UserRoleBadge role={user.role} size="sm" />
                             <UserStatusBadge status={user.status} size="sm" />
                         </div>
-                        {user.internal_alias && user.internal_alias !== user.full_name && (
+                        {user.internal_alias && user.internal_alias !== displayName && (
                             <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
                                 Apelido interno: {user.internal_alias}
                             </p>
@@ -158,22 +176,10 @@ export function UserCard({
                                     <span className="truncate">{user.email}</span>
                                 </div>
                             )}
-                            {user.phone && (
+                            {displayPhone && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <Phone size={14} className="shrink-0" />
-                                    <span>{user.phone}</span>
-                                </div>
-                            )}
-                            {user.whatsapp_phone && (
-                                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                    <Phone size={14} className="shrink-0" />
-                                    <span>WhatsApp: {user.whatsapp_phone}</span>
-                                </div>
-                            )}
-                            {user.mobile_phone && !user.whatsapp_phone && (
-                                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                                    <Phone size={14} className="shrink-0" />
-                                    <span>Celular: {user.mobile_phone}</span>
+                                    <span>{displayPhone}</span>
                                 </div>
                             )}
                             {canViewSensitiveUserData && user.cpf && (
@@ -252,8 +258,8 @@ export function UserCard({
                                             }
                                             disabled={isProtectedOwner}
                                             className={`w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 ${isProtectedOwner
-                                                    ? 'opacity-50 cursor-not-allowed'
-                                                    : ''
+                                                ? 'opacity-50 cursor-not-allowed'
+                                                : ''
                                                 }`}
                                         >
                                             {user.status === 'active' ? (
@@ -280,8 +286,8 @@ export function UserCard({
                                             }
                                             disabled={isProtectedOwner}
                                             className={`w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 ${isProtectedOwner
-                                                    ? 'opacity-50 cursor-not-allowed'
-                                                    : ''
+                                                ? 'opacity-50 cursor-not-allowed'
+                                                : ''
                                                 }`}
                                         >
                                             <Trash2 size={14} />

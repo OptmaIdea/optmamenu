@@ -14,10 +14,11 @@ import {
     Instagram,
     Facebook,
     Search,
+    AlertTriangle,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
-import { updateCurrentUserProfile, updateMyStoreMemberAlias } from '@/services/securityService';
+import { updateCurrentUserProfile, updateMyStoreMemberProfile } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
 
@@ -40,6 +41,7 @@ interface ProfileData {
     website_url: string;
     avatar_url: string;
     cpf: string;
+    member_email: string;
 }
 
 interface IBGEState {
@@ -70,6 +72,14 @@ export default function Profile() {
     const [savingAvatar, setSavingAvatar] = useState(false);
     const [isCpfDisabled, setIsCpfDisabled] = useState(false);
 
+    const memberships = securityContext?.memberships || [];
+    const selectedMembership = securityContext?.primary_membership || securityContext?.memberships?.[0] || null;
+
+    const isOwnerSomewhere = memberships.some((m) => m.role === 'owner');
+    const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
+
+    const canEditGlobalProfile = !isOwnerSomewhere || isOwnerInCurrentStore;
+
     // States & Cities from IBGE
     const [states, setStates] = useState<IBGEState[]>([]);
     const [cities, setCities] = useState<IBGECity[]>([]);
@@ -95,6 +105,7 @@ export default function Profile() {
         website_url: '',
         avatar_url: '',
         cpf: '',
+        member_email: '',
     });
 
     useEffect(() => {
@@ -127,45 +138,62 @@ export default function Profile() {
 
             if (error) throw error;
 
+            // 9.9H.10 — Profile.tsx: correção de carregamento
+            const activeStoreId = getActiveStoreId();
+            let memberRow: any = null;
+
+            if (activeStoreId && user) {
+                const { data } = await supabase
+                    .from('store_members')
+                    .select(`
+                        internal_alias,
+                        member_email,
+                        member_phone,
+                        member_mobile_phone,
+                        member_whatsapp_phone,
+                        member_avatar_url,
+                        member_zip_code,
+                        member_address,
+                        member_address_number,
+                        member_complement,
+                        member_district,
+                        member_city,
+                        member_state
+                    `)
+                    .eq('user_id', user.id)
+                    .eq('store_id', activeStoreId)
+                    .maybeSingle();
+                memberRow = data;
+            }
+
             if (profileData) {
                 setProfile({
                     name: profileData.name || '',
-                    internal_alias: '',   // apelido vem de store_members, carregado abaixo
-                    phone: profileData.phone || '',
-                    mobile_phone: profileData.mobile_phone || '',
-                    whatsapp_phone: profileData.whatsapp_phone || '',
-                    birthdate: profileData.birthdate || '',
-                    zip_code: profileData.zip_code || '',
-                    address: profileData.address || '',
-                    address_number: profileData.address_number || '',
-                    complement: profileData.complement || '',
-                    district: profileData.district || '',
-                    city: profileData.city || '',
-                    state: profileData.state || '',
+                    cpf: profileData.cpf || '',
+                    birthdate: profileData.birthdata || profileData.birthdate || '',
+
+                    internal_alias: memberRow?.internal_alias || '',
+                    phone: memberRow?.member_phone || profileData.phone || '',
+                    mobile_phone: memberRow?.member_mobile_phone || profileData.mobile_phone || '',
+                    whatsapp_phone: memberRow?.member_whatsapp_phone || profileData.whatsapp_phone || '',
+                    avatar_url: memberRow?.member_avatar_url || profileData.avatar_url || '',
+
+                    zip_code: memberRow?.member_zip_code || profileData.zip_code || '',
+                    address: memberRow?.member_address || profileData.address || '',
+                    address_number: memberRow?.member_address_number || profileData.address_number || '',
+                    complement: memberRow?.member_complement || profileData.complement || '',
+                    district: memberRow?.member_district || profileData.district || '',
+                    city: memberRow?.member_city || profileData.city || '',
+                    state: memberRow?.member_state || profileData.state || '',
+
                     instagram_url: profileData.instagram_url || '',
                     facebook_url: profileData.facebook_url || '',
                     website_url: profileData.website_url || '',
-                    avatar_url: profileData.avatar_url || '',
-                    cpf: profileData.cpf || '',
+                    member_email: memberRow?.member_email || '',
                 });
 
                 // CPF is read-only if it is already pre-filled
                 setIsCpfDisabled(!!profileData.cpf);
-            }
-
-            // Busca o apelido separadamente de store_members (por user_id + store_id)
-            const activeStoreId = getActiveStoreId();
-            if (activeStoreId && user) {
-                const { data: memberRow } = await supabase
-                    .from('store_members')
-                    .select('internal_alias')
-                    .eq('user_id', user.id)
-                    .eq('store_id', activeStoreId)
-                    .maybeSingle();
-
-                if (memberRow?.internal_alias) {
-                    setProfile((prev) => ({ ...prev, internal_alias: memberRow.internal_alias ?? '' }));
-                }
             }
 
         } catch (error: any) {
@@ -281,33 +309,35 @@ export default function Profile() {
         try {
             setSaving(true);
 
-            // FIX.2: Salva dados pessoais (profiles) e apelido (store_members) separadamente
+            // FIX.2 & 9.9H.10: Salva dados pessoais (profiles) e dados do vínculo (store_members)
             const activeStoreId = getActiveStoreId();
 
-            await updateCurrentUserProfile({
-                name: profile.name,
-                phone: profile.phone,
-                mobilePhone: profile.mobile_phone,
-                whatsappPhone: profile.whatsapp_phone,
-                birthdate: profile.birthdate || null,
-                zipCode: profile.zip_code,
-                address: profile.address,
-                addressNumber: profile.address_number,
-                complement: profile.complement,
-                district: profile.district,
-                city: profile.city,
-                state: profile.state,
-                instagramUrl: profile.instagram_url,
-                facebookUrl: profile.facebook_url,
-                websiteUrl: profile.website_url,
-                cpf: profile.cpf,
-            });
+            if (canEditGlobalProfile) {
+                await updateCurrentUserProfile({
+                    name: profile.name,
+                    cpf: profile.cpf || null,
+                    birthdate: profile.birthdate || null,
+                    instagramUrl: profile.instagram_url,
+                    facebookUrl: profile.facebook_url,
+                    websiteUrl: profile.website_url,
+                });
+            }
 
-            // Salva o apelido separadamente em store_members via função dedicada
             if (activeStoreId) {
-                await updateMyStoreMemberAlias({
+                await updateMyStoreMemberProfile({
                     storeId: activeStoreId,
                     internalAlias: profile.internal_alias || null,
+                    memberEmail: profile.member_email || null,
+                    memberPhone: profile.phone || null,
+                    memberMobilePhone: profile.mobile_phone || null,
+                    memberWhatsappPhone: profile.whatsapp_phone || null,
+                    memberZipCode: profile.zip_code || null,
+                    memberAddress: profile.address || null,
+                    memberAddressNumber: profile.address_number || null,
+                    memberComplement: profile.complement || null,
+                    memberDistrict: profile.district || null,
+                    memberCity: profile.city || null,
+                    memberState: profile.state || null,
                 });
             }
 
@@ -346,6 +376,16 @@ export default function Profile() {
             flat
         >
             <form onSubmit={handleSave} noValidate className="max-w-4xl mx-auto space-y-8">
+                {isOwnerSomewhere && !isOwnerInCurrentStore && (
+                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 text-sm text-amber-800 dark:text-amber-200 flex gap-3 items-start shadow-sm">
+                        <AlertTriangle className="shrink-0 text-amber-500 mt-0.5" size={18} />
+                        <div>
+                            <span className="font-bold block mb-1">Apenas dados de vínculo editáveis</span>
+                            Estes dados fazem parte do seu cadastro principal no OptmaMenu e são reaproveitados em outras empresas. Para esta loja, você pode personalizar apelido, contatos, avatar e endereço de correspondência.
+                        </div>
+                    </div>
+                )}
+
                 {/* Visual Avatar Block */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center gap-6">
                     <div className="relative group">
@@ -378,7 +418,7 @@ export default function Profile() {
                         )}
 
                         <label
-                            htmlFor="avatar-upload"
+                             htmlFor="avatar-upload"
                             className="absolute bottom-0 right-0 bg-[#21A896] text-white p-1.5 rounded-full shadow-md cursor-pointer hover:brightness-110 transition"
                         >
                             <Camera size={14} />
@@ -414,10 +454,11 @@ export default function Profile() {
                             </label>
                             <input
                                 type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.name}
                                 onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                                 required
+                                disabled={!canEditGlobalProfile}
                             />
                         </div>
 
@@ -441,7 +482,7 @@ export default function Profile() {
                                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.cpf}
                                 onChange={(e) => setProfile({ ...profile, cpf: e.target.value })}
-                                disabled={isCpfDisabled}
+                                disabled={isCpfDisabled || !canEditGlobalProfile}
                                 placeholder="000.000.000-00"
                             />
                             {isCpfDisabled && (
@@ -455,9 +496,10 @@ export default function Profile() {
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Data de Nascimento</label>
                             <input
                                 type="date"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.birthdate}
                                 onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
+                                disabled={!canEditGlobalProfile}
                             />
                         </div>
                     </div>
@@ -470,14 +512,14 @@ export default function Profile() {
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail</label>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail de Contato</label>
                             <div className="relative">
                                 <input
                                     type="email"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-900 text-gray-500"
-                                    value={securityContext?.email || ''}
-                                    readOnly
-                                    disabled
+                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                    value={profile.member_email}
+                                    onChange={(e) => setProfile({ ...profile, member_email: e.target.value })}
+                                    placeholder={securityContext?.email || 'Ex: contato@empresa.com'}
                                 />
                                 <Mail size={18} className="absolute right-3 top-3.5 text-gray-400" />
                             </div>
@@ -658,10 +700,11 @@ export default function Profile() {
                             <div className="relative">
                                 <input
                                     type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                     value={profile.instagram_url}
                                     onChange={(e) => setProfile({ ...profile, instagram_url: e.target.value })}
                                     placeholder="Ex: @seuusername"
+                                    disabled={!canEditGlobalProfile}
                                 />
                                 <Instagram size={18} className="absolute right-3 top-3.5 text-gray-400" />
                             </div>
@@ -672,10 +715,11 @@ export default function Profile() {
                             <div className="relative">
                                 <input
                                     type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                     value={profile.facebook_url}
                                     onChange={(e) => setProfile({ ...profile, facebook_url: e.target.value })}
                                     placeholder="Ex: facebook.com/perfil"
+                                    disabled={!canEditGlobalProfile}
                                 />
                                 <Facebook size={18} className="absolute right-3 top-3.5 text-gray-400" />
                             </div>
@@ -686,10 +730,11 @@ export default function Profile() {
                             <div className="relative">
                                 <input
                                     type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                     value={profile.website_url}
                                     onChange={(e) => setProfile({ ...profile, website_url: e.target.value })}
                                     placeholder="Ex: www.seusite.com"
+                                    disabled={!canEditGlobalProfile}
                                 />
                                 <Globe size={18} className="absolute right-3 top-3.5 text-gray-400" />
                             </div>

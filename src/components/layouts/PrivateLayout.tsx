@@ -84,6 +84,7 @@ type LayoutMembership = {
     avatar_url?: string | null;
     internal_alias?: string | null;
     profile_name?: string | null;
+    member_avatar_url?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -327,7 +328,14 @@ export default function PrivateLayout() {
                         .maybeSingle(),
                     supabase
                         .from('store_members')
-                        .select('internal_alias, avatar_url')
+                        .select(`
+                          internal_alias,
+                          member_avatar_url,
+                          member_email,
+                          member_phone,
+                          member_mobile_phone,
+                          member_whatsapp_phone
+                        `)
                         .eq('user_id', user.id)
                         .eq('store_id', selectedMembership.store_id)
                         .maybeSingle(),
@@ -344,19 +352,18 @@ export default function PrivateLayout() {
                 const resolvedAlias =
                     selectedMembership?.internal_alias ||
                     memberAliasRow?.internal_alias ||
-                    profileRow?.name ||
+                    profileRow?.name?.split(' ')[0] ||
                     user.email?.split('@')[0] ||
                     'Usuário';
 
-                // avatar: profiles.avatar_url → store_members.avatar_url → RPC membership
+                // avatar: member_avatar_url → avatar_url → fallbacks
                 const resolvedAvatar =
+                    selectedMembership?.member_avatar_url ||
+                    selectedMembership?.avatar_url ||
+                    memberAliasRow?.member_avatar_url ||
                     profileRow?.avatar_url ||
-                    memberAliasRow?.avatar_url ||
-                    selectedMembership.profile_avatar_url ||
-                    selectedMembership.avatar_url ||
-                    securityContext.profile?.profile_avatar_url ||
-                    securityContext.profile?.avatar_url ||
-                    user.user_metadata?.avatar_url;
+                    user.user_metadata?.avatar_url ||
+                    null;
 
                 setUserData({
                     name: fullName,
@@ -701,9 +708,9 @@ export default function PrivateLayout() {
                                         <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
                                             {userData.alias}
                                         </p>
-                                        <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate font-candara">
+                                        {/*                                         <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate font-candara">
                                             {userData.email}
-                                        </p>
+                                        </p> */}
                                         <p className="text-[10px] text-gray-400 dark:text-gray-500 truncate font-candara">
                                             Sessão iniciada às {sessionStartTime.toLocaleTimeString('pt-BR')}
                                         </p>

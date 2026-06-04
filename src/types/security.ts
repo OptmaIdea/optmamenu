@@ -56,6 +56,18 @@ export interface StoreMembershipContext {
   profile_avatar_url?: string | null;
   avatar_url?: string | null;
   internal_alias?: string | null;
+  member_email?: string | null;
+  member_phone?: string | null;
+  member_mobile_phone?: string | null;
+  member_whatsapp_phone?: string | null;
+  member_avatar_url?: string | null;
+  member_zip_code?: string | null;
+  member_address?: string | null;
+  member_address_number?: string | null;
+  member_complement?: string | null;
+  member_district?: string | null;
+  member_city?: string | null;
+  member_state?: string | null;
 }
 
 export interface CurrentUserSecurityContext {
@@ -118,6 +130,19 @@ export interface StoreMemberAdmin {
   ended_at?: string | null;
   exit_reason?: string | null;
   status_reason?: string | null;
+
+  member_email?: string | null;
+  member_phone?: string | null;
+  member_mobile_phone?: string | null;
+  member_whatsapp_phone?: string | null;
+  member_avatar_url?: string | null;
+  member_zip_code?: string | null;
+  member_address?: string | null;
+  member_address_number?: string | null;
+  member_complement?: string | null;
+  member_district?: string | null;
+  member_city?: string | null;
+  member_state?: string | null;
 }
 
 export type StoreRole =
