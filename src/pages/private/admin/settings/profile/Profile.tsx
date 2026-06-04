@@ -17,8 +17,9 @@ import {
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
-import { updateCurrentUserProfile } from '@/services/securityService';
+import { updateCurrentUserProfile, updateMyStoreMemberAlias } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 interface ProfileData {
     name: string;
@@ -129,7 +130,7 @@ export default function Profile() {
             if (profileData) {
                 setProfile({
                     name: profileData.name || '',
-                    internal_alias: profileData.internal_alias || '',
+                    internal_alias: '',   // apelido vem de store_members, carregado abaixo
                     phone: profileData.phone || '',
                     mobile_phone: profileData.mobile_phone || '',
                     whatsapp_phone: profileData.whatsapp_phone || '',
@@ -151,6 +152,22 @@ export default function Profile() {
                 // CPF is read-only if it is already pre-filled
                 setIsCpfDisabled(!!profileData.cpf);
             }
+
+            // Busca o apelido separadamente de store_members (por user_id + store_id)
+            const activeStoreId = getActiveStoreId();
+            if (activeStoreId && user) {
+                const { data: memberRow } = await supabase
+                    .from('store_members')
+                    .select('internal_alias')
+                    .eq('user_id', user.id)
+                    .eq('store_id', activeStoreId)
+                    .maybeSingle();
+
+                if (memberRow?.internal_alias) {
+                    setProfile((prev) => ({ ...prev, internal_alias: memberRow.internal_alias ?? '' }));
+                }
+            }
+
         } catch (error: any) {
             console.error('Error fetching user profile:', error);
             toast.error('Erro ao carregar dados do perfil.');
@@ -263,9 +280,12 @@ export default function Profile() {
 
         try {
             setSaving(true);
+
+            // FIX.2: Salva dados pessoais (profiles) e apelido (store_members) separadamente
+            const activeStoreId = getActiveStoreId();
+
             await updateCurrentUserProfile({
                 name: profile.name,
-                internalAlias: profile.internal_alias,
                 phone: profile.phone,
                 mobilePhone: profile.mobile_phone,
                 whatsappPhone: profile.whatsapp_phone,
@@ -280,7 +300,16 @@ export default function Profile() {
                 instagramUrl: profile.instagram_url,
                 facebookUrl: profile.facebook_url,
                 websiteUrl: profile.website_url,
+                cpf: profile.cpf,
             });
+
+            // Salva o apelido separadamente em store_members via função dedicada
+            if (activeStoreId) {
+                await updateMyStoreMemberAlias({
+                    storeId: activeStoreId,
+                    internalAlias: profile.internal_alias || null,
+                });
+            }
 
             toast.success('Perfil atualizado com sucesso!');
 

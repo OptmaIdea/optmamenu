@@ -68,7 +68,6 @@ export default function Dashboard() {
   });
 
   const [loading, setLoading] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
   const [storeId, setStoreId] = useState<string | null>(null);
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [fatalError, setFatalError] = useState<string | null>(null);
@@ -222,8 +221,6 @@ export default function Dashboard() {
         newCustomers: 3,
         pendingMessages: mockMessages,
       }));
-
-      setLastUpdated(new Date());
     } catch (error) {
       console.error('Error loading dashboard:', error);
       setFatalError('Erro inesperado ao carregar dashboard.');

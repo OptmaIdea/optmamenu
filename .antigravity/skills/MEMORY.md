@@ -396,4 +396,53 @@ Consulte os arquivos abaixo para diretrizes específicas antes de desenvolver:
 
 ---
 
-*Última atualização: 2026-06-04 | Atualizado com skill `realtime_listener_standard.md`.*
+## 👤 Identidade do Usuário Logado (Sidebar/Header)
+
+> ⚠️ **REGRA CRÍTICA**: `profiles` NÃO tem `internal_alias`. Nunca buscar alias em `profiles`.
+
+### Separação de responsabilidades
+
+| Tabela | Dados |
+|---|---|
+| `profiles` | Nome, telefone, CPF, endereço, redes sociais, `avatar_url` |
+| `store_members` | `internal_alias` (apelido por loja), `job_title`, `department` |
+
+### Como salvar (tela Meus Dados)
+```ts
+// 1. Dados pessoais → profiles:
+await updateCurrentUserProfile({ name, phone, ... });  // sem internalAlias
+
+// 2. Apelido → store_members:
+await updateMyStoreMemberAlias({ storeId: getActiveStoreId(), internalAlias });
+```
+
+### Como buscar o apelido na sidebar
+```ts
+const { data: memberRow } = await supabase
+    .from('store_members')
+    .select('internal_alias, avatar_url')
+    .eq('user_id', user.id)
+    .eq('store_id', selectedMembership.store_id)
+    .maybeSingle();
+
+const displayName =
+    selectedMembership?.internal_alias ||  // RPC retorna se FIX.3 aplicado
+    memberRow?.internal_alias ||           // query direta (RLS safe via user_id)
+    profileRow?.name ||                   // nome completo
+    user.email?.split('@')[0] || 'Usuário';
+
+const fullName =
+    profileRow?.name ||
+    selectedMembership?.profile_name ||
+    user.email;
+```
+
+> 📄 Detalhes completos: `docs/9.9H-arquitetura-identidade-usuario.md`
+
+### Pendente no Supabase (FIX.3)
+Adicionar `sm.internal_alias` na CTE e no `jsonb_build_object` da função
+`get_current_user_security_context_v2` para eliminar a query extra no layout.
+
+---
+
+*Última atualização: 2026-06-04 | Adicionada seção de identidade do usuário (profiles vs store_members).*

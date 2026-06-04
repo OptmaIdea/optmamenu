@@ -53,7 +53,7 @@ function StockList({
 
 export default function Alerts() {
   const { store, storeId, loading: storeLoading } = useCurrentStore();
-  const { loading, error, refreshedAt, refresh, summary, lists } = useStockAlerts(storeId || undefined, {
+  const { loading, error, summary, lists } = useStockAlerts(storeId || undefined, {
     autoRefreshMs: 5 * 60 * 1000,
     limitPerList: 12,
   });

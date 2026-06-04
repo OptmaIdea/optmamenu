@@ -247,7 +247,6 @@ export async function updateStoreMemberProfileDetails(
 
 export type UpdateCurrentUserProfileInput = {
     name?: string | null;
-    internalAlias?: string | null;
     phone?: string | null;
     mobilePhone?: string | null;
     whatsappPhone?: string | null;
@@ -270,7 +269,6 @@ export async function updateCurrentUserProfile(
 ) {
     const { data, error } = await supabase.rpc('update_current_user_profile', {
         p_name: input.name ?? null,
-        p_internal_alias: input.internalAlias ?? null,
         p_phone: input.phone ?? null,
         p_mobile_phone: input.mobilePhone ?? null,
         p_whatsapp_phone: input.whatsappPhone ?? null,
@@ -285,6 +283,7 @@ export async function updateCurrentUserProfile(
         p_instagram_url: input.instagramUrl ?? null,
         p_facebook_url: input.facebookUrl ?? null,
         p_website_url: input.websiteUrl ?? null,
+        p_cpf: input.cpf ?? null,
     });
 
     if (error) {
@@ -293,4 +292,26 @@ export async function updateCurrentUserProfile(
     }
 
     return data;
+}
+
+/**
+ * Atualiza o apelido (internal_alias) do usuário logado dentro de uma loja específica.
+ * Separado de updateCurrentUserProfile pois internal_alias é por loja (store_members),
+ * enquanto os demais dados pessoais ficam em profiles.
+ */
+export async function updateMyStoreMemberAlias(params: {
+    storeId: string;
+    internalAlias: string | null;
+}) {
+    const { data, error } = await supabase.rpc('update_my_store_member_alias', {
+        p_store_id: params.storeId,
+        p_internal_alias: params.internalAlias ?? '',
+    });
+
+    if (error) {
+        console.error('Erro ao atualizar apelido do membro:', error);
+        throw error;
+    }
+
+    return Array.isArray(data) ? data[0] ?? null : data;
 }

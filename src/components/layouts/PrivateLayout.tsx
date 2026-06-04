@@ -83,6 +83,7 @@ type LayoutMembership = {
     profile_avatar_url?: string | null;
     avatar_url?: string | null;
     internal_alias?: string | null;
+    profile_name?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -316,12 +317,12 @@ export default function PrivateLayout() {
                 setStoreId(selectedMembership.store_id);
                 setStoreSlug(selectedMembership.store_slug);
 
-                // Busca nome, telefone e avatar de profiles + internal_alias de store_members via user_id
-                // O RLS de store_members normalmente permite leitura de seus próprios registros (user_id = auth.uid())
+                // FIX.5: profiles NÃO tem internal_alias — buscar apenas dados pessoais
+                // FIX.5: internal_alias vem de store_members via user_id + store_id (RLS safe)
                 const [{ data: profileRow }, { data: memberAliasRow }] = await Promise.all([
                     supabase
                         .from('profiles')
-                        .select('name, phone, avatar_url')
+                        .select('name, avatar_url, phone, mobile_phone, whatsapp_phone, cpf, birthdata, zip_code, address, address_number, complement, district, city, state, instagram_url, facebook_url, website_url')
                         .eq('id', user.id)
                         .maybeSingle(),
                     supabase
@@ -332,19 +333,20 @@ export default function PrivateLayout() {
                         .maybeSingle(),
                 ]);
 
+                // FIX.4: fullName = nome completo (para subtítulo)
                 const fullName =
                     profileRow?.name ||
-                    securityContext.profile?.name ||
-                    user.user_metadata?.full_name ||
-                    securityContext.email ||
-                    'Usuário';
+                    selectedMembership?.profile_name ||
+                    user.email;
 
-                // internal_alias: RPC membership → store_members direto → primeiro nome
+                // FIX.4: displayName = apelido para sidebar/header
+                // Ordem: RPC membership → store_members direto → email username → 'Usuário'
                 const resolvedAlias =
-                    selectedMembership.internal_alias ||
+                    selectedMembership?.internal_alias ||
                     memberAliasRow?.internal_alias ||
-                    securityContext.profile?.internal_alias ||
-                    fullName.split(' ')[0];
+                    profileRow?.name ||
+                    user.email?.split('@')[0] ||
+                    'Usuário';
 
                 // avatar: profiles.avatar_url → store_members.avatar_url → RPC membership
                 const resolvedAvatar =

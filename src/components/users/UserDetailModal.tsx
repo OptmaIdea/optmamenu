@@ -2808,6 +2808,7 @@ function InputField({
     type = 'text',
     className = '',
     disabled = false,
+    placeholder = '',
 }: {
     label: string;
     value?: string | null;
@@ -2815,6 +2816,7 @@ function InputField({
     type?: string;
     className?: string;
     disabled?: boolean;
+    placeholder?: string;
 }) {
     return (
         <label className={`block ${className}`}>
@@ -2825,6 +2827,7 @@ function InputField({
                 type={type}
                 value={value ?? ''}
                 disabled={disabled}
+                placeholder={placeholder}
                 onChange={(event) => onChange(event.target.value)}
                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
             />
