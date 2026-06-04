@@ -71,8 +71,6 @@ export default function Alerts() {
       subtitle={store?.name ? `Alertas de estoque para a loja ${store.name}` : "Acompanhe alertas de estoque crítico, baixo e excessos"}
       category="Dashboard"
       icon={<AlertCircle size={28} className="text-[#21A896]" />}
-      lastUpdated={refreshedAt ?? undefined}
-      onRefresh={refresh}
       action={
         <Link
           to="/admin/inventory"

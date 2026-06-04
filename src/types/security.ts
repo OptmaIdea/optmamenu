@@ -20,6 +20,7 @@ export type StoreMemberStatus =
 export interface SecurityProfile {
   id?: string;
   name?: string | null;
+  internal_alias?: string | null;
   phone?: string | null;
   cpf?: string | null;
   city?: string | null;
@@ -54,6 +55,7 @@ export interface StoreMembershipContext {
   access_message?: string | null;
   profile_avatar_url?: string | null;
   avatar_url?: string | null;
+  internal_alias?: string | null;
 }
 
 export interface CurrentUserSecurityContext {

@@ -417,7 +417,6 @@ export default function Activity() {
       subtitle="Acompanhe cotações, compras, transferências, movimentações e eventos de fornecedores em uma visão única."
       category="Dashboard"
       icon={<BarChart2 size={28} className="text-[#21A896]" />}
-      onRefresh={fetchEvents}
       action={
         <div className="flex flex-wrap gap-2">
           <button

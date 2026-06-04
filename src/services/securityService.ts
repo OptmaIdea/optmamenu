@@ -262,7 +262,6 @@ export type UpdateCurrentUserProfileInput = {
     instagramUrl?: string | null;
     facebookUrl?: string | null;
     websiteUrl?: string | null;
-    avatarUrl?: string | null;
     cpf?: string | null;
 };
 
@@ -286,8 +285,6 @@ export async function updateCurrentUserProfile(
         p_instagram_url: input.instagramUrl ?? null,
         p_facebook_url: input.facebookUrl ?? null,
         p_website_url: input.websiteUrl ?? null,
-        p_avatar_url: input.avatarUrl ?? null,
-        p_cpf: input.cpf ?? null,
     });
 
     if (error) {

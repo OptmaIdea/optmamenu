@@ -309,8 +309,6 @@ export default function Dashboard() {
       subtitle="Visão completa da sua operação em tempo real"
       category="Dashboard"
       icon={<LayoutDashboard size={28} className="text-[#21A896]" />}
-      lastUpdated={lastUpdated}
-      onRefresh={fetchDashboardData}
       flat
     >
       {(stats.zeroStockCount > 0 || stats.lowStockCount > 0) && (

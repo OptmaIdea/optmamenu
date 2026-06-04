@@ -1572,6 +1572,15 @@ export function UserDetailModal({
                                             />
 
                                             <InputField
+                                                label="Apelido"
+                                                placeholder="Como prefere ser chamado"
+                                                value={profileForm.internalAlias}
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, internalAlias: value }))
+                                                }
+                                            />
+
+                                            <InputField
                                                 label="Telefone"
                                                 value={profileForm.profilePhone}
                                                 onChange={(value) =>

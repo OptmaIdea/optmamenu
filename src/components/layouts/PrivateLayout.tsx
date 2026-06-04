@@ -77,10 +77,12 @@ type LayoutMembership = {
     status: string;
     is_primary_owner?: boolean;
     custom_role_name?: string | null;
+    custom_role_base_role?: string | null;
     access_blocked?: boolean | null;
     access_message?: string | null;
     profile_avatar_url?: string | null;
     avatar_url?: string | null;
+    internal_alias?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -122,7 +124,7 @@ export default function PrivateLayout() {
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isQuickAccessOpen, setIsQuickAccessOpen] = useState(false);
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-    const [userData, setUserData] = useState<{ name: string; phone: string; email: string; avatar?: string } | null>(null);
+    const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
     const can = (permissionCode: string) => {
@@ -283,12 +285,16 @@ export default function PrivateLayout() {
                     setStoreId(null);
                     setStoreSlug(null);
                     setActiveMembership(null);
+                    const nameNoMembership =
+                        securityContext.profile?.name ||
+                        user.user_metadata?.full_name ||
+                        securityContext.email ||
+                        'Usuário';
                     setUserData({
-                        name:
-                            securityContext.profile?.name ||
-                            user.user_metadata?.full_name ||
-                            securityContext.email ||
-                            'Usuário',
+                        name: nameNoMembership,
+                        alias:
+                            securityContext.profile?.internal_alias ||
+                            nameNoMembership.split(' ')[0],
                         phone:
                             securityContext.profile?.phone ||
                             user.user_metadata?.phone_number ||
@@ -310,23 +316,56 @@ export default function PrivateLayout() {
                 setStoreId(selectedMembership.store_id);
                 setStoreSlug(selectedMembership.store_slug);
 
+                // Busca nome, telefone e avatar de profiles + internal_alias de store_members via user_id
+                // O RLS de store_members normalmente permite leitura de seus próprios registros (user_id = auth.uid())
+                const [{ data: profileRow }, { data: memberAliasRow }] = await Promise.all([
+                    supabase
+                        .from('profiles')
+                        .select('name, phone, avatar_url')
+                        .eq('id', user.id)
+                        .maybeSingle(),
+                    supabase
+                        .from('store_members')
+                        .select('internal_alias, avatar_url')
+                        .eq('user_id', user.id)
+                        .eq('store_id', selectedMembership.store_id)
+                        .maybeSingle(),
+                ]);
+
+                const fullName =
+                    profileRow?.name ||
+                    securityContext.profile?.name ||
+                    user.user_metadata?.full_name ||
+                    securityContext.email ||
+                    'Usuário';
+
+                // internal_alias: RPC membership → store_members direto → primeiro nome
+                const resolvedAlias =
+                    selectedMembership.internal_alias ||
+                    memberAliasRow?.internal_alias ||
+                    securityContext.profile?.internal_alias ||
+                    fullName.split(' ')[0];
+
+                // avatar: profiles.avatar_url → store_members.avatar_url → RPC membership
+                const resolvedAvatar =
+                    profileRow?.avatar_url ||
+                    memberAliasRow?.avatar_url ||
+                    selectedMembership.profile_avatar_url ||
+                    selectedMembership.avatar_url ||
+                    securityContext.profile?.profile_avatar_url ||
+                    securityContext.profile?.avatar_url ||
+                    user.user_metadata?.avatar_url;
+
                 setUserData({
-                    name:
-                        securityContext.profile?.name ||
-                        user.user_metadata?.full_name ||
-                        securityContext.email ||
-                        'Usuário',
+                    name: fullName,
+                    alias: resolvedAlias,
                     phone:
+                        profileRow?.phone ||
                         securityContext.profile?.phone ||
                         user.user_metadata?.phone_number ||
                         '',
                     email: securityContext.email || user.email || '',
-                    avatar:
-                        securityContext.profile?.profile_avatar_url ||
-                        securityContext.profile?.avatar_url ||
-                        selectedMembership?.profile_avatar_url ||
-                        selectedMembership?.avatar_url ||
-                        user.user_metadata?.avatar_url
+                    avatar: resolvedAvatar,
                 });
             } catch (error) {
                 console.error('Erro ao carregar contexto de segurança:', error);
@@ -350,8 +389,10 @@ export default function PrivateLayout() {
                 setStoreId(storeData.id);
                 setStoreSlug(storeData.slug);
                 setActiveMembership(null);
+                const fallbackName = user.user_metadata?.full_name || user.email || 'Usuário';
                 setUserData({
-                    name: user.user_metadata?.full_name || user.email || 'Usuário',
+                    name: fallbackName,
+                    alias: fallbackName.split(' ')[0],
                     phone: user.user_metadata?.phone_number || '',
                     email: user.email || '',
                     avatar: user.user_metadata?.avatar_url
@@ -656,7 +697,7 @@ export default function PrivateLayout() {
                                 {!isSidebarCollapsed && (
                                     <div className="flex-1 overflow-hidden">
                                         <p className="text-sm font-bold text-gray-800 dark:text-white truncate font-candara-bold">
-                                            {userData.name}
+                                            {userData.alias}
                                         </p>
                                         <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate font-candara">
                                             {userData.email}
@@ -848,6 +889,28 @@ export default function PrivateLayout() {
                                 </span>
                             )}
                         </button>
+
+                        {/* User Identity Chip — apelido + avatar do usuário logado */}
+                        {userData && (
+                            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 shrink-0 select-none">
+                                <div className="h-6 w-6 rounded-full overflow-hidden bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600">
+                                    {userData.avatar ? (
+                                        <img
+                                            src={userData.avatar}
+                                            alt={userData.alias}
+                                            className="h-full w-full object-cover"
+                                        />
+                                    ) : (
+                                        <span className="text-[10px] text-teal-800 dark:text-teal-200 font-black">
+                                            {getInitials(userData.alias)}
+                                        </span>
+                                    )}
+                                </div>
+                                <span className="text-xs font-bold text-gray-700 dark:text-gray-200 font-candara">
+                                    {userData.alias}
+                                </span>
+                            </div>
+                        )}
 
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
 

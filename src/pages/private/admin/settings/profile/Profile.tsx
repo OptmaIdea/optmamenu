@@ -280,12 +280,11 @@ export default function Profile() {
                 instagramUrl: profile.instagram_url,
                 facebookUrl: profile.facebook_url,
                 websiteUrl: profile.website_url,
-                cpf: profile.cpf || null,
             });
 
             toast.success('Perfil atualizado com sucesso!');
 
-            // Disparar recarga do contexto de segurança
+            // Disparar recarga do contexto de segurança e atualizar sidebar/header
             await refreshSecurityContext();
             window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
 
