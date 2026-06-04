@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Filter, ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
+import { useRefreshFrame } from '@/hooks/useRefreshFrame';
+import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 
 
 export default function Orders() {
@@ -12,6 +14,81 @@ export default function Orders() {
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
+
+    // Fetch orders
+    const fetchOrders = useCallback(async () => {
+        setLoading(true);
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            // First get the store for this user via RPC (agora retorna todos os campos)
+            const { data: storeRpcData, error: storeRpcError } = await supabase.rpc(
+                'get_user_store_by_id',
+                { p_user_id: user.id }
+            );
+            if (storeRpcError) throw storeRpcError;
+            const store = Array.isArray(storeRpcData) ? storeRpcData[0] : storeRpcData;
+
+            if (!store) {
+                setLoading(false);
+                return;
+            }
+
+            setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
+
+            const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
+                p_store_id: store.id,
+                p_status: filterStatus === 'all' ? 'all' : filterStatus,
+                p_limit: 200,
+            });
+
+            if (error) {
+                console.error('Error fetching orders:', error);
+                throw error;
+            }
+
+            if (!result?.ok) {
+                throw new Error(result?.error || 'Erro ao buscar pedidos.');
+            }
+
+            setOrders(result.orders || []);
+
+        } catch (error) {
+            console.error('Error fetching orders:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [filterStatus]);
+
+    // Initial Load & Load on filterStatus change
+    useEffect(() => {
+        fetchOrders();
+    }, [fetchOrders]);
+
+    // Connect to global refresh frame
+    useRefreshFrame(fetchOrders);
+
+    // Handle changes in orders via Realtime
+    const handleOrdersChange = useCallback(() => {
+        fetchOrders();
+        // Play Sound
+        const audio = new Audio('/notification.mp3');
+        audio.play().catch(() => { });
+    }, [fetchOrders]);
+
+    // Listen to changes in orders table in real-time
+    useRealtimeListener({
+        channelName: `orders_rt_${storeData?.id || 'pending'}`,
+        tables: [
+            {
+                table: 'orders',
+                ...(storeData?.id ? { filter: `store_id=eq.${storeData.id}` } : {})
+            }
+        ],
+        onChanged: handleOrdersChange,
+        enabled: !!storeData?.id,
+    });
 
     // Update 'now' every second for the UI timers
     useEffect(() => {
@@ -123,69 +200,6 @@ export default function Orders() {
             console.error('Generic SMS Error', error);
         }
     }
-
-    // Fetch orders
-    async function fetchOrders() {
-        setLoading(true);
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            // First get the store for this user via RPC (agora retorna todos os campos)
-            const { data: storeRpcData, error: storeRpcError } = await supabase.rpc(
-                'get_user_store_by_id',
-                { p_user_id: user.id }
-            );
-            if (storeRpcError) throw storeRpcError;
-            const store = Array.isArray(storeRpcData) ? storeRpcData[0] : storeRpcData;
-
-            if (!store) {
-                setLoading(false);
-                return;
-            }
-
-            setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
-
-            const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
-                p_store_id: store.id,
-                p_status: filterStatus === 'all' ? 'all' : filterStatus,
-                p_limit: 200,
-            });
-
-            if (error) {
-                console.error('Error fetching orders:', error);
-                throw error;
-            }
-
-            if (!result?.ok) {
-                throw new Error(result?.error || 'Erro ao buscar pedidos.');
-            }
-
-            setOrders(result.orders || []);
-
-        } catch (error) {
-            console.error('Error fetching orders:', error);
-        } finally {
-            setLoading(false);
-        }
-    }
-
-    // Realtime Subscription
-    useEffect(() => {
-        fetchOrders();
-
-        const channel = supabase
-            .channel('orders_channel_v2')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-                fetchOrders();
-                // Play Sound
-                const audio = new Audio('/notification.mp3');
-                audio.play().catch(() => { });
-            })
-            .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-    }, [filterStatus]);
 
     // Update Status
     async function updateStatus(orderId: string, newStatus: OrderStatus) {

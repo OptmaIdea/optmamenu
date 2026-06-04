@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useUsersStore } from '@/store/useUsersStore';
 import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
@@ -15,6 +15,8 @@ import { useStoreMemberSessionSummary } from '@/hooks/security/useStoreMemberSes
 import { getActiveStoreId } from '@/utils/activeStore';
 import { supabase } from '@/lib/supabase';
 import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
+import { useRefreshFrame } from '@/hooks/useRefreshFrame';
+import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 
 function formatRoleLabel(role: string): string {
     const labels: Record<string, string> = {
@@ -140,10 +142,31 @@ export default function Users() {
         clearOverrides: boolean;
     } | null>(null);
 
+    const handleRefresh = useCallback(async () => {
+        await Promise.all([
+            fetchUsers(),
+            fetchStats(),
+            refreshInvites()
+        ]);
+    }, [fetchUsers, fetchStats, refreshInvites]);
+
     useEffect(() => {
-        fetchUsers();
-        fetchStats();
-    }, [fetchUsers, fetchStats]);
+        handleRefresh();
+    }, [handleRefresh]);
+
+    useRefreshFrame(handleRefresh);
+
+    useRealtimeListener({
+        channelName: `users_rt_${operationalStoreId || 'pending'}`,
+        tables: [
+            {
+                table: 'store_members',
+                ...(operationalStoreId ? { filter: `store_id=eq.${operationalStoreId}` } : {}),
+            },
+        ],
+        onChanged: handleRefresh,
+        enabled: !!operationalStoreId,
+    });
 
     // Debounced search
     useEffect(() => {

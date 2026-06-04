@@ -28,6 +28,40 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey, {
         autoRefreshToken: true,
         detectSessionInUrl: true,
     },
+    global: {
+        fetch: async (url, options) => {
+            const response = await fetch(url, options);
+
+            // Intercepta erros de autenticação (401) ou falhas de renovação de refresh token (400 no endpoint de token)
+            if (
+                response.status === 401 ||
+                (response.status === 400 && typeof url === 'string' && url.includes('/auth/v1/token'))
+            ) {
+                const clone = response.clone();
+                try {
+                    const data = await clone.json();
+                    const isAuthError =
+                        data?.error === 'invalid_grant' ||
+                        data?.error === 'invalid_token' ||
+                        data?.message?.includes('JWT') ||
+                        data?.message?.includes('invalid signature') ||
+                        data?.error_description?.includes('refresh_token') ||
+                        data?.error_description?.includes('refresh token');
+
+                    if (isAuthError) {
+                        console.warn('[Supabase Auth] Erro de autenticação detectado. Deslogando...');
+                        setTimeout(() => {
+                            supabaseAdmin.auth.signOut().catch(() => {});
+                        }, 0);
+                    }
+                } catch {
+                    // Ignora erros de parsing de JSON
+                }
+            }
+
+            return response;
+        },
+    },
 });
 
 /**
