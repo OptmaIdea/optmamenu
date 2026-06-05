@@ -295,12 +295,12 @@ function formatRoleTextDescription(text: string | null | undefined): string {
         .replaceAll('owner', 'Proprietário');
 }
 
-function isReactivationOccurrence(
+/* function isReactivationOccurrence(
     type: StoreMemberOccurrenceType,
     metadata: Record<string, unknown> | null | undefined
 ): boolean {
     return type === 'other' && metadata?.event_type === 'reactivation';
-}
+} */
 
 function formatOccurrenceType(
     type: StoreMemberOccurrenceType | string | null | undefined,
