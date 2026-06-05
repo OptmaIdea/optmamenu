@@ -10,6 +10,7 @@ import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
+import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import {
     clearActiveStoreId,
@@ -55,7 +56,8 @@ import {
     Power,
     RefreshCw,
     Bell,
-    Building
+    Building,
+    ScrollText,
 } from 'lucide-react';
 
 type MenuItem = {
@@ -85,6 +87,8 @@ type LayoutMembership = {
     internal_alias?: string | null;
     profile_name?: string | null;
     member_avatar_url?: string | null;
+    onboarding_required?: boolean | null;
+    onboarding_completed_at?: string | null;
 };
 
 function formatLayoutRole(role: string): string {
@@ -138,6 +142,7 @@ export default function PrivateLayout() {
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
     const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
+    const [userId, setUserId] = useState<string | null>(null);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
@@ -189,6 +194,7 @@ export default function PrivateLayout() {
         ],
         settings: [
             { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
+            { path: '/admin/meu-historico', icon: ScrollText, label: 'Meu Histórico' },
             { path: '/admin/settings', icon: Building, label: 'Dados da Loja' },
             { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
@@ -233,6 +239,8 @@ export default function PrivateLayout() {
                 navigate('/login');
                 return;
             }
+
+            setUserId(user.id);
 
             try {
                 const securityContext = await getCurrentUserSecurityContext();
@@ -435,6 +443,24 @@ export default function PrivateLayout() {
     }, [navigate]);
 
     useOrderMonitor(storeId || undefined);
+
+    useRealtimeListener({
+        channelName: `layout_user_rt_${userId || 'pending'}`,
+        tables: userId ? [
+            {
+                table: 'store_members',
+                filter: `user_id=eq.${userId}`,
+            },
+            {
+                table: 'profiles',
+                filter: `id=eq.${userId}`,
+            }
+        ] : [],
+        onChanged: () => {
+            window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
+        },
+        enabled: !!userId,
+    });
 
     // Close mobile menu on route change
     useLayoutEffect(() => {
@@ -650,7 +676,7 @@ export default function PrivateLayout() {
                                     }`}
                             >
                                 <div
-                                    className={`${isSidebarCollapsed ? 'w-8 h-8' : 'w-10 h-10'
+                                    className={`relative ${isSidebarCollapsed ? 'w-8 h-8' : 'w-10 h-10'
                                         } rounded-full overflow-hidden bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 flex items-center justify-center shrink-0`}
                                     title={isSidebarCollapsed ? activeMembership.store_name : ''}
                                 >
@@ -658,7 +684,7 @@ export default function PrivateLayout() {
                                         <img
                                             src={activeMembership.store_logo_url}
                                             alt={activeMembership.store_name}
-                                            className="w-full h-full object-cover"
+                                            className="absolute inset-0 w-full h-full object-cover"
                                         />
                                     ) : (
                                         <StoreIcon size={isSidebarCollapsed ? 16 : 20} className="text-brand-green" />
@@ -691,12 +717,12 @@ export default function PrivateLayout() {
                                 className={`rounded-xl bg-white dark:bg-gray-800 shadow-sm border border-gray-100 dark:border-gray-700 transition-all ${isSidebarCollapsed ? 'p-1.5 flex justify-center' : 'p-2 flex items-center gap-3'
                                     }`}
                             >
-                                <div className={`${isSidebarCollapsed ? 'h-8 w-8 text-[11px]' : 'h-12 w-12 text-sm'} overflow-hidden rounded-full bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600`} title={isSidebarCollapsed ? userData.name : ''}>
+                                <div className={`relative ${isSidebarCollapsed ? 'h-8 w-8 text-[11px]' : 'h-12 w-12 text-sm'} overflow-hidden rounded-full bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600`} title={isSidebarCollapsed ? userData.name : ''}>
                                     {userData.avatar ? (
                                         <img
                                             src={userData.avatar}
                                             alt={userData.name}
-                                            className="h-full w-full object-cover"
+                                            className="absolute inset-0 h-full w-full object-cover"
                                         />
                                     ) : (
                                         <span className="text-teal-800 dark:text-teal-200 font-black">{getInitials(userData.name)}</span>
@@ -902,12 +928,12 @@ export default function PrivateLayout() {
                         {/* User Identity Chip — apelido + avatar do usuário logado */}
                         {userData && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 shrink-0 select-none">
-                                <div className="h-6 w-6 rounded-full overflow-hidden bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600">
+                                <div className="relative h-6 w-6 rounded-full overflow-hidden bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600">
                                     {userData.avatar ? (
                                         <img
                                             src={userData.avatar}
                                             alt={userData.alias}
-                                            className="h-full w-full object-cover"
+                                            className="absolute inset-0 h-full w-full object-cover"
                                         />
                                     ) : (
                                         <span className="text-[10px] text-teal-800 dark:text-teal-200 font-black">

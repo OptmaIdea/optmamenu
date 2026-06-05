@@ -18,7 +18,11 @@ import {
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
-import { updateCurrentUserProfile, updateMyStoreMemberProfile } from '@/services/securityService';
+import {
+    updateMyStoreMemberProfile,
+    updateMyProfileDetails,
+    completeMyStoreMemberOnboarding
+} from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
 
@@ -78,7 +82,13 @@ export default function Profile() {
     const isOwnerSomewhere = memberships.some((m) => m.role === 'owner');
     const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
 
-    const canEditGlobalProfile = !isOwnerSomewhere || isOwnerInCurrentStore;
+    const canEditGlobalProfile =
+      isOwnerInCurrentStore;
+    // depois podemos sofisticar para owner de empresa própria etc.
+
+    const isOnboardingPending =
+      selectedMembership?.onboarding_required === true ||
+      !selectedMembership?.onboarding_completed_at;
 
     // States & Cities from IBGE
     const [states, setStates] = useState<IBGEState[]>([]);
@@ -313,32 +323,52 @@ export default function Profile() {
             const activeStoreId = getActiveStoreId();
 
             if (canEditGlobalProfile) {
-                await updateCurrentUserProfile({
+                // Apenas dados verdadeiramente globais do perfil (tabela profiles).
+                // Campos de contato/endereço são gerenciados por store_members abaixo.
+                await updateMyProfileDetails({
                     name: profile.name,
                     cpf: profile.cpf || null,
                     birthdate: profile.birthdate || null,
-                    instagramUrl: profile.instagram_url,
-                    facebookUrl: profile.facebook_url,
-                    websiteUrl: profile.website_url,
+                    instagramUrl: profile.instagram_url || null,
+                    facebookUrl: profile.facebook_url || null,
+                    websiteUrl: profile.website_url || null,
                 });
             }
 
             if (activeStoreId) {
-                await updateMyStoreMemberProfile({
-                    storeId: activeStoreId,
-                    internalAlias: profile.internal_alias || null,
-                    memberEmail: profile.member_email || null,
-                    memberPhone: profile.phone || null,
-                    memberMobilePhone: profile.mobile_phone || null,
-                    memberWhatsappPhone: profile.whatsapp_phone || null,
-                    memberZipCode: profile.zip_code || null,
-                    memberAddress: profile.address || null,
-                    memberAddressNumber: profile.address_number || null,
-                    memberComplement: profile.complement || null,
-                    memberDistrict: profile.district || null,
-                    memberCity: profile.city || null,
-                    memberState: profile.state || null,
-                });
+                if (isOnboardingPending) {
+                    await completeMyStoreMemberOnboarding({
+                        storeId: activeStoreId,
+                        internalAlias: profile.internal_alias || null,
+                        memberEmail: profile.member_email || null,
+                        memberPhone: profile.phone || null,
+                        memberMobilePhone: profile.mobile_phone || null,
+                        memberWhatsappPhone: profile.whatsapp_phone || null,
+                        memberZipCode: profile.zip_code || null,
+                        memberAddress: profile.address || null,
+                        memberAddressNumber: profile.address_number || null,
+                        memberComplement: profile.complement || null,
+                        memberDistrict: profile.district || null,
+                        memberCity: profile.city || null,
+                        memberState: profile.state || null,
+                    });
+                } else {
+                    await updateMyStoreMemberProfile({
+                        storeId: activeStoreId,
+                        internalAlias: profile.internal_alias || null,
+                        memberEmail: profile.member_email || null,
+                        memberPhone: profile.phone || null,
+                        memberMobilePhone: profile.mobile_phone || null,
+                        memberWhatsappPhone: profile.whatsapp_phone || null,
+                        memberZipCode: profile.zip_code || null,
+                        memberAddress: profile.address || null,
+                        memberAddressNumber: profile.address_number || null,
+                        memberComplement: profile.complement || null,
+                        memberDistrict: profile.district || null,
+                        memberCity: profile.city || null,
+                        memberState: profile.state || null,
+                    });
+                }
             }
 
             toast.success('Perfil atualizado com sucesso!');
@@ -389,12 +419,12 @@ export default function Profile() {
                 {/* Visual Avatar Block */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center gap-6">
                     <div className="relative group">
-                        <div className="h-24 w-24 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#21A896]/10 flex items-center justify-center">
+                        <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#21A896]/10 flex items-center justify-center">
                             {profile.avatar_url ? (
                                 <img
                                     src={profile.avatar_url}
                                     alt="Avatar"
-                                    className="h-full w-full object-cover"
+                                    className="absolute inset-0 h-full w-full object-cover"
                                 />
                             ) : (
                                 <span className="text-3xl font-black text-[#21A896]">

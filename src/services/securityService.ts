@@ -365,3 +365,98 @@ export async function updateMyStoreMemberProfile(params: {
 
     return data?.[0] || null;
 }
+
+export type UpdateMyProfileDetailsInput = {
+    name?: string | null;
+    internalAlias?: string | null;
+    phone?: string | null;
+    mobilePhone?: string | null;
+    whatsappPhone?: string | null;
+    cpf?: string | null;
+    birthdate?: string | null;
+    zipCode?: string | null;
+    address?: string | null;
+    addressNumber?: string | null;
+    complement?: string | null;
+    district?: string | null;
+    city?: string | null;
+    state?: string | null;
+    instagramUrl?: string | null;
+    facebookUrl?: string | null;
+    websiteUrl?: string | null;
+};
+
+export async function updateMyProfileDetails(
+    input: UpdateMyProfileDetailsInput
+) {
+    const { data, error } = await supabase.rpc('update_my_profile_details', {
+        p_name: input.name ?? null,
+        p_internal_alias: input.internalAlias ?? null,
+        p_phone: input.phone ?? null,
+        p_mobile_phone: input.mobilePhone ?? null,
+        p_whatsapp_phone: input.whatsappPhone ?? null,
+        p_cpf: input.cpf ?? null,
+        p_birthdate: input.birthdate || null,
+        p_zip_code: input.zipCode ?? null,
+        p_address: input.address ?? null,
+        p_address_number: input.addressNumber ?? null,
+        p_complement: input.complement ?? null,
+        p_district: input.district ?? null,
+        p_city: input.city ?? null,
+        p_state: input.state ?? null,
+        p_instagram_url: input.instagramUrl ?? null,
+        p_facebook_url: input.facebookUrl ?? null,
+        p_website_url: input.websiteUrl ?? null,
+    });
+
+    if (error) {
+        console.error('Erro ao atualizar detalhes do próprio perfil:', error);
+        throw error;
+    }
+
+    return data;
+}
+
+export type CompleteMyStoreMemberOnboardingInput = {
+    storeId: string;
+    internalAlias?: string | null;
+    memberEmail?: string | null;
+    memberPhone?: string | null;
+    memberMobilePhone?: string | null;
+    memberWhatsappPhone?: string | null;
+    memberZipCode?: string | null;
+    memberAddress?: string | null;
+    memberAddressNumber?: string | null;
+    memberComplement?: string | null;
+    memberDistrict?: string | null;
+    memberCity?: string | null;
+    memberState?: string | null;
+};
+
+export async function completeMyStoreMemberOnboarding(
+    input: CompleteMyStoreMemberOnboardingInput
+) {
+    const { data, error } = await supabase.rpc('complete_my_store_member_onboarding', {
+        p_store_id: input.storeId,
+        p_internal_alias: input.internalAlias ?? null,
+        p_member_email: input.memberEmail ?? null,
+        p_member_phone: input.memberPhone ?? null,
+        p_member_mobile_phone: input.memberMobilePhone ?? null,
+        p_member_whatsapp_phone: input.memberWhatsappPhone ?? null,
+        p_member_zip_code: input.memberZipCode ?? null,
+        p_member_address: input.memberAddress ?? null,
+        p_member_address_number: input.memberAddressNumber ?? null,
+        p_member_complement: input.memberComplement ?? null,
+        p_member_district: input.memberDistrict ?? null,
+        p_member_city: input.memberCity ?? null,
+        p_member_state: input.memberState ?? null,
+    });
+
+    if (error) {
+        console.error('Erro ao concluir onboarding do colaborador:', error);
+        throw error;
+    }
+
+    return data;
+}
+

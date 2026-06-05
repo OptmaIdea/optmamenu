@@ -68,6 +68,8 @@ export interface StoreMembershipContext {
   member_district?: string | null;
   member_city?: string | null;
   member_state?: string | null;
+  onboarding_required?: boolean | null;
+  onboarding_completed_at?: string | null;
 }
 
 export interface CurrentUserSecurityContext {

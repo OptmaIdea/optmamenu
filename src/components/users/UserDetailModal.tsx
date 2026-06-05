@@ -303,14 +303,20 @@ function isReactivationOccurrence(
 }
 
 function formatOccurrenceType(
-    type: StoreMemberOccurrenceType,
+    type: StoreMemberOccurrenceType | string | null | undefined,
     metadata?: Record<string, unknown> | null
 ): string {
-    if (isReactivationOccurrence(type, metadata)) {
+    if (!type) return 'Ocorrência';
+
+    if (type === 'other' && metadata?.event_type === 'reactivation') {
         return 'Reativação de acesso';
     }
 
-    const labels: Record<StoreMemberOccurrenceType, string> = {
+    if (type === 'other' && metadata?.event_type === 'return_from_suspension') {
+        return 'Retorno de suspensão';
+    }
+
+    const labels: Record<string, string> = {
         admission: 'Admissão',
         note: 'Observação',
         warning: 'Advertência',
@@ -321,10 +327,32 @@ function formatOccurrenceType(
         absence: 'Ausência',
         exit: 'Desligamento',
         suspension: 'Suspensão',
+        return_from_suspension: 'Retorno de suspensão',
         other: 'Outro',
     };
 
-    return labels[type];
+    return labels[type] ?? 'Ocorrência';
+}
+
+function formatOccurrenceTitle(occurrence: {
+    occurrence_type: string;
+    title?: string | null;
+    metadata?: Record<string, unknown> | null;
+}): string {
+    const technicalTitles: Record<string, string> = {
+        'Store Member Onboarding Completed': 'Primeiro acesso concluído',
+        'Store Member Profile Updated By Self': 'Dados atualizados pelo próprio usuário',
+    };
+
+    if (occurrence.title && technicalTitles[occurrence.title]) {
+        return technicalTitles[occurrence.title];
+    }
+
+    if (!occurrence.title) {
+        return formatOccurrenceType(occurrence.occurrence_type, occurrence.metadata);
+    }
+
+    return occurrence.title;
 }
 
 function formatSeverity(severity: StoreMemberOccurrenceSeverity): string {
@@ -667,6 +695,7 @@ export function UserDetailModal({
 
     const formatHistoryActionLabel = (action: string | null | undefined): string => {
         const labels: Record<string, string> = {
+            // Segurança / permissões
             store_sensitive_action_rule_updated: 'Regra de ação sensível alterada',
             store_role_permission_template_updated: 'Permissão por papel alterada',
             store_member_permissions_updated: 'Permissões individuais alteradas',
@@ -703,9 +732,54 @@ export function UserDetailModal({
             session_store_selected: 'Entrada na loja selecionada',
             session_logout: 'Saída do sistema',
             session_login_test: 'Teste de login/sessão',
+
+            // Eventos de membro da loja
+            store_member_profile_updated_by_self: 'Dados do colaborador atualizados pelo próprio usuário',
+            store_member_onboarding_completed: 'Primeiro acesso concluído',
+            store_member_admission_registered: 'Admissão registrada',
+            store_member_suspension_registered: 'Suspensão registrada',
+            store_member_suspension_removed: 'Retorno de suspensão',
+            store_member_exit_registered: 'Desligamento registrado',
+            store_member_reactivated: 'Acesso reativado',
+            store_member_status_updated: 'Status do usuário alterado',
+            store_member_inactivated: 'Usuário inativado',
+            store_member_suspended: 'Usuário suspenso',
+            store_member_role_changed_by_occurrence: 'Alteração de função registrada',
+            store_member_avatar_updated: 'Avatar atualizado',
+            store_member_custom_role_changed: 'Função personalizada alterada',
+
+            // Sessão / acesso
+            login: 'Entrada no sistema',
+            logout: 'Saída do sistema',
+            selected_store: 'Entrada na loja selecionada',
+
+            // Produtos / estoque
+            product_update: 'Produto atualizado',
+            product_create: 'Produto criado',
+
+            // Tipos de ocorrência (fallback para eventos de outras fontes)
+            admission: 'Admissão',
+            suspension: 'Suspensão',
+            exit: 'Desligamento',
+            role_change: 'Alteração de função',
+            training: 'Treinamento',
+            warning: 'Advertência',
+            praise: 'Elogio',
+            absence: 'Ausência',
+            incident: 'Incidente',
+            note: 'Observação',
+            other: 'Outro',
+            return_from_suspension: 'Retorno de suspensão',
+            reactivation: 'Reativação de acesso',
         };
 
-        return action ? labels[action] ?? action : 'Ação desconhecida';
+        if (!action) return 'Ação desconhecida';
+
+        if (labels[action]) return labels[action];
+
+        return action
+            .replace(/_/g, ' ')
+            .replace(/\b\w/g, (char) => char.toUpperCase());
     };
 
     const formatHistoryEventLabel = (event: {
@@ -714,14 +788,13 @@ export function UserDetailModal({
         title: string | null;
         metadata: Record<string, unknown> | null;
     }): string => {
-        if (
-            event.source === 'store_member_occurrences' &&
-            isReactivationOccurrence(event.action as StoreMemberOccurrenceType, event.metadata)
-        ) {
-            return 'Reativação de acesso';
+        // Occurrence events map directly through formatOccurrenceType
+        // (handles admission, suspension, role_change, exit, reactivation, etc.)
+        if (event.source === 'store_member_occurrences') {
+            return formatOccurrenceType(event.action, event.metadata);
         }
 
-        return formatHistoryActionLabel(event.title || event.action);
+        return formatHistoryActionLabel(event.action || event.title);
     };
 
     const formatAccessEventLabel = (item: StoreMemberAccessTimelineItem): string => {
@@ -928,6 +1001,14 @@ export function UserDetailModal({
             return reason
                 ? `${targetName} · dados cadastrais e internos atualizados. Motivo: ${reason}`
                 : `${targetName} · dados cadastrais e internos atualizados.`;
+        }
+
+        if (event.action === 'store_member_profile_updated_by_self') {
+            return 'Dados pessoais ou de contato desta loja foram atualizados pelo próprio usuário.';
+        }
+
+        if (event.action === 'store_member_onboarding_completed') {
+            return 'Primeiro acesso concluído e dados básicos cadastrados.';
         }
 
         return formatRoleTextDescription(event.description) || 'Evento registrado no histórico.';
@@ -1371,12 +1452,12 @@ export function UserDetailModal({
                         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/30">
                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] text-2xl font-bold text-white">
+                                    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] text-2xl font-bold text-white">
                                         {user.avatar_url ? (
                                             <img
                                                 src={user.avatar_url}
                                                 alt={user.full_name || 'Avatar do usuário'}
-                                                className="h-full w-full object-cover"
+                                                className="absolute inset-0 h-full w-full object-cover"
                                             />
                                         ) : (
                                             <span>{initials}</span>
@@ -1466,8 +1547,8 @@ export function UserDetailModal({
                                             icon={Shield}
                                             label="Função personalizada"
                                             value={`${user.custom_role_name}${user.custom_role_base_role
-                                                    ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
-                                                    : ''
+                                                ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`
+                                                : ''
                                                 }`}
                                         />
                                     )}
@@ -1518,9 +1599,9 @@ export function UserDetailModal({
                                 <div className="space-y-5">
                                     <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
                                         <div className="flex items-center gap-4">
-                                            <div className="h-20 w-20 overflow-hidden rounded-full bg-[#21A896] text-white flex items-center justify-center text-xl font-black relative shrink-0">
+                                            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-[#21A896] text-white flex items-center justify-center text-xl font-black">
                                                 {savingAvatar && (
-                                                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                                    <div className="absolute inset-0 z-10 bg-black/50 flex items-center justify-center">
                                                         <Loader className="h-6 w-6 animate-spin text-white" />
                                                     </div>
                                                 )}
@@ -1528,7 +1609,7 @@ export function UserDetailModal({
                                                     <img
                                                         src={user.avatar_url}
                                                         alt={user.full_name || 'Avatar do usuário'}
-                                                        className="h-full w-full object-cover"
+                                                        className="absolute inset-0 h-full w-full object-cover"
                                                     />
                                                 ) : (
                                                     <span>{getInitials(user.full_name || user.email)}</span>
@@ -2571,7 +2652,7 @@ export function UserDetailModal({
                                                                 </div>
 
                                                                 <h5 className="mt-2 font-bold text-gray-900 dark:text-white">
-                                                                    {occurrence.title}
+                                                                    {formatOccurrenceTitle(occurrence)}
                                                                 </h5>
 
                                                                 {occurrence.description && (
