@@ -50,7 +50,9 @@ export function useSecurityPermissionsAdmin() {
       setError(rpcError.message);
       setPermissionMatrix([]);
     } else {
-      setPermissionMatrix((data ?? []) as StorePermissionMatrixRow[]);
+      const rows = (data ?? []) as StorePermissionMatrixRow[];
+      rows.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'pt-BR'));
+      setPermissionMatrix(rows);
     }
 
     setLoading((prev) => ({ ...prev, matrix: false }));
@@ -127,6 +129,7 @@ export function useSecurityPermissionsAdmin() {
     }
 
     const rows = (data ?? []) as StoreMemberPermissionDetailRow[];
+    rows.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'pt-BR'));
     setMemberPermissionDetail(rows);
     return rows;
   }, []);

@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
     RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
-    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check
+    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check, Search
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -294,8 +294,8 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         const cleared = details.clear_individual_overrides === true;
 
         return `${targetName} · ${oldRole} \u2192 ${newRole}${cleared
-                ? ' · permissões individuais limpas'
-                : ' · permissões individuais preservadas'
+            ? ' · permissões individuais limpas'
+            : ' · permissões individuais preservadas'
             }`;
     }
 
@@ -552,7 +552,8 @@ export default function Security() {
         allowedPermissions,
         getActionRequirement,
     } = usePermissions(currentStoreId);
-    const canManageSecurity = hasEffectivePermission(permissions, 'security.manage');
+    const canManageSecurity =
+        isOwner || hasEffectivePermission(permissions, 'security.manage');
 
     const [logFilters, setLogFilters] = useState({
         dateFrom: '',
@@ -561,6 +562,20 @@ export default function Security() {
         action: '',
         outcome: ''
     });
+
+    const [permissionSearch, setPermissionSearch] = useState('');
+
+    const filteredMatrix = useMemo(() => {
+        if (!permissionSearch.trim()) {
+            return permissionMatrix;
+        }
+        const query = permissionSearch.trim().toLowerCase();
+        return permissionMatrix.filter((row) =>
+            [row.label, row.description, row.permission_code, row.module, row.action]
+                .filter(Boolean)
+                .some((val) => String(val).toLowerCase().includes(query))
+        );
+    }, [permissionMatrix, permissionSearch]);
 
     const [productDeleteRequirement, setProductDeleteRequirement] = useState<string>('');
 
@@ -1890,8 +1905,8 @@ export default function Security() {
 
                     {/* PERMISSÕES POR PAPEL */}
                     <div className={activeTab === 'roles' ? 'block animate-fadeIn' : 'hidden'}>
-                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
+                        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div className="flex-1">
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
                                     Matriz de Permissões por Papel
                                 </h3>
@@ -1899,14 +1914,28 @@ export default function Security() {
                                     Esta tabela mostra as permissões padrão configuradas no sistema para cada papel.
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={refreshAdmin}
-                                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-                            >
-                                <RefreshCw size={16} className={adminLoading.matrix ? 'animate-spin' : ''} />
-                                Atualizar
-                            </button>
+                            
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                                <div className="relative">
+                                    <input
+                                        type="text"
+                                        placeholder="Buscar autorização..."
+                                        value={permissionSearch}
+                                        onChange={(e) => setPermissionSearch(e.target.value)}
+                                        className="w-full sm:w-64 rounded-xl border border-gray-200 bg-white px-3 py-2 pl-9 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                    />
+                                    <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={refreshAdmin}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                                >
+                                    <RefreshCw size={16} className={adminLoading.matrix ? 'animate-spin' : ''} />
+                                    Atualizar
+                                </button>
+                            </div>
                         </div>
 
                         {adminError && (
@@ -1926,21 +1955,21 @@ export default function Security() {
                             </div>
                         ) : (
                             <div className="w-full max-w-[1280px] overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 shadow-sm">
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-[1120px] w-full text-left text-sm whitespace-nowrap">
-                                        <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                                <div className="overflow-auto max-h-[550px] border-collapse relative">
+                                    <table className="min-w-[1120px] w-full text-left text-sm whitespace-nowrap border-collapse relative">
+                                        <thead className="bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-300 sticky top-0 z-20 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.1)]">
                                             <tr>
-                                                <th className="p-3">Permissão</th>
-                                                <th className="p-3">Risco</th>
+                                                <th className="p-3 bg-gray-50 dark:bg-gray-900">Permissão</th>
+                                                <th className="p-3 bg-gray-50 dark:bg-gray-900">Risco</th>
                                                 {ROLE_PERMISSION_COLUMNS.map((column) => (
-                                                    <th key={column.role} className="p-3 text-center">
+                                                    <th key={column.role} className="p-3 text-center bg-gray-50 dark:bg-gray-900">
                                                         {column.label}
                                                     </th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                            {permissionMatrix.map((row) => (
+                                            {filteredMatrix.map((row) => (
                                                 <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                                                     <td className="p-3">
                                                         <div className="font-bold text-gray-800 dark:text-white">
@@ -1957,7 +1986,7 @@ export default function Security() {
                                                         {renderRiskBadge(row.risk_level)}
                                                     </td>
                                                     {ROLE_PERMISSION_COLUMNS.map((column) => {
-                                                        const allowed = Boolean(row[column.key]);
+                                                        const allowed = column.role === 'owner' ? true : Boolean(row[column.key]);
                                                         const disabled =
                                                             column.role === 'owner' ||
                                                             !canManageSecurity ||
@@ -2769,8 +2798,8 @@ export default function Security() {
 
                                                     <span
                                                         className={`rounded-full px-2 py-1 text-xs font-bold ${role.active
-                                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                                : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
+                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
                                                             }`}
                                                     >
                                                         {role.active ? 'Ativa' : 'Inativa'}
