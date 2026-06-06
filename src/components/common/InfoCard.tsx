@@ -43,7 +43,7 @@ export function InfoCard({ item, index, onUpdate, onRemove, onRemoveRequest }: I
                 <button
                     type="button"
                     onClick={() => onRemoveRequest?.(index)}
-                    className="absolute top-2 left-2 text-xs font-semibold text-gray-400 hover:text-orange-500 transition-colors"
+                    className="absolute top-2 left-2 text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-300 transition-colors"
                     title="Solicitar remoção da informação"
                 >
                     Solicitar remoção

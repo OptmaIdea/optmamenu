@@ -17,6 +17,14 @@ import { supabase } from '@/lib/supabase';
 import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
+import {
+    listStoreProfileChangeRequests,
+    reviewStoreProfileChangeRequest,
+    PROFILE_REQUEST_STATUS_LABELS,
+    PROFILE_REQUEST_TYPE_LABELS,
+    type ProfileChangeRequest,
+    type ProfileChangeRequestStatus
+} from '@/services/securityService';
 
 function formatRoleLabel(role: string): string {
     const labels: Record<string, string> = {
@@ -95,6 +103,61 @@ export default function Users() {
         isOwner ||
         hasEffectivePermission(permissions, 'users.sensitive.manage') ||
         hasEffectivePermission(permissions, 'security.manage');
+
+    const canViewProfileRequests =
+        isOwner ||
+        hasEffectivePermission(permissions, 'users.profile_requests.view') ||
+        hasEffectivePermission(permissions, 'users.profile_requests.review') ||
+        hasEffectivePermission(permissions, 'users.profile_requests.manage');
+
+    const canReviewProfileRequests =
+        isOwner ||
+        hasEffectivePermission(permissions, 'users.profile_requests.review') ||
+        hasEffectivePermission(permissions, 'users.profile_requests.manage');
+
+    const [profileRequests, setProfileRequests] = useState<ProfileChangeRequest[]>([]);
+    const [loadingProfileRequests, setLoadingProfileRequests] = useState(false);
+    const [profileRequestStatusFilter, setProfileRequestStatusFilter] =
+        useState<ProfileChangeRequestStatus | ''>('pending');
+
+    const [reviewModal, setReviewModal] = useState<{
+        isOpen: boolean;
+        request: ProfileChangeRequest | null;
+        decision: 'approve' | 'reject' | 'cancel' | null;
+        adminNotes: string;
+        saving: boolean;
+    }>({
+        isOpen: false,
+        request: null,
+        decision: null,
+        adminNotes: '',
+        saving: false,
+    });
+
+    const loadProfileRequests = useCallback(async () => {
+        if (!operationalStoreId || !canViewProfileRequests) return;
+
+        setLoadingProfileRequests(true);
+        try {
+            const rows = await listStoreProfileChangeRequests({
+                storeId: operationalStoreId,
+                status: profileRequestStatusFilter || null,
+                requestType: null,
+                limit: 100,
+                offset: 0,
+            });
+            setProfileRequests(rows);
+        } catch (error) {
+            console.error(error);
+            toast.error('Não foi possível carregar as solicitações cadastrais.');
+        } finally {
+            setLoadingProfileRequests(false);
+        }
+    }, [operationalStoreId, profileRequestStatusFilter, canViewProfileRequests]);
+
+    useEffect(() => {
+        void loadProfileRequests();
+    }, [loadProfileRequests]);
 
     const {
         items: sessionSummary,
@@ -593,6 +656,162 @@ export default function Users() {
                 </div>
             )}
 
+            {/* Seção de solicitações cadastrais */}
+            {canViewProfileRequests && (
+                <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 shadow-sm">
+                    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                                Solicitações cadastrais
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Analise pedidos de alteração ou remoção feitos pelos colaboradores.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <select
+                                value={profileRequestStatusFilter}
+                                onChange={(event) =>
+                                    setProfileRequestStatusFilter(event.target.value as ProfileChangeRequestStatus | '')
+                                }
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white bg-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                            >
+                                <option value="">Todos</option>
+                                <option value="pending">Pendentes</option>
+                                <option value="applied">Aplicadas</option>
+                                <option value="rejected">Rejeitadas</option>
+                                <option value="cancelled">Canceladas</option>
+                            </select>
+
+                            <button
+                                type="button"
+                                onClick={loadProfileRequests}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 transition"
+                            >
+                                Atualizar
+                            </button>
+                        </div>
+                    </div>
+
+                    {loadingProfileRequests ? (
+                        <p className="text-sm text-gray-500">Carregando solicitações...</p>
+                    ) : profileRequests.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                            Nenhuma solicitação encontrada.
+                        </p>
+                    ) : (
+                        <div className="space-y-3">
+                            {profileRequests.map((request) => (
+                                <div
+                                    key={request.request_id}
+                                    className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40"
+                                >
+                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between font-candara">
+                                        <div className="flex-1">
+                                            <p className="font-bold text-gray-900 dark:text-white text-base">
+                                                {PROFILE_REQUEST_TYPE_LABELS[request.request_type] ??
+                                                    request.request_type}
+                                            </p>
+
+                                            <p className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                                                {request.profile_name || request.internal_alias || request.user_email || 'Usuário'}
+                                            </p>
+
+                                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                <strong>Motivo:</strong> {request.reason}
+                                            </p>
+
+                                            {request.request_type === 'additional_info_remove' && (
+                                                <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                        Item solicitado para remoção
+                                                    </p>
+                                                    <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                                        {String(request.requested_changes?.title ?? 'Sem título')}
+                                                    </p>
+                                                    <p className="text-gray-600 dark:text-gray-300">
+                                                        {String(request.requested_changes?.text ?? '')}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            <p className="mt-2 text-xs text-gray-400">
+                                                Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
+                                            <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
+                                            </span>
+
+                                            {request.sensitive && (
+                                                <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/40">
+                                                    Sensível
+                                                </span>
+                                            )}
+
+                                            {request.status === 'pending' && canReviewProfileRequests && (
+                                                <div className="mt-2 flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setReviewModal({
+                                                                isOpen: true,
+                                                                request,
+                                                                decision: 'approve',
+                                                                adminNotes: '',
+                                                                saving: false,
+                                                            })
+                                                        }
+                                                        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                                                    >
+                                                        Aprovar
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setReviewModal({
+                                                                isOpen: true,
+                                                                request,
+                                                                decision: 'reject',
+                                                                adminNotes: '',
+                                                                saving: false,
+                                                            })
+                                                        }
+                                                        className="rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                                                    >
+                                                        Rejeitar
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setReviewModal({
+                                                                isOpen: true,
+                                                                request,
+                                                                decision: 'cancel',
+                                                                adminNotes: '',
+                                                                saving: false,
+                                                            })
+                                                        }
+                                                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 transition cursor-pointer"
+                                                    >
+                                                        Cancelar
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            )}
+
             {/* Modals */}
             <UserFormModal
                 isOpen={showFormModal}
@@ -807,6 +1026,128 @@ export default function Users() {
                                 className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
                             >
                                 {customRoleSaving ? 'Salvando...' : 'Confirmar alteração'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {reviewModal.isOpen && reviewModal.request && reviewModal.decision && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-900 border border-gray-100 dark:border-gray-800 animate-fadeIn">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white font-candara-bold">
+                            {reviewModal.decision === 'approve'
+                                ? 'Aprovar solicitação'
+                                : reviewModal.decision === 'reject'
+                                    ? 'Rejeitar solicitação'
+                                    : 'Cancelar solicitação'}
+                        </h3>
+
+                        <p className="mt-2 text-sm text-[#21A896] font-candara">
+                            {PROFILE_REQUEST_TYPE_LABELS[reviewModal.request.request_type] ??
+                                reviewModal.request.request_type}
+                        </p>
+
+                        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Motivo do usuário</p>
+                            <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                                {reviewModal.request.reason}
+                            </p>
+                        </div>
+
+                        <label className="mt-4 block text-sm font-bold text-gray-700 dark:text-gray-300">
+                            Observação do responsável {reviewModal.decision !== 'approve' && <span className="text-red-500">*</span>}
+                        </label>
+
+                        <textarea
+                            value={reviewModal.adminNotes}
+                            onChange={(event) =>
+                                setReviewModal((current) => ({
+                                    ...current,
+                                    adminNotes: event.target.value,
+                                }))
+                            }
+                            rows={4}
+                            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                            placeholder={
+                                reviewModal.decision === 'approve'
+                                    ? 'Observação opcional para aprovação.'
+                                    : 'Informe o motivo da rejeição/cancelamento (mínimo de 5 caracteres).'
+                            }
+                        />
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={reviewModal.saving}
+                                onClick={() =>
+                                    setReviewModal({
+                                        isOpen: false,
+                                        request: null,
+                                        decision: null,
+                                        adminNotes: '',
+                                        saving: false,
+                                    })
+                                }
+                                className="rounded-lg px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                            >
+                                Fechar
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={
+                                    reviewModal.saving ||
+                                    (
+                                        reviewModal.decision !== 'approve' &&
+                                        reviewModal.adminNotes.trim().length < 5
+                                    )
+                                }
+                                onClick={async () => {
+                                    if (!reviewModal.request || !reviewModal.decision) return;
+
+                                    setReviewModal((current) => ({
+                                        ...current,
+                                        saving: true,
+                                    }));
+
+                                    try {
+                                        await reviewStoreProfileChangeRequest({
+                                            requestId: reviewModal.request.request_id,
+                                            decision: reviewModal.decision,
+                                            adminNotes: reviewModal.adminNotes.trim() || null,
+                                        });
+
+                                        toast.success('Solicitação analisada com sucesso.');
+
+                                        setReviewModal({
+                                            isOpen: false,
+                                            request: null,
+                                            decision: null,
+                                            adminNotes: '',
+                                            saving: false,
+                                        });
+
+                                        await loadProfileRequests();
+                                        await fetchUsers();
+                                    } catch (error) {
+                                        console.error(error);
+                                        toast.error('Não foi possível analisar a solicitação.');
+                                        setReviewModal((current) => ({
+                                            ...current,
+                                            saving: false,
+                                        }));
+                                    }
+                                }}
+                                className={`rounded-lg px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    reviewModal.decision === 'approve'
+                                        ? 'bg-emerald-600 hover:bg-emerald-700'
+                                        : reviewModal.decision === 'reject'
+                                            ? 'bg-red-600 hover:bg-red-700'
+                                            : 'bg-gray-600 hover:bg-gray-700'
+                                }`}
+                            >
+                                {reviewModal.saving ? 'Salvando...' : 'Confirmar'}
                             </button>
                         </div>
                     </div>

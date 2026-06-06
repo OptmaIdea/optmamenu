@@ -456,3 +456,156 @@ export async function completeMyStoreMemberOnboarding(
     return data;
 }
 
+export type ProfileChangeRequestType =
+  | 'name_change'
+  | 'cpf_change'
+  | 'birthdate_change'
+  | 'identity_change'
+  | 'contact_update'
+  | 'address_update'
+  | 'avatar_update'
+  | 'additional_info_update'
+  | 'additional_info_remove'
+  | 'third_party_update'
+  | 'other';
+
+export type ProfileChangeRequestStatus =
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'cancelled'
+  | 'applied';
+
+export type ProfileChangeRequest = {
+  request_id: string;
+  store_id: string;
+  member_id: string;
+  user_id: string;
+  user_email?: string | null;
+  profile_name?: string | null;
+  internal_alias?: string | null;
+  request_type: ProfileChangeRequestType;
+  status: ProfileChangeRequestStatus;
+  requested_changes: Record<string, unknown>;
+  current_snapshot?: Record<string, unknown>;
+  reason: string;
+  admin_notes?: string | null;
+  requested_by?: string | null;
+  requested_by_email?: string | null;
+  reviewed_by?: string | null;
+  reviewed_by_email?: string | null;
+  reviewed_at?: string | null;
+  applied_at?: string | null;
+  visible_to_member?: boolean;
+  sensitive: boolean;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at?: string;
+};
+
+export const PROFILE_REQUEST_TYPE_LABELS: Record<string, string> = {
+  name_change: 'Alteração de nome',
+  cpf_change: 'Alteração de CPF',
+  birthdate_change: 'Alteração de data de nascimento',
+  identity_change: 'Alteração documental',
+  contact_update: 'Alteração de contato',
+  address_update: 'Alteração de endereço',
+  avatar_update: 'Alteração de avatar',
+  additional_info_update: 'Alteração de informação adicional',
+  additional_info_remove: 'Remoção de informação adicional',
+  third_party_update: 'Alteração por terceiro',
+  other: 'Outra solicitação',
+};
+
+export const PROFILE_REQUEST_STATUS_LABELS: Record<string, string> = {
+  pending: 'Pendente',
+  approved: 'Aprovada',
+  rejected: 'Rejeitada',
+  cancelled: 'Cancelada',
+  applied: 'Aplicada',
+};
+
+export async function createMyProfileChangeRequest(params: {
+  storeId: string;
+  requestType: ProfileChangeRequestType;
+  requestedChanges: Record<string, unknown>;
+  reason: string;
+  sensitive?: boolean;
+  metadata?: Record<string, unknown>;
+}) {
+  const { data, error } = await supabase.rpc('create_my_profile_change_request', {
+    p_store_id: params.storeId,
+    p_request_type: params.requestType,
+    p_requested_changes: params.requestedChanges,
+    p_reason: params.reason,
+    p_sensitive: params.sensitive ?? false,
+    p_metadata: params.metadata ?? {},
+  });
+
+  if (error) {
+    console.error('Erro ao criar solicitação cadastral:', error);
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] ?? null : data;
+}
+
+export async function listMyProfileChangeRequests(
+  storeId: string,
+  limit = 100
+): Promise<ProfileChangeRequest[]> {
+  const { data, error } = await supabase.rpc('list_my_profile_change_requests', {
+    p_store_id: storeId,
+    p_limit: limit,
+  });
+
+  if (error) {
+    console.error('Erro ao listar minhas solicitações cadastrais:', error);
+    throw error;
+  }
+
+  return (data ?? []) as ProfileChangeRequest[];
+}
+
+export async function listStoreProfileChangeRequests(params: {
+  storeId: string;
+  status?: ProfileChangeRequestStatus | null;
+  requestType?: ProfileChangeRequestType | null;
+  limit?: number;
+  offset?: number;
+}): Promise<ProfileChangeRequest[]> {
+  const { data, error } = await supabase.rpc('list_store_profile_change_requests', {
+    p_store_id: params.storeId,
+    p_status: params.status ?? null,
+    p_request_type: params.requestType ?? null,
+    p_limit: params.limit ?? 100,
+    p_offset: params.offset ?? 0,
+  });
+
+  if (error) {
+    console.error('Erro ao listar solicitações cadastrais da loja:', error);
+    throw error;
+  }
+
+  return (data ?? []) as ProfileChangeRequest[];
+}
+
+export async function reviewStoreProfileChangeRequest(params: {
+  requestId: string;
+  decision: 'approve' | 'reject' | 'cancel';
+  adminNotes?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('review_store_profile_change_request', {
+    p_request_id: params.requestId,
+    p_decision: params.decision,
+    p_admin_notes: params.adminNotes ?? null,
+  });
+
+  if (error) {
+    console.error('Erro ao revisar solicitação cadastral:', error);
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] ?? null : data;
+}
+

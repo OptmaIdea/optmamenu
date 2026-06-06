@@ -117,6 +117,10 @@ function formatPermissionAction(action: string): string {
         additional_info_manage: 'Gerenciar informações adicionais',
         additional_info_sensitive_view: 'Ver informações adicionais sensíveis',
         additional_info_sensitive_manage: 'Gerenciar informações adicionais sensíveis',
+
+        profile_requests_view: 'Ver solicitações cadastrais',
+        profile_requests_review: 'Analisar solicitações cadastrais',
+        profile_requests_manage: 'Gerenciar solicitações cadastrais',
     };
 
     return labels[action] ?? action;
@@ -230,6 +234,10 @@ function formatPermissionLabelFromCode(code: string): string {
         'users.additional_info.manage': 'Usuários · Gerenciar informações adicionais',
         'users.additional_info_sensitive.view': 'Usuários · Ver informações adicionais sensíveis',
         'users.additional_info_sensitive.manage': 'Usuários · Gerenciar informações adicionais sensíveis',
+
+        'users.profile_requests.view': 'Usuários · Ver solicitações cadastrais',
+        'users.profile_requests.review': 'Usuários · Analisar solicitações cadastrais',
+        'users.profile_requests.manage': 'Usuários · Gerenciar solicitações cadastrais',
     };
 
     if (labels[code]) return labels[code];

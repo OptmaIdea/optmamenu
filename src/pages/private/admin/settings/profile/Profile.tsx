@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import {
@@ -23,7 +23,12 @@ import { useSecurityContext } from '@/hooks/useSecurityContext';
 import {
     updateMyStoreMemberProfile,
     updateMyProfileDetails,
-    completeMyStoreMemberOnboarding
+    completeMyStoreMemberOnboarding,
+    createMyProfileChangeRequest,
+    listMyProfileChangeRequests,
+    PROFILE_REQUEST_STATUS_LABELS,
+    PROFILE_REQUEST_TYPE_LABELS,
+    type ProfileChangeRequest
 } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
@@ -148,6 +153,41 @@ export default function Profile() {
 
     const memberships = securityContext?.memberships || [];
     const selectedMembership = securityContext?.primary_membership || securityContext?.memberships?.[0] || null;
+    const activeStoreId = selectedMembership?.store_id ?? getActiveStoreId() ?? null;
+
+    const [removalRequestModal, setRemovalRequestModal] = useState<{
+        isOpen: boolean;
+        item: AdditionalInfo | null;
+        reason: string;
+        saving: boolean;
+    }>({
+        isOpen: false,
+        item: null,
+        reason: '',
+        saving: false,
+    });
+
+    const [myRequests, setMyRequests] = useState<ProfileChangeRequest[]>([]);
+    const [loadingMyRequests, setLoadingMyRequests] = useState(false);
+
+    const loadMyProfileRequests = useCallback(async () => {
+        if (!activeStoreId) return;
+
+        setLoadingMyRequests(true);
+        try {
+            const rows = await listMyProfileChangeRequests(activeStoreId, 100);
+            setMyRequests(rows);
+        } catch (error) {
+            console.error(error);
+            toast.error('Não foi possível carregar suas solicitações cadastrais.');
+        } finally {
+            setLoadingMyRequests(false);
+        }
+    }, [activeStoreId]);
+
+    useEffect(() => {
+        void loadMyProfileRequests();
+    }, [loadMyProfileRequests]);
 
     const isOwnerSomewhere = memberships.some((m) => m.role === 'owner');
     const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
@@ -399,8 +439,12 @@ export default function Profile() {
 
     const handleRequestRemoveAdditionalInfo = (index: number) => {
         const item = profile.additionalInfo[index];
-        const infoTitle = item?.title ? `"${item.title}"` : 'da informação';
-        toast.success(`Solicitação de remoção ${infoTitle} enviada para o administrador.`);
+        setRemovalRequestModal({
+            isOpen: true,
+            item,
+            reason: '',
+            saving: false,
+        });
     };
 
     const handleUpdateAdditionalInfo = (index: number, field: keyof AdditionalInfo, value: string | boolean) => {
@@ -1058,6 +1102,192 @@ export default function Profile() {
                     </button>
                 </div>
             </form>
+
+            {/* Minhas solicitações cadastrais */}
+            <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 max-w-4xl mx-auto shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                            Minhas solicitações cadastrais
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Acompanhe pedidos de alteração ou remoção enviados para análise.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={loadMyProfileRequests}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 transition"
+                    >
+                        Atualizar
+                    </button>
+                </div>
+
+                {loadingMyRequests ? (
+                    <p className="text-sm text-gray-500">Carregando solicitações...</p>
+                ) : myRequests.length === 0 ? (
+                    <p className="text-sm text-gray-500">
+                        Nenhuma solicitação cadastral registrada.
+                    </p>
+                ) : (
+                    <div className="space-y-3">
+                        {myRequests.map((request) => (
+                            <div
+                                key={request.request_id}
+                                className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+                            >
+                                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                    <div>
+                                        <p className="font-bold text-gray-900 dark:text-white">
+                                            {PROFILE_REQUEST_TYPE_LABELS[request.request_type] ??
+                                                request.request_type}
+                                        </p>
+
+                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                            {request.reason}
+                                        </p>
+
+                                        {request.admin_notes && (
+                                            <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                                                <strong>Retorno:</strong> {request.admin_notes}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                        {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
+                                    </span>
+                                </div>
+
+                                <p className="mt-2 text-xs text-gray-400">
+                                    Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </section>
+
+            {/* Modal de solicitação de remoção */}
+            {removalRequestModal.isOpen && removalRequestModal.item && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900 border border-gray-100 dark:border-gray-800 animate-fadeIn">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                            Solicitar remoção de informação adicional
+                        </h3>
+
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 font-candara">
+                            Essa solicitação será enviada para análise do responsável pela loja.
+                        </p>
+
+                        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800">
+                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">Informação</p>
+                            <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                {removalRequestModal.item.title}
+                            </p>
+                            <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                {removalRequestModal.item.text}
+                            </p>
+
+                            {removalRequestModal.item.sensitive && (
+                                <span className="mt-2 inline-flex rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/40">
+                                    Sensível
+                                </span>
+                            )}
+                        </div>
+
+                        <label className="mt-4 block text-sm font-bold text-gray-700 dark:text-gray-300">
+                            Motivo da solicitação <span className="text-red-500">*</span>
+                        </label>
+
+                        <textarea
+                            value={removalRequestModal.reason}
+                            onChange={(event) =>
+                                setRemovalRequestModal((current) => ({
+                                    ...current,
+                                    reason: event.target.value,
+                                }))
+                            }
+                            rows={4}
+                            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                            placeholder="Explique por que essa informação deve ser removida (mínimo de 5 caracteres)."
+                        />
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={removalRequestModal.saving}
+                                onClick={() =>
+                                    setRemovalRequestModal({
+                                        isOpen: false,
+                                        item: null,
+                                        reason: '',
+                                        saving: false,
+                                    })
+                                }
+                                className="rounded-lg px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={
+                                    removalRequestModal.saving ||
+                                    removalRequestModal.reason.trim().length < 5
+                                }
+                                onClick={async () => {
+                                    if (!activeStoreId || !removalRequestModal.item) return;
+
+                                    setRemovalRequestModal((current) => ({
+                                        ...current,
+                                        saving: true,
+                                    }));
+
+                                    try {
+                                        await createMyProfileChangeRequest({
+                                            storeId: activeStoreId,
+                                            requestType: 'additional_info_remove',
+                                            requestedChanges: {
+                                                item_id: removalRequestModal.item.id,
+                                                title: removalRequestModal.item.title,
+                                                text: removalRequestModal.item.text,
+                                            },
+                                            reason: removalRequestModal.reason.trim(),
+                                            sensitive: removalRequestModal.item.sensitive === true,
+                                            metadata: {
+                                                source: 'my_profile_additional_info_remove',
+                                            },
+                                        });
+
+                                        toast.success('Solicitação de remoção enviada para análise.');
+
+                                        setRemovalRequestModal({
+                                            isOpen: false,
+                                            item: null,
+                                            reason: '',
+                                            saving: false,
+                                        });
+
+                                        await loadMyProfileRequests();
+                                    } catch (error) {
+                                        console.error(error);
+                                        toast.error('Não foi possível enviar a solicitação.');
+                                        setRemovalRequestModal((current) => ({
+                                            ...current,
+                                            saving: false,
+                                        }));
+                                    }
+                                }}
+                                className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {removalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </PageContainer>
     );
 }
