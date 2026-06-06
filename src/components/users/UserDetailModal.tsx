@@ -243,6 +243,7 @@ function safeInputValue(value: unknown): string {
 
 const EMPTY_PROFILE_FORM = {
     profileName: '',
+    profileEmail: '',
     profilePhone: '',
     profileMobilePhone: '',
     profileWhatsappPhone: '',
@@ -480,13 +481,14 @@ export function UserDetailModal({
 
         setProfileForm({
             profileName: safeInputValue(user.full_name),
-            profilePhone: safeInputValue(user.phone),
-            profileMobilePhone: safeInputValue(user.mobile_phone),
-            profileWhatsappPhone: safeInputValue(user.whatsapp_phone),
-            profileCpf: safeInputValue(user.cpf),
+            profileEmail: safeInputValue(user.email_for_store || user.email),
+            profilePhone: formatPhone(safeInputValue(user.phone)),
+            profileMobilePhone: formatPhone(safeInputValue(user.mobile_phone)),
+            profileWhatsappPhone: formatPhone(safeInputValue(user.whatsapp_phone)),
+            profileCpf: formatCPF(safeInputValue(user.cpf)),
             profileBirthdate: safeInputValue(user.birthdate),
 
-            profileZipCode: safeInputValue(user.zip_code),
+            profileZipCode: formatCEP(safeInputValue(user.zip_code)),
             profileAddress: safeInputValue(user.address),
             profileAddressNumber: safeInputValue(user.address_number),
             profileComplement: safeInputValue(user.complement),
@@ -1653,6 +1655,13 @@ export function UserDetailModal({
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileName: value }))
                                                 }
+                                            />
+
+                                            <InputField
+                                                label="E-mail de Contato"
+                                                value={profileForm.profileEmail}
+                                                disabled
+                                                onChange={() => {}}
                                             />
 
                                             <InputField

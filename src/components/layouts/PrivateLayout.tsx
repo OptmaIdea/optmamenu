@@ -136,6 +136,7 @@ export default function PrivateLayout() {
     const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
     const can = (permissionCode: string) => {
         if (loadingPermissions) return true;
+        if (activeMembership?.role === 'owner') return true;
 
         return hasEffectivePermission(permissions, permissionCode);
     };
@@ -639,7 +640,7 @@ export default function PrivateLayout() {
         return groupItems.filter(
             item => item.path !== currentItem.item.path && (!item.permission || can(item.permission))
         );
-    }, [currentItem, navigationItems, permissions, loadingPermissions]);
+    }, [currentItem, navigationItems, permissions, loadingPermissions, activeMembership]);
 
     const handleRefresh = () => {
         setIsRefreshing(true);

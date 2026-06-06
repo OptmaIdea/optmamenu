@@ -15,6 +15,7 @@ import {
     Clock,
     LogIn,
     LogOut,
+    MessageSquare,
 } from 'lucide-react';
 
 interface UserCardProps {
@@ -56,6 +57,16 @@ function getInitials(name?: string | null): string {
     return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }
 
+function formatPhone(value: string | null | undefined): string | null {
+    if (!value) return null;
+    const numbers = value.replace(/\D/g, '');
+    if (!numbers) return null;
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    if (numbers.length <= 10) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 6)}-${numbers.slice(6)}`;
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+}
+
 export function UserCard({
     user,
     onView,
@@ -78,12 +89,19 @@ export function UserCard({
         user.profile_avatar_url ||
         null;
 
-    const displayPhone =
-        user.member_whatsapp_phone ||
+    const rawCelular =
         user.member_mobile_phone ||
-        user.profile_whatsapp_phone ||
         user.profile_mobile_phone ||
-        user.profile_phone;
+        user.mobile_phone ||
+        user.phone;
+
+    const rawWhatsapp =
+        user.member_whatsapp_phone ||
+        user.profile_whatsapp_phone ||
+        user.whatsapp_phone;
+
+    const formattedCelular = formatPhone(rawCelular);
+    const formattedWhatsapp = formatPhone(rawWhatsapp);
 
     const initials = getInitials(displayName);
 
@@ -176,10 +194,16 @@ export function UserCard({
                                     <span className="truncate">{user.email}</span>
                                 </div>
                             )}
-                            {displayPhone && (
+                            {formattedCelular && (
                                 <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                                     <Phone size={14} className="shrink-0" />
-                                    <span>{displayPhone}</span>
+                                    <span>{formattedCelular}</span>
+                                </div>
+                            )}
+                            {formattedWhatsapp && (
+                                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                                    <MessageSquare size={14} className="shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                    <span>{formattedWhatsapp}</span>
                                 </div>
                             )}
                             {canViewSensitiveUserData && user.cpf && (

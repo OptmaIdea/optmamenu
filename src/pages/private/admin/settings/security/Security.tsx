@@ -112,6 +112,11 @@ function formatPermissionAction(action: string): string {
         manage: 'Gerenciar',
         sensitive_view: 'Ver dados sensíveis',
         sensitive_manage: 'Gerenciar dados sensíveis',
+
+        additional_info_view: 'Ver informações adicionais',
+        additional_info_manage: 'Gerenciar informações adicionais',
+        additional_info_sensitive_view: 'Ver informações adicionais sensíveis',
+        additional_info_sensitive_manage: 'Gerenciar informações adicionais sensíveis',
     };
 
     return labels[action] ?? action;
@@ -221,6 +226,10 @@ function formatPermissionLabelFromCode(code: string): string {
     const labels: Record<string, string> = {
         'users.sensitive.view': 'Usuários · Ver dados sensíveis',
         'users.sensitive.manage': 'Usuários · Gerenciar dados sensíveis',
+        'users.additional_info.view': 'Usuários · Ver informações adicionais',
+        'users.additional_info.manage': 'Usuários · Gerenciar informações adicionais',
+        'users.additional_info_sensitive.view': 'Usuários · Ver informações adicionais sensíveis',
+        'users.additional_info_sensitive.manage': 'Usuários · Gerenciar informações adicionais sensíveis',
     };
 
     if (labels[code]) return labels[code];

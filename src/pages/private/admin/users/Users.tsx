@@ -83,13 +83,16 @@ export default function Users() {
         refresh: refreshInvites,
         cancelInvite,
     } = useStoreMemberInvites(operationalStoreId);
-    const canManageUsers = hasEffectivePermission(permissions, 'users.manage');
+    const isOwner = activeMembership?.role === 'owner';
+    const canManageUsers = isOwner || hasEffectivePermission(permissions, 'users.manage');
     const canViewSensitiveUserData =
+        isOwner ||
         hasEffectivePermission(permissions, 'users.sensitive.view') ||
         hasEffectivePermission(permissions, 'users.sensitive.manage') ||
         hasEffectivePermission(permissions, 'security.manage');
 
     const canManageSensitiveUserData =
+        isOwner ||
         hasEffectivePermission(permissions, 'users.sensitive.manage') ||
         hasEffectivePermission(permissions, 'security.manage');
 
