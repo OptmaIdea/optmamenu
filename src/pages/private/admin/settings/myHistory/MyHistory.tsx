@@ -262,7 +262,20 @@ export default function MyHistory() {
             setLoading(true);
             setError(null);
             const data = await getMyVisibleStoreMemberHistory(storeId, 100);
-            setItems(data);
+            const formatted = data.map((item) => {
+                if (
+                    item.event_type === 'note' &&
+                    item.metadata?.event_type === 'self_profile_update'
+                ) {
+                    return {
+                        ...item,
+                        title: 'Dados atualizados',
+                        description: 'Dados de contato ou endereço atualizados pelo próprio usuário.',
+                    };
+                }
+                return item;
+            });
+            setItems(formatted);
         } catch (err: unknown) {
             console.error('Erro ao carregar histórico:', err);
             setError('Não foi possível carregar o histórico. Tente novamente.');

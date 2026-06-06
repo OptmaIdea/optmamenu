@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
@@ -51,6 +51,54 @@ function toNumber(value: unknown, fallback = 0): number {
 }
 
 export default function Dashboard() {
+  const [sessionStartTime] = useState<Date>(() => {
+    const stored = sessionStorage.getItem('optmamenu.session.start');
+    if (stored) {
+      const date = new Date(stored);
+      if (!isNaN(date.getTime())) return date;
+    }
+    const now = new Date();
+    sessionStorage.setItem('optmamenu.session.start', now.toISOString());
+    return now;
+  });
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const sessionElapsedTime = useMemo(() => {
+    const diffMs = currentTime.getTime() - sessionStartTime.getTime();
+    if (diffMs < 0) return '00:00:00';
+    const diffSecs = Math.floor(diffMs / 1000);
+    const hrs = Math.floor(diffSecs / 3600);
+    const mins = Math.floor((diffSecs % 3600) / 60);
+    const secs = diffSecs % 60;
+    return [hrs, mins, secs].map((v) => String(v).padStart(2, '0')).join(':');
+  }, [currentTime, sessionStartTime]);
+
+  const sessionStats = (
+    <div className="flex flex-wrap items-center gap-2 md:gap-3 text-[11px] text-gray-500 dark:text-gray-400 font-candara select-none">
+      <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800/40 px-2 py-0.5 rounded-md border border-gray-200/60 dark:border-gray-700/60">
+        <span className="font-semibold text-gray-400">Acesso:</span>
+        <span className="font-mono">{sessionStartTime.toLocaleTimeString('pt-BR')}</span>
+      </div>
+      <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
+      <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800/40 px-2 py-0.5 rounded-md border border-gray-200/60 dark:border-gray-700/60">
+        <span className="font-semibold text-gray-400">Agora:</span>
+        <span className="font-mono">{currentTime.toLocaleTimeString('pt-BR')}</span>
+      </div>
+      <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
+      <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800/40 px-2.5 py-0.5 rounded-md border border-gray-200/60 dark:border-gray-700/60">
+        <span className="font-semibold text-[#21A896]">Tempo:</span>
+        <span className="font-mono font-bold text-[#21A896]">{sessionElapsedTime}</span>
+      </div>
+    </div>
+  );
+
   const [stats, setStats] = useState({
     ordersToday: 0,
     salesToday: 0,
@@ -306,6 +354,7 @@ export default function Dashboard() {
       subtitle="Visão completa da sua operação em tempo real"
       category="Dashboard"
       icon={<LayoutDashboard size={28} className="text-[#21A896]" />}
+      action={sessionStats}
       flat
     >
       {(stats.zeroStockCount > 0 || stats.lowStockCount > 0) && (

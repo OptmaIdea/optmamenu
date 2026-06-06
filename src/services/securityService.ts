@@ -320,50 +320,44 @@ export async function updateMyStoreMemberAlias(params: {
  * Atualiza os dados de vínculo (store_members) do próprio colaborador logado.
  */
 export async function updateMyStoreMemberProfile(params: {
-    storeId: string;
-    internalAlias?: string | null;
-    memberEmail?: string | null;
-    memberPhone?: string | null;
-    memberMobilePhone?: string | null;
-    memberWhatsappPhone?: string | null;
-    memberZipCode?: string | null;
-    memberAddress?: string | null;
-    memberAddressNumber?: string | null;
-    memberComplement?: string | null;
-    memberDistrict?: string | null;
-    memberCity?: string | null;
-    memberState?: string | null;
+  storeId: string;
+  internalAlias?: string | null;
+  memberEmail?: string | null;
+  memberPhone?: string | null;
+  memberMobilePhone?: string | null;
+  memberWhatsappPhone?: string | null;
+  memberZipCode?: string | null;
+  memberAddress?: string | null;
+  memberAddressNumber?: string | null;
+  memberComplement?: string | null;
+  memberDistrict?: string | null;
+  memberCity?: string | null;
+  memberState?: string | null;
+  memberAdditionalInfo?: Array<{ title: string; text: string; sensitive: boolean }> | null;
 }) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Usuário não autenticado.');
+  const { data, error } = await supabase.rpc('update_my_store_member_profile', {
+    p_store_id: params.storeId,
+    p_internal_alias: params.internalAlias ?? null,
+    p_member_email: params.memberEmail ?? null,
+    p_member_phone: params.memberPhone ?? null,
+    p_member_mobile_phone: params.memberMobilePhone ?? null,
+    p_member_whatsapp_phone: params.memberWhatsappPhone ?? null,
+    p_member_zip_code: params.memberZipCode ?? null,
+    p_member_address: params.memberAddress ?? null,
+    p_member_address_number: params.memberAddressNumber ?? null,
+    p_member_complement: params.memberComplement ?? null,
+    p_member_district: params.memberDistrict ?? null,
+    p_member_city: params.memberCity ?? null,
+    p_member_state: params.memberState ?? null,
+    p_member_additional_info: params.memberAdditionalInfo ?? [],
+  });
 
-    const { data, error } = await supabase
-        .from('store_members')
-        .update({
-            internal_alias: params.internalAlias ?? null,
-            member_email: params.memberEmail ?? null,
-            member_phone: params.memberPhone ?? null,
-            member_mobile_phone: params.memberMobilePhone ?? null,
-            member_whatsapp_phone: params.memberWhatsappPhone ?? null,
-            member_zip_code: params.memberZipCode ?? null,
-            member_address: params.memberAddress ?? null,
-            member_address_number: params.memberAddressNumber ?? null,
-            member_complement: params.memberComplement ?? null,
-            member_district: params.memberDistrict ?? null,
-            member_city: params.memberCity ?? null,
-            member_state: params.memberState ?? null,
-            updated_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id)
-        .eq('store_id', params.storeId)
-        .select();
+  if (error) {
+    console.error('Erro ao atualizar dados de vínculo do colaborador:', error);
+    throw error;
+  }
 
-    if (error) {
-        console.error('Erro ao atualizar dados de vínculo do colaborador:', error);
-        throw error;
-    }
-
-    return data?.[0] || null;
+  return Array.isArray(data) ? data[0] ?? null : data;
 }
 
 export type UpdateMyProfileDetailsInput = {
@@ -431,6 +425,7 @@ export type CompleteMyStoreMemberOnboardingInput = {
     memberDistrict?: string | null;
     memberCity?: string | null;
     memberState?: string | null;
+    memberAdditionalInfo?: Array<{ title: string; text: string; sensitive: boolean }> | null;
 };
 
 export async function completeMyStoreMemberOnboarding(
@@ -450,6 +445,7 @@ export async function completeMyStoreMemberOnboarding(
         p_member_district: input.memberDistrict ?? null,
         p_member_city: input.memberCity ?? null,
         p_member_state: input.memberState ?? null,
+        p_member_additional_info: input.memberAdditionalInfo ?? []
     });
 
     if (error) {

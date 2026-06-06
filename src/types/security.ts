@@ -145,6 +145,7 @@ export interface StoreMemberAdmin {
   member_district?: string | null;
   member_city?: string | null;
   member_state?: string | null;
+  member_additional_info?: Array<{ id?: string; title: string; text: string; sensitive: boolean; created_at?: string }> | null;
 }
 
 export type StoreRole =

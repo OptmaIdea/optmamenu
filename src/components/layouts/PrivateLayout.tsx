@@ -124,7 +124,8 @@ function getInitials(name?: string | null): string {
 }
 
 export default function PrivateLayout() {
-    const { pathname } = useLocation();
+    const location = useLocation();
+    const { pathname } = location;
     const navigate = useNavigate();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -144,6 +145,17 @@ export default function PrivateLayout() {
     const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
 
+    const isOnboardingPending =
+        activeMembership?.status === 'active' &&
+        (
+            activeMembership?.onboarding_required === true ||
+            !activeMembership?.onboarding_completed_at
+        );
+
+    const [isNewSession] = useState(() => {
+        const stored = sessionStorage.getItem('optmamenu.session.start');
+        return !stored;
+    });
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -156,6 +168,8 @@ export default function PrivateLayout() {
         return now;
     });
     const [currentTime, setCurrentTime] = useState<Date>(new Date());
+    const [isClockPopoverOpen, setIsClockPopoverOpen] = useState(false);
+    const [popoverTimeoutId, setPopoverTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     const navigationItems = useMemo<MenuSection>(() => ({
         dashboard: [
@@ -467,6 +481,28 @@ export default function PrivateLayout() {
         setIsMobileOpen(false);
     }, [pathname]);
 
+    // 9.9K.3 — Guarda de primeiro acesso: redireciona para /admin/my-profile se onboarding pendente
+    const allowedDuringOnboarding = [
+        '/admin/my-profile',
+        '/admin/meu-historico',
+        '/admin/my-history',
+    ];
+
+    useEffect(() => {
+        if (!activeMembership) return;
+        if (!isOnboardingPending) return;
+
+        const currentPath = location.pathname;
+        const isAllowed = allowedDuringOnboarding.some((path) =>
+            currentPath.startsWith(path)
+        );
+
+        if (!isAllowed) {
+            toast.info('Complete seus dados para continuar usando o sistema.');
+            navigate('/admin/my-profile', { replace: true });
+        }
+    }, [activeMembership?.member_id, isOnboardingPending, location.pathname]);
+
     // Persist sidebar group state to localStorage
     useEffect(() => {
         try {
@@ -503,6 +539,12 @@ export default function PrivateLayout() {
     };
 
     useEffect(() => {
+        if (isNewSession && pathname !== '/admin') {
+            navigate('/admin', { replace: true });
+        }
+    }, [isNewSession, pathname, navigate]);
+
+    useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
@@ -518,6 +560,55 @@ export default function PrivateLayout() {
         const secs = diffSecs % 60;
         return [hrs, mins, secs].map(v => String(v).padStart(2, '0')).join(':');
     }, [currentTime, sessionStartTime]);
+
+    const handleClockClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+
+        if (popoverTimeoutId) {
+            clearTimeout(popoverTimeoutId);
+            setPopoverTimeoutId(null);
+        }
+
+        if (isClockPopoverOpen) {
+            // Se já está aberto, reinicia o timer para mantê-lo visível por mais 5s
+            const id = setTimeout(() => {
+                setIsClockPopoverOpen(false);
+            }, 5000);
+            setPopoverTimeoutId(id);
+        } else {
+            // Se está fechado, abre e inicia o timer de 5s
+            setIsClockPopoverOpen(true);
+            const id = setTimeout(() => {
+                setIsClockPopoverOpen(false);
+            }, 5000);
+            setPopoverTimeoutId(id);
+        }
+    };
+
+    // Fechar popover ao clicar fora
+    useEffect(() => {
+        if (!isClockPopoverOpen) return;
+
+        const handleOutsideClick = () => {
+            setIsClockPopoverOpen(false);
+            if (popoverTimeoutId) {
+                clearTimeout(popoverTimeoutId);
+                setPopoverTimeoutId(null);
+            }
+        };
+
+        document.addEventListener('click', handleOutsideClick);
+        return () => {
+            document.removeEventListener('click', handleOutsideClick);
+        };
+    }, [isClockPopoverOpen, popoverTimeoutId]);
+
+    // Limpar timeout ao desmontar
+    useEffect(() => {
+        return () => {
+            if (popoverTimeoutId) clearTimeout(popoverTimeoutId);
+        };
+    }, [popoverTimeoutId]);
 
     // Resolve o grupo e item ativo
     const currentItem = useMemo(() => {
@@ -772,7 +863,15 @@ export default function PrivateLayout() {
                                             </button>
                                         )}
                                         {(openSections[section] || isSidebarCollapsed) && items
-                                            .filter((item) => !item.permission || can(item.permission))
+                                            // 9.9K.4 — Durante onboarding, exibe apenas rotas permitidas
+                                            .filter((item) => {
+                                                if (isOnboardingPending) {
+                                                    return allowedDuringOnboarding.some((path) =>
+                                                        item.path.startsWith(path)
+                                                    );
+                                                }
+                                                return !item.permission || can(item.permission);
+                                            })
                                             .map(item => {
                                                 const IconComponent = item.icon;
                                                 const isActive =
@@ -866,65 +965,8 @@ export default function PrivateLayout() {
                         )}
                     </div>
 
-                    {/* Center: Session stats */}
-                    <div className="hidden lg:flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400 font-candara select-none">
-                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-750 px-2.5 py-1 rounded-full border border-gray-100 dark:border-gray-700">
-                            <span className="font-bold">Acesso em:</span>
-                            <span className="font-mono">{sessionStartTime.toLocaleTimeString('pt-BR')}</span>
-                        </div>
-                        <span className="text-gray-300 dark:text-gray-650">|</span>
-                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-750 px-2.5 py-1 rounded-full border border-gray-100 dark:border-gray-700">
-                            <span className="font-bold">Agora:</span>
-                            <span className="font-mono">{currentTime.toLocaleTimeString('pt-BR')}</span>
-                        </div>
-                        <span className="text-gray-300 dark:text-gray-650">|</span>
-                        <div className="flex items-center gap-1.5 bg-brand-green/5 dark:bg-brand-green/10 px-3 py-1 rounded-full border border-brand-green/10">
-                            <span className="font-bold text-brand-green">Tempo:</span>
-                            <span className="font-bold text-brand-green font-mono">{sessionElapsedTime}</span>
-                        </div>
-                    </div>
-
                     {/* Right Side: Quick actions */}
-                    <div className="flex items-center gap-1">
-                        {storeSlug && (
-                            <a
-                                href={`/s/${storeSlug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Acessar loja: /s/${storeSlug}`}
-                                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
-                            >
-                                <StoreIcon size={19} style={{ color: 'teal-300' }} />
-                            </a>
-                        )}
-
-                        {/* Messages Icon */}
-                        <button
-                            type="button"
-                            title="Mensagens (Sem novas mensagens)"
-                            className="p-2 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition relative shrink-0"
-                        >
-                            <MessageSquare size={19} />
-                            <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-light" />
-                        </button>
-
-                        {/* Alerts Icon */}
-                        <button
-                            type="button"
-                            title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
-                            className={`p-2 rounded-lg transition relative shrink-0 ${attentionCount > 0
-                                ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
-                                : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                }`}
-                        >
-                            <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
-                            {attentionCount > 0 && (
-                                <span className="absolute -top-0.5 -right-0.5 bg-brand-light text-gray-900 text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center border border-white dark:border-gray-800">
-                                    {attentionCount}
-                                </span>
-                            )}
-                        </button>
-
+                    <div className="flex items-center gap-1.5 ml-auto">
                         {/* User Identity Chip — apelido + avatar do usuário logado */}
                         {userData && (
                             <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 shrink-0 select-none">
@@ -947,25 +989,127 @@ export default function PrivateLayout() {
                             </div>
                         )}
 
+                        {userData && storeSlug && (
+                            <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden lg:block shrink-0" />
+                        )}
+
+                        {/* Store Slug Icon (Casinha para slug) - cor brand green #21A896 */}
+                        {storeSlug && (
+                            <a
+                                href={`/s/${storeSlug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={`Acessar loja: /s/${storeSlug}`}
+                                className="p-2 rounded-lg text-[#21A896] hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                            >
+                                <StoreIcon size={19} className="text-[#21A896]" />
+                            </a>
+                        )}
+
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
 
-                        {/* Theme Toggle */}
-                        <button
-                            onClick={toggleDarkMode}
-                            title="Alternar Tema"
-                            className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
-                        >
-                            {isDark ? <Sun size={19} /> : <Moon size={19} />}
-                        </button>
+                        {/* Mensagens Sininho Relógio */}
+                        <div className="flex items-center gap-1">
+                            {/* Messages Icon */}
+                            <button
+                                type="button"
+                                title="Mensagens (Sem novas mensagens)"
+                                className="p-2 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition relative shrink-0"
+                            >
+                                <MessageSquare size={19} />
+                                <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-light" />
+                            </button>
 
-                        {/* Logout Power Button */}
-                        <button
-                            onClick={handleLogout}
-                            title="Sair do painel"
-                            className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
-                        >
-                            <Power size={19} className="stroke-[2.5]" />
-                        </button>
+                            {/* Alerts Icon */}
+                            <button
+                                type="button"
+                                title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
+                                className={`p-2 rounded-lg transition relative shrink-0 ${attentionCount > 0
+                                    ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
+                                    : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                            >
+                                <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
+                                {attentionCount > 0 && (
+                                    <span className="absolute -top-0.5 -right-0.5 bg-brand-light text-gray-900 text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center border border-white dark:border-gray-800">
+                                        {attentionCount}
+                                    </span>
+                                )}
+                            </button>
+
+                            {/* Relógio Icon with Popover */}
+                            <div className="relative shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={handleClockClick}
+                                    title="Tempo de Sessão"
+                                    className={`p-2 rounded-lg transition relative shrink-0 ${
+                                        isClockPopoverOpen
+                                            ? 'text-[#21A896] bg-[#21A896]/10 hover:bg-[#21A896]/20'
+                                            : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                >
+                                    <Clock size={19} />
+                                </button>
+                                
+                                <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className={`absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-xl z-50 transition-all duration-300 origin-top-right ${
+                                        isClockPopoverOpen
+                                            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+                                            : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
+                                    }`}
+                                >
+                                    <div className="space-y-3 font-candara text-xs text-gray-650 dark:text-gray-300">
+                                        <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2 mb-1">
+                                            <Clock size={15} className="text-[#21A896]" />
+                                            <span className="font-bold text-gray-800 dark:text-white">Informações da Sessão</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-550 dark:text-gray-400">Sessão iniciada às:</span>
+                                            <span className="font-mono font-bold text-gray-800 dark:text-white">
+                                                {sessionStartTime.toLocaleTimeString('pt-BR')}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-gray-550 dark:text-gray-400">Horário atual:</span>
+                                            <span className="font-mono font-bold text-gray-800 dark:text-white">
+                                                {currentTime.toLocaleTimeString('pt-BR')}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
+                                            <span className="text-gray-550 dark:text-gray-400">Duração da sessão:</span>
+                                            <span className="font-mono font-bold text-[#21A896]">
+                                                {sessionElapsedTime}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
+
+                        {/* Seletor de tema Botão desligar */}
+                        <div className="flex items-center gap-1">
+                            {/* Theme Toggle */}
+                            <button
+                                onClick={toggleDarkMode}
+                                title="Alternar Tema"
+                                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                            >
+                                {isDark ? <Sun size={19} /> : <Moon size={19} />}
+                            </button>
+
+                            {/* Logout Power Button */}
+                            <button
+                                onClick={handleLogout}
+                                title="Sair do painel"
+                                className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+                            >
+                                <Power size={19} className="stroke-[2.5]" />
+                            </button>
+                        </div>
                     </div>
                 </header>
 

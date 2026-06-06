@@ -18,6 +18,7 @@ import {
     Store,
     Briefcase,
     Save,
+    Info,
     Plus,
     AlertTriangle,
     Loader,
@@ -1158,7 +1159,7 @@ export function UserDetailModal({
                     <header>
                         <h1>Histórico do usuário</h1>
                         <p><strong>Usuário:</strong> ${user.full_name}</p>
-                        <p><strong>E-mail:</strong> ${user.email ?? 'Não informado'}</p>
+                        <p><strong>E-mail:</strong> ${user.email_for_store ?? user.email ?? 'Não informado'}</p>
                         <p><strong>Papel atual:</strong> ${formatRoleLabel(user.role)}</p>
                         <p><strong>Status:</strong> ${user.status}</p>
                         <p class="muted"><strong>Emitido em:</strong> ${new Date().toLocaleString('pt-BR')}</p>
@@ -1227,12 +1228,11 @@ export function UserDetailModal({
             if (onSaveProfileDetails) {
                 await onSaveProfileDetails({
                     memberId: user.id,
-                    ...profileForm,
                     internalAlias: profileForm.internalAlias,
-                    jobTitle: null,
                     department: profileForm.department,
                     internalNotes: profileForm.internalNotes,
-                    reason: 'Atualização dos dados do usuário.',
+                    jobTitle: null,
+                    reason: 'Atualização de dados internos do usuário.',
                 });
             }
 
@@ -1361,9 +1361,11 @@ export function UserDetailModal({
 
             await onSaveProfileDetails({
                 memberId: user.id,
-                ...profileForm,
+                internalAlias: profileForm.internalAlias,
+                department: profileForm.department,
+                internalNotes: profileForm.internalNotes,
                 jobTitle: null,
-                reason: 'Atualização dos dados do usuário.',
+                reason: 'Atualização de dados internos do usuário.',
             });
 
             toast.success('Dados complementares salvos.');
@@ -1520,8 +1522,8 @@ export function UserDetailModal({
                         <div className="space-y-6 p-6">
                             {activeTab === 'overview' && (
                                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                    {user.email && (
-                                        <InfoCard icon={Mail} label="Email" value={user.email} />
+                                    {user.email_for_store && (
+                                        <InfoCard icon={Mail} label="Email" value={user.email_for_store} />
                                     )}
 
                                     {user.phone && (
@@ -1612,7 +1614,7 @@ export function UserDetailModal({
                                                         className="absolute inset-0 h-full w-full object-cover"
                                                     />
                                                 ) : (
-                                                    <span>{getInitials(user.full_name || user.email)}</span>
+                                                    <span>{getInitials(user.full_name || user.email_for_store || user.email)}</span>
                                                 )}
                                             </div>
 
@@ -1647,6 +1649,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Nome"
                                                 value={profileForm.profileName}
+                                                disabled
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileName: value }))
                                                 }
@@ -1662,16 +1665,9 @@ export function UserDetailModal({
                                             />
 
                                             <InputField
-                                                label="Telefone"
-                                                value={profileForm.profilePhone}
-                                                onChange={(value) =>
-                                                    setProfileForm((current) => ({ ...current, profilePhone: formatPhone(value) }))
-                                                }
-                                            />
-
-                                            <InputField
                                                 label="Celular"
                                                 value={profileForm.profileMobilePhone}
+                                                disabled
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileMobilePhone: formatPhone(value) }))
                                                 }
@@ -1680,8 +1676,18 @@ export function UserDetailModal({
                                             <InputField
                                                 label="WhatsApp"
                                                 value={profileForm.profileWhatsappPhone}
+                                                disabled
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileWhatsappPhone: formatPhone(value) }))
+                                                }
+                                            />
+
+                                            <InputField
+                                                label="Telefone"
+                                                value={profileForm.profilePhone}
+                                                disabled
+                                                onChange={(value) =>
+                                                    setProfileForm((current) => ({ ...current, profilePhone: formatPhone(value) }))
                                                 }
                                             />
 
@@ -1690,7 +1696,7 @@ export function UserDetailModal({
                                                     <InputField
                                                         label="CPF"
                                                         value={profileForm.profileCpf}
-                                                        disabled={!canManageSensitiveUserData}
+                                                        disabled
                                                         onChange={(value) =>
                                                             setProfileForm((current) => ({ ...current, profileCpf: formatCPF(value) }))
                                                         }
@@ -1700,7 +1706,7 @@ export function UserDetailModal({
                                                         label="Nascimento"
                                                         type="date"
                                                         value={profileForm.profileBirthdate}
-                                                        disabled={!canManageSensitiveUserData}
+                                                        disabled
                                                         onChange={(value) =>
                                                             setProfileForm((current) => ({ ...current, profileBirthdate: value }))
                                                         }
@@ -1720,14 +1726,14 @@ export function UserDetailModal({
                                                 <InputField
                                                     label="CEP"
                                                     value={profileForm.profileZipCode}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={handleCepChange}
                                                 />
 
                                                 <InputField
                                                     label="Endereço"
                                                     value={profileForm.profileAddress}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={(value) =>
                                                         setProfileForm((current) => ({ ...current, profileAddress: value }))
                                                     }
@@ -1737,7 +1743,7 @@ export function UserDetailModal({
                                                 <InputField
                                                     label="Número"
                                                     value={profileForm.profileAddressNumber}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={(value) =>
                                                         setProfileForm((current) => ({ ...current, profileAddressNumber: value }))
                                                     }
@@ -1746,7 +1752,7 @@ export function UserDetailModal({
                                                 <InputField
                                                     label="Complemento"
                                                     value={profileForm.profileComplement}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={(value) =>
                                                         setProfileForm((current) => ({ ...current, profileComplement: value }))
                                                     }
@@ -1755,7 +1761,7 @@ export function UserDetailModal({
                                                 <InputField
                                                     label="Bairro"
                                                     value={profileForm.profileDistrict}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={(value) =>
                                                         setProfileForm((current) => ({ ...current, profileDistrict: value }))
                                                     }
@@ -1764,7 +1770,7 @@ export function UserDetailModal({
                                                 <InputField
                                                     label="Cidade"
                                                     value={profileForm.profileCity}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={(value) =>
                                                         setProfileForm((current) => ({ ...current, profileCity: value }))
                                                     }
@@ -1773,7 +1779,7 @@ export function UserDetailModal({
                                                 <InputField
                                                     label="Estado"
                                                     value={profileForm.profileState}
-                                                    disabled={!canManageSensitiveUserData}
+                                                    disabled
                                                     onChange={(value) =>
                                                         setProfileForm((current) => ({ ...current, profileState: value }))
                                                     }
@@ -1791,6 +1797,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Instagram"
                                                 value={profileForm.profileInstagramUrl}
+                                                disabled
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileInstagramUrl: value }))
                                                 }
@@ -1799,6 +1806,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Facebook"
                                                 value={profileForm.profileFacebookUrl}
+                                                disabled
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileFacebookUrl: value }))
                                                 }
@@ -1807,6 +1815,7 @@ export function UserDetailModal({
                                             <InputField
                                                 label="Site"
                                                 value={profileForm.profileWebsiteUrl}
+                                                disabled
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, profileWebsiteUrl: value }))
                                                 }
@@ -1814,7 +1823,40 @@ export function UserDetailModal({
                                         </div>
                                     </div>
 
+                                    {user.additional_info && user.additional_info.length > 0 && (
+                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
+                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                                <Info size={18} className="text-[#21A896]" />
+                                                Informações adicionais
+                                            </h4>
 
+                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                                {user.additional_info.map((item, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className="flex items-start gap-3 rounded-lg bg-white p-3 border border-gray-100 dark:bg-gray-800 dark:border-gray-700/50"
+                                                    >
+                                                        <Info size={18} className="mt-0.5 text-gray-400 shrink-0" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex flex-wrap items-center gap-2 mb-0.5">
+                                                                <span className="text-xs font-bold uppercase tracking-wide text-gray-500 truncate max-w-full">
+                                                                    {item.title}
+                                                                </span>
+                                                                {item.sensitive && (
+                                                                    <span className="inline-flex items-center rounded-md bg-red-50 dark:bg-red-950/30 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:text-red-300 ring-1 ring-inset ring-red-600/10 dark:ring-red-500/20">
+                                                                        Sensível
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-sm text-gray-900 dark:text-white break-words">
+                                                                {item.text}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
 
                                     <div className="flex justify-end">
                                         <button

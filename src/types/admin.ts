@@ -115,6 +115,8 @@ export interface UserAdmin {
     profile_phone?: string | null;
     profile_mobile_phone?: string | null;
     profile_whatsapp_phone?: string | null;
+    email_for_store?: string | null;
+    additional_info?: Array<{ id?: string; title: string; text: string; sensitive: boolean; created_at?: string }> | null;
 }
 
 export interface StoreUser {

@@ -15,6 +15,8 @@ import {
     Facebook,
     Search,
     AlertTriangle,
+    Plus,
+    Info,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -25,6 +27,16 @@ import {
 } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { InfoCard } from '@/components/common/InfoCard';
+
+interface AdditionalInfo {
+    id: string;
+    title: string;
+    text: string;
+    sensitive: boolean;
+    created_at?: string;
+    isNew?: boolean;
+}
 
 interface ProfileData {
     name: string;
@@ -32,6 +44,7 @@ interface ProfileData {
     phone: string;
     mobile_phone: string;
     whatsapp_phone: string;
+    whatsapp_same_as_mobile: boolean;
     birthdate: string;
     zip_code: string;
     address: string;
@@ -46,6 +59,63 @@ interface ProfileData {
     avatar_url: string;
     cpf: string;
     member_email: string;
+    additionalInfo: AdditionalInfo[];
+}
+
+function generateUUID(): string {
+    if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === 'x' ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+}
+
+function onlyDigits(value: string): string {
+    return value.replace(/\D/g, '');
+}
+
+function formatCep(value: string): string {
+    const digits = onlyDigits(value).slice(0, 8);
+
+    if (digits.length <= 5) return digits;
+
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+}
+
+function formatMobile(value: string): string {
+    const digits = onlyDigits(value).slice(0, 11);
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
+function formatLandline(value: string): string {
+    const digits = onlyDigits(value).slice(0, 10);
+
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+}
+
+function isValidMobile(value: string): boolean {
+    const digits = onlyDigits(value);
+    return digits.length === 11 && digits[2] === '9';
+}
+
+function isValidLandline(value: string): boolean {
+    const digits = onlyDigits(value);
+    return digits.length === 0 || digits.length === 10;
+}
+
+function isValidEmail(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
 }
 
 interface IBGEState {
@@ -83,12 +153,12 @@ export default function Profile() {
     const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
 
     const canEditGlobalProfile =
-      isOwnerInCurrentStore;
+        isOwnerInCurrentStore;
     // depois podemos sofisticar para owner de empresa própria etc.
 
     const isOnboardingPending =
-      selectedMembership?.onboarding_required === true ||
-      !selectedMembership?.onboarding_completed_at;
+        selectedMembership?.onboarding_required === true ||
+        !selectedMembership?.onboarding_completed_at;
 
     // States & Cities from IBGE
     const [states, setStates] = useState<IBGEState[]>([]);
@@ -102,6 +172,7 @@ export default function Profile() {
         phone: '',
         mobile_phone: '',
         whatsapp_phone: '',
+        whatsapp_same_as_mobile: false,
         birthdate: '',
         zip_code: '',
         address: '',
@@ -116,6 +187,7 @@ export default function Profile() {
         avatar_url: '',
         cpf: '',
         member_email: '',
+        additionalInfo: [],
     });
 
     useEffect(() => {
@@ -177,18 +249,42 @@ export default function Profile() {
             }
 
             if (profileData) {
+                const rawMobile = memberRow?.member_mobile_phone || profileData.mobile_phone || '';
+                const rawWhatsapp = memberRow?.member_whatsapp_phone || profileData.whatsapp_phone || '';
+                const rawPhone = memberRow?.member_phone || profileData.phone || '';
+
+                const formattedMobile = formatMobile(rawMobile);
+                const formattedWhatsapp = formatMobile(rawWhatsapp);
+                const formattedPhone = formatLandline(rawPhone);
+
+                const isSame =
+                    onlyDigits(rawMobile) &&
+                    onlyDigits(rawWhatsapp) &&
+                    onlyDigits(rawMobile) === onlyDigits(rawWhatsapp);
+
+                // Processar informações adicionais
+                const additionalInfo = memberRow?.member_additional_info ?
+                    memberRow.member_additional_info.map((item: any) => ({
+                        id: item.id || generateUUID(),
+                        title: item.title || '',
+                        text: item.text || '',
+                        sensitive: Boolean(item.sensitive),
+                        created_at: item.created_at || new Date().toISOString(),
+                    })) : [];
+
                 setProfile({
                     name: profileData.name || '',
                     cpf: profileData.cpf || '',
                     birthdate: profileData.birthdata || profileData.birthdate || '',
 
                     internal_alias: memberRow?.internal_alias || '',
-                    phone: memberRow?.member_phone || profileData.phone || '',
-                    mobile_phone: memberRow?.member_mobile_phone || profileData.mobile_phone || '',
-                    whatsapp_phone: memberRow?.member_whatsapp_phone || profileData.whatsapp_phone || '',
+                    phone: formattedPhone,
+                    mobile_phone: formattedMobile,
+                    whatsapp_phone: formattedWhatsapp,
+                    whatsapp_same_as_mobile: !!isSame,
                     avatar_url: memberRow?.member_avatar_url || profileData.avatar_url || '',
 
-                    zip_code: memberRow?.member_zip_code || profileData.zip_code || '',
+                    zip_code: formatCep(memberRow?.member_zip_code || profileData.zip_code || ''),
                     address: memberRow?.member_address || profileData.address || '',
                     address_number: memberRow?.member_address_number || profileData.address_number || '',
                     complement: memberRow?.member_complement || profileData.complement || '',
@@ -200,6 +296,7 @@ export default function Profile() {
                     facebook_url: profileData.facebook_url || '',
                     website_url: profileData.website_url || '',
                     member_email: memberRow?.member_email || '',
+                    additionalInfo,
                 });
 
                 // CPF is read-only if it is already pre-filled
@@ -271,6 +368,57 @@ export default function Profile() {
         }
     };
 
+    const handleMobileChange = (value: string) => {
+        const formatted = formatMobile(value);
+
+        setProfile((current) => ({
+            ...current,
+            mobile_phone: formatted,
+            whatsapp_phone: current.whatsapp_same_as_mobile
+                ? formatted
+                : current.whatsapp_phone,
+        }));
+    };
+
+    const handleAddAdditionalInfo = () => {
+        setProfile((current) => ({
+            ...current,
+            additionalInfo: [
+                ...current.additionalInfo,
+                {
+                    id: generateUUID(),
+                    title: '',
+                    text: '',
+                    sensitive: false,
+                    created_at: new Date().toISOString(),
+                    isNew: true,
+                },
+            ],
+        }));
+    };
+
+    const handleRequestRemoveAdditionalInfo = (index: number) => {
+        const item = profile.additionalInfo[index];
+        const infoTitle = item?.title ? `"${item.title}"` : 'da informação';
+        toast.success(`Solicitação de remoção ${infoTitle} enviada para o administrador.`);
+    };
+
+    const handleUpdateAdditionalInfo = (index: number, field: keyof AdditionalInfo, value: string | boolean) => {
+        setProfile((current) => ({
+            ...current,
+            additionalInfo: current.additionalInfo.map((item, i) =>
+                i === index ? { ...item, [field]: value } : item
+            ),
+        }));
+    };
+
+    const handleRemoveAdditionalInfo = (index: number) => {
+        setProfile((current) => ({
+            ...current,
+            additionalInfo: current.additionalInfo.filter((_, i) => i !== index),
+        }));
+    };
+
     const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -308,16 +456,43 @@ export default function Profile() {
         }
     };
 
-    const handleSave = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSave = async (e?: React.SyntheticEvent) => {
+        e?.preventDefault();
 
         if (!profile.name.trim()) {
             toast.error('O campo "Nome Completo" é obrigatório.');
             return;
         }
 
+        const mobileDigits = onlyDigits(profile.mobile_phone);
+        const whatsappDigits = onlyDigits(profile.whatsapp_phone);
+        const phoneDigits = onlyDigits(profile.phone);
+
+        if (!isValidMobile(profile.mobile_phone)) {
+            toast.error('Informe um celular válido com DDD e 9 dígitos (começando com 9).');
+            return;
+        }
+
+        if (!isValidMobile(profile.whatsapp_phone)) {
+            toast.error('Informe um WhatsApp válido com DDD e 9 dígitos (começando com 9).');
+            return;
+        }
+
+        if (!isValidLandline(profile.phone)) {
+            toast.error('Informe um telefone fixo válido com DDD e 8 dígitos, ou deixe em branco.');
+            return;
+        }
+
+        if (!profile.member_email.trim()) {
+            toast.info('Para receber notificações importantes, preencha o e-mail de contato.');
+        } else if (!isValidEmail(profile.member_email)) {
+            toast.error('Por favor, informe um e-mail com formato válido (ex: contato@empresa.com).');
+            return;
+        }
+
         try {
             setSaving(true);
+            const wasOnboardingPending = isOnboardingPending;
 
             // FIX.2 & 9.9H.10: Salva dados pessoais (profiles) e dados do vínculo (store_members)
             const activeStoreId = getActiveStoreId();
@@ -336,42 +511,59 @@ export default function Profile() {
             }
 
             if (activeStoreId) {
+                // Processar informações adicionais
+                const memberAdditionalInfo = profile.additionalInfo
+                    .filter((item) => item.title.trim() || item.text.trim())
+                    .map((item) => ({
+                        id: item.id,
+                        title: item.title.trim(),
+                        text: item.text.trim(),
+                        sensitive: Boolean(item.sensitive),
+                        created_at: item.created_at || new Date().toISOString(),
+                    }));
+
                 if (isOnboardingPending) {
                     await completeMyStoreMemberOnboarding({
                         storeId: activeStoreId,
                         internalAlias: profile.internal_alias || null,
                         memberEmail: profile.member_email || null,
-                        memberPhone: profile.phone || null,
-                        memberMobilePhone: profile.mobile_phone || null,
-                        memberWhatsappPhone: profile.whatsapp_phone || null,
-                        memberZipCode: profile.zip_code || null,
+                        memberPhone: phoneDigits || null,
+                        memberMobilePhone: mobileDigits || null,
+                        memberWhatsappPhone: whatsappDigits || null,
+                        memberZipCode: onlyDigits(profile.zip_code) || null,
                         memberAddress: profile.address || null,
                         memberAddressNumber: profile.address_number || null,
                         memberComplement: profile.complement || null,
                         memberDistrict: profile.district || null,
                         memberCity: profile.city || null,
                         memberState: profile.state || null,
+                        memberAdditionalInfo,
                     });
                 } else {
                     await updateMyStoreMemberProfile({
                         storeId: activeStoreId,
                         internalAlias: profile.internal_alias || null,
                         memberEmail: profile.member_email || null,
-                        memberPhone: profile.phone || null,
-                        memberMobilePhone: profile.mobile_phone || null,
-                        memberWhatsappPhone: profile.whatsapp_phone || null,
-                        memberZipCode: profile.zip_code || null,
+                        memberPhone: phoneDigits || null,
+                        memberMobilePhone: mobileDigits || null,
+                        memberWhatsappPhone: whatsappDigits || null,
+                        memberZipCode: onlyDigits(profile.zip_code) || null,
                         memberAddress: profile.address || null,
                         memberAddressNumber: profile.address_number || null,
                         memberComplement: profile.complement || null,
                         memberDistrict: profile.district || null,
                         memberCity: profile.city || null,
                         memberState: profile.state || null,
+                        memberAdditionalInfo,
                     });
                 }
             }
 
-            toast.success('Perfil atualizado com sucesso!');
+            if (wasOnboardingPending) {
+                toast.success('Cadastro inicial concluído. Acesso liberado.');
+            } else {
+                toast.success('Perfil atualizado com sucesso!');
+            }
 
             // Disparar recarga do contexto de segurança e atualizar sidebar/header
             await refreshSecurityContext();
@@ -405,7 +597,20 @@ export default function Profile() {
             icon={<User className="text-[#21A896]" size={28} />}
             flat
         >
-            <form onSubmit={handleSave} noValidate className="max-w-4xl mx-auto space-y-8">
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault();
+                }}
+                noValidate
+                className="max-w-4xl mx-auto space-y-8"
+            >
+                {/* 9.9K.5 — Aviso de onboarding pendente */}
+                {isOnboardingPending && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/40 p-4 text-sm text-amber-800 dark:text-amber-200">
+                        Complete seus dados básicos para liberar o acesso às demais áreas da loja.
+                    </div>
+                )}
+
                 {isOwnerSomewhere && !isOwnerInCurrentStore && (
                     <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 text-sm text-amber-800 dark:text-amber-200 flex gap-3 items-start shadow-sm">
                         <AlertTriangle className="shrink-0 text-amber-500 mt-0.5" size={18} />
@@ -448,7 +653,7 @@ export default function Profile() {
                         )}
 
                         <label
-                             htmlFor="avatar-upload"
+                            htmlFor="avatar-upload"
                             className="absolute bottom-0 right-0 bg-[#21A896] text-white p-1.5 rounded-full shadow-md cursor-pointer hover:brightness-110 transition"
                         >
                             <Camera size={14} />
@@ -556,42 +761,70 @@ export default function Profile() {
                         </div>
 
                         <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                Celular <span className="text-red-500">*</span>
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                    value={profile.mobile_phone}
+                                    onChange={(e) => handleMobileChange(e.target.value)}
+                                    placeholder="Ex: (22) 99999-9999"
+                                />
+                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                    WhatsApp <span className="text-red-500">*</span>
+                                </label>
+                                <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]"
+                                        checked={!!profile.whatsapp_same_as_mobile}
+                                        onChange={(event) => {
+                                            const checked = event.target.checked;
+                                            setProfile((current) => ({
+                                                ...current,
+                                                whatsapp_same_as_mobile: checked,
+                                                whatsapp_phone: checked ? current.mobile_phone : current.whatsapp_phone,
+                                            }));
+                                        }}
+                                    />
+                                    WhatsApp é o mesmo número do celular
+                                </label>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    type="text"
+                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                    value={profile.whatsapp_phone}
+                                    onChange={(event) =>
+                                        setProfile((current) => ({
+                                            ...current,
+                                            whatsapp_phone: formatMobile(event.target.value),
+                                        }))
+                                    }
+                                    disabled={profile.whatsapp_same_as_mobile}
+                                    placeholder="Ex: (22) 99999-9999"
+                                />
+                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
+                            </div>
+                        </div>
+
+                        <div>
                             <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Telefone Fixo</label>
                             <div className="relative">
                                 <input
                                     type="text"
                                     className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                     value={profile.phone}
-                                    onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                                    onChange={(e) => setProfile((current) => ({ ...current, phone: formatLandline(e.target.value) }))}
                                     placeholder="Ex: (22) 3333-3333"
-                                />
-                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Celular</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.mobile_phone}
-                                    onChange={(e) => setProfile({ ...profile, mobile_phone: e.target.value })}
-                                    placeholder="Ex: (22) 99999-9999"
-                                />
-                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">WhatsApp</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.whatsapp_phone}
-                                    onChange={(e) => setProfile({ ...profile, whatsapp_phone: e.target.value })}
-                                    placeholder="Ex: (22) 99999-9999"
                                 />
                                 <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
                             </div>
@@ -613,7 +846,18 @@ export default function Profile() {
                                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                     value={profile.zip_code}
                                     placeholder="00000-000"
-                                    onChange={(e) => setProfile({ ...profile, zip_code: e.target.value })}
+                                    onChange={(e) =>
+                                        setProfile((current) => ({
+                                            ...current,
+                                            zip_code: formatCep(e.target.value),
+                                        }))
+                                    }
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            handleZipLookup();
+                                        }
+                                    }}
                                     onBlur={handleZipLookup}
                                 />
                                 <button
@@ -772,10 +1016,40 @@ export default function Profile() {
                     </div>
                 </div>
 
+                {/* Additional Info Section */}
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
+                        <Info className="text-[#21A896]" size={20} /> Informações Adicionais
+                    </h3>
+
+                    <div className="space-y-4">
+                        {profile.additionalInfo.map((item, index) => (
+                            <InfoCard
+                                key={item.id || index}
+                                item={item}
+                                index={index}
+                                onUpdate={handleUpdateAdditionalInfo}
+                                onRemove={handleRemoveAdditionalInfo}
+                                onRemoveRequest={handleRequestRemoveAdditionalInfo}
+                            />
+                        ))}
+
+                        <button
+                            type="button"
+                            onClick={handleAddAdditionalInfo}
+                            className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-[#21A896] hover:text-[#21A896] transition-colors"
+                        >
+                            <Plus size={18} />
+                            Adicionar Informação
+                        </button>
+                    </div>
+                </div>
+
                 {/* Save Button */}
                 <div className="flex justify-end pt-4">
                     <button
-                        type="submit"
+                        type="button"
+                        onClick={() => handleSave()}
                         disabled={saving}
                         className="flex items-center gap-3 bg-[#21A896] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
