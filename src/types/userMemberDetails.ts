@@ -13,6 +13,7 @@ export type StoreMemberOccurrenceType =
 
 export type StoreMemberOccurrenceSeverity =
     | 'info'
+    | 'warning'
     | 'low'
     | 'medium'
     | 'high'

@@ -23,8 +23,62 @@ import {
     PROFILE_REQUEST_STATUS_LABELS,
     PROFILE_REQUEST_TYPE_LABELS,
     type ProfileChangeRequest,
-    type ProfileChangeRequestStatus
+    type ProfileChangeRequestStatus,
+    type ProposedChangeValue,
 } from '@/services/securityService';
+
+// Correção 6 — Labels reutilizados do Profile.tsx para exibição no painel admin
+const FIELD_LABELS: Record<string, string> = {
+    name: 'Nome completo',
+    cpf: 'CPF',
+    birthdate: 'Data de nascimento',
+    member_email: 'E-mail de contato',
+    phone: 'Telefone fixo',
+    mobile_phone: 'Celular',
+    whatsapp_phone: 'WhatsApp',
+    zip_code: 'CEP',
+    address: 'Endereço',
+    address_number: 'Número',
+    complement: 'Complemento',
+    district: 'Bairro',
+    city: 'Cidade',
+    state: 'UF',
+    other: 'Descrição',
+};
+
+function formatChangeValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') return 'Não informado';
+    if (typeof value === 'string') return value;
+    return String(value);
+}
+
+function formatAdditionalInfoChange(change: any): {
+  title: string;
+  oldText: string;
+  newText: string;
+  oldSensitive: string;
+  newSensitive: string;
+} {
+  const itemId = change?.item_id;
+
+  const oldArray = Array.isArray(change?.old) ? change.old : [];
+  const newArray = Array.isArray(change?.new) ? change.new : [];
+
+  const oldItem = oldArray.find((item: any) => item?.id === itemId);
+  const newItem = newArray.find((item: any) => item?.id === itemId);
+
+  return {
+    title:
+      change?.item_label ||
+      newItem?.title ||
+      oldItem?.title ||
+      'Informação adicional',
+    oldText: oldItem?.text || 'Não informado',
+    newText: newItem?.text || 'Não informado',
+    oldSensitive: oldItem?.sensitive ? 'Sim' : 'Não',
+    newSensitive: newItem?.sensitive ? 'Sim' : 'Não',
+  };
+}
 
 function formatRoleLabel(role: string): string {
     const labels: Record<string, string> = {
@@ -208,13 +262,15 @@ export default function Users() {
         clearOverrides: boolean;
     } | null>(null);
 
+    // Correção 7 — handleRefresh também recarrega solicitações cadastrais
     const handleRefresh = useCallback(async () => {
         await Promise.all([
             fetchUsers(),
             fetchStats(),
-            refreshInvites()
+            refreshInvites(),
+            canViewProfileRequests ? loadProfileRequests() : Promise.resolve(),
         ]);
-    }, [fetchUsers, fetchStats, refreshInvites]);
+    }, [fetchUsers, fetchStats, refreshInvites, canViewProfileRequests, loadProfileRequests]);
 
     useEffect(() => {
         handleRefresh();
@@ -222,11 +278,16 @@ export default function Users() {
 
     useRefreshFrame(handleRefresh);
 
+    // Correção 7 — listener inclui tabela de solicitações cadastrais
     useRealtimeListener({
         channelName: `users_rt_${operationalStoreId || 'pending'}`,
         tables: [
             {
                 table: 'store_members',
+                ...(operationalStoreId ? { filter: `store_id=eq.${operationalStoreId}` } : {}),
+            },
+            {
+                table: 'store_member_profile_change_requests',
                 ...(operationalStoreId ? { filter: `store_id=eq.${operationalStoreId}` } : {}),
             },
         ],
@@ -736,14 +797,66 @@ export default function Users() {
                                                  </div>
                                              )}
 
-                                             {!!request.requested_changes?.requested_value && (
+                                             {/* Correção 6 — exibição campo a campo */}
+                                             {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
                                                  <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
                                                      <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                         Alteração solicitada
+                                                         Alterações solicitadas
                                                      </p>
-                                                     <p className="mt-1 font-semibold text-gray-900 dark:text-white whitespace-pre-wrap">
-                                                         {String(request.requested_changes.requested_value)}
-                                                     </p>
+
+                                                     <div className="mt-2 space-y-2">
+                                                         {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
+                                                             const change = rawChange as any;
+
+                                                             if (field === 'member_additional_info' || field === 'additional_info') {
+                                                                 const infoChange = formatAdditionalInfoChange(change);
+
+                                                                 return (
+                                                                     <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+                                                                         <p className="text-xs font-bold text-gray-500">
+                                                                             {infoChange.title}
+                                                                         </p>
+
+                                                                         <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                                                                             <p>
+                                                                                 <strong>Atual:</strong> {infoChange.oldText}
+                                                                             </p>
+                                                                             <p>
+                                                                                 <strong>Novo:</strong> {infoChange.newText}
+                                                                             </p>
+                                                                             <p>
+                                                                                 <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
+                                                                             </p>
+                                                                         </div>
+                                                                     </div>
+                                                                 );
+                                                             }
+
+                                                             // Pular campos legados sem estrutura {old, new}
+                                                             if (typeof change !== 'object' || change === null || !('new' in change)) {
+                                                                 return (
+                                                                     <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                         <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
+                                                                         <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
+                                                                     </div>
+                                                                 );
+                                                             }
+
+                                                             return (
+                                                                 <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                     <p className="text-xs font-bold text-gray-500">
+                                                                         {change.label || FIELD_LABELS[field] || field}
+                                                                     </p>
+                                                                     <p className="text-xs text-gray-400">
+                                                                         Atual: {formatChangeValue(change.old)}
+                                                                     </p>
+                                                                     <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                                                         Novo: {formatChangeValue(change.new)}
+                                                                     </p>
+                                                                 </div>
+                                                             );
+                                                         })}
+                                                     </div>
                                                  </div>
                                              )}
 
@@ -796,22 +909,7 @@ export default function Users() {
                                                     >
                                                         Rejeitar
                                                     </button>
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setReviewModal({
-                                                                isOpen: true,
-                                                                request,
-                                                                decision: 'cancel',
-                                                                adminNotes: '',
-                                                                saving: false,
-                                                            })
-                                                        }
-                                                        className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-100 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700 transition cursor-pointer"
-                                                    >
-                                                        Cancelar
-                                                    </button>
+                                                    {/* Correção 6 — sem botão Cancelar para owner/admin; cancelar é do solicitante */}
                                                 </div>
                                             )}
                                         </div>
@@ -1129,7 +1227,7 @@ export default function Users() {
                                             adminNotes: reviewModal.adminNotes.trim() || null,
                                         });
 
-                                        toast.success('Solicitação analisada com sucesso.');
+                                        toast.success('Solicitação cadastral processada com sucesso.');
 
                                         setReviewModal({
                                             isOpen: false,
@@ -1141,9 +1239,13 @@ export default function Users() {
 
                                         await loadProfileRequests();
                                         await fetchUsers();
-                                    } catch (error) {
+                                    } catch (error: any) {
                                         console.error(error);
-                                        toast.error('Não foi possível analisar a solicitação.');
+                                        toast.error(
+                                            error?.message ||
+                                            error?.details ||
+                                            'Não foi possível analisar a solicitação.'
+                                        );
                                         setReviewModal((current) => ({
                                             ...current,
                                             saving: false,

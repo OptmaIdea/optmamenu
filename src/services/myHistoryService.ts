@@ -7,7 +7,7 @@ export interface MyVisibleHistoryItem {
     event_label: string | null;
     title: string;
     description: string | null;
-    severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
+    severity: 'info' | 'warning' | 'low' | 'medium' | 'high' | 'critical';
     visible_to_member: boolean;
     metadata?: Record<string, unknown> | null;
 }

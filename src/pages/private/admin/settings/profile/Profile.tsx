@@ -20,6 +20,7 @@ import {
     Plus,
     Info,
     History,
+    X,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -28,16 +29,37 @@ import {
     updateMyProfileDetails,
     completeMyStoreMemberOnboarding,
     createMyProfileChangeRequest,
+    cancelMyProfileChangeRequest,
     listMyProfileChangeRequests,
     PROFILE_REQUEST_STATUS_LABELS,
     PROFILE_REQUEST_TYPE_LABELS,
     type ProfileChangeRequest,
     type ProfileChangeRequestType,
+    type ProfileChangeRequestStatus,
     type ProposedChangeValue
 } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { InfoCard } from '@/components/common/InfoCard';
+
+// ── Correção 4 — Labels de campo para o mini formulário estruturado ──
+const FIELD_LABELS: Record<string, string> = {
+    name: 'Nome completo',
+    cpf: 'CPF',
+    birthdate: 'Data de nascimento',
+    member_email: 'E-mail de contato',
+    phone: 'Telefone fixo',
+    mobile_phone: 'Celular',
+    whatsapp_phone: 'WhatsApp',
+    zip_code: 'CEP',
+    address: 'Endereço',
+    address_number: 'Número',
+    complement: 'Complemento',
+    district: 'Bairro',
+    city: 'Cidade',
+    state: 'UF',
+    other: 'Descrição',
+};
 
 interface AdditionalInfo {
     id: string;
@@ -213,6 +235,34 @@ function formatChangeValue(value: unknown): string {
     return String(value);
 }
 
+function formatAdditionalInfoChange(change: any): {
+  title: string;
+  oldText: string;
+  newText: string;
+  oldSensitive: string;
+  newSensitive: string;
+} {
+  const itemId = change?.item_id;
+
+  const oldArray = Array.isArray(change?.old) ? change.old : [];
+  const newArray = Array.isArray(change?.new) ? change.new : [];
+
+  const oldItem = oldArray.find((item: any) => item?.id === itemId);
+  const newItem = newArray.find((item: any) => item?.id === itemId);
+
+  return {
+    title:
+      change?.item_label ||
+      newItem?.title ||
+      oldItem?.title ||
+      'Informação adicional',
+    oldText: oldItem?.text || 'Não informado',
+    newText: newItem?.text || 'Não informado',
+    oldSensitive: oldItem?.sensitive ? 'Sim' : 'Não',
+    newSensitive: newItem?.sensitive ? 'Sim' : 'Não',
+  };
+}
+
 export default function Profile() {
     const { securityContext, refresh: refreshSecurityContext, loading: loadingSecurity } = useSecurityContext();
     const navigate = useNavigate();
@@ -226,8 +276,26 @@ export default function Profile() {
     }, []);
 
     const memberships = securityContext?.memberships || [];
-    const selectedMembership = securityContext?.primary_membership || securityContext?.memberships?.[0] || null;
-    const activeStoreId = selectedMembership?.store_id ?? getActiveStoreId() ?? null;
+    const storedActiveStoreId = getActiveStoreId();
+
+    // Correção 1 — prioriza a loja ativa armazenada entre os vínculos do usuário
+    const selectedMembership = useMemo(() => {
+        if (storedActiveStoreId) {
+            const membershipFromActiveStore = memberships.find(
+                (membership) =>
+                    membership.store_id === storedActiveStoreId &&
+                    membership.status === 'active'
+            );
+            if (membershipFromActiveStore) {
+                return membershipFromActiveStore;
+            }
+        }
+        return securityContext?.primary_membership || memberships[0] || null;
+    }, [memberships, securityContext?.primary_membership, storedActiveStoreId]);
+
+    const activeStoreId = selectedMembership?.store_id ?? storedActiveStoreId ?? null;
+    const activeMemberId = selectedMembership?.member_id ?? null;
+    void activeMemberId;
 
     const [removalRequestModal, setRemovalRequestModal] = useState<{
         isOpen: boolean;
@@ -244,17 +312,128 @@ export default function Profile() {
     const [myRequests, setMyRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingMyRequests, setLoadingMyRequests] = useState(false);
 
+    // Filtros e ordenação para as solicitações cadastrais
+    const [requestSearch, setRequestSearch] = useState('');
+    const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | ProfileChangeRequestStatus>('all');
+    const [requestDateFrom, setRequestDateFrom] = useState('');
+    const [requestDateTo, setRequestDateTo] = useState('');
+    const [requestSortOrder, setRequestSortOrder] = useState<'desc' | 'asc'>('desc');
+
+    const filteredRequests = useMemo(() => {
+        return myRequests
+            .filter((req) => {
+                // Filtro de status
+                if (requestStatusFilter !== 'all' && req.status !== requestStatusFilter) {
+                    return false;
+                }
+
+                // Filtro de data de início (created_at >= requestDateFrom)
+                if (requestDateFrom) {
+                    const fromDate = new Date(`${requestDateFrom}T00:00:00`);
+                    if (new Date(req.created_at) < fromDate) {
+                        return false;
+                    }
+                }
+
+                // Filtro de data final (created_at <= requestDateTo)
+                if (requestDateTo) {
+                    const toDate = new Date(`${requestDateTo}T23:59:59`);
+                    if (new Date(req.created_at) > toDate) {
+                        return false;
+                    }
+                }
+
+                // Filtro de pesquisa de texto
+                if (requestSearch.trim()) {
+                    const query = requestSearch.toLowerCase();
+                    const reason = (req.reason ?? '').toLowerCase();
+                    const typeLabel = (PROFILE_REQUEST_TYPE_LABELS[req.request_type] ?? req.request_type).toLowerCase();
+                    const statusLabel = (PROFILE_REQUEST_STATUS_LABELS[req.status] ?? req.status).toLowerCase();
+                    
+                    // Buscar também nas alterações solicitadas se houver
+                    let matchInChanges = false;
+                    if (req.requested_changes) {
+                        const changesStr = JSON.stringify(req.requested_changes).toLowerCase();
+                        if (changesStr.includes(query)) {
+                            matchInChanges = true;
+                        }
+                    }
+
+                    if (
+                        !reason.includes(query) &&
+                        !typeLabel.includes(query) &&
+                        !statusLabel.includes(query) &&
+                        !matchInChanges
+                    ) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            .sort((a, b) => {
+                const aDate = new Date(a.created_at).getTime();
+                const bDate = new Date(b.created_at).getTime();
+                return requestSortOrder === 'desc' ? bDate - aDate : aDate - bDate;
+            });
+    }, [myRequests, requestSearch, requestStatusFilter, requestDateFrom, requestDateTo, requestSortOrder]);
+
+    // Correção 3 — formulário estruturado campo a campo
+    type GeneralRequestForm = {
+        name: string;
+        cpf: string;
+        birthdate: string;
+        member_email: string;
+        phone: string;
+        mobile_phone: string;
+        whatsapp_phone: string;
+        zip_code: string;
+        address: string;
+        address_number: string;
+        complement: string;
+        district: string;
+        city: string;
+        state: string;
+        title: string;
+        text: string;
+        other: string;
+    };
+
+    const EMPTY_REQUEST_FORM: GeneralRequestForm = {
+        name: '',
+        cpf: '',
+        birthdate: '',
+        member_email: '',
+        phone: '',
+        mobile_phone: '',
+        whatsapp_phone: '',
+        zip_code: '',
+        address: '',
+        address_number: '',
+        complement: '',
+        district: '',
+        city: '',
+        state: '',
+        title: '',
+        text: '',
+        other: '',
+    };
+
     const [generalRequestModal, setGeneralRequestModal] = useState<{
         isOpen: boolean;
         requestType: ProfileChangeRequestType;
-        requestedValue: string;
+        form: GeneralRequestForm;
+        selectedAdditionalInfo: AdditionalInfo | null;
         reason: string;
+        sensitive: boolean;
         saving: boolean;
     }>({
         isOpen: false,
-        requestType: 'name_change',
-        requestedValue: '',
+        requestType: 'address_update',
+        form: EMPTY_REQUEST_FORM,
+        selectedAdditionalInfo: null,
         reason: '',
+        sensitive: false,
         saving: false,
     });
 
@@ -576,8 +755,8 @@ export default function Profile() {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) throw new Error('Usuário não autenticado.');
 
-            // Get primary membership or first member to pass to userAvatarService
-            const primaryMembership = securityContext?.primary_membership || securityContext?.memberships?.[0] || null;
+            // Correção 1b — usa selectedMembership (loja ativa correta)
+            const primaryMembership = selectedMembership;
             if (!primaryMembership) {
                 throw new Error('Nenhum vínculo de loja ativo para upload.');
             }
@@ -724,6 +903,97 @@ export default function Profile() {
         }
     };
 
+    // Correção 3 — helper para abrir o modal com os dados atuais pré-preenchidos
+    function openProfileRequestModal(requestType: ProfileChangeRequestType) {
+        setGeneralRequestModal({
+            isOpen: true,
+            requestType,
+            form: {
+                name: profile.name,
+                cpf: profile.cpf,
+                birthdate: profile.birthdate,
+                member_email: profile.member_email,
+                phone: profile.phone,
+                mobile_phone: profile.mobile_phone,
+                whatsapp_phone: profile.whatsapp_phone,
+                zip_code: profile.zip_code,
+                address: profile.address,
+                address_number: profile.address_number,
+                complement: profile.complement,
+                district: profile.district,
+                city: profile.city,
+                state: profile.state,
+                title: '',
+                text: '',
+                other: '',
+            },
+            selectedAdditionalInfo: null,
+            reason: '',
+            sensitive: ['cpf_change', 'birthdate_change'].includes(requestType),
+            saving: false,
+        });
+    }
+
+    // Correção 4 — monta requested_changes campo a campo comparando com o perfil atual
+    function buildRequestedChanges(
+        requestType: ProfileChangeRequestType,
+        currentProfile: ProfileData,
+        form: {
+            name: string; cpf: string; birthdate: string;
+            member_email: string; phone: string; mobile_phone: string; whatsapp_phone: string;
+            zip_code: string; address: string; address_number: string; complement: string;
+            district: string; city: string; state: string; other: string;
+        }
+    ): Record<string, ProposedChangeValue> {
+        const fieldsByType: Record<string, string[]> = {
+            name_change: ['name'],
+            cpf_change: ['cpf'],
+            birthdate_change: ['birthdate'],
+            contact_update: ['member_email', 'phone', 'mobile_phone', 'whatsapp_phone'],
+            address_update: ['zip_code', 'address', 'address_number', 'complement', 'district', 'city', 'state'],
+            other: ['other'],
+            additional_info_update: ['other'],
+        };
+
+        type ProfileKey = keyof ProfileData | 'other';
+        const fieldMap: Record<string, ProfileKey> = {
+            name: 'name', cpf: 'cpf', birthdate: 'birthdate',
+            member_email: 'member_email', phone: 'phone', mobile_phone: 'mobile_phone', whatsapp_phone: 'whatsapp_phone',
+            zip_code: 'zip_code', address: 'address', address_number: 'address_number',
+            complement: 'complement', district: 'district', city: 'city', state: 'state',
+            other: 'other',
+        };
+
+        const fields = fieldsByType[requestType] ?? ['other'];
+
+        return fields.reduce<Record<string, ProposedChangeValue>>((acc, field) => {
+            const profileKey = fieldMap[field];
+            const oldValue = profileKey === 'other' ? '' : String(currentProfile[profileKey as keyof ProfileData] ?? '');
+            const newValue = String(form[field as keyof typeof form] ?? '');
+
+            if (newValue.trim() && newValue.trim() !== oldValue.trim()) {
+                acc[field] = {
+                    old: oldValue,
+                    new: newValue,
+                    label: FIELD_LABELS[field] ?? field,
+                };
+            }
+            return acc;
+        }, {});
+    }
+
+    // Correção 8 — cancelar solicitação pendente pelo próprio solicitante
+    const handleCancelMyRequest = async (request: ProfileChangeRequest) => {
+        try {
+            await cancelMyProfileChangeRequest({ requestId: request.request_id });
+            toast.success('Solicitação cancelada.');
+            await loadMyProfileRequests();
+        } catch (error) {
+            console.error(error);
+            toast.error('Não foi possível cancelar a solicitação.');
+        }
+    };
+
     if (loading) {
         return (
             <div className="p-8 flex justify-center">
@@ -753,13 +1023,7 @@ export default function Profile() {
                     {canRequestProfileChanges && (
                         <button
                             type="button"
-                            onClick={() => setGeneralRequestModal({
-                                isOpen: true,
-                                requestType: 'name_change',
-                                requestedValue: '',
-                                reason: '',
-                                saving: false,
-                            })}
+                            onClick={() => openProfileRequestModal('address_update')}
                             className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
                         >
                             <Plus size={16} />
@@ -879,13 +1143,7 @@ export default function Profile() {
                         {canRequestProfileChanges && !canEditGlobalProfile && (
                             <button
                                 type="button"
-                                onClick={() => setGeneralRequestModal({
-                                    isOpen: true,
-                                    requestType: 'name_change',
-                                    requestedValue: '',
-                                    reason: '',
-                                    saving: false,
-                                })}
+                                onClick={() => openProfileRequestModal('name_change')}
                                 className="text-xs bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-950/50 cursor-pointer"
                             >
                                 <Plus size={14} />
@@ -911,15 +1169,7 @@ export default function Profile() {
                                     O nome não pode ser alterado diretamente.{' '}
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            setGeneralRequestModal({
-                                                isOpen: true,
-                                                requestType: 'name_change',
-                                                requestedValue: '',
-                                                reason: '',
-                                                saving: false,
-                                            })
-                                        }
+                                        onClick={() => openProfileRequestModal('name_change')}
                                         className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
                                     >
                                         Solicitar alteração de nome.
@@ -957,15 +1207,7 @@ export default function Profile() {
                                     {canRequestProfileChanges && (
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                setGeneralRequestModal({
-                                                    isOpen: true,
-                                                    requestType: 'cpf_change',
-                                                    requestedValue: '',
-                                                    reason: '',
-                                                    saving: false,
-                                                })
-                                            }
+                                            onClick={() => openProfileRequestModal('cpf_change')}
                                             className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
                                         >
                                             Solicitar alteração de CPF.
@@ -989,15 +1231,7 @@ export default function Profile() {
                                     A data de nascimento não pode ser alterada diretamente.{' '}
                                     <button
                                         type="button"
-                                        onClick={() =>
-                                            setGeneralRequestModal({
-                                                isOpen: true,
-                                                requestType: 'birthdate_change',
-                                                requestedValue: '',
-                                                reason: '',
-                                                saving: false,
-                                            })
-                                        }
+                                        onClick={() => openProfileRequestModal('birthdate_change')}
                                         className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
                                     >
                                         Solicitar alteração.
@@ -1327,86 +1561,280 @@ export default function Profile() {
                 </div>
             </form>
 
-            {/* Minhas solicitações cadastrais */}
-            <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 max-w-4xl mx-auto shadow-sm">
-                <div className="mb-4 flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                            Minhas solicitações cadastrais
-                        </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                            Acompanhe pedidos de alteração ou remoção enviados para análise.
-                        </p>
-                    </div>
+            {/* Correção 2 — Minhas solicitações cadastrais: só para não-owner */}
+            {canRequestProfileChanges && (
+                <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 max-w-4xl mx-auto shadow-sm">
+                    <div className="mb-4 flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
+                        <div>
+                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                                Minhas solicitações cadastrais
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Acompanhe pedidos de alteração ou remoção enviados para análise.
+                            </p>
+                        </div>
 
-                    <div className="flex gap-2 w-full sm:w-auto justify-end">
-                        <button
-                            type="button"
-                            onClick={() => setGeneralRequestModal({
-                                isOpen: true,
-                                requestType: 'name_change',
-                                requestedValue: '',
-                                reason: '',
-                                saving: false,
-                            })}
-                            className="rounded-lg bg-[#21A896] hover:bg-[#1A867A] px-3 py-2 text-sm font-bold text-white transition shrink-0 cursor-pointer"
-                        >
-                            Nova Solicitação
-                        </button>
-                        <button
-                            type="button"
-                            onClick={loadMyProfileRequests}
-                            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 transition shrink-0"
-                        >
-                            Atualizar
-                        </button>
-                    </div>
-                </div>
-
-                {loadingMyRequests ? (
-                    <p className="text-sm text-gray-500">Carregando solicitações...</p>
-                ) : myRequests.length === 0 ? (
-                    <p className="text-sm text-gray-500">
-                        Nenhuma solicitação cadastral registrada.
-                    </p>
-                ) : (
-                    <div className="space-y-3">
-                        {myRequests.map((request) => (
-                            <div
-                                key={request.request_id}
-                                className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+                        <div className="flex gap-2 w-full sm:w-auto justify-end">
+                            <button
+                                type="button"
+                                onClick={() => openProfileRequestModal('address_update')}
+                                className="rounded-lg bg-[#21A896] hover:bg-[#1A867A] px-3 py-2 text-sm font-bold text-white transition shrink-0 cursor-pointer"
                             >
-                                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                    <div>
-                                        <p className="font-bold text-gray-900 dark:text-white">
-                                            {PROFILE_REQUEST_TYPE_LABELS[request.request_type] ??
-                                                request.request_type}
-                                        </p>
+                                Nova Solicitação
+                            </button>
+                            <button
+                                type="button"
+                                onClick={loadMyProfileRequests}
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 transition shrink-0"
+                            >
+                                Atualizar
+                            </button>
+                        </div>
+                    </div>
 
-                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                            {request.reason}
-                                        </p>
+                    {/* Filtros e Busca */}
+                    {!loadingMyRequests && myRequests.length > 0 && (
+                        <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-xs space-y-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {/* Campo de busca */}
+                                <div className="relative flex-1">
+                                    <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Localizar alteração específica (tipo, motivo, valor)..."
+                                        value={requestSearch}
+                                        onChange={(e) => setRequestSearch(e.target.value)}
+                                        className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    />
+                                    {requestSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setRequestSearch('')}
+                                            className="absolute right-3 top-2 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {/* Seletor de Status */}
+                                <div className="w-full sm:w-48">
+                                    <select
+                                        value={requestStatusFilter}
+                                        onChange={(e) => setRequestStatusFilter(e.target.value as any)}
+                                        className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    >
+                                        <option value="all">Todos os status</option>
+                                        <option value="pending">Pendente</option>
+                                        <option value="applied">Aplicada</option>
+                                        <option value="rejected">Rejeitada</option>
+                                        <option value="cancelled">Cancelada</option>
+                                    </select>
+                                </div>
+                            </div>
 
-                                        {request.admin_notes && (
-                                            <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                                                <strong>Retorno:</strong> {request.admin_notes}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                                        {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
-                                    </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {/* Data De */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        De (Data de solicitação)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={requestDateFrom}
+                                        onChange={(e) => setRequestDateFrom(e.target.value)}
+                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    />
                                 </div>
 
-                                <p className="mt-2 text-xs text-gray-400">
-                                    Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
-                                </p>
+                                {/* Data Até */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        Até (Data de solicitação)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={requestDateTo}
+                                        onChange={(e) => setRequestDateTo(e.target.value)}
+                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    />
+                                </div>
+
+                                {/* Ordenação */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        Ordenar por data
+                                    </label>
+                                    <select
+                                        value={requestSortOrder}
+                                        onChange={(e) => setRequestSortOrder(e.target.value as 'desc' | 'asc')}
+                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    >
+                                        <option value="desc">Mais recente primeiro</option>
+                                        <option value="asc">Mais antigo primeiro</option>
+                                    </select>
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                )}
-            </section>
+
+                            {/* Botão de limpar filtros se houver filtros ativos */}
+                            {(requestSearch || requestStatusFilter !== 'all' || requestDateFrom || requestDateTo || requestSortOrder !== 'desc') && (
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setRequestSearch('');
+                                            setRequestStatusFilter('all');
+                                            setRequestDateFrom('');
+                                            setRequestDateTo('');
+                                            setRequestSortOrder('desc');
+                                        }}
+                                        className="text-[11px] font-bold text-gray-500 hover:text-[#F26541] transition cursor-pointer"
+                                    >
+                                        Limpar filtros
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {loadingMyRequests ? (
+                        <p className="text-sm text-gray-500">Carregando solicitações...</p>
+                    ) : myRequests.length === 0 ? (
+                        <p className="text-sm text-gray-500">
+                            Nenhuma solicitação cadastral registrada.
+                        </p>
+                    ) : filteredRequests.length === 0 ? (
+                        <p className="text-sm text-gray-500 py-4">
+                            Nenhuma solicitação cadastral corresponde aos filtros aplicados.
+                        </p>
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredRequests.map((request) => (
+                                <div
+                                    key={request.request_id}
+                                    className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
+                                >
+                                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                                        <div>
+                                            <p className="font-bold text-gray-900 dark:text-white">
+                                                {PROFILE_REQUEST_TYPE_LABELS[request.request_type] ??
+                                                    request.request_type}
+                                            </p>
+
+                                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                                {request.reason}
+                                            </p>
+
+                                            {request.admin_notes && (
+                                                <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                                                    <strong>Retorno:</strong> {request.admin_notes}
+                                                </p>
+                                            )}
+
+                                            {request.request_type === 'additional_info_remove' && (
+                                                <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                        Item solicitado para remoção
+                                                    </p>
+                                                    <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                                        {String(request.requested_changes?.title ?? 'Sem título')}
+                                                    </p>
+                                                    <p className="text-gray-600 dark:text-gray-300">
+                                                        {String(request.requested_changes?.text ?? '')}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
+                                                <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                        Alterações solicitadas
+                                                    </p>
+
+                                                    <div className="mt-2 space-y-2">
+                                                        {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
+                                                            const change = rawChange as any;
+
+                                                            if (field === 'member_additional_info' || field === 'additional_info') {
+                                                                const infoChange = formatAdditionalInfoChange(change);
+
+                                                                return (
+                                                                    <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+                                                                        <p className="text-xs font-bold text-gray-500">
+                                                                            {infoChange.title}
+                                                                        </p>
+
+                                                                        <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                                                                            <p>
+                                                                                <strong>Atual:</strong> {infoChange.oldText}
+                                                                            </p>
+                                                                            <p>
+                                                                                <strong>Novo:</strong> {infoChange.newText}
+                                                                            </p>
+                                                                            <p>
+                                                                                <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            // Pular campos legados sem estrutura {old, new}
+                                                            if (typeof change !== 'object' || change === null || !('new' in change)) {
+                                                                return (
+                                                                    <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                        <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
+                                                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
+                                                                    </div>
+                                                                );
+                                                            }
+
+                                                            return (
+                                                                <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                    <p className="text-xs font-bold text-gray-500">
+                                                                        {change.label || FIELD_LABELS[field] || field}
+                                                                    </p>
+                                                                    <p className="text-xs text-gray-400">
+                                                                        Atual: {formatChangeValue(change.old)}
+                                                                    </p>
+                                                                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                                                        Novo: {formatChangeValue(change.new)}
+                                                                    </p>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
+                                            <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
+                                            </span>
+
+                                            {/* Correção 8 — cancelar pelo solicitante */}
+                                            {request.status === 'pending' && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCancelMyRequest(request)}
+                                                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30 cursor-pointer"
+                                                >
+                                                    Cancelar solicitação
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <p className="mt-2 text-xs text-gray-400">
+                                        Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* Modal de solicitação de remoção */}
             {removalRequestModal.isOpen && removalRequestModal.item && (
@@ -1536,15 +1964,15 @@ export default function Profile() {
                     </div>
                 </div>
             )}
-            {/* Modal de solicitação cadastral geral */}
+            {/* Correções 3/4/5 — Modal de solicitação cadastral estruturado */}
             {generalRequestModal.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900 border border-gray-100 dark:border-gray-800 animate-fadeIn">
+                    <div className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900 border border-gray-100 dark:border-gray-800 animate-fadeIn max-h-[90vh] overflow-y-auto">
                         <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                             Nova solicitação cadastral
                         </h3>
 
-                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 font-candara">
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                             Solicite a alteração ou atualização de seus dados cadastrais.
                         </p>
 
@@ -1559,6 +1987,25 @@ export default function Profile() {
                                         setGeneralRequestModal((current) => ({
                                             ...current,
                                             requestType: event.target.value as ProfileChangeRequestType,
+                                            form: {
+                                                name: profile.name,
+                                                cpf: profile.cpf,
+                                                birthdate: profile.birthdate,
+                                                member_email: profile.member_email,
+                                                phone: profile.phone,
+                                                mobile_phone: profile.mobile_phone,
+                                                whatsapp_phone: profile.whatsapp_phone,
+                                                zip_code: profile.zip_code,
+                                                address: profile.address,
+                                                address_number: profile.address_number,
+                                                complement: profile.complement,
+                                                district: profile.district,
+                                                city: profile.city,
+                                                state: profile.state,
+                                                title: '',
+                                                text: '',
+                                                other: '',
+                                            },
                                         }))
                                     }
                                     className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
@@ -1573,41 +2020,285 @@ export default function Profile() {
                                 </select>
                             </div>
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Descreva os novos dados <span className="text-red-500">*</span>
-                                </label>
-                                <textarea
-                                    value={generalRequestModal.requestedValue}
-                                    onChange={(event) =>
-                                        setGeneralRequestModal((current) => ({
-                                            ...current,
-                                            requestedValue: event.target.value,
-                                        }))
-                                    }
-                                    rows={3}
-                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
-                                    placeholder="Ex: Nome correto: José Silva de Souza / WhatsApp: (22) 99999-9999"
-                                />
-                            </div>
+                            {/* Correção 5 — mini formulário para endereço */}
+                            {generalRequestModal.requestType === 'address_update' && (
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    {(
+                                        [
+                                            ['zip_code', 'CEP', profile.zip_code],
+                                            ['address', 'Endereço', profile.address],
+                                            ['address_number', 'Número', profile.address_number],
+                                            ['complement', 'Complemento', profile.complement],
+                                            ['district', 'Bairro', profile.district],
+                                            ['city', 'Cidade', profile.city],
+                                            ['state', 'UF', profile.state],
+                                        ] as [string, string, string][]
+                                    ).map(([field, label, currentValue]) => (
+                                        <div key={field}>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                                {label}
+                                            </label>
+                                            <input
+                                                value={String(generalRequestModal.form[field as keyof typeof generalRequestModal.form] ?? '')}
+                                                onChange={(event) =>
+                                                    setGeneralRequestModal((current) => ({
+                                                        ...current,
+                                                        form: {
+                                                            ...current.form,
+                                                            [field]:
+                                                                field === 'zip_code'
+                                                                    ? formatCep(event.target.value)
+                                                                    : event.target.value,
+                                                        },
+                                                    }))
+                                                }
+                                                onBlur={field === 'zip_code' ? async () => {
+                                                    const cep = onlyDigits(generalRequestModal.form.zip_code);
+                                                    if (cep.length !== 8) return;
+                                                    const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+                                                    const data = await response.json();
+                                                    if (!data.erro) {
+                                                        setGeneralRequestModal((current) => ({
+                                                            ...current,
+                                                            form: {
+                                                                ...current.form,
+                                                                address: data.logradouro || current.form.address,
+                                                                district: data.bairro || current.form.district,
+                                                                city: data.localidade || current.form.city,
+                                                                state: data.uf || current.form.state,
+                                                            },
+                                                        }));
+                                                    }
+                                                } : undefined}
+                                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                            />
+                                            <p className="mt-1 text-[11px] text-gray-400">
+                                                Atual: {String(currentValue || 'Não informado')}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
-                            <div>
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                    Motivo da solicitação <span className="text-red-500">*</span>
-                                </label>
-                                <textarea
-                                    value={generalRequestModal.reason}
-                                    onChange={(event) =>
-                                        setGeneralRequestModal((current) => ({
-                                            ...current,
-                                            reason: event.target.value,
-                                        }))
-                                    }
-                                    rows={3}
-                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
-                                    placeholder="Explique por que essa alteração é necessária (mínimo de 5 caracteres)."
-                                />
-                            </div>
+                            {/* Correção 5 — mini formulário para contato */}
+                            {generalRequestModal.requestType === 'contact_update' && (
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    {(
+                                        [
+                                            ['member_email', 'E-mail de contato', profile.member_email],
+                                            ['mobile_phone', 'Celular', profile.mobile_phone],
+                                            ['whatsapp_phone', 'WhatsApp', profile.whatsapp_phone],
+                                            ['phone', 'Telefone fixo', profile.phone],
+                                        ] as [string, string, string][]
+                                    ).map(([field, label, currentValue]) => (
+                                        <div key={field}>
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                                {label}
+                                            </label>
+                                            <input
+                                                value={String(generalRequestModal.form[field as keyof typeof generalRequestModal.form] ?? '')}
+                                                onChange={(event) =>
+                                                    setGeneralRequestModal((current) => ({
+                                                        ...current,
+                                                        form: {
+                                                            ...current.form,
+                                                            [field]:
+                                                                field === 'phone'
+                                                                    ? formatLandline(event.target.value)
+                                                                    : field.includes('phone')
+                                                                        ? formatMobile(event.target.value)
+                                                                        : event.target.value,
+                                                        },
+                                                    }))
+                                                }
+                                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                            />
+                                            <p className="mt-1 text-[11px] text-gray-400">
+                                                Atual: {String(currentValue || 'Não informado')}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Correção 5 — campos simples (nome, CPF, nascimento, outros) */}
+                            {['name_change', 'cpf_change', 'birthdate_change', 'other'].includes(generalRequestModal.requestType) && (() => {
+                                const fieldMap: Record<string, { key: keyof typeof generalRequestModal.form; label: string; currentValue: string; type?: string }> = {
+                                    name_change: { key: 'name', label: 'Novo nome completo', currentValue: profile.name },
+                                    cpf_change: { key: 'cpf', label: 'Novo CPF', currentValue: profile.cpf },
+                                    birthdate_change: { key: 'birthdate', label: 'Nova data de nascimento', currentValue: profile.birthdate, type: 'date' },
+                                    other: { key: 'other', label: 'Descreva a solicitação', currentValue: '' },
+                                };
+                                const item = fieldMap[generalRequestModal.requestType];
+                                if (!item) return null;
+                                return (
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                            {item.label} <span className="text-red-500">*</span>
+                                        </label>
+                                        <input
+                                            type={item.type || 'text'}
+                                            value={String(generalRequestModal.form[item.key] ?? '')}
+                                            onChange={(event) =>
+                                                setGeneralRequestModal((current) => ({
+                                                    ...current,
+                                                    form: { ...current.form, [item.key]: event.target.value },
+                                                }))
+                                            }
+                                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        />
+                                        {item.currentValue && (
+                                            <p className="mt-1 text-[11px] text-gray-400">
+                                                Atual: {item.currentValue}
+                                            </p>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Informações adicionais existentes */}
+                            {generalRequestModal.requestType === 'additional_info_update' && (
+                                <div className="space-y-4">
+                                    {generalRequestModal.selectedAdditionalInfo === null ? (
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                                Selecione a informação adicional a ser alterada:
+                                            </label>
+                                            {profile.additionalInfo.length === 0 ? (
+                                                <p className="text-sm text-gray-500">Nenhuma informação adicional cadastrada.</p>
+                                            ) : (
+                                                <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                                                    {profile.additionalInfo.map((item) => (
+                                                        <div
+                                                            key={item.id}
+                                                            onClick={() => {
+                                                                setGeneralRequestModal((current) => ({
+                                                                    ...current,
+                                                                    selectedAdditionalInfo: item,
+                                                                    sensitive: item.sensitive,
+                                                                    form: {
+                                                                        ...current.form,
+                                                                        title: item.title,
+                                                                        text: item.text,
+                                                                    }
+                                                                }));
+                                                            }}
+                                                            className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-[#21A896] dark:hover:border-[#21A896] bg-gray-50 dark:bg-gray-800/50 cursor-pointer transition flex justify-between items-center"
+                                                        >
+                                                            <div>
+                                                                <p className="text-sm font-bold text-gray-800 dark:text-white">{item.title}</p>
+                                                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Valor: {item.text}</p>
+                                                                <p className="text-[10px] text-gray-400 mt-0.5">Sensível: {item.sensitive ? 'Sim' : 'Não'}</p>
+                                                            </div>
+                                                            <span className="text-[#21A896] text-xs font-bold font-candara-bold">Selecionar &rarr;</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-xs font-bold text-[#21A896]">Editando: {generalRequestModal.selectedAdditionalInfo.title}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setGeneralRequestModal(current => ({ ...current, selectedAdditionalInfo: null }))}
+                                                    className="text-xs text-amber-600 dark:text-amber-400 hover:underline cursor-pointer font-bold"
+                                                >
+                                                    Alterar item
+                                                </button>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                                    Título
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={generalRequestModal.form.title}
+                                                    onChange={(e) => setGeneralRequestModal(current => ({
+                                                        ...current,
+                                                        form: { ...current.form, title: e.target.value }
+                                                    }))}
+                                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                                />
+                                                <p className="mt-1 text-[11px] text-gray-400">
+                                                    Atual: {generalRequestModal.selectedAdditionalInfo.title}
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                                    Descrição
+                                                </label>
+                                                <textarea
+                                                    value={generalRequestModal.form.text}
+                                                    onChange={(e) => setGeneralRequestModal(current => ({
+                                                        ...current,
+                                                        form: { ...current.form, text: e.target.value }
+                                                    }))}
+                                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none min-h-[80px]"
+                                                />
+                                                <p className="mt-1 text-[11px] text-gray-400">
+                                                    Atual: {generalRequestModal.selectedAdditionalInfo.text}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Motivo e Sensível: só aparecem para outros tipos OU se for additional_info_update e tiver um item selecionado */}
+                            {(generalRequestModal.requestType !== 'additional_info_update' || generalRequestModal.selectedAdditionalInfo !== null) && (
+                                <div className="space-y-4 pt-2">
+                                    {generalRequestModal.requestType === 'additional_info_update' && generalRequestModal.selectedAdditionalInfo && (
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            Atual sensível: {generalRequestModal.selectedAdditionalInfo.sensitive ? 'Sim' : 'Não'}
+                                        </p>
+                                    )}
+
+                                    <label className="mt-4 flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                                        <input
+                                            type="checkbox"
+                                            checked={generalRequestModal.sensitive}
+                                            onChange={(event) =>
+                                                setGeneralRequestModal((current) => ({
+                                                    ...current,
+                                                    sensitive: event.target.checked,
+                                                }))
+                                            }
+                                            disabled={['cpf_change', 'birthdate_change'].includes(generalRequestModal.requestType)}
+                                            className="mt-1"
+                                        />
+
+                                        <span>
+                                            Marcar esta solicitação como sensível.
+                                            <br />
+                                            <span className="text-xs text-gray-400">
+                                                Use para dados pessoais, familiares, saúde, documentos ou informações que não devem ficar amplamente visíveis.
+                                            </span>
+                                        </span>
+                                    </label>
+
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                            Motivo da solicitação <span className="text-red-500">*</span>
+                                        </label>
+                                        <textarea
+                                            value={generalRequestModal.reason}
+                                            onChange={(event) =>
+                                                setGeneralRequestModal((current) => ({
+                                                    ...current,
+                                                    reason: event.target.value,
+                                                }))
+                                            }
+                                            rows={3}
+                                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                                            placeholder="Explique por que essa alteração é necessária (mínimo de 5 caracteres)."
+                                        />
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-6 flex justify-end gap-2">
@@ -1617,9 +2308,11 @@ export default function Profile() {
                                 onClick={() =>
                                     setGeneralRequestModal({
                                         isOpen: false,
-                                        requestType: 'name_change',
-                                        requestedValue: '',
+                                        requestType: 'address_update',
+                                        form: EMPTY_REQUEST_FORM,
+                                        selectedAdditionalInfo: null,
                                         reason: '',
+                                        sensitive: false,
                                         saving: false,
                                     })
                                 }
@@ -1628,66 +2321,107 @@ export default function Profile() {
                                 Cancelar
                             </button>
 
-                            <button
-                                type="button"
-                                disabled={
-                                    generalRequestModal.saving ||
-                                    generalRequestModal.requestedValue.trim().length === 0 ||
-                                    generalRequestModal.reason.trim().length < 5
-                                }
-                                onClick={async () => {
-                                    const memberId = selectedMembership?.member_id;
-
-                                    if (!memberId) {
-                                        toast.error('Não foi possível identificar o vínculo ativo do usuário.');
-                                        return;
+                            {(generalRequestModal.requestType !== 'additional_info_update' || generalRequestModal.selectedAdditionalInfo !== null) && (
+                                <button
+                                    type="button"
+                                    disabled={
+                                        generalRequestModal.saving ||
+                                        generalRequestModal.reason.trim().length < 5
                                     }
+                                    onClick={async () => {
+                                        const memberId = selectedMembership?.member_id;
 
-                                    setGeneralRequestModal((current) => ({
-                                        ...current,
-                                        saving: true,
-                                    }));
+                                        if (!memberId) {
+                                            toast.error('Não foi possível identificar o vínculo ativo do usuário.');
+                                            return;
+                                        }
 
-                                    try {
-                                        await createMyProfileChangeRequest({
-                                            memberId,
-                                            requestType: generalRequestModal.requestType,
-                                            requestedChanges: {
-                                                requested_value: generalRequestModal.requestedValue.trim(),
-                                            },
-                                            reason: generalRequestModal.reason.trim(),
-                                            sensitive: ['cpf_change', 'birthdate_change'].includes(generalRequestModal.requestType),
-                                            metadata: {
-                                                source: 'my_profile_general_request',
-                                                active_store_id: selectedMembership?.store_id,
-                                                active_store_name: selectedMembership?.store_name,
-                                            },
-                                        });
+                                        let requestedChanges: any = null;
+                                        let isSensitive = generalRequestModal.sensitive;
 
-                                        toast.success('Solicitação cadastral enviada para análise.');
+                                        if (generalRequestModal.requestType === 'additional_info_update') {
+                                            if (!generalRequestModal.selectedAdditionalInfo) return;
+                                            const nextAdditionalInfo = profile.additionalInfo.map((item) =>
+                                                item.id === generalRequestModal.selectedAdditionalInfo!.id
+                                                    ? {
+                                                        ...item,
+                                                        title: generalRequestModal.form.title.trim(),
+                                                        text: generalRequestModal.form.text.trim(),
+                                                        sensitive: generalRequestModal.sensitive,
+                                                      }
+                                                    : item
+                                            );
+                                            requestedChanges = {
+                                                member_additional_info: {
+                                                    label: 'Informações adicionais',
+                                                    old: profile.additionalInfo,
+                                                    new: nextAdditionalInfo,
+                                                    item_id: generalRequestModal.selectedAdditionalInfo.id,
+                                                    item_label: generalRequestModal.selectedAdditionalInfo.title,
+                                                }
+                                            };
+                                            isSensitive = generalRequestModal.sensitive || generalRequestModal.selectedAdditionalInfo.sensitive === true;
+                                        } else {
+                                            requestedChanges = buildRequestedChanges(
+                                                generalRequestModal.requestType,
+                                                profile,
+                                                generalRequestModal.form
+                                            );
+                                        }
 
-                                        setGeneralRequestModal({
-                                            isOpen: false,
-                                            requestType: 'name_change',
-                                            requestedValue: '',
-                                            reason: '',
-                                            saving: false,
-                                        });
+                                        if (Object.keys(requestedChanges).length === 0) {
+                                            toast.info('Informe ao menos uma alteração diferente do dado atual.');
+                                            return;
+                                        }
 
-                                        await loadMyProfileRequests();
-                                    } catch (error) {
-                                        console.error(error);
-                                        toast.error('Não foi possível enviar a solicitação.');
                                         setGeneralRequestModal((current) => ({
                                             ...current,
-                                            saving: false,
+                                            saving: true,
                                         }));
-                                    }
-                                }}
-                                className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {generalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
-                            </button>
+
+                                        try {
+                                            await createMyProfileChangeRequest({
+                                                memberId,
+                                                requestType: generalRequestModal.requestType,
+                                                requestedChanges,
+                                                reason: generalRequestModal.reason.trim(),
+                                                sensitive: isSensitive,
+                                                metadata: {
+                                                    source: generalRequestModal.requestType === 'additional_info_update'
+                                                        ? 'my_profile_additional_info_update'
+                                                        : 'my_profile_structured_request',
+                                                    active_store_id: selectedMembership?.store_id,
+                                                    active_store_name: selectedMembership?.store_name,
+                                                },
+                                            });
+
+                                            toast.success('Solicitação cadastral enviada para análise.');
+
+                                            setGeneralRequestModal({
+                                                isOpen: false,
+                                                requestType: 'address_update',
+                                                form: EMPTY_REQUEST_FORM,
+                                                selectedAdditionalInfo: null,
+                                                reason: '',
+                                                sensitive: false,
+                                                saving: false,
+                                            });
+
+                                            await loadMyProfileRequests();
+                                        } catch (error) {
+                                            console.error(error);
+                                            toast.error('Não foi possível enviar a solicitação.');
+                                            setGeneralRequestModal((current) => ({
+                                                ...current,
+                                                saving: false,
+                                            }));
+                                        }
+                                    }}
+                                    className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {generalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

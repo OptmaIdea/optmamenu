@@ -671,3 +671,20 @@ export async function respondMyProfileChangeRequest(params: {
   return Array.isArray(data) ? data[0] ?? null : data;
 }
 
+
+export async function cancelMyProfileChangeRequest(params: {
+  requestId: string;
+  reason?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('cancel_my_profile_change_request', {
+    p_request_id: params.requestId,
+    p_reason: params.reason ?? null,
+  });
+
+  if (error) {
+    console.error('Erro ao cancelar solicitação cadastral:', error);
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] ?? null : data;
+}

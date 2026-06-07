@@ -357,16 +357,26 @@ function formatOccurrenceTitle(occurrence: {
     return occurrence.title;
 }
 
-function formatSeverity(severity: StoreMemberOccurrenceSeverity): string {
-    const labels: Record<StoreMemberOccurrenceSeverity, string> = {
-        info: 'Informativo',
-        low: 'Baixa',
-        medium: 'Média',
-        high: 'Alta',
-        critical: 'Crítica',
-    };
+const OCCURRENCE_SEVERITY_LABELS: Record<StoreMemberOccurrenceSeverity, string> = {
+    info: 'Informativo',
+    warning: 'Atenção',
+    low: 'Baixa',
+    medium: 'Média',
+    high: 'Alta',
+    critical: 'Crítica',
+};
 
-    return labels[severity];
+const OCCURRENCE_SEVERITY_CLASSES: Record<StoreMemberOccurrenceSeverity, string> = {
+    info: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900',
+    warning: 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+    low: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
+    medium: 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900',
+    high: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900',
+    critical: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+};
+
+function formatSeverity(severity: StoreMemberOccurrenceSeverity): string {
+    return OCCURRENCE_SEVERITY_LABELS[severity];
 }
 
 function buildOccurrenceTimestamp(date?: string, time?: string): string | null {
@@ -675,6 +685,7 @@ export function UserDetailModal({
             success: 'Sucesso',
             failure: 'Falha',
             info: 'Informativo',
+            warning: 'Atenção',
             low: 'Baixa',
             medium: 'Média',
             high: 'Alta',
@@ -2692,7 +2703,7 @@ export function UserDetailModal({
                                                                             occurrence.metadata
                                                                         )}
                                                                     </span>
-                                                                    <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                                                    <span className={`rounded-full px-2 py-1 text-xs font-bold ${OCCURRENCE_SEVERITY_CLASSES[occurrence.severity] ?? OCCURRENCE_SEVERITY_CLASSES.info}`}>
                                                                         {formatSeverity(occurrence.severity)}
                                                                     </span>
                                                                     {!occurrence.visible_to_member && (

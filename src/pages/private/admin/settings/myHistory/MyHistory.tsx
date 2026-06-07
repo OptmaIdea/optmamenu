@@ -77,6 +77,13 @@ const SEVERITY_CONFIG: Record<
         borderCls: 'border-l-[#21A896]',
         iconBgCls: 'bg-[#21A896]/10 text-[#21A896]',
     },
+    warning: {
+        label: 'Atenção',
+        icon: <AlertTriangle size={14} />,
+        badgeCls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+        borderCls: 'border-l-amber-500',
+        iconBgCls: 'bg-amber-100 text-amber-600 dark:bg-amber-950/40 dark:text-amber-400',
+    },
     low: {
         label: 'Baixa',
         icon: <CheckCircle2 size={14} />,
