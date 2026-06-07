@@ -970,7 +970,10 @@ export default function PrivateLayout() {
                     <div className="flex items-center gap-1.5 ml-auto">
                         {/* User Identity Chip — apelido + avatar do usuário logado */}
                         {userData && (
-                            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 shrink-0 select-none">
+                            <div
+                                className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 shrink-0 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                                onClick={() => navigate('/admin/my-profile')}
+                            >
                                 <div className="relative h-6 w-6 rounded-full overflow-hidden bg-teal-100 dark:bg-teal-950 flex items-center justify-center shrink-0 border border-gray-200 dark:border-gray-600">
                                     {userData.avatar ? (
                                         <img
@@ -1044,22 +1047,20 @@ export default function PrivateLayout() {
                                     type="button"
                                     onClick={handleClockClick}
                                     title="Tempo de Sessão"
-                                    className={`p-2 rounded-lg transition relative shrink-0 ${
-                                        isClockPopoverOpen
+                                    className={`p-2 rounded-lg transition relative shrink-0 ${isClockPopoverOpen
                                             ? 'text-[#21A896] bg-[#21A896]/10 hover:bg-[#21A896]/20'
                                             : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                    }`}
+                                        }`}
                                 >
                                     <Clock size={19} />
                                 </button>
-                                
+
                                 <div
                                     onClick={(e) => e.stopPropagation()}
-                                    className={`absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-xl z-50 transition-all duration-300 origin-top-right ${
-                                        isClockPopoverOpen
+                                    className={`absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-xl z-50 transition-all duration-300 origin-top-right ${isClockPopoverOpen
                                             ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
                                             : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="space-y-3 font-candara text-xs text-gray-650 dark:text-gray-300">
                                         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2 mb-1">
