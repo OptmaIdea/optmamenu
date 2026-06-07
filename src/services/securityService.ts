@@ -526,15 +526,15 @@ export const PROFILE_REQUEST_STATUS_LABELS: Record<string, string> = {
 };
 
 export async function createMyProfileChangeRequest(params: {
-  storeId: string;
+  memberId: string;
   requestType: ProfileChangeRequestType;
   requestedChanges: Record<string, unknown>;
   reason: string;
   sensitive?: boolean;
   metadata?: Record<string, unknown>;
 }) {
-  const { data, error } = await supabase.rpc('create_my_profile_change_request', {
-    p_store_id: params.storeId,
+  const { data, error } = await supabase.rpc('create_my_profile_change_request_v2', {
+    p_member_id: params.memberId,
     p_request_type: params.requestType,
     p_requested_changes: params.requestedChanges,
     p_reason: params.reason,

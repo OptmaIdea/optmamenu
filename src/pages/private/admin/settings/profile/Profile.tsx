@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import {
@@ -28,7 +29,8 @@ import {
     listMyProfileChangeRequests,
     PROFILE_REQUEST_STATUS_LABELS,
     PROFILE_REQUEST_TYPE_LABELS,
-    type ProfileChangeRequest
+    type ProfileChangeRequest,
+    type ProfileChangeRequestType
 } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
@@ -150,6 +152,11 @@ export default function Profile() {
     const [saving, setSaving] = useState(false);
     const [savingAvatar, setSavingAvatar] = useState(false);
     const [isCpfDisabled, setIsCpfDisabled] = useState(false);
+    const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
+
+    useEffect(() => {
+        setPortalContainer(document.getElementById('quick-access-actions-portal'));
+    }, []);
 
     const memberships = securityContext?.memberships || [];
     const selectedMembership = securityContext?.primary_membership || securityContext?.memberships?.[0] || null;
@@ -169,6 +176,20 @@ export default function Profile() {
 
     const [myRequests, setMyRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingMyRequests, setLoadingMyRequests] = useState(false);
+
+    const [generalRequestModal, setGeneralRequestModal] = useState<{
+        isOpen: boolean;
+        requestType: ProfileChangeRequestType;
+        requestedValue: string;
+        reason: string;
+        saving: boolean;
+    }>({
+        isOpen: false,
+        requestType: 'name_change',
+        requestedValue: '',
+        reason: '',
+        saving: false,
+    });
 
     const loadMyProfileRequests = useCallback(async () => {
         if (!activeStoreId) return;
@@ -280,7 +301,8 @@ export default function Profile() {
                         member_complement,
                         member_district,
                         member_city,
-                        member_state
+                        member_state,
+                        member_additional_info
                     `)
                     .eq('user_id', user.id)
                     .eq('store_id', activeStoreId)
@@ -641,6 +663,23 @@ export default function Profile() {
             icon={<User className="text-[#21A896]" size={28} />}
             flat
         >
+            {portalContainer && createPortal(
+                <button
+                    type="button"
+                    onClick={() => setGeneralRequestModal({
+                        isOpen: true,
+                        requestType: 'name_change',
+                        requestedValue: '',
+                        reason: '',
+                        saving: false,
+                    })}
+                    className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
+                >
+                    <Plus size={16} />
+                    Solicitar Alteração
+                </button>,
+                portalContainer
+            )}
             <form
                 onSubmit={(event) => {
                     event.preventDefault();
@@ -723,8 +762,26 @@ export default function Profile() {
 
                 {/* Identification Section */}
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                        <User className="text-[#21A896]" size={20} /> Identificação
+                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
+                        <span className="flex items-center gap-2">
+                            <User className="text-[#21A896]" size={20} /> Identificação
+                        </span>
+                        {(!canEditGlobalProfile || isCpfDisabled) && (
+                            <button
+                                type="button"
+                                onClick={() => setGeneralRequestModal({
+                                    isOpen: true,
+                                    requestType: 'name_change',
+                                    requestedValue: '',
+                                    reason: '',
+                                    saving: false,
+                                })}
+                                className="text-xs bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-950/50 cursor-pointer"
+                            >
+                                <Plus size={14} />
+                                Solicitar Alteração de Dados
+                            </button>
+                        )}
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
@@ -739,6 +796,26 @@ export default function Profile() {
                                 required
                                 disabled={!canEditGlobalProfile}
                             />
+                            {!canEditGlobalProfile && (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
+                                    O nome não pode ser alterado diretamente.{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setGeneralRequestModal({
+                                                isOpen: true,
+                                                requestType: 'name_change',
+                                                requestedValue: '',
+                                                reason: '',
+                                                saving: false,
+                                            })
+                                        }
+                                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
+                                    >
+                                        Solicitar alteração de nome.
+                                    </button>
+                                </span>
+                            )}
                         </div>
 
                         <div>
@@ -764,9 +841,24 @@ export default function Profile() {
                                 disabled={isCpfDisabled || !canEditGlobalProfile}
                                 placeholder="000.000.000-00"
                             />
-                            {isCpfDisabled && (
+                            {(isCpfDisabled || !canEditGlobalProfile) && (
                                 <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
-                                    O CPF não pode ser alterado. Entre em contato com o administrador se precisar atualizar.
+                                    O CPF não pode ser alterado diretamente.{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setGeneralRequestModal({
+                                                isOpen: true,
+                                                requestType: 'cpf_change',
+                                                requestedValue: '',
+                                                reason: '',
+                                                saving: false,
+                                            })
+                                        }
+                                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
+                                    >
+                                        Solicitar alteração de CPF.
+                                    </button>
                                 </span>
                             )}
                         </div>
@@ -780,6 +872,26 @@ export default function Profile() {
                                 onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
                                 disabled={!canEditGlobalProfile}
                             />
+                            {!canEditGlobalProfile && (
+                                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
+                                    A data de nascimento não pode ser alterada diretamente.{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setGeneralRequestModal({
+                                                isOpen: true,
+                                                requestType: 'birthdate_change',
+                                                requestedValue: '',
+                                                reason: '',
+                                                saving: false,
+                                            })
+                                        }
+                                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
+                                    >
+                                        Solicitar alteração.
+                                    </button>
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -1105,7 +1217,7 @@ export default function Profile() {
 
             {/* Minhas solicitações cadastrais */}
             <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 max-w-4xl mx-auto shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
+                <div className="mb-4 flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
                     <div>
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                             Minhas solicitações cadastrais
@@ -1115,13 +1227,28 @@ export default function Profile() {
                         </p>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={loadMyProfileRequests}
-                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 transition"
-                    >
-                        Atualizar
-                    </button>
+                    <div className="flex gap-2 w-full sm:w-auto justify-end">
+                        <button
+                            type="button"
+                            onClick={() => setGeneralRequestModal({
+                                isOpen: true,
+                                requestType: 'name_change',
+                                requestedValue: '',
+                                reason: '',
+                                saving: false,
+                            })}
+                            className="rounded-lg bg-[#21A896] hover:bg-[#1A867A] px-3 py-2 text-sm font-bold text-white transition shrink-0 cursor-pointer"
+                        >
+                            Nova Solicitação
+                        </button>
+                        <button
+                            type="button"
+                            onClick={loadMyProfileRequests}
+                            className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 transition shrink-0"
+                        >
+                            Atualizar
+                        </button>
+                    </div>
                 </div>
 
                 {loadingMyRequests ? (
@@ -1238,7 +1365,14 @@ export default function Profile() {
                                     removalRequestModal.reason.trim().length < 5
                                 }
                                 onClick={async () => {
-                                    if (!activeStoreId || !removalRequestModal.item) return;
+                                    if (!removalRequestModal.item) return;
+
+                                    const memberId = selectedMembership?.member_id;
+
+                                    if (!memberId) {
+                                        toast.error('Não foi possível identificar o vínculo ativo do usuário.');
+                                        return;
+                                    }
 
                                     setRemovalRequestModal((current) => ({
                                         ...current,
@@ -1247,7 +1381,7 @@ export default function Profile() {
 
                                     try {
                                         await createMyProfileChangeRequest({
-                                            storeId: activeStoreId,
+                                            memberId,
                                             requestType: 'additional_info_remove',
                                             requestedChanges: {
                                                 item_id: removalRequestModal.item.id,
@@ -1258,6 +1392,8 @@ export default function Profile() {
                                             sensitive: removalRequestModal.item.sensitive === true,
                                             metadata: {
                                                 source: 'my_profile_additional_info_remove',
+                                                active_store_id: selectedMembership?.store_id,
+                                                active_store_name: selectedMembership?.store_name,
                                             },
                                         });
 
@@ -1283,6 +1419,162 @@ export default function Profile() {
                                 className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {removalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Modal de solicitação cadastral geral */}
+            {generalRequestModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl dark:bg-gray-900 border border-gray-100 dark:border-gray-800 animate-fadeIn">
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                            Nova solicitação cadastral
+                        </h3>
+
+                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400 font-candara">
+                            Solicite a alteração ou atualização de seus dados cadastrais.
+                        </p>
+
+                        <div className="mt-4 space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                    Tipo de alteração <span className="text-red-500">*</span>
+                                </label>
+                                <select
+                                    value={generalRequestModal.requestType}
+                                    onChange={(event) =>
+                                        setGeneralRequestModal((current) => ({
+                                            ...current,
+                                            requestType: event.target.value as ProfileChangeRequestType,
+                                        }))
+                                    }
+                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                >
+                                    <option value="name_change">Alteração de nome</option>
+                                    <option value="cpf_change">Alteração de CPF</option>
+                                    <option value="birthdate_change">Alteração de data de nascimento</option>
+                                    <option value="contact_update">Alteração de contato</option>
+                                    <option value="address_update">Alteração de endereço</option>
+                                    <option value="additional_info_update">Alteração de informação adicional</option>
+                                    <option value="other">Outra solicitação</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                    Descreva os novos dados <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    value={generalRequestModal.requestedValue}
+                                    onChange={(event) =>
+                                        setGeneralRequestModal((current) => ({
+                                            ...current,
+                                            requestedValue: event.target.value,
+                                        }))
+                                    }
+                                    rows={3}
+                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                                    placeholder="Ex: Nome correto: José Silva de Souza / WhatsApp: (22) 99999-9999"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                    Motivo da solicitação <span className="text-red-500">*</span>
+                                </label>
+                                <textarea
+                                    value={generalRequestModal.reason}
+                                    onChange={(event) =>
+                                        setGeneralRequestModal((current) => ({
+                                            ...current,
+                                            reason: event.target.value,
+                                        }))
+                                    }
+                                    rows={3}
+                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                                    placeholder="Explique por que essa alteração é necessária (mínimo de 5 caracteres)."
+                                />
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                disabled={generalRequestModal.saving}
+                                onClick={() =>
+                                    setGeneralRequestModal({
+                                        isOpen: false,
+                                        requestType: 'name_change',
+                                        requestedValue: '',
+                                        reason: '',
+                                        saving: false,
+                                    })
+                                }
+                                className="rounded-lg px-4 py-2 text-sm font-bold text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                            >
+                                Cancelar
+                            </button>
+
+                            <button
+                                type="button"
+                                disabled={
+                                    generalRequestModal.saving ||
+                                    generalRequestModal.requestedValue.trim().length === 0 ||
+                                    generalRequestModal.reason.trim().length < 5
+                                }
+                                onClick={async () => {
+                                    const memberId = selectedMembership?.member_id;
+
+                                    if (!memberId) {
+                                        toast.error('Não foi possível identificar o vínculo ativo do usuário.');
+                                        return;
+                                    }
+
+                                    setGeneralRequestModal((current) => ({
+                                        ...current,
+                                        saving: true,
+                                    }));
+
+                                    try {
+                                        await createMyProfileChangeRequest({
+                                            memberId,
+                                            requestType: generalRequestModal.requestType,
+                                            requestedChanges: {
+                                                requested_value: generalRequestModal.requestedValue.trim(),
+                                            },
+                                            reason: generalRequestModal.reason.trim(),
+                                            sensitive: ['cpf_change', 'birthdate_change'].includes(generalRequestModal.requestType),
+                                            metadata: {
+                                                source: 'my_profile_general_request',
+                                                active_store_id: selectedMembership?.store_id,
+                                                active_store_name: selectedMembership?.store_name,
+                                            },
+                                        });
+
+                                        toast.success('Solicitação cadastral enviada para análise.');
+
+                                        setGeneralRequestModal({
+                                            isOpen: false,
+                                            requestType: 'name_change',
+                                            requestedValue: '',
+                                            reason: '',
+                                            saving: false,
+                                        });
+
+                                        await loadMyProfileRequests();
+                                    } catch (error) {
+                                        console.error(error);
+                                        toast.error('Não foi possível enviar a solicitação.');
+                                        setGeneralRequestModal((current) => ({
+                                            ...current,
+                                            saving: false,
+                                        }));
+                                    }
+                                }}
+                                className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                {generalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
                             </button>
                         </div>
                     </div>

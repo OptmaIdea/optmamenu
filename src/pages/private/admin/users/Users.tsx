@@ -726,15 +726,26 @@ export default function Users() {
                                                 <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
                                                     <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
                                                         Item solicitado para remoção
-                                                    </p>
-                                                    <p className="mt-1 font-bold text-gray-900 dark:text-white">
-                                                        {String(request.requested_changes?.title ?? 'Sem título')}
-                                                    </p>
-                                                    <p className="text-gray-600 dark:text-gray-300">
-                                                        {String(request.requested_changes?.text ?? '')}
-                                                    </p>
-                                                </div>
-                                            )}
+                                                     </p>
+                                                     <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                                         {String(request.requested_changes?.title ?? 'Sem título')}
+                                                     </p>
+                                                     <p className="text-gray-600 dark:text-gray-300">
+                                                         {String(request.requested_changes?.text ?? '')}
+                                                     </p>
+                                                 </div>
+                                             )}
+
+                                             {!!request.requested_changes?.requested_value && (
+                                                 <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                     <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                         Alteração solicitada
+                                                     </p>
+                                                     <p className="mt-1 font-semibold text-gray-900 dark:text-white whitespace-pre-wrap">
+                                                         {String(request.requested_changes.requested_value)}
+                                                     </p>
+                                                 </div>
+                                             )}
 
                                             <p className="mt-2 text-xs text-gray-400">
                                                 Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
