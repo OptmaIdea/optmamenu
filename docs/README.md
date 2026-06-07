@@ -8,8 +8,9 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Transferências internas concluídas
 - Vida do produto concluída
 - Consolidação operacional e UX da Fase 5 concluída
-- Documentação consolidada em andamento
 - Fase 8 Comercial concluída e documentada
+- Fase 9 — Usuários, permissões, governança e segurança em fechamento
+- Documentação consolidada em andamento
 
 ## Documentos principais
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
@@ -18,6 +19,8 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_6_5I_TIMELINE_OPERACIONAL.md](./FASE_6_5I_TIMELINE_OPERACIONAL.md)
 - [FASE_7_FORNECEDOR_360.md](./FASE_7_FORNECEDOR_360.md)
 - [FASE_8_COMERCIAL.md](./FASE_8_COMERCIAL.md)
+- [FASE_9_USUARIOS_GOVERNANCA.md](./FASE_9_USUARIOS_GOVERNANCA.md)
+- [APENDICE_REFINAMENTOS_FUTUROS.md](./APENDICE_REFINAMENTOS_FUTUROS.md)
 - [MANUAL_USUARIO.md](./MANUAL_USUARIO.md)
 - [GUIA_LOJA_PUBLICA_PEDIDOS.md](./GUIA_LOJA_PUBLICA_PEDIDOS.md)
 - [GUIA_LIVRO_CAIXA.md](./GUIA_LIVRO_CAIXA.md)
@@ -47,6 +50,11 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Livro de Caixa
 - Dashboard comercial
 - Central de Marketing
+- Usuários e colaboradores
+- Permissões e papéis personalizados
+- Meus Dados
+- Meu Histórico
+- Solicitações cadastrais
 
 ## Leituras recomendadas por perfil
 ### Produto / dono
@@ -72,6 +80,10 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - RPCS_AND_VIEWS.md
 - DATA_DICTIONARY.md
 
+## Fechamento atual
 
-## Fechamento da Fase 8
-A Fase 8 Comercial está documentada em `FASE_8_COMERCIAL.md` e nos guias operacionais complementares. A próxima frente recomendada é a Fase 9 — usuários, permissões, senhas, aprovações e governança.
+A Fase 8 Comercial está documentada em `FASE_8_COMERCIAL.md` e nos guias operacionais complementares.
+
+A Fase 9 está documentada em `FASE_9_USUARIOS_GOVERNANCA.md`, com foco em usuários, permissões, colaboradores, solicitações cadastrais, segurança e governança.
+
+A próxima frente imediata é a `9.9P — Fechamento final da área de Usuários`, antes de avançar para `9.10 — Configurações da loja/sistema`.
