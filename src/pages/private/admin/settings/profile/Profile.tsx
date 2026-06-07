@@ -219,7 +219,6 @@ export default function Profile() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingAvatar, setSavingAvatar] = useState(false);
-    const [isCpfDisabled, setIsCpfDisabled] = useState(false);
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
     useEffect(() => {
@@ -296,6 +295,7 @@ export default function Profile() {
 
     const isOwnerSomewhere = memberships.some((m) => m.role === 'owner');
     const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
+    const canRequestProfileChanges = !isOwnerInCurrentStore;
 
     const canEditGlobalProfile =
         isOwnerInCurrentStore;
@@ -445,8 +445,6 @@ export default function Profile() {
                     additionalInfo,
                 });
 
-                // CPF is read-only if it is already pre-filled
-                setIsCpfDisabled(!!profileData.cpf);
             }
 
         } catch (error: any) {
@@ -718,11 +716,6 @@ export default function Profile() {
             // Disparar recarga do contexto de segurança e atualizar sidebar/header
             await refreshSecurityContext();
             window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
-
-            // Se CPF foi preenchido com sucesso, desabilita para novas edições
-            if (profile.cpf) {
-                setIsCpfDisabled(true);
-            }
         } catch (error: any) {
             console.error('Error saving profile:', error);
             toast.error(error?.message || 'Erro ao salvar alterações.');
@@ -757,20 +750,22 @@ export default function Profile() {
                         <History size={13} />
                         <span>Histórico de alterações</span>
                     </Link>
-                    <button
-                        type="button"
-                        onClick={() => setGeneralRequestModal({
-                            isOpen: true,
-                            requestType: 'name_change',
-                            requestedValue: '',
-                            reason: '',
-                            saving: false,
-                        })}
-                        className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
-                    >
-                        <Plus size={16} />
-                        Solicitar Alteração
-                    </button>
+                    {canRequestProfileChanges && (
+                        <button
+                            type="button"
+                            onClick={() => setGeneralRequestModal({
+                                isOpen: true,
+                                requestType: 'name_change',
+                                requestedValue: '',
+                                reason: '',
+                                saving: false,
+                            })}
+                            className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
+                        >
+                            <Plus size={16} />
+                            Solicitar Alteração
+                        </button>
+                    )}
                 </>,
                 portalContainer
             )}
@@ -881,7 +876,7 @@ export default function Profile() {
                         <span className="flex items-center gap-2">
                             <User className="text-[#21A896]" size={20} /> Identificação
                         </span>
-                        {(!canEditGlobalProfile || isCpfDisabled) && (
+                        {canRequestProfileChanges && !canEditGlobalProfile && (
                             <button
                                 type="button"
                                 onClick={() => setGeneralRequestModal({
@@ -953,27 +948,29 @@ export default function Profile() {
                                 className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.cpf}
                                 onChange={(e) => setProfile({ ...profile, cpf: e.target.value })}
-                                disabled={isCpfDisabled || !canEditGlobalProfile}
+                                disabled={!canEditGlobalProfile}
                                 placeholder="000.000.000-00"
                             />
-                            {(isCpfDisabled || !canEditGlobalProfile) && (
+                            {!canEditGlobalProfile && (
                                 <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
                                     O CPF não pode ser alterado diretamente.{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            setGeneralRequestModal({
-                                                isOpen: true,
-                                                requestType: 'cpf_change',
-                                                requestedValue: '',
-                                                reason: '',
-                                                saving: false,
-                                            })
-                                        }
-                                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
-                                    >
-                                        Solicitar alteração de CPF.
-                                    </button>
+                                    {canRequestProfileChanges && (
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                setGeneralRequestModal({
+                                                    isOpen: true,
+                                                    requestType: 'cpf_change',
+                                                    requestedValue: '',
+                                                    reason: '',
+                                                    saving: false,
+                                                })
+                                            }
+                                            className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
+                                        >
+                                            Solicitar alteração de CPF.
+                                        </button>
+                                    )}
                                 </span>
                             )}
                         </div>
@@ -1301,7 +1298,7 @@ export default function Profile() {
                                 index={index}
                                 onUpdate={handleUpdateAdditionalInfo}
                                 onRemove={handleRemoveAdditionalInfo}
-                                onRemoveRequest={handleRequestRemoveAdditionalInfo}
+                                onRemoveRequest={canRequestProfileChanges ? handleRequestRemoveAdditionalInfo : undefined}
                             />
                         ))}
 

@@ -18,6 +18,8 @@ interface InfoCardProps {
 }
 
 export function InfoCard({ item, index, onUpdate, onRemove, onRemoveRequest }: InfoCardProps) {
+    const canRequestRemoval = Boolean(onRemoveRequest);
+
     return (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 relative">
             {/* Badge Sensível */}
@@ -30,12 +32,12 @@ export function InfoCard({ item, index, onUpdate, onRemove, onRemoveRequest }: I
             )}
 
             {/* Botão de Remover ou Solicitar Remoção */}
-            {item.isNew ? (
+            {item.isNew || !canRequestRemoval ? (
                 <button
                     type="button"
                     onClick={() => onRemove(index)}
                     className="absolute top-2 left-2 text-gray-400 hover:text-red-600 transition-colors"
-                    title="Remover informação"
+                    title={item.isNew ? 'Remover informação' : 'Remover informação existente'}
                 >
                     <X size={16} />
                 </button>
