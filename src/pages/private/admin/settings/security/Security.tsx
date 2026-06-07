@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
 
@@ -407,6 +408,16 @@ const ROLE_PERMISSION_COLUMNS = [
     { role: 'viewer', key: 'viewer_allowed', label: 'Visualizador' },
 ] as const;
 
+const VALID_TAB_IDS = [
+    'context',
+    'logs',
+    'roles',
+    'custom_roles',
+    'users_perms',
+    'sensitive_actions',
+    'pin_token',
+];
+
 const SENSITIVE_REQUIREMENT_OPTIONS = [
     { value: 'none', label: 'Nenhuma' },
     { value: 'pin', label: 'PIN' },
@@ -444,10 +455,41 @@ export default function Security() {
         fetchMembersForPermissions,
     } = useSecurityPermissionsAdmin();
 
-    const [activeTab, setActiveTab] = useState('context');
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabFromUrl = searchParams.get('tab');
+    const [activeTab, setActiveTabState] = useState(
+        tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'context'
+    );
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
+
+    const setActiveTab = useCallback(
+        (next: string) => {
+            setActiveTabState(next);
+            setSearchParams(
+                (prev) => {
+                    const params = new URLSearchParams(prev);
+                    if (next === 'context') {
+                        params.delete('tab');
+                    } else {
+                        params.set('tab', next);
+                    }
+                    return params;
+                },
+                { replace: true }
+            );
+        },
+        [setSearchParams]
+    );
+
+    useEffect(() => {
+        if (tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
+            setActiveTabState(tabFromUrl);
+        } else if (!tabFromUrl && activeTab !== 'context') {
+            setActiveTabState('context');
+        }
+    }, [tabFromUrl, activeTab]);
 
     const [selectedMemberId, setSelectedMemberId] = useState('');
 

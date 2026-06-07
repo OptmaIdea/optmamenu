@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useMemo, useLayoutEffect } from 'react';
+import { useEffect, useState, useMemo, useLayoutEffect, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -65,6 +65,7 @@ type MenuItem = {
     icon: LucideIcon;
     label: string;
     permission?: string;
+    queryString?: string;
 };
 
 type MenuSection = Record<string, MenuItem[]>;
@@ -209,7 +210,7 @@ export default function PrivateLayout() {
         ],
         settings: [
             { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
-            { path: '/admin/meu-historico', icon: ScrollText, label: 'Meu Histórico' },
+            { path: '/admin/security', icon: ScrollText, label: 'Meu Histórico', queryString: 'tab=logs', permission: 'security.view' },
             { path: '/admin/settings', icon: Building, label: 'Dados da Loja' },
             { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
@@ -485,7 +486,6 @@ export default function PrivateLayout() {
     // 9.9K.3 — Guarda de primeiro acesso: redireciona para /admin/my-profile se onboarding pendente
     const allowedDuringOnboarding = [
         '/admin/my-profile',
-        '/admin/meu-historico',
         '/admin/my-history',
     ];
 
@@ -633,12 +633,32 @@ export default function PrivateLayout() {
         return null;
     }, [navigationItems, pathname]);
 
+    // Helper para verificar se um item de menu está ativo no contexto atual
+    const isMenuItemActive = useCallback(
+        (item: MenuItem, currentSearch: string) => {
+            const pathMatches =
+                pathname === item.path ||
+                (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
+            if (!pathMatches) return false;
+            if (item.queryString) {
+                return currentSearch.includes(item.queryString);
+            }
+            return true;
+        },
+        [pathname]
+    );
+
     // Resolve as rotas irmãs para o Acesso Rápido (exclui o atual)
     const siblingItems = useMemo(() => {
         if (!currentItem) return [];
         const groupItems = navigationItems[currentItem.group as keyof typeof navigationItems] || [];
         return groupItems.filter(
-            item => item.path !== currentItem.item.path && (!item.permission || can(item.permission))
+            item => {
+                const isSameItem =
+                    item.path === currentItem.item.path &&
+                    (item.queryString ?? '') === (currentItem.item.queryString ?? '');
+                return !isSameItem && (!item.permission || can(item.permission));
+            }
         );
     }, [currentItem, navigationItems, permissions, loadingPermissions, activeMembership]);
 
@@ -875,14 +895,15 @@ export default function PrivateLayout() {
                                             })
                                             .map(item => {
                                                 const IconComponent = item.icon;
-                                                const isActive =
-                                                    pathname === item.path ||
-                                                    (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
+                                                const isActive = isMenuItemActive(item, location.search);
+                                                const linkTo = item.queryString
+                                                    ? `${item.path}?${item.queryString}`
+                                                    : item.path;
 
                                                 return (
                                                     <Link
-                                                        key={item.path}
-                                                        to={item.path}
+                                                        key={`${item.path}-${item.queryString ?? ''}`}
+                                                        to={linkTo}
                                                         title={isSidebarCollapsed ? item.label : ''}
                                                         className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all relative
                                                         ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'}
@@ -1048,8 +1069,8 @@ export default function PrivateLayout() {
                                     onClick={handleClockClick}
                                     title="Tempo de Sessão"
                                     className={`p-2 rounded-lg transition relative shrink-0 ${isClockPopoverOpen
-                                            ? 'text-[#21A896] bg-[#21A896]/10 hover:bg-[#21A896]/20'
-                                            : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                        ? 'text-[#21A896] bg-[#21A896]/10 hover:bg-[#21A896]/20'
+                                        : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                         }`}
                                 >
                                     <Clock size={19} />
@@ -1058,8 +1079,8 @@ export default function PrivateLayout() {
                                 <div
                                     onClick={(e) => e.stopPropagation()}
                                     className={`absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-4 shadow-xl z-50 transition-all duration-300 origin-top-right ${isClockPopoverOpen
-                                            ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
-                                            : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
+                                        ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+                                        : 'opacity-0 -translate-y-2 scale-95 pointer-events-none'
                                         }`}
                                 >
                                     <div className="space-y-3 font-candara text-xs text-gray-650 dark:text-gray-300">
@@ -1124,10 +1145,13 @@ export default function PrivateLayout() {
                                 <div className="hidden xl:flex items-center gap-1.5 overflow-x-auto custom-scrollbar no-scrollbar min-w-0">
                                     {siblingItems.map((item) => {
                                         const SiblingIcon = item.icon;
+                                        const siblingTo = item.queryString
+                                            ? `${item.path}?${item.queryString}`
+                                            : item.path;
                                         return (
                                             <Link
-                                                key={item.path}
-                                                to={item.path}
+                                                key={`${item.path}-${item.queryString ?? ''}`}
+                                                to={siblingTo}
                                                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors border border-gray-100 dark:border-gray-700 shrink-0"
                                             >
                                                 <SiblingIcon size={13} className="text-gray-400 dark:text-gray-500" />
@@ -1156,10 +1180,13 @@ export default function PrivateLayout() {
                                         <div className="absolute left-0 mt-1.5 w-60 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl py-1.5 z-50 animate-fadeIn flex flex-col gap-0.5">
                                             {siblingItems.map((item) => {
                                                 const SiblingIcon = item.icon;
+                                                const siblingTo = item.queryString
+                                                    ? `${item.path}?${item.queryString}`
+                                                    : item.path;
                                                 return (
                                                     <Link
-                                                        key={item.path}
-                                                        to={item.path}
+                                                        key={`${item.path}-${item.queryString ?? ''}`}
+                                                        to={siblingTo}
                                                         onClick={() => setIsQuickAccessOpen(false)}
                                                         className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-[#21A896]/10 hover:text-[#21A896] dark:hover:bg-[#21A896]/20 transition-all rounded-lg mx-1"
                                                     >

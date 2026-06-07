@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import {
@@ -18,6 +19,7 @@ import {
     AlertTriangle,
     Plus,
     Info,
+    History,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -664,20 +666,30 @@ export default function Profile() {
             flat
         >
             {portalContainer && createPortal(
-                <button
-                    type="button"
-                    onClick={() => setGeneralRequestModal({
-                        isOpen: true,
-                        requestType: 'name_change',
-                        requestedValue: '',
-                        reason: '',
-                        saving: false,
-                    })}
-                    className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
-                >
-                    <Plus size={16} />
-                    Solicitar Alteração
-                </button>,
+                <>
+                    <Link
+                        to="/admin/my-history"
+                        title="Histórico de alterações no perfil"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#21A896]/35 shrink-0 shadow-sm cursor-pointer"
+                    >
+                        <History size={13} />
+                        <span>Histórico de alterações</span>
+                    </Link>
+                    <button
+                        type="button"
+                        onClick={() => setGeneralRequestModal({
+                            isOpen: true,
+                            requestType: 'name_change',
+                            requestedValue: '',
+                            reason: '',
+                            saving: false,
+                        })}
+                        className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
+                    >
+                        <Plus size={16} />
+                        Solicitar Alteração
+                    </button>
+                </>,
                 portalContainer
             )}
             <form

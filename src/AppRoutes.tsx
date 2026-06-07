@@ -175,7 +175,7 @@ export default function AppRoutes() {
             <Route path="/admin/settings" element={<Settings />} />
             <Route path="/admin/my-profile" element={<Profile />} />
             <Route path="/admin/meus-dados" element={<Profile />} />
-            <Route path="/admin/meu-historico" element={<MyHistory />} />
+            <Route path="/admin/my-history" element={<MyHistory />} />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
             <Route path="/admin/security" element={<Security />} />

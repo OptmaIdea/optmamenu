@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
     ClockIcon,
     ShieldAlert,
@@ -10,6 +10,8 @@ import {
     Inbox,
     RefreshCw,
     ChevronDown,
+    Filter,
+    X,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
@@ -248,6 +250,10 @@ export default function MyHistory() {
     const [items, setItems] = useState<MyVisibleHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [dateFrom, setDateFrom] = useState<string>('');
+    const [dateTo, setDateTo] = useState<string>('');
+    const [typeFilter, setTypeFilter] = useState<string>('all');
+    const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
     const storeId = getActiveStoreId();
 
@@ -289,6 +295,55 @@ export default function MyHistory() {
     }, [fetchHistory]);
 
     useRefreshFrame(fetchHistory);
+
+    const availableTypes = useMemo(() => {
+        const set = new Set<string>();
+        items.forEach((item) => {
+            if (item.event_type) set.add(item.event_type);
+        });
+        return Array.from(set).sort();
+    }, [items]);
+
+    const filteredItems = useMemo(() => {
+        return items
+            .filter((item) => {
+                if (typeFilter !== 'all' && item.event_type !== typeFilter) {
+                    return false;
+                }
+
+                if (!item.event_at) {
+                    return !dateFrom && !dateTo;
+                }
+
+                const eventDate = new Date(item.event_at);
+
+                if (dateFrom) {
+                    const from = new Date(`${dateFrom}T00:00:00`);
+                    if (eventDate < from) return false;
+                }
+
+                if (dateTo) {
+                    const to = new Date(`${dateTo}T23:59:59`);
+                    if (eventDate > to) return false;
+                }
+
+                return true;
+            })
+            .sort((a, b) => {
+                const aDate = a.event_at ? new Date(a.event_at).getTime() : 0;
+                const bDate = b.event_at ? new Date(b.event_at).getTime() : 0;
+                return sortOrder === 'desc' ? bDate - aDate : aDate - bDate;
+            });
+    }, [items, dateFrom, dateTo, typeFilter, sortOrder]);
+
+    const hasActiveFilters = !!dateFrom || !!dateTo || typeFilter !== 'all' || sortOrder !== 'desc';
+
+    const handleClearFilters = () => {
+        setDateFrom('');
+        setDateTo('');
+        setTypeFilter('all');
+        setSortOrder('desc');
+    };
 
     // Skeleton de carregamento
     if (loading) {
@@ -355,7 +410,89 @@ export default function MyHistory() {
                     </div>
                 )}
 
-                {/* Vazio */}
+                {/* Filtros */}
+                {!error && items.length > 0 && (
+                    <div className="mb-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm">
+                        <div className="flex items-center gap-2 mb-3">
+                            <Filter size={14} className="text-[#21A896]" />
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
+                                Filtros
+                            </span>
+                            {hasActiveFilters && (
+                                <button
+                                    type="button"
+                                    onClick={handleClearFilters}
+                                    className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:text-[#F26541] transition"
+                                >
+                                    <X size={12} />
+                                    Limpar filtros
+                                </button>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
+                                    De
+                                </label>
+                                <input
+                                    type="date"
+                                    value={dateFrom}
+                                    max={dateTo || undefined}
+                                    onChange={(e) => setDateFrom(e.target.value)}
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
+                                    Até
+                                </label>
+                                <input
+                                    type="date"
+                                    value={dateTo}
+                                    min={dateFrom || undefined}
+                                    onChange={(e) => setDateTo(e.target.value)}
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
+                                    Tipo
+                                </label>
+                                <select
+                                    value={typeFilter}
+                                    onChange={(e) => setTypeFilter(e.target.value)}
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                >
+                                    <option value="all">Todos os tipos</option>
+                                    {availableTypes.map((t) => (
+                                        <option key={t} value={t}>
+                                            {getFriendlyType(t)}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
+                                    Ordenar por data
+                                </label>
+                                <select
+                                    value={sortOrder}
+                                    onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                >
+                                    <option value="desc">Mais recente primeiro</option>
+                                    <option value="asc">Mais antigo primeiro</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Vazio (sem itens carregados) */}
                 {!error && items.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
                         <div className="w-16 h-16 rounded-2xl bg-[#21A896]/10 flex items-center justify-center">
@@ -372,19 +509,44 @@ export default function MyHistory() {
                     </div>
                 )}
 
+                {/* Vazio (com filtros sem resultado) */}
+                {!error && items.length > 0 && filteredItems.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                            <Inbox size={28} className="text-gray-400" />
+                        </div>
+                        <div>
+                            <p className="text-base font-bold text-gray-700 dark:text-gray-200">
+                                Nenhum resultado para os filtros aplicados
+                            </p>
+                            <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
+                                Ajuste o período ou o tipo para visualizar outros registros.
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Lista */}
-                {!error && items.length > 0 && (
+                {!error && filteredItems.length > 0 && (
                     <>
                         {/* Contagem */}
                         <div className="flex items-center justify-between mb-5">
                             <p className="text-sm text-gray-500 dark:text-gray-400">
-                                <span className="font-bold text-gray-700 dark:text-gray-200">{items.length}</span>{' '}
-                                {items.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                                <span className="font-bold text-gray-700 dark:text-gray-200">
+                                    {filteredItems.length}
+                                </span>{' '}
+                                {filteredItems.length === 1 ? 'registro encontrado' : 'registros encontrados'}
+                                {hasActiveFilters && items.length !== filteredItems.length && (
+                                    <span className="text-gray-400 dark:text-gray-500">
+                                        {' '}
+                                        de {items.length}
+                                    </span>
+                                )}
                             </p>
                         </div>
 
                         <div className="space-y-3">
-                            {items.map((item, idx) => (
+                            {filteredItems.map((item, idx) => (
                                 <HistoryCard key={item.event_id ?? `history-${idx}`} item={item} />
                             ))}
                         </div>
