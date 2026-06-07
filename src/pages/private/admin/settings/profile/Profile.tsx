@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import {
@@ -32,7 +32,8 @@ import {
     PROFILE_REQUEST_STATUS_LABELS,
     PROFILE_REQUEST_TYPE_LABELS,
     type ProfileChangeRequest,
-    type ProfileChangeRequestType
+    type ProfileChangeRequestType,
+    type ProposedChangeValue
 } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
@@ -148,8 +149,73 @@ const getInitials = (name: string) => {
         .toUpperCase() || 'U';
 };
 
+function isRequestActive(request: ProfileChangeRequest): boolean {
+    return ['pending', 'awaiting_member_confirmation', 'correction_requested'].includes(
+        request.status
+    );
+}
+
+function isRecentlyApplied(request: ProfileChangeRequest, days = 7): boolean {
+    if (request.status !== 'applied') return false;
+
+    const date = request.applied_at || request.updated_at;
+    if (!date) return false;
+
+    const appliedAt = new Date(date).getTime();
+    if (Number.isNaN(appliedAt)) return false;
+
+    const maxAge = days * 24 * 60 * 60 * 1000;
+
+    return Date.now() - appliedAt <= maxAge;
+}
+
+function hasFieldChange(
+    request: ProfileChangeRequest,
+    field: string
+): boolean {
+    return Boolean(
+        request.admin_proposed_changes?.[field] ||
+        request.applied_changes?.[field]
+    );
+}
+
+function getLatestRequestForField(
+    requests: ProfileChangeRequest[],
+    field: string
+): ProfileChangeRequest | null {
+    return (
+        requests
+            .filter((request) => hasFieldChange(request, field))
+            .sort((a, b) => {
+                const da = new Date(a.updated_at || a.created_at).getTime();
+                const db = new Date(b.updated_at || b.created_at).getTime();
+                return db - da;
+            })[0] ?? null
+    );
+}
+
+function getRequestChangeForField(
+    request: ProfileChangeRequest,
+    field: string
+): ProposedChangeValue | null {
+    return (
+        request.applied_changes?.[field] ||
+        request.admin_proposed_changes?.[field] ||
+        null
+    );
+}
+
+function formatChangeValue(value: unknown): string {
+    if (value === null || value === undefined || value === '') return 'Não informado';
+
+    if (typeof value === 'string') return value;
+
+    return String(value);
+}
+
 export default function Profile() {
     const { securityContext, refresh: refreshSecurityContext, loading: loadingSecurity } = useSecurityContext();
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingAvatar, setSavingAvatar] = useState(false);
@@ -211,6 +277,22 @@ export default function Profile() {
     useEffect(() => {
         void loadMyProfileRequests();
     }, [loadMyProfileRequests]);
+
+    const activeRequests = useMemo(
+        () => myRequests.filter(isRequestActive),
+        [myRequests]
+    );
+
+    const recentAppliedRequests = useMemo(
+        () => myRequests.filter((request) => isRecentlyApplied(request, 7)),
+        [myRequests]
+    );
+
+    // Reservado para badges per-campo (próximo passo).
+    void getLatestRequestForField;
+    void getRequestChangeForField;
+    void formatChangeValue;
+    void recentAppliedRequests;
 
     const isOwnerSomewhere = memberships.some((m) => m.role === 'owner');
     const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
@@ -699,6 +781,27 @@ export default function Profile() {
                 noValidate
                 className="max-w-4xl mx-auto space-y-8"
             >
+                {activeRequests.length > 0 && (
+                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <p className="font-bold">Alteração cadastral em andamento</p>
+                                <p className="mt-1">
+                                    Existe solicitação pendente ou aguardando conferência. Acompanhe os detalhes em Meu Histórico.
+                                </p>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => navigate('/admin/my-history')}
+                                className="w-fit rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
+                            >
+                                Ver histórico
+                            </button>
+                        </div>
+                    </div>
+                )}
+
                 {/* 9.9K.5 — Aviso de onboarding pendente */}
                 {isOnboardingPending && (
                     <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/40 p-4 text-sm text-amber-800 dark:text-amber-200">

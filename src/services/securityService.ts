@@ -471,10 +471,18 @@ export type ProfileChangeRequestType =
 
 export type ProfileChangeRequestStatus =
   | 'pending'
+  | 'awaiting_member_confirmation'
+  | 'correction_requested'
   | 'approved'
   | 'rejected'
   | 'cancelled'
   | 'applied';
+
+export type ProposedChangeValue = {
+  old?: unknown;
+  new?: unknown;
+  label?: string;
+};
 
 export type ProfileChangeRequest = {
   request_id: string;
@@ -484,21 +492,35 @@ export type ProfileChangeRequest = {
   user_email?: string | null;
   profile_name?: string | null;
   internal_alias?: string | null;
+
   request_type: ProfileChangeRequestType;
   status: ProfileChangeRequestStatus;
+
   requested_changes: Record<string, unknown>;
   current_snapshot?: Record<string, unknown>;
+  admin_proposed_changes?: Record<string, ProposedChangeValue>;
+  applied_changes?: Record<string, ProposedChangeValue>;
+
   reason: string;
   admin_notes?: string | null;
+  member_feedback?: string | null;
+
   requested_by?: string | null;
   requested_by_email?: string | null;
   reviewed_by?: string | null;
   reviewed_by_email?: string | null;
+  proposed_by?: string | null;
+  proposed_by_email?: string | null;
+
   reviewed_at?: string | null;
+  proposed_at?: string | null;
+  member_responded_at?: string | null;
   applied_at?: string | null;
+
   visible_to_member?: boolean;
   sensitive: boolean;
   metadata?: Record<string, unknown>;
+
   created_at: string;
   updated_at?: string;
 };
@@ -519,6 +541,8 @@ export const PROFILE_REQUEST_TYPE_LABELS: Record<string, string> = {
 
 export const PROFILE_REQUEST_STATUS_LABELS: Record<string, string> = {
   pending: 'Pendente',
+  awaiting_member_confirmation: 'Aguardando sua conferência',
+  correction_requested: 'Correção solicitada',
   approved: 'Aprovada',
   rejected: 'Rejeitada',
   cancelled: 'Cancelada',
@@ -603,6 +627,44 @@ export async function reviewStoreProfileChangeRequest(params: {
 
   if (error) {
     console.error('Erro ao revisar solicitação cadastral:', error);
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] ?? null : data;
+}
+
+export async function proposeStoreProfileChangeRequest(params: {
+  requestId: string;
+  proposedChanges: Record<string, ProposedChangeValue>;
+  adminNotes?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('propose_store_profile_change_request', {
+    p_request_id: params.requestId,
+    p_proposed_changes: params.proposedChanges,
+    p_admin_notes: params.adminNotes ?? null,
+  });
+
+  if (error) {
+    console.error('Erro ao propor alteração cadastral:', error);
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] ?? null : data;
+}
+
+export async function respondMyProfileChangeRequest(params: {
+  requestId: string;
+  decision: 'confirm' | 'request_correction';
+  memberFeedback?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('respond_my_profile_change_request', {
+    p_request_id: params.requestId,
+    p_decision: params.decision,
+    p_member_feedback: params.memberFeedback ?? null,
+  });
+
+  if (error) {
+    console.error('Erro ao responder solicitação cadastral:', error);
     throw error;
   }
 
