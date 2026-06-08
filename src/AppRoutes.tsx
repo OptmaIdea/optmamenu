@@ -218,7 +218,28 @@ export default function AppRoutes() {
             <Route
               path="/admin/security"
               element={
-                <RequirePermission permission={['security.view', 'security.manage']}>
+                <RequirePermission
+                  permission={[
+                    'security.view',
+                    'security.manage',
+                    'security.context.view',
+                    'security.context.manage',
+                    'security.logs.view',
+                    'security.logs.manage',
+                    'security.roles.view',
+                    'security.roles.manage',
+                    'security.custom_roles.view',
+                    'security.custom_roles.manage',
+                    'security.user_permissions.view',
+                    'security.user_permissions.manage',
+                    'security.sensitive_actions.view',
+                    'security.sensitive_actions.manage',
+                    'security.pin_token.view',
+                    'security.pin_token.manage',
+                    'security.sessions.view',
+                    'security.sessions.manage',
+                  ]}
+                >
                   <Security />
                 </RequirePermission>
               }

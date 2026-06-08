@@ -447,7 +447,7 @@ const ROLE_PERMISSION_COLUMNS = [
 ] as const;
 
 const VALID_TAB_IDS = [
-    'access_context',
+    'context',
     'logs',
     'roles',
     'custom_roles',
@@ -458,7 +458,7 @@ const VALID_TAB_IDS = [
 ];
 
 const securityTabPermissions = {
-  access_context: {
+  context: {
     view: ['security.context.view', 'security.context.manage', 'security.view', 'security.manage'],
     manage: ['security.context.manage', 'security.manage'],
   },
@@ -541,46 +541,43 @@ export default function Security() {
         getActionRequirement,
     } = usePermissions(currentStoreId);
 
-    const checkTabPermission = useCallback((tabId: keyof typeof securityTabPermissions, type: 'view' | 'manage') => {
+    const hasPermission = useCallback((key: string) => {
+        return hasEffectivePermission(permissions, key);
+    }, [permissions]);
+
+    const hasAnyPermission = useCallback((keys: readonly string[] | string[]) => {
         if (isOwner) return true;
+        return keys.some((key) => hasPermission(key));
+    }, [isOwner, hasPermission]);
+
+    const checkTabPermission = useCallback((tabId: keyof typeof securityTabPermissions, type: 'view' | 'manage') => {
         const requiredPerms = securityTabPermissions[tabId]?.[type];
         if (!requiredPerms) return false;
-        return requiredPerms.some((perm) => hasEffectivePermission(permissions, perm));
-    }, [isOwner, permissions]);
+        return hasAnyPermission(requiredPerms);
+    }, [hasAnyPermission]);
 
     const canViewSecurity = useMemo(() => {
         if (isOwner) return true;
         return Object.keys(securityTabPermissions).some((tabKey) => {
             const requiredPerms = securityTabPermissions[tabKey as keyof typeof securityTabPermissions]?.view;
-            return requiredPerms.some((perm) => hasEffectivePermission(permissions, perm));
+            return requiredPerms.some((perm) => hasPermission(perm));
         });
-    }, [isOwner, permissions]);
+    }, [isOwner, hasPermission]);
 
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
     const tabFromUrl = searchParams.get('tab');
     const [activeTab, setActiveTabState] = useState(
-        tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'access_context'
+        tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'context'
     );
 
     const canManageSecurity = useMemo(() => {
-        if (isOwner) return true;
-        const tabKeyMap: Record<string, keyof typeof securityTabPermissions> = {
-            access_context: 'access_context',
-            logs: 'logs',
-            roles: 'roles',
-            custom_roles: 'custom_roles',
-            user_permissions: 'user_permissions',
-            sensitive_actions: 'sensitive_actions',
-            pin_token: 'pin_token',
-            session_inactive: 'session_inactive'
-        };
-        const currentTabKey = tabKeyMap[activeTab];
+        const currentTabKey = activeTab as keyof typeof securityTabPermissions;
         if (!currentTabKey) return false;
-        
         const requiredPerms = securityTabPermissions[currentTabKey]?.manage;
-        return requiredPerms.some((perm) => hasEffectivePermission(permissions, perm));
-    }, [isOwner, permissions, activeTab]);
+        if (!requiredPerms) return false;
+        return hasAnyPermission(requiredPerms);
+    }, [hasAnyPermission, activeTab]);
 
     const canManageSessions = useMemo(() => {
         return checkTabPermission('session_inactive', 'manage');
@@ -1363,7 +1360,7 @@ export default function Security() {
     };
 
     const tabs = useMemo(() => [
-        { id: 'access_context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: checkTabPermission('access_context', 'view') },
+        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: checkTabPermission('context', 'view') },
         { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: checkTabPermission('logs', 'view') },
         { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck, canAccess: checkTabPermission('roles', 'view') },
         { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield, canAccess: checkTabPermission('custom_roles', 'view') },
@@ -1378,21 +1375,39 @@ export default function Security() {
     useEffect(() => {
         if (loadingSecurityContext || loadingPermissions) return;
 
-        const tabToCheck = tabFromUrl || 'access_context';
-        const targetTabConfig = tabs.find((t) => t.id === tabToCheck);
+        if (isOwner) {
+            if (tabFromUrl && tabFromUrl !== activeTab) {
+                setActiveTabState(tabFromUrl);
+            } else if (!tabFromUrl && activeTab !== 'context') {
+                setActiveTabState('context');
+            }
+            return;
+        }
 
-        if (!targetTabConfig || !targetTabConfig.canAccess) {
-            // Redirect to first allowed tab
+        const currentTabAllowed = allowedTabs.some((tab) => tab.id === activeTab);
+
+        if (!currentTabAllowed) {
             if (allowedTabs.length > 0) {
                 setActiveTab(allowedTabs[0].id);
             } else {
-                // If absolutely no tabs are allowed, navigate away
-                navigate('/admin');
+                navigate('/admin', { replace: true });
             }
-        } else if (tabFromUrl && tabFromUrl !== activeTab) {
-            setActiveTabState(tabFromUrl);
-        } else if (!tabFromUrl && activeTab !== 'access_context') {
-            setActiveTabState('access_context');
+        } else {
+            if (tabFromUrl && tabFromUrl !== activeTab) {
+                const targetTabConfig = tabs.find((t) => t.id === tabFromUrl);
+                if (targetTabConfig && targetTabConfig.canAccess) {
+                    setActiveTabState(tabFromUrl);
+                } else {
+                    setActiveTab(activeTab);
+                }
+            } else if (!tabFromUrl && activeTab !== 'context') {
+                const contextTabAllowed = allowedTabs.some((tab) => tab.id === 'context');
+                if (contextTabAllowed) {
+                    setActiveTabState('context');
+                } else {
+                    setActiveTab(activeTab);
+                }
+            }
         }
     }, [
         tabFromUrl,
@@ -1403,6 +1418,7 @@ export default function Security() {
         allowedTabs,
         navigate,
         setActiveTab,
+        isOwner,
     ]);
 
     const filteredLogs = useMemo(() => {
@@ -1751,7 +1767,7 @@ export default function Security() {
                     )}
 
                     {/* CONTEXTO DE ACESSO */}
-                    <div className={activeTab === 'access_context' ? 'block animate-fadeIn' : 'hidden'}>
+                    <div className={activeTab === 'context' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
@@ -2360,15 +2376,17 @@ export default function Security() {
                                 </p>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={handleSaveMemberOverrides}
-                                disabled={!selectedMemberId || adminLoading.saving || !canManageSecurity}
-                                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {adminLoading.saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                                Salvar permissões
-                            </button>
+                            {canManageSecurity && (
+                                <button
+                                    type="button"
+                                    onClick={handleSaveMemberOverrides}
+                                    disabled={!selectedMemberId || adminLoading.saving}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {adminLoading.saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                                    Salvar permissões
+                                </button>
+                            )}
                         </div>
 
                         <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
@@ -2737,7 +2755,6 @@ export default function Security() {
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">
                                         Este PIN é utilizado para autorizar funções específicas do sistema que exigem validação em tempo de execução.
                                     </p>
-
                                     {store?.config?.pin_blocked ? (
                                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-red-200 dark:border-red-900/50">
                                             <div className="flex items-center gap-2 text-red-600 font-bold mb-2">
@@ -2747,13 +2764,15 @@ export default function Security() {
                                             <p className="text-sm text-gray-500 mb-4">
                                                 O acesso foi bloqueado após muitas tentativas incorretas.
                                             </p>
-                                            <button
-                                                type="button"
-                                                onClick={handleUnblock}
-                                                className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition w-full md:w-auto"
-                                            >
-                                                Desbloquear Agora
-                                            </button>
+                                            {canManageSecurity && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleUnblock}
+                                                    className="bg-red-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition w-full md:w-auto"
+                                                >
+                                                    Desbloquear Agora
+                                                </button>
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -2764,9 +2783,10 @@ export default function Security() {
                                                 <div className="relative flex-1 w-full">
                                                     <input
                                                         type={showPin ? 'text' : 'password'}
-                                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.5em] text-center font-bold text-xl pr-10"
+                                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white tracking-[0.5em] text-center font-bold text-xl pr-10 disabled:opacity-60"
                                                         value={pinData}
                                                         onChange={e => setPinData(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                        disabled={!canManageSecurity}
                                                         onFocus={() => {
                                                             if (pinData === '******') setPinData('');
                                                         }}
@@ -2780,6 +2800,7 @@ export default function Security() {
                                                     />
                                                     <button
                                                         type="button"
+                                                        disabled={!canManageSecurity}
                                                         onClick={() => {
                                                             setShowPin(!showPin);
                                                             if (pinData.length > 0 && !showPin) {
@@ -2805,15 +2826,17 @@ export default function Security() {
                                                     </span>
                                                 </div>
                                             </div>
-                                            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                                                <button
-                                                    onClick={handlePinSave}
-                                                    disabled={saving || !pinData || pinData.length !== 6}
-                                                    className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    {saving ? 'Salvando...' : 'Salvar PIN'}
-                                                </button>
-                                            </div>
+                                            {canManageSecurity && (
+                                                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                                                    <button
+                                                        onClick={handlePinSave}
+                                                        disabled={saving || !pinData || pinData.length !== 6}
+                                                        className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    >
+                                                        {saving ? 'Salvando...' : 'Salvar PIN'}
+                                                    </button>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -2838,11 +2861,13 @@ export default function Security() {
                                                 type={showPassword.new ? 'text' : 'password'}
                                                 value={passwordData.new}
                                                 onChange={e => setPasswordData({ ...passwordData, new: e.target.value })}
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 disabled:opacity-60"
+                                                disabled={!canManageSecurity}
                                                 required
                                             />
                                             <button
                                                 type="button"
+                                                disabled={!canManageSecurity}
                                                 onClick={() => setShowPassword({ ...showPassword, new: !showPassword.new })}
                                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                                                 tabIndex={-1}
@@ -2861,11 +2886,13 @@ export default function Security() {
                                                 type={showPassword.confirm ? 'text' : 'password'}
                                                 value={passwordData.confirm}
                                                 onChange={e => setPasswordData({ ...passwordData, confirm: e.target.value })}
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10"
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 disabled:opacity-60"
+                                                disabled={!canManageSecurity}
                                                 required
                                             />
                                             <button
                                                 type="button"
+                                                disabled={!canManageSecurity}
                                                 onClick={() => setShowPassword({ ...showPassword, confirm: !showPassword.confirm })}
                                                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                                             >
@@ -2874,16 +2901,18 @@ export default function Security() {
                                         </div>
                                     </div>
 
-                                    <div className="pt-2">
-                                        <button
-                                            type="submit"
-                                            disabled={saving || !passwordData.new}
-                                            className="flex items-center gap-2 bg-brand-green text-white px-5 py-2.5 rounded-lg font-bold hover:brightness-90 transition disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-700 text-sm"
-                                        >
-                                            {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                                            Atualizar Senha
-                                        </button>
-                                    </div>
+                                    {canManageSecurity && (
+                                        <div className="pt-2">
+                                            <button
+                                                type="submit"
+                                                disabled={saving || !passwordData.new}
+                                                className="flex items-center gap-2 bg-brand-green text-white px-5 py-2.5 rounded-lg font-bold hover:brightness-90 transition disabled:opacity-50 dark:bg-green-600 dark:hover:bg-green-700 text-sm"
+                                            >
+                                                {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
+                                                Atualizar Senha
+                                            </button>
+                                        </div>
+                                    )}
                                 </form>
                             </div>
 
@@ -2913,12 +2942,14 @@ export default function Security() {
                                                         loginPassword: e.target.value
                                                     })
                                                 }
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
+                                                disabled={!canManageSecurity}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm disabled:opacity-60"
                                                 placeholder="Digite sua senha de login"
                                                 required
                                             />
                                             <button
                                                 type="button"
+                                                disabled={!canManageSecurity}
                                                 onClick={() =>
                                                     setShowMasterPassword(prev => ({ ...prev, login: !prev.login }))
                                                 }
@@ -2943,12 +2974,14 @@ export default function Security() {
                                                         newMaster: e.target.value
                                                     })
                                                 }
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
+                                                disabled={!canManageSecurity}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm disabled:opacity-60"
                                                 placeholder="Mínimo 6 caracteres"
                                                 required
                                             />
                                             <button
                                                 type="button"
+                                                disabled={!canManageSecurity}
                                                 onClick={() =>
                                                     setShowMasterPassword(prev => ({
                                                         ...prev,
@@ -2976,12 +3009,14 @@ export default function Security() {
                                                         confirmMaster: e.target.value
                                                     })
                                                 }
-                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm"
+                                                disabled={!canManageSecurity}
+                                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-brand-green outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white pr-10 text-sm disabled:opacity-60"
                                                 placeholder="Repita a nova senha"
                                                 required
                                             />
                                             <button
                                                 type="button"
+                                                disabled={!canManageSecurity}
                                                 onClick={() =>
                                                     setShowMasterPassword(prev => ({
                                                         ...prev,
@@ -2995,21 +3030,23 @@ export default function Security() {
                                         </div>
                                     </div>
 
-                                    <div className="pt-2">
-                                        <button
-                                            type="submit"
-                                            disabled={
-                                                saving ||
-                                                !masterPasswordData.loginPassword.trim() ||
-                                                !masterPasswordData.newMaster.trim() ||
-                                                !masterPasswordData.confirmMaster.trim()
-                                            }
-                                            className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm"
-                                        >
-                                            {saving ? <Loader size={16} className="animate-spin" /> : <Lock size={16} />}
-                                            Redefinir Master
-                                        </button>
-                                    </div>
+                                    {canManageSecurity && (
+                                        <div className="pt-2">
+                                            <button
+                                                type="submit"
+                                                disabled={
+                                                    saving ||
+                                                    !masterPasswordData.loginPassword.trim() ||
+                                                    !masterPasswordData.newMaster.trim() ||
+                                                    !masterPasswordData.confirmMaster.trim()
+                                                }
+                                                className="inline-flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-lg font-bold transition disabled:opacity-50 text-sm"
+                                            >
+                                                {saving ? <Loader size={16} className="animate-spin" /> : <Lock size={16} />}
+                                                Redefinir Master
+                                            </button>
+                                        </div>
+                                    )}
                                 </form>
                             </div>
                         </div>
@@ -3032,7 +3069,7 @@ export default function Security() {
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                â³ Tempo de expiração do token
+                                                â ³ Tempo de expiração do token
                                             </label>
                                             <span className="text-sm font-mono bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-full text-purple-800 dark:text-purple-300">
                                                 {tokenExpiry} segundos
@@ -3044,10 +3081,11 @@ export default function Security() {
                                             max="60"
                                             step="1"
                                             value={tokenExpiry}
+                                            disabled={!canManageSecurity}
                                             onChange={(e) => setTokenExpiry(Number(e.target.value))}
-                                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600 disabled:opacity-50"
                                         />
-                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <div className="flex justify-between text-xs text-gray-555 mt-1">
                                             <span>15s</span>
                                             <span>15s (padrão)</span>
                                             <span>60s</span>
@@ -3057,7 +3095,7 @@ export default function Security() {
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                ðŸ” Máximo de tentativas por token
+                                                ðŸ”  Máximo de tentativas por token
                                             </label>
                                             <span className="text-sm font-mono bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-full text-purple-800 dark:text-purple-300">
                                                 {maxAttempts} {maxAttempts === 1 ? 'tentativa' : 'tentativas'}
@@ -3069,10 +3107,11 @@ export default function Security() {
                                             max="7"
                                             step="1"
                                             value={maxAttempts}
+                                            disabled={!canManageSecurity}
                                             onChange={(e) => setMaxAttempts(Number(e.target.value))}
-                                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600"
+                                            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-600 disabled:opacity-50"
                                         />
-                                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                        <div className="flex justify-between text-xs text-gray-555 mt-1">
                                             <span>3</span>
                                             <span>5</span>
                                             <span>7</span>
@@ -3090,14 +3129,16 @@ export default function Security() {
                                                 Você não tem permissão para alterar configurações de segurança.
                                             </div>
                                         )}
-                                        <button
-                                            onClick={handleAdvancedSave}
-                                            disabled={saving || !hasPin || !canManageSecurity}
-                                            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <Save size={18} />
-                                            {saving ? 'Salvando...' : 'Salvar configurações'}
-                                        </button>
+                                        {canManageSecurity && (
+                                            <button
+                                                onClick={handleAdvancedSave}
+                                                disabled={saving || !hasPin}
+                                                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg font-bold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <Save size={18} />
+                                                {saving ? 'Salvando...' : 'Salvar configurações'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -3174,14 +3215,16 @@ export default function Security() {
                                         )}
 
                                         <div className="pt-2">
-                                            <button
-                                                type="button"
-                                                disabled={!canManageSessions || saving}
-                                                onClick={handleSaveIdleTimeout}
-                                                className="bg-[#F26541] hover:bg-[#d85535] text-white font-bold py-2.5 px-5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 text-sm cursor-pointer shadow-sm"
-                                            >
-                                                {saving ? 'Salvando...' : 'Salvar configuração'}
-                                            </button>
+                                            {canManageSessions && (
+                                                <button
+                                                    type="button"
+                                                    disabled={saving}
+                                                    onClick={handleSaveIdleTimeout}
+                                                    className="bg-[#F26541] hover:bg-[#d85535] text-white font-bold py-2.5 px-5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 text-sm cursor-pointer shadow-sm"
+                                                >
+                                                    {saving ? 'Salvando...' : 'Salvar configuração'}
+                                                </button>
+                                            )}
                                             {!canManageSessions && (
                                                 <p className="text-xs text-muted-foreground mt-2">
                                                     Você pode visualizar esta configuração, mas não tem permissão para alterá-la.
@@ -3206,15 +3249,16 @@ export default function Security() {
                                 </p>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={openNewCustomRoleForm}
-                                disabled={!canManageSecurity}
-                                className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <Plus size={16} />
-                                Nova função
-                            </button>
+                            {canManageSecurity && (
+                                <button
+                                    type="button"
+                                    onClick={openNewCustomRoleForm}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Plus size={16} />
+                                    Nova função
+                                </button>
+                            )}
                         </div>
 
                         {customRolesLoading ? (
@@ -3266,14 +3310,15 @@ export default function Security() {
                                                 )}
                                             </div>
 
-                                            <button
-                                                type="button"
-                                                onClick={() => openEditCustomRoleForm(role)}
-                                                disabled={!canManageSecurity}
-                                                className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                                            >
-                                                Editar
-                                            </button>
+                                            {canManageSecurity && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => openEditCustomRoleForm(role)}
+                                                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                                >
+                                                    Editar
+                                                </button>
+                                            )}
                                         </div>
 
                                         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -3480,14 +3525,16 @@ export default function Security() {
                                 Cancelar
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={handleSaveCustomRole}
-                                disabled={customRolesSaving}
-                                className="rounded-xl bg-brand-green px-4 py-2 text-sm font-bold text-white hover:bg-brand-green/90 disabled:opacity-50"
-                            >
-                                {customRolesSaving ? 'Salvando...' : 'Salvar função'}
-                            </button>
+                            {canManageSecurity && (
+                                <button
+                                    type="button"
+                                    onClick={handleSaveCustomRole}
+                                    disabled={customRolesSaving}
+                                    className="rounded-xl bg-brand-green px-4 py-2 text-sm font-bold text-white hover:bg-brand-green/90 disabled:opacity-50"
+                                >
+                                    {customRolesSaving ? 'Salvando...' : 'Salvar função'}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>

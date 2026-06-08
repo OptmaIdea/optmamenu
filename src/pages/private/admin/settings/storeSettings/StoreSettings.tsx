@@ -36,7 +36,12 @@ export default function StoreSettings() {
 
     const { permissions } = usePermissions(activeStoreId);
 
-    const canEditStoreSettings =
+    const canViewSettings =
+        isOwner ||
+        hasEffectivePermission(permissions, 'settings.view') ||
+        hasEffectivePermission(permissions, 'settings.manage');
+
+    const canManageSettings =
         isOwner ||
         hasEffectivePermission(permissions, 'settings.manage');
 
@@ -356,7 +361,7 @@ export default function StoreSettings() {
         e.preventDefault();
         setMessage('');
 
-        if (!canEditStoreSettings) {
+        if (!canManageSettings) {
             toast.error('Você não tem permissão para editar os dados da loja.');
             return;
         }
@@ -396,6 +401,22 @@ export default function StoreSettings() {
 
     if (loading) return <div className="p-8 flex justify-center"><Loader className="animate-spin text-brand-green" /></div>;
 
+    if (!canViewSettings) {
+        return (
+            <PageContainer
+                title="Dados da Loja"
+                subtitle="Preencha as informações para ativar seu cardápio digital."
+                category="Configurações"
+                icon={<UserCircle className="text-[#21A896]" size={28} />}
+                flat
+            >
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                    Você não tem permissão para acessar os dados da loja.
+                </div>
+            </PageContainer>
+        );
+    }
+
     const tabs = [
         { id: 'corporate', label: 'Dados Corporativos', icon: Building },
         { id: 'address', label: 'Endereço', icon: MapPin },
@@ -411,7 +432,7 @@ export default function StoreSettings() {
             icon={<UserCircle className="text-[#21A896]" size={28} />}
             flat
         >
-            {!canEditStoreSettings && (
+            {!canManageSettings && (
                 <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 mb-6 animate-fadeIn">
                     Você pode visualizar estes dados, mas não possui permissão para alterá-los.
                 </div>
@@ -437,7 +458,7 @@ export default function StoreSettings() {
                         )}
 
                         {/* Overlay for upload */}
-                        {canEditStoreSettings && (
+                        {canManageSettings && (
                             <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
                                 <label htmlFor="logo-upload" className="cursor-pointer text-white font-bold text-xs flex flex-col items-center">
                                     <span className="mb-1">Alterar</span>
@@ -446,7 +467,7 @@ export default function StoreSettings() {
                             </div>
                         )}
                     </div>
-                    {canEditStoreSettings && (
+                    {canManageSettings && (
                         <label htmlFor="logo-upload" className="absolute bottom-0 right-0 bg-brand-green text-white p-2 rounded-full shadow-md cursor-pointer hover:brightness-110 transition">
                             <User size={16} />
                         </label>
@@ -457,7 +478,7 @@ export default function StoreSettings() {
                         accept="image/*"
                         className="hidden"
                         onChange={handleLogoChange}
-                        disabled={!canEditStoreSettings}
+                        disabled={!canManageSettings}
                     />
                 </div>
 
@@ -487,9 +508,9 @@ export default function StoreSettings() {
                             value={userData?.name || ''}
                             onChange={e => setUserData(prev => prev ? { ...prev, name: e.target.value } : null)}
                             placeholder="Seu Nome"
-                            disabled={!canEditStoreSettings}
+                            disabled={!canManageSettings}
                         />
-                        {canEditStoreSettings && (
+                        {canManageSettings && (
                             <span className="text-xs text-brand-green cursor-pointer hover:underline" title="O nome será salvo ao clicar em 'Salvar Alterações'">Editar</span>
                         )}
                     </div>
@@ -526,7 +547,7 @@ export default function StoreSettings() {
                 {/* Tab Content */}
                 <div className="p-6 md:p-8">
                     {activeTab === 'corporate' && (
-                        <CorporateTab store={store} setStore={setStore} disabled={!canEditStoreSettings} />
+                        <CorporateTab store={store} setStore={setStore} disabled={!canManageSettings} />
                     )}
                     {activeTab === 'address' && (
                         <AddressTab
@@ -537,11 +558,11 @@ export default function StoreSettings() {
                             loadingCities={loadingCities}
                             searchingCep={searchingCep}
                             handleZipLookup={handleZipLookup}
-                            disabled={!canEditStoreSettings}
+                            disabled={!canManageSettings}
                         />
                     )}
                     {activeTab === 'contacts' && (
-                        <ContactsTab store={store} setStore={setStore} disabled={!canEditStoreSettings} />
+                        <ContactsTab store={store} setStore={setStore} disabled={!canManageSettings} />
                     )}
                     {activeTab === 'legal' && (
                         <LegalTab
@@ -550,13 +571,13 @@ export default function StoreSettings() {
                             templatePrivacyPolicy={TEMPLATE_PRIVACY_POLICY}
                             templateTermsOfUse={TEMPLATE_TERMS_OF_USE}
                             templateCookiePolicy={TEMPLATE_COOKIE_POLICY}
-                            disabled={!canEditStoreSettings}
+                            disabled={!canManageSettings}
                         />
                     )}
                 </div>
 
                 {/* Save Button Area */}
-                {canEditStoreSettings && (
+                {canManageSettings && (
                     <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end p-6 md:p-8">
                         <button
                             type="submit"

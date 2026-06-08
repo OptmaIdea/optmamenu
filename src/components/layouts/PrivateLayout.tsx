@@ -137,7 +137,7 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
-    const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
+    const { permissions, loading: loadingPermissions, refresh: refreshPermissions } = usePermissions(storeId ?? null);
     const can = (permissionCode: string | string[]) => {
         if (loadingPermissions) return true;
         if (activeMembership?.role === 'owner') return true;
@@ -223,7 +223,31 @@ export default function PrivateLayout() {
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
             { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
-            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso', permission: ['security.view', 'security.manage'] },
+            {
+                path: '/admin/security',
+                icon: Shield,
+                label: 'Senhas e Acesso',
+                permission: [
+                    'security.view',
+                    'security.manage',
+                    'security.context.view',
+                    'security.context.manage',
+                    'security.logs.view',
+                    'security.logs.manage',
+                    'security.roles.view',
+                    'security.roles.manage',
+                    'security.custom_roles.view',
+                    'security.custom_roles.manage',
+                    'security.user_permissions.view',
+                    'security.user_permissions.manage',
+                    'security.sensitive_actions.view',
+                    'security.sensitive_actions.manage',
+                    'security.pin_token.view',
+                    'security.pin_token.manage',
+                    'security.sessions.view',
+                    'security.sessions.manage',
+                ],
+            },
         ],
         support: [
             { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },
@@ -466,9 +490,9 @@ export default function PrivateLayout() {
 
     useOrderMonitor(storeId || undefined);
 
-    useRealtimeListener({
-        channelName: `layout_user_rt_${userId || 'pending'}`,
-        tables: userId ? [
+    const realtimeTables = useMemo(() => {
+        if (!userId) return [];
+        const list = [
             {
                 table: 'store_members',
                 filter: `user_id=eq.${userId}`,
@@ -477,8 +501,27 @@ export default function PrivateLayout() {
                 table: 'profiles',
                 filter: `id=eq.${userId}`,
             }
-        ] : [],
+        ];
+        if (activeMembership?.member_id) {
+            list.push({
+                table: 'store_member_permissions',
+                filter: `member_id=eq.${activeMembership.member_id}`,
+            });
+        }
+        if (storeId) {
+            list.push({
+                table: 'store_role_permissions',
+                filter: `store_id=eq.${storeId}`,
+            });
+        }
+        return list;
+    }, [userId, activeMembership?.member_id, storeId]);
+
+    useRealtimeListener({
+        channelName: `layout_user_rt_${userId || 'pending'}_${storeId || 'none'}`,
+        tables: realtimeTables,
         onChanged: () => {
+            refreshPermissions();
             window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
         },
         enabled: !!userId,
