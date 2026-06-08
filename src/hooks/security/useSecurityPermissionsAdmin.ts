@@ -16,7 +16,7 @@ type LoadingState = {
   saving: boolean;
 };
 
-export function useSecurityPermissionsAdmin() {
+export function useSecurityPermissionsAdmin(enabled = true) {
   const [permissionMatrix, setPermissionMatrix] = useState<StorePermissionMatrixRow[]>([]);
   const [sensitiveActions, setSensitiveActions] = useState<StoreSensitiveActionMatrixRow[]>([]);
   const [memberPermissionDetail, setMemberPermissionDetail] = useState<StoreMemberPermissionDetailRow[]>([]);
@@ -236,10 +236,11 @@ export function useSecurityPermissionsAdmin() {
   );
 
   useEffect(() => {
+    if (!enabled) return;
     void fetchPermissionMatrix();
     void fetchSensitiveActions();
     void fetchMembersForPermissions();
-  }, [fetchPermissionMatrix, fetchSensitiveActions, fetchMembersForPermissions]);
+  }, [enabled, fetchPermissionMatrix, fetchSensitiveActions, fetchMembersForPermissions]);
 
   return {
     storeId,

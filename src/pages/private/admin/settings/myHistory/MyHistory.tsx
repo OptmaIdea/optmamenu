@@ -16,49 +16,15 @@ import {
 import PageContainer from '@/components/common/PageContainer';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import {
-    getMyVisibleStoreMemberHistory,
-    type MyVisibleHistoryItem,
+    getMyVisibleActivityLogs,
+    type MyVisibleActivityLog,
 } from '@/services/myHistoryService';
 import { getActiveStoreId } from '@/utils/activeStore';
 
-// ─── Mapeamentos amigáveis ────────────────────────────────────────────────────
-
-const FRIENDLY_TYPE: Record<string, string> = {
-    // Sessão / Acesso
-    session_login: 'Login realizado',
-    session_logout: 'Logout realizado',
-    session_expired: 'Sessão expirada',
-    password_changed: 'Senha alterada',
-    profile_updated: 'Perfil atualizado',
-    avatar_updated: 'Foto de perfil atualizada',
-    // Ocorrências gerais
-    occurrence: 'Ocorrência registrada',
-    absence: 'Ausência registrada',
-    tardiness: 'Atraso registrado',
-    warning: 'Advertência',
-    commendation: 'Elogio registrado',
-    note: 'Anotação',
-    training: 'Treinamento concluído',
-    // Permissões
-    permission_changed: 'Permissões alteradas',
-    role_changed: 'Cargo alterado',
-    access_granted: 'Acesso liberado',
-    access_revoked: 'Acesso revogado',
-    // Pedidos/Estoque
-    order_created: 'Pedido criado',
-    stock_adjustment: 'Ajuste de estoque',
-    // Genérico
-    system: 'Evento do sistema',
-};
-
-function getFriendlyType(type: string | null | undefined): string {
-    if (!type) return 'Evento';
-    return FRIENDLY_TYPE[type] ?? type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 // ─── Gravidade ────────────────────────────────────────────────────────────────
 
-type Severity = MyVisibleHistoryItem['severity'];
+type Severity = 'info' | 'warning' | 'low' | 'medium' | 'high' | 'critical';
 
 const SEVERITY_CONFIG: Record<
     Severity,
@@ -116,43 +82,122 @@ const SEVERITY_CONFIG: Record<
 
 // ─── Formatadores ─────────────────────────────────────────────────────────────
 
-function formatDate(iso?: string | null): string {
-    if (!iso) return 'Data não informada';
+function formatBoolean(value: unknown) {
+    return value === true ? 'Sim' : value === false ? 'Não' : String(value ?? '');
+}
 
-    const d = new Date(iso);
+function translateRole(role: string) {
+    const map: Record<string, string> = {
+        owner: 'Proprietário',
+        admin: 'Administrador',
+        manager: 'Gerente',
+        stock: 'Estoque',
+        cashier: 'Caixa',
+        sales: 'Vendas',
+        staff: 'Equipe',
+        viewer: 'Visualizador',
+    };
 
-    if (Number.isNaN(d.getTime())) {
-        return 'Data inválida';
+    return map[role] ?? role;
+}
+
+function formatMyHistoryDetails(log: {
+    action?: string | null;
+    details?: Record<string, unknown> | null;
+}) {
+    const action = log.action ?? '';
+    const details = log.details ?? {};
+
+    if (action === 'store_idle_timeout_settings_updated') {
+        const enabled = details.idle_timeout_enabled;
+        const minutes = details.idle_timeout_minutes;
+
+        return [
+            `Encerramento por inatividade: ${formatBoolean(enabled)}`,
+            minutes ? `Tempo configurado: ${minutes} minutos` : null,
+        ]
+            .filter(Boolean)
+            .join(' • ');
     }
 
-    return d.toLocaleDateString('pt-BR', {
+    if (action === 'session_store_selected') {
+        const storeName = details.store_name;
+        const role = details.role;
+
+        return [
+            storeName ? `Loja acessada: ${storeName}` : null,
+            role ? `Função: ${translateRole(String(role))}` : null,
+        ]
+            .filter(Boolean)
+            .join(' • ');
+    }
+
+    if (action === 'session_disconnected') {
+        return (
+            String(details.description || '') ||
+            'Sessão encerrada automaticamente.'
+        );
+    }
+
+    if (action === 'store_member_profile_updated_by_self') {
+        const changedFields = details.changed_fields;
+
+        if (Array.isArray(changedFields) && changedFields.length > 0) {
+            return `Campos atualizados: ${changedFields.join(', ')}.`;
+        }
+
+        return 'Dados pessoais atualizados pelo próprio usuário.';
+    }
+
+    const message = details.message || details.description;
+
+    if (typeof message === 'string' && message.trim()) {
+        return message;
+    }
+
+    return 'Registro de atividade do usuário.';
+}
+
+function formatDateTimeBR(value: string | Date) {
+    return new Intl.DateTimeFormat('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
-    });
-}
-
-function formatTime(iso?: string | null): string {
-    if (!iso) return '';
-
-    const d = new Date(iso);
-
-    if (Number.isNaN(d.getTime())) {
-        return '';
-    }
-
-    return d.toLocaleTimeString('pt-BR', {
         hour: '2-digit',
         minute: '2-digit',
-    });
+    }).format(new Date(value));
+}
+
+function getActionLabel(action: string | null | undefined): string {
+    if (!action) return 'Ação desconhecida';
+    const labels: Record<string, string> = {
+        store_idle_timeout_settings_updated: 'Configurações de inatividade atualizadas',
+        session_store_selected: 'Loja selecionada',
+        session_disconnected: 'Sessão desconectada',
+        store_member_profile_updated_by_self: 'Perfil atualizado pelo próprio usuário',
+        login: 'Login efetuado',
+        logout: 'Logout efetuado',
+        user_session_event: 'Evento de sessão do usuário',
+    };
+    return labels[action] ?? action;
 }
 
 // ─── Card de item ─────────────────────────────────────────────────────────────
 
-function HistoryCard({ item }: { item: MyVisibleHistoryItem }) {
+function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
     const [expanded, setExpanded] = useState(false);
-    const sev = SEVERITY_CONFIG[item.severity] ?? SEVERITY_CONFIG.info;
-    const hasDescription = !!item.description?.trim();
+    
+    // Mapeamento dinâmico de gravidade com base no resultado (outcome)
+    const severity = item.outcome === 'failure' ? 'high' : 'info';
+    const sev = SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG.info;
+
+    // Formatação amigável do campo details
+    const descriptionText = useMemo(() => {
+        return formatMyHistoryDetails(item);
+    }, [item]);
+
+    const hasDescription = !!descriptionText.trim();
 
     return (
         <div
@@ -171,21 +216,10 @@ function HistoryCard({ item }: { item: MyVisibleHistoryItem }) {
                     {/* Data/Hora */}
                     <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
                         <ClockIcon size={12} />
-                        <span className="font-medium">{formatDate(item.event_at)}</span>
-                        {formatTime(item.event_at) && (
-                            <>
-                                <span>·</span>
-                                <span>{formatTime(item.event_at)}</span>
-                            </>
-                        )}
+                        <span className="font-medium">{formatDateTimeBR(item.created_at)}</span>
                     </div>
 
                     <span className="flex-1" />
-
-                    {/* Tipo amigável */}
-                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-semibold border border-gray-200 dark:border-gray-600">
-                        {item.event_label || getFriendlyType(item.event_type)}
-                    </span>
 
                     {/* Gravidade */}
                     <span
@@ -208,20 +242,20 @@ function HistoryCard({ item }: { item: MyVisibleHistoryItem }) {
 
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-gray-800 dark:text-gray-100 leading-snug">
-                            {item.title}
+                            {item.display_action || getActionLabel(item.action)}
                         </p>
 
                         {hasDescription && (
                             <>
                                 {!expanded && (
                                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 line-clamp-2">
-                                        {item.description}
+                                        {descriptionText}
                                     </p>
                                 )}
 
                                 {expanded && (
                                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 whitespace-pre-wrap">
-                                        {item.description}
+                                        {descriptionText}
                                     </p>
                                 )}
 
@@ -254,12 +288,13 @@ function HistoryCard({ item }: { item: MyVisibleHistoryItem }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function MyHistory() {
-    const [items, setItems] = useState<MyVisibleHistoryItem[]>([]);
+    const [items, setItems] = useState<MyVisibleActivityLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [dateFrom, setDateFrom] = useState<string>('');
     const [dateTo, setDateTo] = useState<string>('');
-    const [typeFilter, setTypeFilter] = useState<string>('all');
+    const [typeFilter, setTypeFilter] = useState<string>('');
+    const [outcomeFilter, setOutcomeFilter] = useState<string>('all');
     const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
     const storeId = getActiveStoreId();
@@ -274,28 +309,21 @@ export default function MyHistory() {
         try {
             setLoading(true);
             setError(null);
-            const data = await getMyVisibleStoreMemberHistory(storeId, 100);
-            const formatted = data.map((item) => {
-                if (
-                    item.event_type === 'note' &&
-                    item.metadata?.event_type === 'self_profile_update'
-                ) {
-                    return {
-                        ...item,
-                        title: 'Dados atualizados',
-                        description: 'Dados de contato ou endereço atualizados pelo próprio usuário.',
-                    };
-                }
-                return item;
+            const data = await getMyVisibleActivityLogs({
+                storeId,
+                startDate: dateFrom || null,
+                endDate: dateTo || null,
+                actionFilter: typeFilter.trim() || null,
+                outcomeFilter: outcomeFilter === 'all' ? null : outcomeFilter || null
             });
-            setItems(formatted);
+            setItems(data);
         } catch (err: unknown) {
             console.error('Erro ao carregar histórico:', err);
             setError('Não foi possível carregar o histórico. Tente novamente.');
         } finally {
             setLoading(false);
         }
-    }, [storeId]);
+    }, [storeId, dateFrom, dateTo, typeFilter, outcomeFilter]);
 
     useEffect(() => {
         fetchHistory();
@@ -303,52 +331,21 @@ export default function MyHistory() {
 
     useRefreshFrame(fetchHistory);
 
-    const availableTypes = useMemo(() => {
-        const set = new Set<string>();
-        items.forEach((item) => {
-            if (item.event_type) set.add(item.event_type);
-        });
-        return Array.from(set).sort();
-    }, [items]);
-
     const filteredItems = useMemo(() => {
-        return items
-            .filter((item) => {
-                if (typeFilter !== 'all' && item.event_type !== typeFilter) {
-                    return false;
-                }
+        return [...items].sort((a, b) => {
+            const aDate = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bDate = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return sortOrder === 'desc' ? bDate - aDate : aDate - bDate;
+        });
+    }, [items, sortOrder]);
 
-                if (!item.event_at) {
-                    return !dateFrom && !dateTo;
-                }
-
-                const eventDate = new Date(item.event_at);
-
-                if (dateFrom) {
-                    const from = new Date(`${dateFrom}T00:00:00`);
-                    if (eventDate < from) return false;
-                }
-
-                if (dateTo) {
-                    const to = new Date(`${dateTo}T23:59:59`);
-                    if (eventDate > to) return false;
-                }
-
-                return true;
-            })
-            .sort((a, b) => {
-                const aDate = a.event_at ? new Date(a.event_at).getTime() : 0;
-                const bDate = b.event_at ? new Date(b.event_at).getTime() : 0;
-                return sortOrder === 'desc' ? bDate - aDate : aDate - bDate;
-            });
-    }, [items, dateFrom, dateTo, typeFilter, sortOrder]);
-
-    const hasActiveFilters = !!dateFrom || !!dateTo || typeFilter !== 'all' || sortOrder !== 'desc';
+    const hasActiveFilters = !!dateFrom || !!dateTo || !!typeFilter || outcomeFilter !== 'all' || sortOrder !== 'desc';
 
     const handleClearFilters = () => {
         setDateFrom('');
         setDateTo('');
-        setTypeFilter('all');
+        setTypeFilter('');
+        setOutcomeFilter('all');
         setSortOrder('desc');
     };
 
@@ -437,7 +434,7 @@ export default function MyHistory() {
                             )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                             <div>
                                 <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
                                     De
@@ -466,19 +463,29 @@ export default function MyHistory() {
 
                             <div>
                                 <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
-                                    Tipo
+                                    Ação
                                 </label>
-                                <select
+                                <input
+                                    type="text"
+                                    placeholder="Ex: login, update"
                                     value={typeFilter}
                                     onChange={(e) => setTypeFilter(e.target.value)}
                                     className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
+                                    Resultado
+                                </label>
+                                <select
+                                    value={outcomeFilter}
+                                    onChange={(e) => setOutcomeFilter(e.target.value)}
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
                                 >
-                                    <option value="all">Todos os tipos</option>
-                                    {availableTypes.map((t) => (
-                                        <option key={t} value={t}>
-                                            {getFriendlyType(t)}
-                                        </option>
-                                    ))}
+                                    <option value="all">Todos os resultados</option>
+                                    <option value="success">Sucesso</option>
+                                    <option value="failure">Falha</option>
                                 </select>
                             </div>
 
@@ -554,7 +561,7 @@ export default function MyHistory() {
 
                         <div className="space-y-3">
                             {filteredItems.map((item, idx) => (
-                                <HistoryCard key={item.event_id ?? `history-${idx}`} item={item} />
+                                <HistoryCard key={item.id ?? `history-${idx}`} item={item} />
                             ))}
                         </div>
 

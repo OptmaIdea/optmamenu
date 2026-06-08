@@ -1,30 +1,37 @@
 import { supabase } from '@/lib/supabase';
 
-export interface MyVisibleHistoryItem {
-    event_id: string;
-    event_at: string;
-    event_type: string | null;
-    event_label: string | null;
-    title: string;
-    description: string | null;
-    severity: 'info' | 'warning' | 'low' | 'medium' | 'high' | 'critical';
-    visible_to_member: boolean;
-    metadata?: Record<string, unknown> | null;
+export interface MyVisibleActivityLog {
+    id: string;
+    created_at: string;
+    action: string;
+    display_action: string;
+    outcome: 'success' | 'failure';
+    details: Record<string, unknown> | null;
 }
 
-export async function getMyVisibleStoreMemberHistory(
-    storeId: string,
-    limit = 100
-): Promise<MyVisibleHistoryItem[]> {
+export interface GetMyVisibleActivityLogsParams {
+    storeId: string;
+    startDate?: string | null;
+    endDate?: string | null;
+    actionFilter?: string | null;
+    outcomeFilter?: string | null;
+}
+
+export async function getMyVisibleActivityLogs(
+    params: GetMyVisibleActivityLogsParams
+): Promise<MyVisibleActivityLog[]> {
     const { data, error } = await supabase.rpc(
-        'get_my_visible_store_member_history',
+        'get_my_visible_activity_logs',
         {
-            p_store_id: storeId,
-            p_limit: limit,
+            p_store_id: params.storeId,
+            p_start_date: params.startDate || null,
+            p_end_date: params.endDate || null,
+            p_action: params.actionFilter || null,
+            p_outcome: params.outcomeFilter === 'all' ? null : params.outcomeFilter || null,
         }
     );
 
     if (error) throw error;
 
-    return Array.isArray(data) ? (data as MyVisibleHistoryItem[]) : [];
+    return Array.isArray(data) ? (data as MyVisibleActivityLog[]) : [];
 }

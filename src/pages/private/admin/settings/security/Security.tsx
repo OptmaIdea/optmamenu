@@ -204,6 +204,8 @@ function formatSecurityLogAction(action?: string): string {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+const getActionLabel = formatSecurityLogAction;
+
 function getStringDetail(
     details: Record<string, unknown> | null | undefined,
     key: string
@@ -418,14 +420,50 @@ const ROLE_PERMISSION_COLUMNS = [
 ] as const;
 
 const VALID_TAB_IDS = [
-    'context',
+    'access_context',
     'logs',
     'roles',
     'custom_roles',
-    'users_perms',
+    'user_permissions',
     'sensitive_actions',
     'pin_token',
+    'session_inactive',
 ];
+
+const securityTabPermissions = {
+  access_context: {
+    view: ['security.context.view', 'security.context.manage', 'security.view', 'security.manage'],
+    manage: ['security.context.manage', 'security.manage'],
+  },
+  logs: {
+    view: ['security.logs.view', 'security.logs.manage', 'security.manage'],
+    manage: ['security.logs.manage', 'security.manage'],
+  },
+  roles: {
+    view: ['security.roles.view', 'security.roles.manage', 'security.manage'],
+    manage: ['security.roles.manage', 'security.manage'],
+  },
+  custom_roles: {
+    view: ['security.custom_roles.view', 'security.custom_roles.manage', 'security.manage'],
+    manage: ['security.custom_roles.manage', 'security.manage'],
+  },
+  user_permissions: {
+    view: ['security.user_permissions.view', 'security.user_permissions.manage', 'security.manage'],
+    manage: ['security.user_permissions.manage', 'security.manage'],
+  },
+  sensitive_actions: {
+    view: ['security.sensitive_actions.view', 'security.sensitive_actions.manage', 'security.manage'],
+    manage: ['security.sensitive_actions.manage', 'security.manage'],
+  },
+  pin_token: {
+    view: ['security.pin_token.view', 'security.pin_token.manage', 'security.manage'],
+    manage: ['security.pin_token.manage', 'security.manage'],
+  },
+  session_inactive: {
+    view: ['security.sessions.view', 'security.sessions.manage', 'security.view', 'security.manage'],
+    manage: ['security.sessions.manage', 'security.manage'],
+  },
+} as const;
 
 const SENSITIVE_REQUIREMENT_OPTIONS = [
     { value: 'none', label: 'Nenhuma' },
@@ -450,6 +488,92 @@ const ROLE_OPTIONS = [
 
 export default function Security() {
     const {
+        securityContext,
+        loading: loadingSecurityContext,
+        refresh: refreshSecurityContext,
+        isOwner,
+        isAdminLike,
+        hasPin,
+    } = useSecurityContext();
+
+    const activeMembership = resolveActiveMembership(
+        securityContext?.memberships,
+        securityContext?.primary_membership
+    );
+
+    const currentStoreId = activeMembership?.store_id ?? getActiveStoreId();
+    const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
+    const currentStoreSlug = activeMembership?.store_slug ?? '';
+    const currentRole = activeMembership?.role ?? null;
+
+    const {
+        permissions,
+        loading: loadingPermissions,
+        permissionsByModule,
+        allowedPermissions,
+        getActionRequirement,
+    } = usePermissions(currentStoreId);
+
+    const checkTabPermission = useCallback((tabId: keyof typeof securityTabPermissions, type: 'view' | 'manage') => {
+        if (isOwner) return true;
+        const requiredPerms = securityTabPermissions[tabId]?.[type];
+        if (!requiredPerms) return false;
+        return requiredPerms.some((perm) => hasEffectivePermission(permissions, perm));
+    }, [isOwner, permissions]);
+
+    const canViewSecurity = useMemo(() => {
+        if (isOwner) return true;
+        return Object.keys(securityTabPermissions).some((tabKey) => {
+            const requiredPerms = securityTabPermissions[tabKey as keyof typeof securityTabPermissions]?.view;
+            return requiredPerms.some((perm) => hasEffectivePermission(permissions, perm));
+        });
+    }, [isOwner, permissions]);
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
+    const tabFromUrl = searchParams.get('tab');
+    const [activeTab, setActiveTabState] = useState(
+        tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'access_context'
+    );
+
+    const canManageSecurity = useMemo(() => {
+        if (isOwner) return true;
+        const tabKeyMap: Record<string, keyof typeof securityTabPermissions> = {
+            access_context: 'access_context',
+            logs: 'logs',
+            roles: 'roles',
+            custom_roles: 'custom_roles',
+            user_permissions: 'user_permissions',
+            sensitive_actions: 'sensitive_actions',
+            pin_token: 'pin_token',
+            session_inactive: 'session_inactive'
+        };
+        const currentTabKey = tabKeyMap[activeTab];
+        if (!currentTabKey) return false;
+        
+        const requiredPerms = securityTabPermissions[currentTabKey]?.manage;
+        return requiredPerms.some((perm) => hasEffectivePermission(permissions, perm));
+    }, [isOwner, permissions, activeTab]);
+
+    const canManageSessions = useMemo(() => {
+        return checkTabPermission('session_inactive', 'manage');
+    }, [checkTabPermission]);
+
+    const canAccessAdminPermissions = useMemo(() => {
+        const adminTabs: Record<string, keyof typeof securityTabPermissions> = {
+            roles: 'roles',
+            custom_roles: 'custom_roles',
+            user_permissions: 'user_permissions',
+            sensitive_actions: 'sensitive_actions'
+        };
+        return Object.keys(adminTabs).some((tab) => checkTabPermission(tab as keyof typeof securityTabPermissions, 'view'));
+    }, [checkTabPermission]);
+
+    const canAccessCustomRoles = useMemo(() => {
+        return checkTabPermission('custom_roles', 'view');
+    }, [checkTabPermission]);
+
+    const {
         permissionMatrix,
         sensitiveActions: sensitiveActionsMatrix,
         memberPermissionDetail,
@@ -462,14 +586,16 @@ export default function Security() {
         fetchMemberPermissionDetail,
         updateMemberPermissions,
         fetchMembersForPermissions,
-    } = useSecurityPermissionsAdmin();
+    } = useSecurityPermissionsAdmin(canAccessAdminPermissions);
 
-    const [searchParams, setSearchParams] = useSearchParams();
-    const navigate = useNavigate();
-    const tabFromUrl = searchParams.get('tab');
-    const [activeTab, setActiveTabState] = useState(
-        tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'context'
-    );
+    const {
+        items: customRoles,
+        loading: customRolesLoading,
+        saving: customRolesSaving,
+        refresh: refreshCustomRoles,
+        createCustomRole,
+        updateCustomRole,
+    } = useStoreCustomRoles(canAccessCustomRoles);
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
@@ -497,14 +623,6 @@ export default function Security() {
 
     const [selectedMemberId, setSelectedMemberId] = useState('');
 
-    const {
-        items: customRoles,
-        loading: customRolesLoading,
-        saving: customRolesSaving,
-        refresh: refreshCustomRoles,
-        createCustomRole,
-        updateCustomRole,
-    } = useStoreCustomRoles(true);
 
     const [customRoleForm, setCustomRoleForm] = useState<{
         id?: string;
@@ -585,49 +703,10 @@ export default function Security() {
         await refreshCustomRoles();
     };
     const [memberPermissionOverrides, setMemberPermissionOverrides] = useState<Record<string, boolean>>({});
-    const {
-        securityContext,
-        loading: loadingSecurityContext,
-        refresh: refreshSecurityContext,
-        isOwner,
-        isAdminLike,
-        hasPin,
-    } = useSecurityContext();
-
-    const activeMembership = resolveActiveMembership(
-        securityContext?.memberships,
-        securityContext?.primary_membership
-    );
-
-    const currentStoreId = activeMembership?.store_id ?? getActiveStoreId();
-    const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
-    const currentStoreSlug = activeMembership?.store_slug ?? '';
-    const currentRole = activeMembership?.role ?? null;
 
     const selectableMembers = useMemo(() => {
         return membersForPermissions.filter((member) => member.role !== 'owner');
     }, [membersForPermissions]);
-
-    const {
-        permissions,
-        loading: loadingPermissions,
-        permissionsByModule,
-        allowedPermissions,
-        getActionRequirement,
-    } = usePermissions(currentStoreId);
-    const canManageSecurity =
-        isOwner || hasEffectivePermission(permissions, 'security.manage');
-
-    const canViewSessionSettings =
-        isOwner ||
-        hasEffectivePermission(permissions, 'security.sessions.view') ||
-        hasEffectivePermission(permissions, 'security.sessions.manage') ||
-        hasEffectivePermission(permissions, 'security.manage');
-
-    const canManageSessions =
-        isOwner ||
-        hasEffectivePermission(permissions, 'security.sessions.manage') ||
-        hasEffectivePermission(permissions, 'security.manage');
 
     const [logFilters, setLogFilters] = useState({
         dateFrom: '',
@@ -717,14 +796,13 @@ export default function Security() {
         setTableMissing(false);
 
         try {
-            const { data, error } = await supabase.rpc('get_store_security_logs', {
+            const { data, error } = await supabase.rpc('get_store_security_activity_logs', {
                 p_store_id: store.id,
-                p_limit: 200,
-                p_date_from: logFilters.dateFrom || null,
-                p_date_to: logFilters.dateTo || null,
-                p_user: logFilters.user.trim() || null,
-                p_action: logFilters.action.trim() || null,
-                p_outcome: logFilters.outcome || null
+                p_start_date: logFilters.dateFrom || null,
+                p_end_date: logFilters.dateTo || null,
+                p_user_filter: logFilters.user.trim() || null,
+                p_action_filter: logFilters.action.trim() || null,
+                p_outcome: logFilters.outcome === 'all' || !logFilters.outcome ? null : logFilters.outcome
             });
 
             if (error) {
@@ -760,10 +838,10 @@ export default function Security() {
     }, []);
 
     useEffect(() => {
-        if (store?.id) {
+        if (store?.id && checkTabPermission('logs', 'view') && activeTab === 'logs') {
             fetchLogs();
         }
-    }, [store?.id, fetchLogs]);
+    }, [store?.id, checkTabPermission, activeTab, fetchLogs]);
 
     useEffect(() => {
         const today = new Date();
@@ -789,6 +867,7 @@ export default function Security() {
     }, [hasPin]);
 
     useEffect(() => {
+        if (!checkTabPermission('user_permissions', 'manage')) return;
         if (!selectedMemberId) {
             setMemberPermissionOverrides({});
             return;
@@ -805,7 +884,7 @@ export default function Security() {
 
             setMemberPermissionOverrides(overrides);
         });
-    }, [selectedMemberId, fetchMemberPermissionDetail]);
+    }, [selectedMemberId, fetchMemberPermissionDetail, checkTabPermission]);
 
     // Initial data
     const fetchInitialData = useCallback(async () => {
@@ -824,14 +903,30 @@ export default function Security() {
                 ? adminDataRaw[0]
                 : adminDataRaw;
 
-            const { data: storeSettings, error: storeSettingsError } = await supabase
+            const { data: storeConfig, error: storeConfigError } = await supabase
                 .from('stores')
-                .select('token_expiry_seconds, max_token_attempts, idle_timeout_enabled, idle_timeout_minutes')
+                .select('token_expiry_seconds, max_token_attempts')
                 .eq('id', activeStoreId)
                 .single();
 
-            if (storeSettingsError) {
-                console.error('Erro ao buscar configurações avançadas da loja:', storeSettingsError);
+            if (storeConfigError) {
+                console.error('Erro ao buscar configurações avançadas da loja:', storeConfigError);
+            }
+
+            const { data: idleConfigData, error: idleConfigError } = await supabase.rpc(
+                'get_store_security_settings',
+                {
+                    p_store_id: activeStoreId,
+                }
+            );
+
+            let idleConfig = null;
+            if (idleConfigError) {
+                console.error('Erro ao buscar configurações de inatividade:', idleConfigError);
+            } else {
+                idleConfig = Array.isArray(idleConfigData)
+                    ? idleConfigData[0]
+                    : idleConfigData;
             }
 
             if (adminStore) {
@@ -839,19 +934,19 @@ export default function Security() {
                     ...adminStore,
                     id: adminStore.id || activeStoreId,
                     token_expiry_seconds:
-                        storeSettings?.token_expiry_seconds ??
+                        storeConfig?.token_expiry_seconds ??
                         adminStore.token_expiry_seconds ??
                         15,
                     max_token_attempts:
-                        storeSettings?.max_token_attempts ??
+                        storeConfig?.max_token_attempts ??
                         adminStore.max_token_attempts ??
                         3,
                     idle_timeout_enabled:
-                        storeSettings?.idle_timeout_enabled ??
+                        idleConfig?.idle_timeout_enabled ??
                         adminStore.idle_timeout_enabled ??
                         true,
                     idle_timeout_minutes:
-                        storeSettings?.idle_timeout_minutes ??
+                        idleConfig?.idle_timeout_minutes ??
                         adminStore.idle_timeout_minutes ??
                         30,
                 };
@@ -1196,22 +1291,37 @@ export default function Security() {
     };
 
     const handleSaveIdleTimeout = async () => {
-        if (!store) return;
+        if (!store?.id) {
+            toast.error('Loja ativa não encontrada.');
+            return;
+        }
+
+        if (!canManageSessions) {
+            toast.error('Você não tem permissão para alterar configurações de sessão.');
+            return;
+        }
+
         setSaving(true);
         try {
-            const { error: updateError } = await supabase
-                .from('stores')
-                .update({
-                    idle_timeout_enabled: idleTimeoutEnabled,
-                    idle_timeout_minutes: idleTimeoutMinutes,
-                })
-                .eq('id', store.id);
+            const { data, error: updateError } = await supabase.rpc(
+                'update_store_idle_timeout_settings',
+                {
+                    p_store_id: store.id,
+                    p_idle_timeout_enabled: idleTimeoutEnabled,
+                    p_idle_timeout_minutes: idleTimeoutMinutes,
+                }
+            );
 
             if (updateError) throw updateError;
 
-            toast.success('Configuração de inatividade salva com sucesso!');
+            const updated = Array.isArray(data) ? data[0] : data;
+
+            setIdleTimeoutEnabled(updated?.idle_timeout_enabled ?? idleTimeoutEnabled);
+            setIdleTimeoutMinutes(updated?.idle_timeout_minutes ?? idleTimeoutMinutes);
+
+            toast.success('Configuração de sessão atualizada com sucesso.');
             await logAction(
-                'Alteração de Configurações de Inatividade',
+                'store_idle_timeout_settings_updated',
                 { enabled: idleTimeoutEnabled, minutes: idleTimeoutMinutes },
                 'success'
             );
@@ -1226,22 +1336,22 @@ export default function Security() {
     };
 
     const tabs = useMemo(() => [
-        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: isOwner || hasEffectivePermission(permissions, 'security.view') },
-        { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: isOwner || hasEffectivePermission(permissions, 'security.logs.view') },
-        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
-        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
-        { id: 'users_perms', label: 'Permissões por usuário', icon: User, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
-        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock, canAccess: isOwner || hasEffectivePermission(permissions, 'security.sensitive_actions.view') },
-        { id: 'pin_token', label: 'PIN e token', icon: Key, canAccess: isOwner || hasEffectivePermission(permissions, 'security.manage') },
-        { id: 'session_inactive', label: 'Sessão e inatividade', icon: Clock, canAccess: canViewSessionSettings },
-    ], [isOwner, permissions, canViewSessionSettings]);
+        { id: 'access_context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: checkTabPermission('access_context', 'view') },
+        { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: checkTabPermission('logs', 'view') },
+        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck, canAccess: checkTabPermission('roles', 'view') },
+        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield, canAccess: checkTabPermission('custom_roles', 'view') },
+        { id: 'user_permissions', label: 'Permissões por usuário', icon: User, canAccess: checkTabPermission('user_permissions', 'view') },
+        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock, canAccess: checkTabPermission('sensitive_actions', 'view') },
+        { id: 'pin_token', label: 'PIN e token', icon: Key, canAccess: checkTabPermission('pin_token', 'view') },
+        { id: 'session_inactive', label: 'Sessão e inatividade', icon: Clock, canAccess: checkTabPermission('session_inactive', 'view') },
+    ], [checkTabPermission]);
 
     const allowedTabs = useMemo(() => tabs.filter((tab) => tab.canAccess), [tabs]);
 
     useEffect(() => {
         if (loadingSecurityContext || loadingPermissions) return;
 
-        const tabToCheck = tabFromUrl || 'context';
+        const tabToCheck = tabFromUrl || 'access_context';
         const targetTabConfig = tabs.find((t) => t.id === tabToCheck);
 
         if (!targetTabConfig || !targetTabConfig.canAccess) {
@@ -1254,8 +1364,8 @@ export default function Security() {
             }
         } else if (tabFromUrl && tabFromUrl !== activeTab) {
             setActiveTabState(tabFromUrl);
-        } else if (!tabFromUrl && activeTab !== 'context') {
-            setActiveTabState('context');
+        } else if (!tabFromUrl && activeTab !== 'access_context') {
+            setActiveTabState('access_context');
         }
     }, [
         tabFromUrl,
@@ -1288,7 +1398,7 @@ export default function Security() {
             }
 
             if (logFilters.action.trim()) {
-                const actionValue = `${log.action || ''} ${formatSecurityLogAction(log.action)}`.toLowerCase();
+                const actionValue = `${log.action || ''} ${log.display_action || ''} ${formatSecurityLogAction(log.action)}`.toLowerCase();
                 if (!actionValue.includes(logFilters.action.trim().toLowerCase())) return false;
             }
 
@@ -1460,11 +1570,35 @@ export default function Security() {
         }
     };
 
-    if (loading) {
+    if (loading || loadingPermissions || loadingSecurityContext) {
         return (
             <div className="p-8 flex justify-center">
                 <Loader className="animate-spin text-brand-green" />
             </div>
+        );
+    }
+
+    if (!canViewSecurity && !canManageSecurity) {
+        return (
+            <PageContainer
+                title="Senhas e Acesso"
+                subtitle="Gerencie as configurações de segurança, PIN, senhas master e permissões da equipe."
+                category="Configurações"
+                icon={<Shield className="text-[#21A896]" size={28} />}
+                flat
+            >
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
+                        <Lock size={48} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                        Acesso Não Autorizado
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
+                        Você não possui permissão de segurança necessária para acessar as configurações de Senhas e Acesso. Entre em contato com o administrador da loja se achar que isso é um erro.
+                    </p>
+                </div>
+            </PageContainer>
         );
     }
 
@@ -1590,7 +1724,7 @@ export default function Security() {
                     )}
 
                     {/* CONTEXTO DE ACESSO */}
-                    <div className={activeTab === 'context' ? 'block animate-fadeIn' : 'hidden'}>
+                    <div className={activeTab === 'access_context' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
@@ -2036,7 +2170,7 @@ export default function Security() {
                                                 <td className="p-3 text-gray-800 dark:text-gray-200">
                                                     <div className="max-w-xl">
                                                         <p className="font-bold">
-                                                            {formatSecurityLogAction(log.action)}
+                                                            {log.display_action || getActionLabel(log.action)}
                                                         </p>
 
                                                         {formatSecurityLogDetails(log) && (
@@ -2193,7 +2327,7 @@ export default function Security() {
                     </div>
 
                     {/* PERMISSÕES POR USUÁRIO */}
-                    <div className={activeTab === 'users_perms' ? 'block animate-fadeIn' : 'hidden'}>
+                    <div className={activeTab === 'user_permissions' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
@@ -3026,6 +3160,11 @@ export default function Security() {
                                             >
                                                 {saving ? 'Salvando...' : 'Salvar configuração'}
                                             </button>
+                                            {!canManageSessions && (
+                                                <p className="text-xs text-muted-foreground mt-2">
+                                                    Você pode visualizar esta configuração, mas não tem permissão para alterá-la.
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -80,10 +80,10 @@ export default function MyProfileChangeRequestsTab({
     const [requestDateFrom, setRequestDateFrom] = useState('');
     const [requestDateTo, setRequestDateTo] = useState('');
     const [requestSortOrder, setRequestSortOrder] = useState<string>('created_desc');
-    const [collapsedRequests, setCollapsedRequests] = useState<Record<string, boolean>>({});
+    const [expandedRequests, setExpandedRequests] = useState<Record<string, boolean>>({});
 
     const toggleRequestCollapse = (requestId: string) => {
-        setCollapsedRequests((prev) => ({
+        setExpandedRequests((prev) => ({
             ...prev,
             [requestId]: !prev[requestId],
         }));
@@ -351,7 +351,7 @@ export default function MyProfileChangeRequestsTab({
                                         {getRequestTitle(request)}
                                     </p>
 
-                                    {!collapsedRequests[request.request_id] && (
+                                    {expandedRequests[request.request_id] && (
                                         <>
                                             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                                 {request.reason}
@@ -459,17 +459,17 @@ export default function MyProfileChangeRequestsTab({
                                             type="button"
                                             onClick={() => toggleRequestCollapse(request.request_id)}
                                             className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition cursor-pointer flex items-center justify-center"
-                                            title={collapsedRequests[request.request_id] ? "Expandir" : "Recolher"}
+                                            title={expandedRequests[request.request_id] ? "Recolher" : "Expandir"}
                                         >
-                                            {collapsedRequests[request.request_id] ? (
-                                                <ChevronDown size={14} />
-                                            ) : (
+                                            {expandedRequests[request.request_id] ? (
                                                 <ChevronUp size={14} />
+                                            ) : (
+                                                <ChevronDown size={14} />
                                             )}
                                         </button>
                                     </div>
 
-                                    {!collapsedRequests[request.request_id] && request.status === 'pending' && (
+                                    {expandedRequests[request.request_id] && request.status === 'pending' && (
                                         <button
                                             type="button"
                                             onClick={() => void handleCancelMyRequest(request)}
@@ -481,7 +481,7 @@ export default function MyProfileChangeRequestsTab({
                                 </div>
                             </div>
 
-                            {!collapsedRequests[request.request_id] && (
+                            {expandedRequests[request.request_id] && (
                                 <div className="mt-2 flex flex-col gap-1 text-[11px] text-gray-400">
                                     <p>Criada em {new Date(request.created_at).toLocaleString('pt-BR')}</p>
                                     {request.reviewed_at && (

@@ -223,7 +223,7 @@ export default function PrivateLayout() {
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
             { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
-            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso', permission: 'security.view' },
+            { path: '/admin/security', icon: Shield, label: 'Senhas e Acesso', permission: ['security.view', 'security.manage'] },
         ],
         support: [
             { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },

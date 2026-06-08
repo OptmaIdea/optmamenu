@@ -12,6 +12,7 @@ export interface SecurityLog {
     id: string;
     created_at: string;
     action: string;
+    display_action?: string | null;
     user_email: string;
     user_name?: string | null;
     details: Record<string, unknown>;

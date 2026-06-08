@@ -215,7 +215,14 @@ export default function AppRoutes() {
             />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
-            <Route path="/admin/security" element={<Security />} />
+            <Route
+              path="/admin/security"
+              element={
+                <RequirePermission permission={['security.view', 'security.manage']}>
+                  <Security />
+                </RequirePermission>
+              }
+            />
 
             //Help Section
             <Route path="/admin/legal" element={<Legal />} />

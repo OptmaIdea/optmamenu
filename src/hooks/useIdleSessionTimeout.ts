@@ -51,30 +51,31 @@ export function useIdleSessionTimeout() {
         if (!activeStoreId) return;
 
         try {
-            const { data, error } = await supabase
-                .from('stores')
-                .select('idle_timeout_enabled, idle_timeout_minutes, idle_timeout_exempt_routes')
-                .eq('id', activeStoreId)
-                .single();
+            const { data, error } = await supabase.rpc('get_store_security_settings', {
+                p_store_id: activeStoreId,
+            });
 
-            if (error) throw error;
-
-            if (data) {
-                setSettings({
-                    idle_timeout_enabled: data.idle_timeout_enabled ?? true,
-                    idle_timeout_minutes: data.idle_timeout_minutes ?? 30,
-                    idle_timeout_exempt_routes: data.idle_timeout_exempt_routes ?? [
-                        '/admin',
-                        '/admin/dashboard',
-                        '/admin/orders',
-                        '/admin/recent-activities',
-                        '/admin/products',
-                        '/admin/stock',
-                        '/admin/stock-locations',
-                        '/admin/stock-movements',
-                    ],
-                });
+            if (error) {
+                console.error('Erro ao carregar configurações de inatividade:', error);
+                return;
             }
+
+            const settingsData = Array.isArray(data) ? data[0] : data;
+
+            setSettings({
+                idle_timeout_enabled: settingsData?.idle_timeout_enabled ?? true,
+                idle_timeout_minutes: settingsData?.idle_timeout_minutes ?? 30,
+                idle_timeout_exempt_routes: settingsData?.idle_timeout_exempt_routes ?? [
+                    '/admin',
+                    '/admin/dashboard',
+                    '/admin/orders',
+                    '/admin/recent-activities',
+                    '/admin/products',
+                    '/admin/stock',
+                    '/admin/stock-locations',
+                    '/admin/stock-movements',
+                ],
+            });
         } catch (err) {
             console.error('Erro ao carregar configurações de inatividade:', err);
         }
