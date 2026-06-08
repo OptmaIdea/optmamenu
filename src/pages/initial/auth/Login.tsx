@@ -5,6 +5,7 @@ import { Mail, Lock, ArrowRight, AlertCircle, Store, CheckCircle, Eye, EyeOff } 
 import { toast } from 'sonner';
 import { clearActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
 import type { LoginStoreOption } from '@/types/security';
+import { markSessionAsActive } from '@/utils/sessionSecurity';
 
 function formatLoginRole(role: string | null | undefined): string {
   const labels: Record<string, string> = {
@@ -58,6 +59,7 @@ export default function Login() {
     setActiveStoreId(storeId);
 
     sessionStorage.setItem('optmamenu.session.start', new Date().toISOString());
+    markSessionAsActive();
 
     await logSessionEvent(storeId, 'session_store_selected', {
       source: 'login',

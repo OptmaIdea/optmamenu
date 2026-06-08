@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission } from '@/utils/permissions';
+import { hasEffectivePermission, hasAnyEffectivePermission } from '@/utils/permissions';
 import { getActiveStoreId } from '@/utils/activeStore';
 import PageContainer from '@/components/common/PageContainer';
 import { ShieldAlert, AlertTriangle } from 'lucide-react';
 
 type RequirePermissionProps = {
-  permission: string;
+  permission: string | string[];
   children: React.ReactNode;
 };
 
@@ -24,7 +24,14 @@ export function RequirePermission({ permission, children }: RequirePermissionPro
   ) || securityContext?.primary_membership || null;
 
   const isOwner = activeMembership?.role === 'owner';
-  const hasAccess = Boolean(activeStoreId && activeMembership && (isOwner || hasEffectivePermission(permissions, permission)));
+  const hasAccess = Boolean(
+    activeStoreId &&
+    activeMembership &&
+    (isOwner ||
+      (Array.isArray(permission)
+        ? hasAnyEffectivePermission(permissions, permission)
+        : hasEffectivePermission(permissions, permission)))
+  );
 
   useEffect(() => {
     if (!securityLoading && !permissionsLoading && !hasAccess) {
@@ -74,7 +81,7 @@ export function RequirePermission({ permission, children }: RequirePermissionPro
             "Não foi possível identificar seu vínculo ativo com a loja. Você está sendo redirecionado por segurança."
           ) : (
             <>
-              Esta área é restrita a administradores ou colaboradores com a permissão <strong>{permission}</strong>. Se você precisar de acesso, solicite ao proprietário do estabelecimento.
+              Esta área é restrita a colaboradores com a permissão <strong>{Array.isArray(permission) ? permission.join(' ou ') : permission}</strong>. Se você precisar de acesso, solicite ao proprietário do estabelecimento.
             </>
           )}
         </p>

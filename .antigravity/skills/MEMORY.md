@@ -17,6 +17,13 @@ As seguintes regras de comunicação são **obrigatórias e não negociáveis** 
    - Qualquer outro arquivo de documentação no workspace
 3. **Tom de Voz**: A comunicação deve ser **profissional, clara, objetiva e amigável**.
 
+
+---
+
+## 📋 Regras Obrigatórias de Desenvolvimento e Documentação
+
+1. **Atualização da Estrutura**: A cada alteração na estrutura física do projeto (adição, remoção ou movimentação de arquivos/diretórios), o arquivo [docs/ESTRUTURA.md](file:///d:/optmamenu/docs/ESTRUTURA.md) deve ser atualizado obrigatoriamente para refletir o estado atual do repositório.
+
 ---
 
 ## 🏢 Identidade do Projeto

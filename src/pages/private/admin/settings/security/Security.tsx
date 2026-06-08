@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
 
@@ -193,6 +193,7 @@ function formatSecurityLogAction(action?: string): string {
 
         session_store_selected: 'Entrada na loja selecionada',
         session_logout: 'Saída do sistema',
+        session_disconnected: 'Usuário desconectado',
         session_login_test: 'Teste de login/sessão',
     };
 
@@ -363,6 +364,11 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         return 'Usuário encerrou a sessão.';
     }
 
+    if (log.action === 'session_disconnected') {
+        const reason = getStringDetail(details, 'reason');
+        return reason || 'Conexão encerrada automaticamente.';
+    }
+
     const reason = getStringDetail(details, 'reason');
     return reason;
 }
@@ -456,6 +462,7 @@ export default function Security() {
     } = useSecurityPermissionsAdmin();
 
     const [searchParams, setSearchParams] = useSearchParams();
+    const navigate = useNavigate();
     const tabFromUrl = searchParams.get('tab');
     const [activeTab, setActiveTabState] = useState(
         tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'context'
@@ -483,13 +490,7 @@ export default function Security() {
         [setSearchParams]
     );
 
-    useEffect(() => {
-        if (tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) && tabFromUrl !== activeTab) {
-            setActiveTabState(tabFromUrl);
-        } else if (!tabFromUrl && activeTab !== 'context') {
-            setActiveTabState('context');
-        }
-    }, [tabFromUrl, activeTab]);
+
 
     const [selectedMemberId, setSelectedMemberId] = useState('');
 
@@ -1168,15 +1169,47 @@ export default function Security() {
         }
     };
 
-    const tabs = [
-        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck },
-        { id: 'logs', label: 'Histórico de atividades', icon: History },
-        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck },
-        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield },
-        { id: 'users_perms', label: 'Permissões por usuário', icon: User },
-        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock },
-        { id: 'pin_token', label: 'PIN e token', icon: Key },
-    ];
+    const tabs = useMemo(() => [
+        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: isOwner || hasEffectivePermission(permissions, 'security.view') },
+        { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: isOwner || hasEffectivePermission(permissions, 'security.logs.view') },
+        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
+        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
+        { id: 'users_perms', label: 'Permissões por usuário', icon: User, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
+        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock, canAccess: isOwner || hasEffectivePermission(permissions, 'security.sensitive_actions.view') },
+        { id: 'pin_token', label: 'PIN e token', icon: Key, canAccess: isOwner || hasEffectivePermission(permissions, 'security.manage') },
+    ], [isOwner, permissions]);
+
+    const allowedTabs = useMemo(() => tabs.filter((tab) => tab.canAccess), [tabs]);
+
+    useEffect(() => {
+        if (loadingSecurityContext || loadingPermissions) return;
+
+        const tabToCheck = tabFromUrl || 'context';
+        const targetTabConfig = tabs.find((t) => t.id === tabToCheck);
+
+        if (!targetTabConfig || !targetTabConfig.canAccess) {
+            // Redirect to first allowed tab
+            if (allowedTabs.length > 0) {
+                setActiveTab(allowedTabs[0].id);
+            } else {
+                // If absolutely no tabs are allowed, navigate away
+                navigate('/admin');
+            }
+        } else if (tabFromUrl && tabFromUrl !== activeTab) {
+            setActiveTabState(tabFromUrl);
+        } else if (!tabFromUrl && activeTab !== 'context') {
+            setActiveTabState('context');
+        }
+    }, [
+        tabFromUrl,
+        activeTab,
+        loadingSecurityContext,
+        loadingPermissions,
+        tabs,
+        allowedTabs,
+        navigate,
+        setActiveTab,
+    ]);
 
     const filteredLogs = useMemo(() => {
         return logs.filter(log => {
@@ -1400,7 +1433,7 @@ export default function Security() {
 
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
                 <div className="flex border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
-                    {tabs.map(tab => (
+                    {allowedTabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}

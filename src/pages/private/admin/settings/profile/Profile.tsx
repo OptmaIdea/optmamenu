@@ -1,28 +1,18 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import MyProfileIdentityTab from './components/MyProfileIdentityTab';
+import MyProfileAddressTab from './components/MyProfileAddressTab';
+import MyProfileAdditionalInfoTab from './components/MyProfileAdditionalInfoTab';
+import MyProfileChangeRequestsTab from './components/MyProfileChangeRequestsTab';
 import {
-    Save,
     Loader,
     User,
-    Phone,
-    Mail,
-    MapPin,
-    Contact,
-    Camera,
-    Globe,
-    Instagram,
-    Facebook,
-    Search,
     AlertTriangle,
     Plus,
-    Info,
     History,
-    X,
-    ChevronDown,
-    ChevronUp,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -33,16 +23,13 @@ import {
     createMyProfileChangeRequest,
     cancelMyProfileChangeRequest,
     listMyProfileChangeRequests,
-    PROFILE_REQUEST_STATUS_LABELS,
-    PROFILE_REQUEST_TYPE_LABELS,
     type ProfileChangeRequest,
     type ProfileChangeRequestType,
-    type ProfileChangeRequestStatus,
     type ProposedChangeValue
 } from '@/services/securityService';
 import { uploadStoreMemberAvatar } from '@/services/userAvatarService';
 import { getActiveStoreId } from '@/utils/activeStore';
-import { InfoCard } from '@/components/common/InfoCard';
+
 
 // ── Correção 4 — Labels de campo para o mini formulário estruturado ──
 const FIELD_LABELS: Record<string, string> = {
@@ -163,15 +150,7 @@ interface IBGECity {
     nome: string;
 }
 
-const getInitials = (name: string) => {
-    return name
-        .split(' ')
-        .filter(Boolean)
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join('')
-        .toUpperCase() || 'U';
-};
+
 
 function isRequestActive(request: ProfileChangeRequest): boolean {
     return ['pending', 'awaiting_member_confirmation', 'correction_requested'].includes(
@@ -237,37 +216,26 @@ function formatChangeValue(value: unknown): string {
     return String(value);
 }
 
-function formatAdditionalInfoChange(change: any): {
-  title: string;
-  oldText: string;
-  newText: string;
-  oldSensitive: string;
-  newSensitive: string;
-} {
-  const itemId = change?.item_id;
 
-  const oldArray = Array.isArray(change?.old) ? change.old : [];
-  const newArray = Array.isArray(change?.new) ? change.new : [];
 
-  const oldItem = oldArray.find((item: any) => item?.id === itemId);
-  const newItem = newArray.find((item: any) => item?.id === itemId);
+const MY_PROFILE_TABS = [
+  { id: 'identity', label: 'Identificação e acesso' },
+  { id: 'address', label: 'Endereços e redes sociais' },
+  { id: 'additional', label: 'Informações adicionais' },
+  { id: 'changes', label: 'Alterações cadastrais' },
+] as const;
 
-  return {
-    title:
-      change?.item_label ||
-      newItem?.title ||
-      oldItem?.title ||
-      'Informação adicional',
-    oldText: oldItem?.text || 'Não informado',
-    newText: newItem?.text || 'Não informado',
-    oldSensitive: oldItem?.sensitive ? 'Sim' : 'Não',
-    newSensitive: newItem?.sensitive ? 'Sim' : 'Não',
-  };
-}
+type MyProfileTab = typeof MY_PROFILE_TABS[number]['id'];
 
 export default function Profile() {
     const { securityContext, refresh: refreshSecurityContext, loading: loadingSecurity } = useSecurityContext();
-    const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const activeTab = (searchParams.get('tab') || 'identity') as MyProfileTab;
+
+    function handleTabChange(tab: MyProfileTab) {
+        setSearchParams({ tab });
+    }
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [savingAvatar, setSavingAvatar] = useState(false);
@@ -313,119 +281,6 @@ export default function Profile() {
 
     const [myRequests, setMyRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingMyRequests, setLoadingMyRequests] = useState(false);
-
-    // Filtros e ordenação para as solicitações cadastrais
-    const [requestSearch, setRequestSearch] = useState('');
-    const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | ProfileChangeRequestStatus>('all');
-    const [requestDateFrom, setRequestDateFrom] = useState('');
-    const [requestDateTo, setRequestDateTo] = useState('');
-    const [requestSortOrder, setRequestSortOrder] = useState<string>('created_desc');
-    const [collapsedRequests, setCollapsedRequests] = useState<Record<string, boolean>>({});
-
-    const toggleRequestCollapse = (requestId: string) => {
-        setCollapsedRequests((prev) => ({
-            ...prev,
-            [requestId]: !prev[requestId],
-        }));
-    };
-
-    function getRequestTitle(request: ProfileChangeRequest): string {
-        const baseTitle = PROFILE_REQUEST_TYPE_LABELS[request.request_type] ?? request.request_type;
-        
-        if (request.request_type === 'additional_info_remove') {
-            const itemTitle = request.requested_changes?.title || 'Informação adicional';
-            return `Remoção de informação adicional (${itemTitle})`;
-        }
-        
-        if (request.request_type === 'additional_info_update') {
-            let itemTitle = 'Informação adicional';
-            const changes = request.requested_changes ?? {};
-            const additionalInfoChange = changes.member_additional_info || changes.additional_info;
-            if (additionalInfoChange) {
-                const infoChange = formatAdditionalInfoChange(additionalInfoChange);
-                itemTitle = infoChange.title;
-            }
-            return `Alteração de informação adicional (${itemTitle})`;
-        }
-        
-        return baseTitle;
-    }
-
-    const filteredRequests = useMemo(() => {
-        return myRequests
-            .filter((req) => {
-                // Filtro de status
-                if (requestStatusFilter !== 'all' && req.status !== requestStatusFilter) {
-                    return false;
-                }
-
-                // Filtro de data de início (created_at >= requestDateFrom)
-                if (requestDateFrom) {
-                    const fromDate = new Date(`${requestDateFrom}T00:00:00`);
-                    if (new Date(req.created_at) < fromDate) {
-                        return false;
-                    }
-                }
-
-                // Filtro de data final (created_at <= requestDateTo)
-                if (requestDateTo) {
-                    const toDate = new Date(`${requestDateTo}T23:59:59`);
-                    if (new Date(req.created_at) > toDate) {
-                        return false;
-                    }
-                }
-
-                // Filtro de pesquisa de texto
-                if (requestSearch.trim()) {
-                    const query = requestSearch.toLowerCase();
-                    const reason = (req.reason ?? '').toLowerCase();
-                    const typeLabel = (PROFILE_REQUEST_TYPE_LABELS[req.request_type] ?? req.request_type).toLowerCase();
-                    const statusLabel = (PROFILE_REQUEST_STATUS_LABELS[req.status] ?? req.status).toLowerCase();
-                    
-                    // Buscar também nas alterações solicitadas se houver
-                    let matchInChanges = false;
-                    if (req.requested_changes) {
-                        const changesStr = JSON.stringify(req.requested_changes).toLowerCase();
-                        if (changesStr.includes(query)) {
-                            matchInChanges = true;
-                        }
-                    }
-
-                    if (
-                        !reason.includes(query) &&
-                        !typeLabel.includes(query) &&
-                        !statusLabel.includes(query) &&
-                        !matchInChanges
-                    ) {
-                        return false;
-                    }
-                }
-
-                return true;
-            })
-            .sort((a, b) => {
-                if (requestSortOrder === 'created_desc') {
-                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                } else if (requestSortOrder === 'created_asc') {
-                    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                } else if (requestSortOrder === 'reviewed_desc') {
-                    const aTime = a.reviewed_at ? new Date(a.reviewed_at).getTime() : 0;
-                    const bTime = b.reviewed_at ? new Date(b.reviewed_at).getTime() : 0;
-                    if (aTime === bTime) {
-                        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-                    }
-                    return bTime - aTime;
-                } else if (requestSortOrder === 'reviewed_asc') {
-                    const aTime = a.reviewed_at ? new Date(a.reviewed_at).getTime() : Infinity;
-                    const bTime = b.reviewed_at ? new Date(b.reviewed_at).getTime() : Infinity;
-                    if (aTime === bTime) {
-                        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-                    }
-                    return aTime - bTime;
-                }
-                return 0;
-            });
-    }, [myRequests, requestSearch, requestStatusFilter, requestDateFrom, requestDateTo, requestSortOrder]);
 
     // Correção 3 — formulário estruturado campo a campo
     type GeneralRequestForm = {
@@ -740,17 +595,7 @@ export default function Profile() {
         }
     };
 
-    const handleMobileChange = (value: string) => {
-        const formatted = formatMobile(value);
 
-        setProfile((current) => ({
-            ...current,
-            mobile_phone: formatted,
-            whatsapp_phone: current.whatsapp_same_as_mobile
-                ? formatted
-                : current.whatsapp_phone,
-        }));
-    };
 
     const handleAddAdditionalInfo = () => {
         setProfile((current) => ({
@@ -1061,14 +906,15 @@ export default function Profile() {
         >
             {portalContainer && createPortal(
                 <>
-                    <Link
-                        to="/admin/my-history"
-                        title="Histórico de alterações no perfil"
+                    <button
+                        type="button"
+                        onClick={() => handleTabChange('changes')}
+                        title="Ver solicitações de alterações cadastrais"
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#21A896]/35 shrink-0 shadow-sm cursor-pointer"
                     >
                         <History size={13} />
-                        <span>Histórico de alterações</span>
-                    </Link>
+                        <span>Alterações cadastrais</span>
+                    </button>
                     {canRequestProfileChanges && (
                         <button
                             type="button"
@@ -1082,829 +928,112 @@ export default function Profile() {
                 </>,
                 portalContainer
             )}
-            <form
-                onSubmit={(event) => {
-                    event.preventDefault();
-                }}
-                noValidate
-                className="max-w-4xl mx-auto space-y-8"
-            >
-                {activeRequests.length > 0 && (
-                    <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <p className="font-bold">Alteração cadastral em andamento</p>
-                                <p className="mt-1">
-                                    Existe solicitação pendente ou aguardando conferência. Acompanhe os detalhes em Meu Histórico.
-                                </p>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() => navigate('/admin/my-history')}
-                                className="w-fit rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700"
-                            >
-                                Ver histórico
-                            </button>
-                        </div>
-                    </div>
-                )}
-
-                {/* 9.9K.5 — Aviso de onboarding pendente */}
-                {isOnboardingPending && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/40 p-4 text-sm text-amber-800 dark:text-amber-200">
-                        Complete seus dados básicos para liberar o acesso às demais áreas da loja.
-                    </div>
-                )}
-
-                {isOwnerSomewhere && !isOwnerInCurrentStore && (
-                    <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 text-sm text-amber-800 dark:text-amber-200 flex gap-3 items-start shadow-sm">
-                        <AlertTriangle className="shrink-0 text-amber-500 mt-0.5" size={18} />
+            {activeRequests.length > 0 && (
+                <div className="mb-4 max-w-4xl mx-auto rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200 animate-fadeIn">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
-                            <span className="font-bold block mb-1">Apenas dados de vínculo editáveis</span>
-                            Estes dados fazem parte do seu cadastro principal no OptmaMenu e são reaproveitados em outras empresas. Para esta loja, você pode personalizar apelido, contatos, avatar e endereço de correspondência.
-                        </div>
-                    </div>
-                )}
-
-                {/* Visual Avatar Block */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center gap-6">
-                    <div className="relative group">
-                        <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#21A896]/10 flex items-center justify-center">
-                            {profile.avatar_url ? (
-                                <img
-                                    src={profile.avatar_url}
-                                    alt="Avatar"
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                />
-                            ) : (
-                                <span className="text-3xl font-black text-[#21A896]">
-                                    {getInitials(profile.name)}
-                                </span>
-                            )}
-
-                            {/* Hover Overlay */}
-                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full transition cursor-pointer">
-                                <label htmlFor="avatar-upload" className="cursor-pointer text-white flex flex-col items-center">
-                                    <Camera size={18} />
-                                    <span className="text-[10px] font-bold mt-1">Alterar</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        {savingAvatar && (
-                            <div className="absolute inset-0 bg-white/70 dark:bg-gray-800/70 rounded-full flex items-center justify-center">
-                                <Loader size={20} className="animate-spin text-[#21A896]" />
-                            </div>
-                        )}
-
-                        <label
-                            htmlFor="avatar-upload"
-                            className="absolute bottom-0 right-0 bg-[#21A896] text-white p-1.5 rounded-full shadow-md cursor-pointer hover:brightness-110 transition"
-                        >
-                            <Camera size={14} />
-                        </label>
-                        <input
-                            id="avatar-upload"
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleAvatarChange}
-                            disabled={savingAvatar}
-                        />
-                    </div>
-
-                    <div className="flex-1 text-center sm:text-left">
-                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">Foto de Perfil</h2>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                            Carregue uma imagem quadrada para seu avatar.
-                            <br />Formatos aceitos: JPG, PNG ou WEBP, máx. 2MB.
-                        </p>
-                    </div>
-                </div>
-
-                {/* Identification Section */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
-                        <span className="flex items-center gap-2">
-                            <User className="text-[#21A896]" size={20} /> Identificação
-                        </span>
-                        {canRequestProfileChanges && !canEditGlobalProfile && (
-                            <button
-                                type="button"
-                                onClick={() => openProfileRequestModal('name_change')}
-                                className="text-xs bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-700 font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 dark:bg-amber-950/30 dark:border-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-950/50 cursor-pointer"
-                            >
-                                <Plus size={14} />
-                                Solicitar Alteração de Dados
-                            </button>
-                        )}
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                Nome Completo <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                value={profile.name}
-                                onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                                required
-                                disabled={!canEditGlobalProfile}
-                            />
-                            {!canEditGlobalProfile && (
-                                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
-                                    O nome não pode ser alterado diretamente.{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => openProfileRequestModal('name_change')}
-                                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
-                                    >
-                                        Solicitar alteração de nome.
-                                    </button>
-                                </span>
-                            )}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                Apelido <span className="text-xs text-gray-400 font-normal">(como prefere ser chamado)</span>
-                            </label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                value={profile.internal_alias}
-                                onChange={(e) => setProfile({ ...profile, internal_alias: e.target.value })}
-                                placeholder="Ex: Lucas"
-                            />
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">CPF</label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                value={profile.cpf}
-                                onChange={(e) => setProfile({ ...profile, cpf: e.target.value })}
-                                disabled={!canEditGlobalProfile}
-                                placeholder="000.000.000-00"
-                            />
-                            {!canEditGlobalProfile && (
-                                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
-                                    O CPF não pode ser alterado diretamente.{' '}
-                                    {canRequestProfileChanges && (
-                                        <button
-                                            type="button"
-                                            onClick={() => openProfileRequestModal('cpf_change')}
-                                            className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
-                                        >
-                                            Solicitar alteração de CPF.
-                                        </button>
-                                    )}
-                                </span>
-                            )}
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Data de Nascimento</label>
-                            <input
-                                type="date"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                value={profile.birthdate}
-                                onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-                                disabled={!canEditGlobalProfile}
-                            />
-                            {!canEditGlobalProfile && (
-                                <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
-                                    A data de nascimento não pode ser alterada diretamente.{' '}
-                                    <button
-                                        type="button"
-                                        onClick={() => openProfileRequestModal('birthdate_change')}
-                                        className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 font-bold underline transition cursor-pointer"
-                                    >
-                                        Solicitar alteração.
-                                    </button>
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Contacts Section */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                        <Contact className="text-[#21A896]" size={20} /> Contatos e Acesso
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail de Contato</label>
-                            <div className="relative">
-                                <input
-                                    type="email"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.member_email}
-                                    onChange={(e) => setProfile({ ...profile, member_email: e.target.value })}
-                                    placeholder={securityContext?.email || 'Ex: contato@empresa.com'}
-                                />
-                                <Mail size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                Celular <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.mobile_phone}
-                                    onChange={(e) => handleMobileChange(e.target.value)}
-                                    placeholder="Ex: (22) 99999-9999"
-                                />
-                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <div className="flex items-center justify-between mb-2">
-                                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                    WhatsApp <span className="text-red-500">*</span>
-                                </label>
-                                <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
-                                    <input
-                                        type="checkbox"
-                                        className="rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]"
-                                        checked={!!profile.whatsapp_same_as_mobile}
-                                        onChange={(event) => {
-                                            const checked = event.target.checked;
-                                            setProfile((current) => ({
-                                                ...current,
-                                                whatsapp_same_as_mobile: checked,
-                                                whatsapp_phone: checked ? current.mobile_phone : current.whatsapp_phone,
-                                            }));
-                                        }}
-                                    />
-                                    WhatsApp é o mesmo número do celular
-                                </label>
-                            </div>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                    value={profile.whatsapp_phone}
-                                    onChange={(event) =>
-                                        setProfile((current) => ({
-                                            ...current,
-                                            whatsapp_phone: formatMobile(event.target.value),
-                                        }))
-                                    }
-                                    disabled={profile.whatsapp_same_as_mobile}
-                                    placeholder="Ex: (22) 99999-9999"
-                                />
-                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Telefone Fixo</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.phone}
-                                    onChange={(e) => setProfile((current) => ({ ...current, phone: formatLandline(e.target.value) }))}
-                                    placeholder="Ex: (22) 3333-3333"
-                                />
-                                <Phone size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Address Section */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                        <MapPin className="text-[#21A896]" size={20} /> Endereço Residencial
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="md:col-span-1">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">CEP</label>
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.zip_code}
-                                    placeholder="00000-000"
-                                    onChange={(e) =>
-                                        setProfile((current) => ({
-                                            ...current,
-                                            zip_code: formatCep(e.target.value),
-                                        }))
-                                    }
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Enter') {
-                                            event.preventDefault();
-                                            handleZipLookup();
-                                        }
-                                    }}
-                                    onBlur={handleZipLookup}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={handleZipLookup}
-                                    disabled={searchingCep}
-                                    className="p-3 bg-gray-100 dark:bg-gray-600 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 transition text-gray-600 dark:text-white disabled:opacity-50"
-                                >
-                                    {searchingCep ? <Loader size={18} className="animate-spin" /> : <Search size={18} />}
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="md:col-span-3">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Endereço (Rua/Avenida)</label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                value={profile.address}
-                                onChange={(e) => setProfile({ ...profile, address: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="md:col-span-1">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Número</label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                value={profile.address_number}
-                                onChange={(e) => setProfile({ ...profile, address_number: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="md:col-span-1">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Complemento</label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                value={profile.complement}
-                                onChange={(e) => setProfile({ ...profile, complement: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="md:col-span-2">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Bairro</label>
-                            <input
-                                type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                value={profile.district}
-                                onChange={(e) => setProfile({ ...profile, district: e.target.value })}
-                            />
-                        </div>
-
-                        <div className="md:col-span-1">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Estado (UF)</label>
-                            <select
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                value={profile.state}
-                                onChange={(e) => setProfile({ ...profile, state: e.target.value, city: '' })}
-                            >
-                                <option value="">Selecione...</option>
-                                {states.map((uf) => (
-                                    <option key={uf.id} value={uf.sigla}>
-                                        {uf.sigla}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="md:col-span-3">
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 flex justify-between">
-                                Cidade
-                                {loadingCities && (
-                                    <span className="text-xs text-[#21A896] flex items-center gap-1">
-                                        <Loader size={12} className="animate-spin" /> Carregando...
-                                    </span>
-                                )}
-                            </label>
-                            {profile.state ? (
-                                <select
-                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
-                                    value={profile.city}
-                                    onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                                    disabled={loadingCities}
-                                >
-                                    <option value="">Selecione a cidade...</option>
-                                    {cities.map((city) => (
-                                        <option key={city.id} value={city.nome}>
-                                            {city.nome}
-                                        </option>
-                                    ))}
-                                </select>
-                            ) : (
-                                <input
-                                    type="text"
-                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-500"
-                                    value={profile.city}
-                                    placeholder="Selecione o estado primeiro"
-                                    readOnly
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Social Media Section */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                        <Globe className="text-[#21A896]" size={20} /> Redes Sociais e Canais
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Instagram</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                    value={profile.instagram_url}
-                                    onChange={(e) => setProfile({ ...profile, instagram_url: e.target.value })}
-                                    placeholder="Ex: @seuusername"
-                                    disabled={!canEditGlobalProfile}
-                                />
-                                <Instagram size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Facebook</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                    value={profile.facebook_url}
-                                    onChange={(e) => setProfile({ ...profile, facebook_url: e.target.value })}
-                                    placeholder="Ex: facebook.com/perfil"
-                                    disabled={!canEditGlobalProfile}
-                                />
-                                <Facebook size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Site Pessoal</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                    value={profile.website_url}
-                                    onChange={(e) => setProfile({ ...profile, website_url: e.target.value })}
-                                    placeholder="Ex: www.seusite.com"
-                                    disabled={!canEditGlobalProfile}
-                                />
-                                <Globe size={18} className="absolute right-3 top-3.5 text-gray-400" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Additional Info Section */}
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                        <Info className="text-[#21A896]" size={20} /> Informações Adicionais
-                    </h3>
-
-                    <div className="space-y-4">
-                        {profile.additionalInfo.map((item, index) => (
-                            <InfoCard
-                                key={item.id || index}
-                                item={item}
-                                index={index}
-                                onUpdate={handleUpdateAdditionalInfo}
-                                onRemove={handleRemoveAdditionalInfo}
-                                onRemoveRequest={canRequestProfileChanges ? handleRequestRemoveAdditionalInfo : undefined}
-                            />
-                        ))}
-
-                        <button
-                            type="button"
-                            onClick={handleAddAdditionalInfo}
-                            className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-[#21A896] hover:text-[#21A896] transition-colors"
-                        >
-                            <Plus size={18} />
-                            Adicionar Informação
-                        </button>
-                    </div>
-                </div>
-
-                {/* Save Button */}
-                <div className="flex justify-end pt-4">
-                    <button
-                        type="button"
-                        onClick={() => handleSave()}
-                        disabled={saving}
-                        className="flex items-center gap-3 bg-[#21A896] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        <Save size={24} />
-                        {saving ? 'Salvando...' : 'Salvar Alterações'}
-                    </button>
-                </div>
-            </form>
-
-            {/* Correção 2 — Minhas solicitações cadastrais: só para não-owner */}
-            {canRequestProfileChanges && (
-                <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-900 max-w-4xl mx-auto shadow-sm">
-                    <div className="mb-4 flex items-start sm:items-center justify-between gap-4 flex-col sm:flex-row">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                                Minhas solicitações cadastrais
-                            </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Acompanhe pedidos de alteração ou remoção enviados para análise.
+                            <p className="font-bold">Alteração cadastral em andamento</p>
+                            <p className="mt-1">
+                                Existe solicitação pendente ou aguardando conferência. Acompanhe os detalhes em Alterações cadastrais.
                             </p>
                         </div>
 
-                        <div className="flex gap-2 w-full sm:w-auto justify-end">
-                            <button
-                                type="button"
-                                onClick={() => openProfileRequestModal('address_update')}
-                                className="rounded-lg bg-[#21A896] hover:bg-[#1A867A] px-3 py-2 text-sm font-bold text-white transition shrink-0 cursor-pointer"
-                            >
-                                Nova Solicitação
-                            </button>
-                            <button
-                                type="button"
-                                onClick={loadMyProfileRequests}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800 transition shrink-0"
-                            >
-                                Atualizar
-                            </button>
-                        </div>
+                        <button
+                            type="button"
+                            onClick={() => setSearchParams({ tab: 'changes' })}
+                            className="w-fit rounded-lg bg-amber-600 px-3 py-2 text-xs font-bold text-white hover:bg-amber-700 cursor-pointer"
+                        >
+                            Ver solicitações
+                        </button>
                     </div>
-
-                    {/* Filtros e Busca */}
-                    {!loadingMyRequests && myRequests.length > 0 && (
-                        <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-xs space-y-3">
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                {/* Campo de busca */}
-                                <div className="relative flex-1">
-                                    <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Localizar alteração específica (tipo, motivo, valor)..."
-                                        value={requestSearch}
-                                        onChange={(e) => setRequestSearch(e.target.value)}
-                                        className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
-                                    />
-                                    {requestSearch && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setRequestSearch('')}
-                                            className="absolute right-3 top-2 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    )}
-                                </div>
-                                
-                                {/* Seletor de Status */}
-                                <div className="w-full sm:w-48">
-                                    <select
-                                        value={requestStatusFilter}
-                                        onChange={(e) => setRequestStatusFilter(e.target.value as any)}
-                                        className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
-                                    >
-                                        <option value="all">Todos os status</option>
-                                        <option value="pending">Pendente</option>
-                                        <option value="applied">Aplicada</option>
-                                        <option value="rejected">Rejeitada</option>
-                                        <option value="cancelled">Cancelada</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {/* Data De */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        De (Data de solicitação)
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={requestDateFrom}
-                                        onChange={(e) => setRequestDateFrom(e.target.value)}
-                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
-                                    />
-                                </div>
-
-                                {/* Data Até */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        Até (Data de solicitação)
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={requestDateTo}
-                                        onChange={(e) => setRequestDateTo(e.target.value)}
-                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
-                                    />
-                                </div>
-
-                                {/* Ordenação */}
-                                <div>
-                                     <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                         Ordenar por data
-                                     </label>
-                                     <select
-                                         value={requestSortOrder}
-                                         onChange={(e) => setRequestSortOrder(e.target.value)}
-                                         className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
-                                     >
-                                         <option value="created_desc">Mais recente primeiro (Criação)</option>
-                                         <option value="created_asc">Mais antigo primeiro (Criação)</option>
-                                         <option value="reviewed_desc">Mais recente primeiro (Resposta)</option>
-                                         <option value="reviewed_asc">Mais antigo primeiro (Resposta)</option>
-                                     </select>
-                                 </div>
-                            </div>
-
-                            {/* Botão de limpar filtros se houver filtros ativos */}
-                            {(requestSearch || requestStatusFilter !== 'all' || requestDateFrom || requestDateTo || requestSortOrder !== 'created_desc') && (
-                                <div className="flex justify-end pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setRequestSearch('');
-                                            setRequestStatusFilter('all');
-                                            setRequestDateFrom('');
-                                            setRequestDateTo('');
-                                            setRequestSortOrder('created_desc');
-                                        }}
-                                        className="text-[11px] font-bold text-gray-500 hover:text-[#F26541] transition cursor-pointer"
-                                    >
-                                        Limpar filtros
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {loadingMyRequests ? (
-                        <p className="text-sm text-gray-500">Carregando solicitações...</p>
-                    ) : myRequests.length === 0 ? (
-                        <p className="text-sm text-gray-500">
-                            Nenhuma solicitação cadastral registrada.
-                        </p>
-                    ) : filteredRequests.length === 0 ? (
-                        <p className="text-sm text-gray-500 py-4">
-                            Nenhuma solicitação cadastral corresponde aos filtros aplicados.
-                        </p>
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredRequests.map((request) => (
-                                <div
-                                    key={request.request_id}
-                                    className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800"
-                                >
-                                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                                        <div>
-                                            <p className="font-bold text-gray-900 dark:text-white">
-                                                {getRequestTitle(request)}
-                                            </p>
-
-                                            {!collapsedRequests[request.request_id] && (
-                                                <>
-                                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                                        {request.reason}
-                                                    </p>
-
-                                                    {request.admin_notes && (
-                                                        <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                                                            <strong>Retorno:</strong> {request.admin_notes}
-                                                        </p>
-                                                    )}
-
-                                                    {request.request_type === 'additional_info_remove' && (
-                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                                Item solicitado para remoção
-                                                            </p>
-                                                            <p className="mt-1 font-bold text-gray-900 dark:text-white">
-                                                                {String(request.requested_changes?.title ?? 'Sem título')}
-                                                            </p>
-                                                            <p className="text-gray-600 dark:text-gray-300">
-                                                                {String(request.requested_changes?.text ?? '')}
-                                                            </p>
-                                                        </div>
-                                                    )}
-
-                                                    {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
-                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                                Alterações solicitadas
-                                                            </p>
-
-                                                            <div className="mt-2 space-y-2">
-                                                                {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
-                                                                    const change = rawChange as any;
-
-                                                                    if (field === 'member_additional_info' || field === 'additional_info') {
-                                                                        const infoChange = formatAdditionalInfoChange(change);
-
-                                                                        return (
-                                                                            <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
-                                                                                <p className="text-xs font-bold text-gray-500">
-                                                                                    {infoChange.title}
-                                                                                </p>
-
-                                                                                <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
-                                                                                    <p>
-                                                                                        <strong>Atual:</strong> {infoChange.oldText}
-                                                                                    </p>
-                                                                                    <p>
-                                                                                        <strong>Novo:</strong> {infoChange.newText}
-                                                                                    </p>
-                                                                                    <p>
-                                                                                        <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
-                                                                                    </p>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    }
-
-                                                                    // Pular campos legados sem estrutura {old, new}
-                                                                    if (typeof change !== 'object' || change === null || !('new' in change)) {
-                                                                        return (
-                                                                            <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                                <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
-                                                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
-                                                                            </div>
-                                                                        );
-                                                                    }
-
-                                                                    return (
-                                                                        <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                            <p className="text-xs font-bold text-gray-500">
-                                                                                {change.label || FIELD_LABELS[field] || field}
-                                                                            </p>
-                                                                            <p className="text-xs text-gray-400">
-                                                                                Atual: {formatChangeValue(change.old)}
-                                                                            </p>
-                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                                                                Novo: {formatChangeValue(change.new)}
-                                                                            </p>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                                                    {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleRequestCollapse(request.request_id)}
-                                                    className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition cursor-pointer flex items-center justify-center"
-                                                    title={collapsedRequests[request.request_id] ? "Expandir" : "Recolher"}
-                                                >
-                                                    {collapsedRequests[request.request_id] ? (
-                                                        <ChevronDown size={14} />
-                                                    ) : (
-                                                        <ChevronUp size={14} />
-                                                    )}
-                                                </button>
-                                            </div>
-
-                                            {/* Correção 8 — cancelar pelo solicitante */}
-                                            {!collapsedRequests[request.request_id] && request.status === 'pending' && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleCancelMyRequest(request)}
-                                                    className="rounded-lg border border-red-200 px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/30 cursor-pointer"
-                                                >
-                                                    Cancelar solicitação
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {!collapsedRequests[request.request_id] && (
-                                        <p className="mt-2 text-xs text-gray-400">
-                                            Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
-                                        </p>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
+                </div>
             )}
+
+            {/* 9.9K.5 — Aviso de onboarding pendente */}
+            {isOnboardingPending && (
+                <div className="mb-4 max-w-4xl mx-auto rounded-xl border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/40 p-4 text-sm text-amber-800 dark:text-amber-200">
+                    Complete seus dados básicos para liberar o acesso às demais áreas da loja.
+                </div>
+            )}
+
+            {isOwnerSomewhere && !isOwnerInCurrentStore && (
+                <div className="mb-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-2xl p-5 text-sm text-amber-800 dark:text-amber-200 flex gap-3 items-start shadow-sm max-w-4xl mx-auto animate-fadeIn">
+                    <AlertTriangle className="shrink-0 text-amber-500 mt-0.5" size={18} />
+                    <div>
+                        <span className="font-bold block mb-1">Apenas dados de vínculo editáveis</span>
+                        Estes dados fazem parte do seu cadastro principal no OptmaMenu e são reaproveitados em outras empresas. Para esta loja, você pode personalizar apelido, contatos, avatar e endereço de correspondência.
+                    </div>
+                </div>
+            )}
+
+            <div className="max-w-4xl mx-auto bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-8">
+                <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
+                    {MY_PROFILE_TABS.map(tab => (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => handleTabChange(tab.id)}
+                            className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 cursor-pointer ${activeTab === tab.id
+                                ? 'border-[#21A896] text-[#21A896] bg-[#21A896]/5 dark:bg-[#21A896]/10'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                                }`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
+                </div>
+
+                <div className="p-6 md:p-8">
+                    {activeTab === 'identity' && (
+                        <MyProfileIdentityTab
+                            profile={profile}
+                            setProfile={setProfile}
+                            saving={saving}
+                            savingAvatar={savingAvatar}
+                            handleAvatarChange={handleAvatarChange}
+                            canRequestProfileChanges={canRequestProfileChanges}
+                            canEditGlobalProfile={canEditGlobalProfile}
+                            openProfileRequestModal={openProfileRequestModal}
+                            handleSave={handleSave}
+                        />
+                    )}
+                    {activeTab === 'address' && (
+                        <MyProfileAddressTab
+                            profile={profile}
+                            setProfile={setProfile}
+                            saving={saving}
+                            states={states}
+                            cities={cities}
+                            loadingCities={loadingCities}
+                            searchingCep={searchingCep}
+                            handleZipLookup={handleZipLookup}
+                            canEditGlobalProfile={canEditGlobalProfile}
+                            handleSave={handleSave}
+                        />
+                    )}
+                    {activeTab === 'additional' && (
+                        <MyProfileAdditionalInfoTab
+                            profile={profile}
+                            handleAddAdditionalInfo={handleAddAdditionalInfo}
+                            handleUpdateAdditionalInfo={handleUpdateAdditionalInfo}
+                            handleRemoveAdditionalInfo={handleRemoveAdditionalInfo}
+                            canRequestProfileChanges={canRequestProfileChanges}
+                            handleRequestRemoveAdditionalInfo={handleRequestRemoveAdditionalInfo}
+                            handleSave={handleSave}
+                            saving={saving}
+                        />
+                    )}
+                    {activeTab === 'changes' && (
+                        <MyProfileChangeRequestsTab
+                            myRequests={myRequests}
+                            loadingMyRequests={loadingMyRequests}
+                            loadMyProfileRequests={loadMyProfileRequests}
+                            openProfileRequestModal={openProfileRequestModal}
+                            handleCancelMyRequest={handleCancelMyRequest}
+                        />
+                    )}
+                </div>
+            </div>
 
             {/* Modal de solicitação de remoção */}
             {removalRequestModal.isOpen && removalRequestModal.item && (

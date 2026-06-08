@@ -5,31 +5,54 @@ import { supabase } from '@/lib/supabase';
 import AppRoutes from '@/AppRoutes';
 import CookieConsent from '@/components/common/CookieConsent';
 import { Toaster } from 'sonner';
+import { validateSessionSecurity, markSessionAsActive } from '@/utils/sessionSecurity';
 
 function App() {
   const { setSession, setLoading, setProfile } = useAuthStore();
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) {
-        // Fetch profile
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .maybeSingle()
-          .then(({ data }) => {
-            if (data) setProfile(data);
+    const checkAndInitSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          const isValid = await validateSessionSecurity(async () => {
+            await supabase.auth.signOut();
           });
+          
+          if (!isValid) {
+            setSession(null);
+            setLoading(false);
+            return;
+          }
+        }
+        
+        setSession(session);
+        if (session) {
+          // Fetch profile
+          const { data } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .maybeSingle();
+          if (data) setProfile(data);
+        }
+      } catch (error) {
+        console.error('Erro na validação de segurança:', error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    };
+
+    checkAndInitSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN') {
+        markSessionAsActive();
+      }
+      
       setSession(session);
       if (session) {
         supabase

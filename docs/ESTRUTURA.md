@@ -11,6 +11,7 @@
   - assets/
   - components/
     - RequirePermission.tsx
+    - RequireActiveStoreMember.tsx
     - common/
       - empty-state/
       - tooltip/
@@ -45,10 +46,27 @@
             - types/
             - services/
             - utils/
+        - settings/
+          - profile/
+            - Profile.tsx
+            - components/
+              - MyProfileIdentityTab.tsx
+              - MyProfileAddressTab.tsx
+              - MyProfileAdditionalInfoTab.tsx
+              - MyProfileChangeRequestsTab.tsx
+          - myHistory/
+            - MyHistory.tsx
+          - storeSettings/
+            - StoreSettings.tsx
+          - hours/
+          - messages/
+          - security/
+          - appearance/
   - services/
   - store/
   - types/
   - utils/
+    - sessionSecurity.ts
     - export/
       - csv.ts
       - formatters.ts

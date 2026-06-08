@@ -3,6 +3,7 @@ import { lazy, Suspense } from 'react';
 
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RequirePermission } from '@/components/RequirePermission';
+import { RequireActiveStoreMember } from '@/components/RequireActiveStoreMember';
 import CreateStore from '@/pages/CreateStore';
 
 // Layouts
@@ -180,10 +181,38 @@ export default function AppRoutes() {
 
             //Settings Section
             <Route path="/admin/config" element={<Appearance />} />
-            <Route path="/admin/settings" element={<Settings />} />
-            <Route path="/admin/my-profile" element={<Profile />} />
-            <Route path="/admin/meus-dados" element={<Profile />} />
-            <Route path="/admin/my-history" element={<MyHistory />} />
+            <Route
+              path="/admin/settings"
+              element={
+                <RequirePermission permission={['settings.store.view', 'settings.store.edit', 'settings.store.manage']}>
+                  <Settings />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/admin/my-profile"
+              element={
+                <RequireActiveStoreMember>
+                  <Profile />
+                </RequireActiveStoreMember>
+              }
+            />
+            <Route
+              path="/admin/meus-dados"
+              element={
+                <RequireActiveStoreMember>
+                  <Profile />
+                </RequireActiveStoreMember>
+              }
+            />
+            <Route
+              path="/admin/my-history"
+              element={
+                <RequireActiveStoreMember>
+                  <MyHistory />
+                </RequireActiveStoreMember>
+              }
+            />
             <Route path="/admin/hours" element={<Hours />} />
             <Route path="/admin/messages" element={<MessageSettings />} />
             <Route path="/admin/security" element={<Security />} />

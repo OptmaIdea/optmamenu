@@ -3,13 +3,14 @@ import { useEffect, useState, useMemo, useLayoutEffect, useCallback } from 'reac
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { clearSessionSecurity } from '@/utils/sessionSecurity';
 import { getCurrentUserSecurityContext } from '@/services/securityService';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission } from '@/utils/permissions';
+import { hasEffectivePermission, hasAnyEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import {
@@ -64,7 +65,7 @@ type MenuItem = {
     path: string;
     icon: LucideIcon;
     label: string;
-    permission?: string;
+    permission?: string | string[];
     queryString?: string;
 };
 
@@ -135,10 +136,13 @@ export default function PrivateLayout() {
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
-    const can = (permissionCode: string) => {
+    const can = (permissionCode: string | string[]) => {
         if (loadingPermissions) return true;
         if (activeMembership?.role === 'owner') return true;
 
+        if (Array.isArray(permissionCode)) {
+            return hasAnyEffectivePermission(permissions, permissionCode);
+        }
         return hasEffectivePermission(permissions, permissionCode);
     };
     const attentionCount = useInventoryAttentionCount();
@@ -210,8 +214,8 @@ export default function PrivateLayout() {
         ],
         settings: [
             { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
-            { path: '/admin/security', icon: ScrollText, label: 'Meu Histórico', queryString: 'tab=logs', permission: 'security.view' },
-            { path: '/admin/settings', icon: Building, label: 'Dados da Loja' },
+            { path: '/admin/my-history', icon: ScrollText, label: 'Meu Histórico' },
+            { path: '/admin/settings', icon: Building, label: 'Dados da Loja', permission: ['settings.store.view', 'settings.store.edit', 'settings.store.manage'] },
             { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
@@ -535,6 +539,7 @@ export default function PrivateLayout() {
 
         clearActiveStoreId();
         sessionStorage.removeItem('optmamenu.session.start');
+        clearSessionSecurity();
         await supabase.auth.signOut();
         navigate('/login', { replace: true });
     };
