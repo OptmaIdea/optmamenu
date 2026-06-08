@@ -204,7 +204,34 @@ function formatSecurityLogAction(action?: string): string {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-const getActionLabel = formatSecurityLogAction;
+const ACTION_LABELS: Record<string, string> = {
+  session_store_selected: 'Loja acessada',
+  session_disconnected: 'Sessão encerrada',
+  session_login: 'Login realizado',
+  login: 'Login realizado',
+  logout: 'Logout realizado',
+  idle_timeout: 'Sessão encerrada por inatividade',
+  store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
+  store_role_permission_template_updated: 'Permissão por papel alterada',
+  role_permission_updated: 'Permissão por papel alterada',
+};
+
+function getActionLabel(action: string | null | undefined): string {
+    if (!action) return 'Ação desconhecida';
+    return ACTION_LABELS[action] ?? formatSecurityLogAction(action);
+}
+
+function getDisplayAction(item: { action?: string | null; display_action?: string | null }) {
+  if (
+    item.display_action &&
+    item.display_action !== item.action &&
+    !item.display_action.includes('_')
+  ) {
+    return item.display_action;
+  }
+
+  return getActionLabel(item.action || '');
+}
 
 function getStringDetail(
     details: Record<string, unknown> | null | undefined,
@@ -2157,20 +2184,15 @@ export default function Security() {
                                                 </td>
                                                 <td className="p-3 font-medium text-gray-700 dark:text-gray-300">
                                                     <div>
-                                                        <p className="font-bold text-gray-700 dark:text-gray-300">
-                                                            {log.user_name || log.user_email || 'Usuário não identificado'}
+                                                        <p className="font-bold text-gray-700 dark:text-gray-300" title={log.user_email || undefined}>
+                                                            {log.user_name || 'Usuário'}
                                                         </p>
-                                                        {log.user_email && (
-                                                            <p className="text-xs text-gray-400">
-                                                                {log.user_email}
-                                                            </p>
-                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="p-3 text-gray-800 dark:text-gray-200">
                                                     <div className="max-w-xl">
                                                         <p className="font-bold">
-                                                            {log.display_action || getActionLabel(log.action)}
+                                                            {getDisplayAction(log)}
                                                         </p>
 
                                                         {formatSecurityLogDetails(log) && (

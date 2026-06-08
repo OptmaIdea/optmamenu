@@ -82,10 +82,6 @@ const SEVERITY_CONFIG: Record<
 
 // ─── Formatadores ─────────────────────────────────────────────────────────────
 
-function formatBoolean(value: unknown) {
-    return value === true ? 'Sim' : value === false ? 'Não' : String(value ?? '');
-}
-
 function translateRole(role: string) {
     const map: Record<string, string> = {
         owner: 'Proprietário',
@@ -101,61 +97,53 @@ function translateRole(role: string) {
     return map[role] ?? role;
 }
 
+const ACTION_LABELS: Record<string, string> = {
+  session_store_selected: 'Loja acessada',
+  session_disconnected: 'Sessão encerrada',
+  session_login: 'Login realizado',
+  login: 'Login realizado',
+  logout: 'Logout realizado',
+  idle_timeout: 'Sessão encerrada por inatividade',
+  store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
+  store_role_permission_template_updated: 'Permissão por papel alterada',
+  role_permission_updated: 'Permissão por papel alterada',
+};
+
 function formatMyHistoryDetails(log: {
-    action?: string | null;
-    details?: Record<string, unknown> | null;
+  action?: string | null;
+  details?: Record<string, unknown> | null;
 }) {
-    const action = log.action ?? '';
-    const details = log.details ?? {};
+  const action = log.action ?? '';
+  const details = log.details ?? {};
 
-    if (action === 'store_idle_timeout_settings_updated') {
-        const enabled = details.idle_timeout_enabled;
-        const minutes = details.idle_timeout_minutes;
+  if (action === 'session_store_selected') {
+    const storeName = details.store_name;
+    const role = details.role;
 
-        return [
-            `Encerramento por inatividade: ${formatBoolean(enabled)}`,
-            minutes ? `Tempo configurado: ${minutes} minutos` : null,
-        ]
-            .filter(Boolean)
-            .join(' • ');
-    }
+    return [
+      storeName ? `Loja acessada: ${storeName}` : null,
+      role ? `Função: ${translateRole(String(role))}` : null,
+    ].filter(Boolean).join(' • ');
+  }
 
-    if (action === 'session_store_selected') {
-        const storeName = details.store_name;
-        const role = details.role;
+  if (action === 'session_disconnected') {
+    return (
+      String(details.description || '') ||
+      'Sessão encerrada automaticamente.'
+    );
+  }
 
-        return [
-            storeName ? `Loja acessada: ${storeName}` : null,
-            role ? `Função: ${translateRole(String(role))}` : null,
-        ]
-            .filter(Boolean)
-            .join(' • ');
-    }
+  if (action === 'store_idle_timeout_settings_updated') {
+    const enabled = details.idle_timeout_enabled;
+    const minutes = details.idle_timeout_minutes;
 
-    if (action === 'session_disconnected') {
-        return (
-            String(details.description || '') ||
-            'Sessão encerrada automaticamente.'
-        );
-    }
+    return [
+      `Encerramento por inatividade: ${enabled ? 'Sim' : 'Não'}`,
+      minutes ? `Tempo configurado: ${minutes} minutos` : null,
+    ].filter(Boolean).join(' • ');
+  }
 
-    if (action === 'store_member_profile_updated_by_self') {
-        const changedFields = details.changed_fields;
-
-        if (Array.isArray(changedFields) && changedFields.length > 0) {
-            return `Campos atualizados: ${changedFields.join(', ')}.`;
-        }
-
-        return 'Dados pessoais atualizados pelo próprio usuário.';
-    }
-
-    const message = details.message || details.description;
-
-    if (typeof message === 'string' && message.trim()) {
-        return message;
-    }
-
-    return 'Registro de atividade do usuário.';
+  return 'Registro de atividade do usuário.';
 }
 
 function formatDateTimeBR(value: string | Date) {
@@ -171,16 +159,21 @@ function formatDateTimeBR(value: string | Date) {
 
 function getActionLabel(action: string | null | undefined): string {
     if (!action) return 'Ação desconhecida';
-    const labels: Record<string, string> = {
-        store_idle_timeout_settings_updated: 'Configurações de inatividade atualizadas',
-        session_store_selected: 'Loja selecionada',
-        session_disconnected: 'Sessão desconectada',
-        store_member_profile_updated_by_self: 'Perfil atualizado pelo próprio usuário',
-        login: 'Login efetuado',
-        logout: 'Logout efetuado',
-        user_session_event: 'Evento de sessão do usuário',
-    };
-    return labels[action] ?? action;
+    return ACTION_LABELS[action] ?? action
+        .replaceAll('_', ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getDisplayAction(item: { action?: string | null; display_action?: string | null }) {
+  if (
+    item.display_action &&
+    item.display_action !== item.action &&
+    !item.display_action.includes('_')
+  ) {
+    return item.display_action;
+  }
+
+  return getActionLabel(item.action || '');
 }
 
 // ─── Card de item ─────────────────────────────────────────────────────────────
@@ -242,7 +235,7 @@ function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
 
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-bold text-gray-800 dark:text-gray-100 leading-snug">
-                            {item.display_action || getActionLabel(item.action)}
+                            {getDisplayAction(item)}
                         </p>
 
                         {hasDescription && (
