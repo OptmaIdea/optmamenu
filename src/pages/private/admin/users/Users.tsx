@@ -10,7 +10,7 @@ import { hasEffectivePermission } from '@/utils/permissions';
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { toast } from 'sonner';
-import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter } from 'lucide-react';
+import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useStoreMemberSessionSummary } from '@/hooks/security/useStoreMemberSessionSummary';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { supabase } from '@/lib/supabase';
@@ -24,7 +24,6 @@ import {
     PROFILE_REQUEST_TYPE_LABELS,
     type ProfileChangeRequest,
     type ProfileChangeRequestStatus,
-    type ProposedChangeValue,
 } from '@/services/securityService';
 
 // Correção 6 — Labels reutilizados do Profile.tsx para exibição no painel admin
@@ -171,8 +170,53 @@ export default function Users() {
 
     const [profileRequests, setProfileRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingProfileRequests, setLoadingProfileRequests] = useState(false);
-    const [profileRequestStatusFilter, setProfileRequestStatusFilter] =
-        useState<ProfileChangeRequestStatus | ''>('pending');
+    
+    // Filtros, busca e ordenação das solicitações cadastrais de colaboradores
+    const [profileRequestSearch, setProfileRequestSearch] = useState('');
+    const [profileRequestStatusFilter, setProfileRequestStatusFilter] = useState<'all' | ProfileChangeRequestStatus>('all');
+    const [profileRequestDateFrom, setProfileRequestDateFrom] = useState('');
+    const [profileRequestDateTo, setProfileRequestDateTo] = useState('');
+    const [profileRequestSortOrder, setProfileRequestSortOrder] = useState<string>('created_desc');
+    const [profileRequestRequesterFilter, setProfileRequestRequesterFilter] = useState<string>('all');
+    const [collapsedRequests, setCollapsedRequests] = useState<Record<string, boolean>>({});
+
+    const uniqueRequesters = useMemo(() => {
+        const names = new Set<string>();
+        profileRequests.forEach((req) => {
+            const displayName = req.profile_name || req.internal_alias || req.user_email || 'Usuário';
+            names.add(displayName);
+        });
+        return Array.from(names).sort();
+    }, [profileRequests]);
+
+    const toggleRequestCollapse = (requestId: string) => {
+        setCollapsedRequests((prev) => ({
+            ...prev,
+            [requestId]: !prev[requestId],
+        }));
+    };
+
+    function getRequestTitle(request: ProfileChangeRequest): string {
+        const baseTitle = PROFILE_REQUEST_TYPE_LABELS[request.request_type] ?? request.request_type;
+        
+        if (request.request_type === 'additional_info_remove') {
+            const itemTitle = request.requested_changes?.title || 'Informação adicional';
+            return `Remoção de informação adicional (${itemTitle})`;
+        }
+        
+        if (request.request_type === 'additional_info_update') {
+            let itemTitle = 'Informação adicional';
+            const changes = request.requested_changes ?? {};
+            const additionalInfoChange = changes.member_additional_info || changes.additional_info;
+            if (additionalInfoChange) {
+                const infoChange = formatAdditionalInfoChange(additionalInfoChange);
+                itemTitle = infoChange.title;
+            }
+            return `Alteração de informação adicional (${itemTitle})`;
+        }
+        
+        return baseTitle;
+    }
 
     const [reviewModal, setReviewModal] = useState<{
         isOpen: boolean;
@@ -195,7 +239,7 @@ export default function Users() {
         try {
             const rows = await listStoreProfileChangeRequests({
                 storeId: operationalStoreId,
-                status: profileRequestStatusFilter || null,
+                status: null, // Buscar todos para filtrar localmente
                 requestType: null,
                 limit: 100,
                 offset: 0,
@@ -207,11 +251,101 @@ export default function Users() {
         } finally {
             setLoadingProfileRequests(false);
         }
-    }, [operationalStoreId, profileRequestStatusFilter, canViewProfileRequests]);
+    }, [operationalStoreId, canViewProfileRequests]);
 
     useEffect(() => {
         void loadProfileRequests();
     }, [loadProfileRequests]);
+
+    const filteredProfileRequests = useMemo(() => {
+        return profileRequests
+            .filter((req) => {
+                // Filtro de status
+                if (profileRequestStatusFilter !== 'all' && req.status !== profileRequestStatusFilter) {
+                    return false;
+                }
+
+                // Filtro de solicitante
+                if (profileRequestRequesterFilter !== 'all') {
+                    const displayName = req.profile_name || req.internal_alias || req.user_email || 'Usuário';
+                    if (displayName !== profileRequestRequesterFilter) {
+                        return false;
+                    }
+                }
+
+                // Filtro de data de início (created_at >= profileRequestDateFrom)
+                if (profileRequestDateFrom) {
+                    const fromDate = new Date(`${profileRequestDateFrom}T00:00:00`);
+                    if (new Date(req.created_at) < fromDate) {
+                        return false;
+                    }
+                }
+
+                // Filtro de data final (created_at <= profileRequestDateTo)
+                if (profileRequestDateTo) {
+                    const toDate = new Date(`${profileRequestDateTo}T23:59:59`);
+                    if (new Date(req.created_at) > toDate) {
+                        return false;
+                    }
+                }
+
+                // Filtro de pesquisa de texto
+                if (profileRequestSearch.trim()) {
+                    const query = profileRequestSearch.toLowerCase();
+                    const reason = (req.reason ?? '').toLowerCase();
+                    const typeLabel = (PROFILE_REQUEST_TYPE_LABELS[req.request_type] ?? req.request_type).toLowerCase();
+                    const statusLabel = (PROFILE_REQUEST_STATUS_LABELS[req.status] ?? req.status).toLowerCase();
+                    const name = (req.profile_name ?? '').toLowerCase();
+                    const alias = (req.internal_alias ?? '').toLowerCase();
+                    const email = (req.user_email ?? '').toLowerCase();
+
+                    // Buscar também nas alterações solicitadas se houver
+                    let matchInChanges = false;
+                    if (req.requested_changes) {
+                        const changesStr = JSON.stringify(req.requested_changes).toLowerCase();
+                        if (changesStr.includes(query)) {
+                            matchInChanges = true;
+                        }
+                    }
+
+                    if (
+                        !reason.includes(query) &&
+                        !typeLabel.includes(query) &&
+                        !statusLabel.includes(query) &&
+                        !name.includes(query) &&
+                        !alias.includes(query) &&
+                        !email.includes(query) &&
+                        !matchInChanges
+                    ) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })
+            .sort((a, b) => {
+                if (profileRequestSortOrder === 'created_desc') {
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                } else if (profileRequestSortOrder === 'created_asc') {
+                    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                } else if (profileRequestSortOrder === 'reviewed_desc') {
+                    const aTime = a.reviewed_at ? new Date(a.reviewed_at).getTime() : 0;
+                    const bTime = b.reviewed_at ? new Date(b.reviewed_at).getTime() : 0;
+                    if (aTime === bTime) {
+                        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                    }
+                    return bTime - aTime;
+                } else if (profileRequestSortOrder === 'reviewed_asc') {
+                    const aTime = a.reviewed_at ? new Date(a.reviewed_at).getTime() : Infinity;
+                    const bTime = b.reviewed_at ? new Date(b.reviewed_at).getTime() : Infinity;
+                    if (aTime === bTime) {
+                        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                    }
+                    return aTime - bTime;
+                }
+                return 0;
+            });
+    }, [profileRequests, profileRequestSearch, profileRequestStatusFilter, profileRequestDateFrom, profileRequestDateTo, profileRequestSortOrder, profileRequestRequesterFilter]);
 
     const {
         items: sessionSummary,
@@ -730,30 +864,143 @@ export default function Users() {
                             </p>
                         </div>
 
-                        <div className="flex gap-2">
-                            <select
-                                value={profileRequestStatusFilter}
-                                onChange={(event) =>
-                                    setProfileRequestStatusFilter(event.target.value as ProfileChangeRequestStatus | '')
-                                }
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-white bg-white focus:ring-2 focus:ring-[#21A896] outline-none"
-                            >
-                                <option value="">Todos</option>
-                                <option value="pending">Pendentes</option>
-                                <option value="applied">Aplicadas</option>
-                                <option value="rejected">Rejeitadas</option>
-                                <option value="cancelled">Canceladas</option>
-                            </select>
-
+                        <div className="flex gap-2 shrink-0">
                             <button
                                 type="button"
                                 onClick={loadProfileRequests}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 transition"
+                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 transition cursor-pointer flex items-center gap-1 bg-white dark:bg-gray-800"
                             >
                                 Atualizar
                             </button>
                         </div>
                     </div>
+
+                    {/* Filtros e Busca */}
+                    {!loadingProfileRequests && profileRequests.length > 0 && (
+                        <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-xs space-y-3">
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                {/* Campo de busca */}
+                                <div className="relative flex-1">
+                                    <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Localizar alteração específica (tipo, motivo, valor)..."
+                                        value={profileRequestSearch}
+                                        onChange={(e) => setProfileRequestSearch(e.target.value)}
+                                        className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    />
+                                    {profileRequestSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setProfileRequestSearch('')}
+                                            className="absolute right-3 top-2 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                {/* Seletor de Status */}
+                                <div className="w-full sm:w-48">
+                                    <select
+                                        value={profileRequestStatusFilter}
+                                        onChange={(e) => setProfileRequestStatusFilter(e.target.value as any)}
+                                        className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    >
+                                        <option value="all">Todos os status</option>
+                                        <option value="pending">Pendente</option>
+                                        <option value="applied">Aplicada</option>
+                                        <option value="rejected">Rejeitada</option>
+                                        <option value="cancelled">Cancelada</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                {/* Data De */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        De (Data de solicitação)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={profileRequestDateFrom}
+                                        onChange={(e) => setProfileRequestDateFrom(e.target.value)}
+                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    />
+                                </div>
+
+                                {/* Data Até */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        Até (Data de solicitação)
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={profileRequestDateTo}
+                                        onChange={(e) => setProfileRequestDateTo(e.target.value)}
+                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    />
+                                </div>
+
+                                {/* Solicitante */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        Solicitante
+                                    </label>
+                                    <select
+                                        value={profileRequestRequesterFilter}
+                                        onChange={(e) => setProfileRequestRequesterFilter(e.target.value)}
+                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    >
+                                        <option value="all">Todos os solicitantes</option>
+                                        {uniqueRequesters.map((name) => (
+                                            <option key={name} value={name}>
+                                                {name}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Ordenação */}
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                        Ordenar por data
+                                    </label>
+                                    <select
+                                        value={profileRequestSortOrder}
+                                        onChange={(e) => setProfileRequestSortOrder(e.target.value)}
+                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                    >
+                                        <option value="created_desc">Mais recente primeiro (Criação)</option>
+                                        <option value="created_asc">Mais antigo primeiro (Criação)</option>
+                                        <option value="reviewed_desc">Mais recente primeiro (Resposta)</option>
+                                        <option value="reviewed_asc">Mais antigo primeiro (Resposta)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Botão de limpar filtros se houver filtros ativos */}
+                            {(profileRequestSearch || profileRequestStatusFilter !== 'all' || profileRequestDateFrom || profileRequestDateTo || profileRequestRequesterFilter !== 'all' || profileRequestSortOrder !== 'created_desc') && (
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setProfileRequestSearch('');
+                                            setProfileRequestStatusFilter('all');
+                                            setProfileRequestDateFrom('');
+                                            setProfileRequestDateTo('');
+                                            setProfileRequestRequesterFilter('all');
+                                            setProfileRequestSortOrder('created_desc');
+                                        }}
+                                        className="text-[11px] font-bold text-gray-500 hover:text-[#F26541] transition cursor-pointer"
+                                    >
+                                        Limpar filtros
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {loadingProfileRequests ? (
                         <p className="text-sm text-gray-500">Carregando solicitações...</p>
@@ -761,9 +1008,13 @@ export default function Users() {
                         <p className="text-sm text-gray-500">
                             Nenhuma solicitação encontrada.
                         </p>
+                    ) : filteredProfileRequests.length === 0 ? (
+                        <p className="text-sm text-gray-500 py-4">
+                            Nenhuma solicitação corresponde aos filtros aplicados.
+                        </p>
                     ) : (
                         <div className="space-y-3">
-                            {profileRequests.map((request) => (
+                            {filteredProfileRequests.map((request) => (
                                 <div
                                     key={request.request_id}
                                     className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40"
@@ -771,146 +1022,166 @@ export default function Users() {
                                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between font-candara">
                                         <div className="flex-1">
                                             <p className="font-bold text-gray-900 dark:text-white text-base">
-                                                {PROFILE_REQUEST_TYPE_LABELS[request.request_type] ??
-                                                    request.request_type}
+                                                {getRequestTitle(request)}
                                             </p>
 
-                                            <p className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                                                {request.profile_name || request.internal_alias || request.user_email || 'Usuário'}
-                                            </p>
+                                            {collapsedRequests[request.request_id] && (
+                                                <>
+                                                    <p className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                                                        {request.profile_name || request.internal_alias || request.user_email || 'Usuário'}
+                                                    </p>
 
-                                            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                                <strong>Motivo:</strong> {request.reason}
-                                            </p>
+                                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                        <strong>Motivo:</strong> {request.reason}
+                                                    </p>
 
-                                            {request.request_type === 'additional_info_remove' && (
-                                                <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                        Item solicitado para remoção
-                                                     </p>
-                                                     <p className="mt-1 font-bold text-gray-900 dark:text-white">
-                                                         {String(request.requested_changes?.title ?? 'Sem título')}
-                                                     </p>
-                                                     <p className="text-gray-600 dark:text-gray-300">
-                                                         {String(request.requested_changes?.text ?? '')}
-                                                     </p>
-                                                 </div>
-                                             )}
+                                                    {request.request_type === 'additional_info_remove' && (
+                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                                Item solicitado para remoção
+                                                            </p>
+                                                            <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                                                {String(request.requested_changes?.title ?? 'Sem título')}
+                                                            </p>
+                                                            <p className="text-gray-600 dark:text-gray-300">
+                                                                {String(request.requested_changes?.text ?? '')}
+                                                            </p>
+                                                        </div>
+                                                    )}
 
-                                             {/* Correção 6 — exibição campo a campo */}
-                                             {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
-                                                 <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                     <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                         Alterações solicitadas
-                                                     </p>
+                                                    {/* Correção 6 — exibição campo a campo */}
+                                                    {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
+                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                                Alterações solicitadas
+                                                            </p>
 
-                                                     <div className="mt-2 space-y-2">
-                                                         {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
-                                                             const change = rawChange as any;
+                                                            <div className="mt-2 space-y-2">
+                                                                {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
+                                                                    const change = rawChange as any;
 
-                                                             if (field === 'member_additional_info' || field === 'additional_info') {
-                                                                 const infoChange = formatAdditionalInfoChange(change);
+                                                                    if (field === 'member_additional_info' || field === 'additional_info') {
+                                                                        const infoChange = formatAdditionalInfoChange(change);
 
-                                                                 return (
-                                                                     <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
-                                                                         <p className="text-xs font-bold text-gray-500">
-                                                                             {infoChange.title}
-                                                                         </p>
+                                                                        return (
+                                                                            <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+                                                                                <p className="text-xs font-bold text-gray-500">
+                                                                                    {infoChange.title}
+                                                                                </p>
 
-                                                                         <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
-                                                                             <p>
-                                                                                 <strong>Atual:</strong> {infoChange.oldText}
-                                                                             </p>
-                                                                             <p>
-                                                                                 <strong>Novo:</strong> {infoChange.newText}
-                                                                             </p>
-                                                                             <p>
-                                                                                 <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
-                                                                             </p>
-                                                                         </div>
-                                                                     </div>
-                                                                 );
-                                                             }
+                                                                                <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                                                                                    <p>
+                                                                                        <strong>Atual:</strong> {infoChange.oldText}
+                                                                                    </p>
+                                                                                    <p>
+                                                                                        <strong>Novo:</strong> {infoChange.newText}
+                                                                                    </p>
+                                                                                    <p>
+                                                                                        <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    }
 
-                                                             // Pular campos legados sem estrutura {old, new}
-                                                             if (typeof change !== 'object' || change === null || !('new' in change)) {
-                                                                 return (
-                                                                     <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                         <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
-                                                                         <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
-                                                                     </div>
-                                                                 );
-                                                             }
+                                                                    // Pular campos legados sem estrutura {old, new}
+                                                                    if (typeof change !== 'object' || change === null || !('new' in change)) {
+                                                                        return (
+                                                                            <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                                <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
+                                                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
+                                                                            </div>
+                                                                        );
+                                                                    }
 
-                                                             return (
-                                                                 <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                     <p className="text-xs font-bold text-gray-500">
-                                                                         {change.label || FIELD_LABELS[field] || field}
-                                                                     </p>
-                                                                     <p className="text-xs text-gray-400">
-                                                                         Atual: {formatChangeValue(change.old)}
-                                                                     </p>
-                                                                     <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                                                         Novo: {formatChangeValue(change.new)}
-                                                                     </p>
-                                                                 </div>
-                                                             );
-                                                         })}
-                                                     </div>
-                                                 </div>
-                                             )}
+                                                                    return (
+                                                                        <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                            <p className="text-xs font-bold text-gray-500">
+                                                                                {change.label || FIELD_LABELS[field] || field}
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-400">
+                                                                                Atual: {formatChangeValue(change.old)}
+                                                                            </p>
+                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                                                                Novo: {formatChangeValue(change.new)}
+                                                                            </p>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
 
-                                            <p className="mt-2 text-xs text-gray-400">
-                                                Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
-                                            </p>
+                                                    <p className="mt-2 text-xs text-gray-400">
+                                                        Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
+                                                    </p>
+                                                </>
+                                            )}
                                         </div>
 
                                         <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
-                                            <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                                                {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
-                                            </span>
-
-                                            {request.sensitive && (
-                                                <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/40">
-                                                    Sensível
+                                            <div className="flex items-center gap-2">
+                                                <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                    {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
                                                 </span>
-                                            )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleRequestCollapse(request.request_id)}
+                                                    className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition cursor-pointer flex items-center justify-center"
+                                                    title={collapsedRequests[request.request_id] ? "Recolher" : "Expandir"}
+                                                >
+                                                    {collapsedRequests[request.request_id] ? (
+                                                        <ChevronUp size={14} />
+                                                    ) : (
+                                                        <ChevronDown size={14} />
+                                                    )}
+                                                </button>
+                                            </div>
 
-                                            {request.status === 'pending' && canReviewProfileRequests && (
-                                                <div className="mt-2 flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setReviewModal({
-                                                                isOpen: true,
-                                                                request,
-                                                                decision: 'approve',
-                                                                adminNotes: '',
-                                                                saving: false,
-                                                            })
-                                                        }
-                                                        className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
-                                                    >
-                                                        Aprovar
-                                                    </button>
+                                            {collapsedRequests[request.request_id] && (
+                                                <>
+                                                    {request.sensitive && (
+                                                        <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/40">
+                                                            Sensível
+                                                        </span>
+                                                    )}
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setReviewModal({
-                                                                isOpen: true,
-                                                                request,
-                                                                decision: 'reject',
-                                                                adminNotes: '',
-                                                                saving: false,
-                                                            })
-                                                        }
-                                                        className="rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
-                                                    >
-                                                        Rejeitar
-                                                    </button>
-                                                    {/* Correção 6 — sem botão Cancelar para owner/admin; cancelar é do solicitante */}
-                                                </div>
+                                                    {request.status === 'pending' && canReviewProfileRequests && (
+                                                        <div className="mt-2 flex gap-2">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setReviewModal({
+                                                                        isOpen: true,
+                                                                        request,
+                                                                        decision: 'approve',
+                                                                        adminNotes: '',
+                                                                        saving: false,
+                                                                    })
+                                                                }
+                                                                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                                                            >
+                                                                Aprovar
+                                                            </button>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setReviewModal({
+                                                                        isOpen: true,
+                                                                        request,
+                                                                        decision: 'reject',
+                                                                        adminNotes: '',
+                                                                        saving: false,
+                                                                    })
+                                                                }
+                                                                className="rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                                                            >
+                                                                Rejeitar
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
                                     </div>

@@ -21,6 +21,8 @@ import {
     Info,
     History,
     X,
+    ChevronDown,
+    ChevronUp,
 } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -317,7 +319,37 @@ export default function Profile() {
     const [requestStatusFilter, setRequestStatusFilter] = useState<'all' | ProfileChangeRequestStatus>('all');
     const [requestDateFrom, setRequestDateFrom] = useState('');
     const [requestDateTo, setRequestDateTo] = useState('');
-    const [requestSortOrder, setRequestSortOrder] = useState<'desc' | 'asc'>('desc');
+    const [requestSortOrder, setRequestSortOrder] = useState<string>('created_desc');
+    const [collapsedRequests, setCollapsedRequests] = useState<Record<string, boolean>>({});
+
+    const toggleRequestCollapse = (requestId: string) => {
+        setCollapsedRequests((prev) => ({
+            ...prev,
+            [requestId]: !prev[requestId],
+        }));
+    };
+
+    function getRequestTitle(request: ProfileChangeRequest): string {
+        const baseTitle = PROFILE_REQUEST_TYPE_LABELS[request.request_type] ?? request.request_type;
+        
+        if (request.request_type === 'additional_info_remove') {
+            const itemTitle = request.requested_changes?.title || 'Informação adicional';
+            return `Remoção de informação adicional (${itemTitle})`;
+        }
+        
+        if (request.request_type === 'additional_info_update') {
+            let itemTitle = 'Informação adicional';
+            const changes = request.requested_changes ?? {};
+            const additionalInfoChange = changes.member_additional_info || changes.additional_info;
+            if (additionalInfoChange) {
+                const infoChange = formatAdditionalInfoChange(additionalInfoChange);
+                itemTitle = infoChange.title;
+            }
+            return `Alteração de informação adicional (${itemTitle})`;
+        }
+        
+        return baseTitle;
+    }
 
     const filteredRequests = useMemo(() => {
         return myRequests
@@ -372,9 +404,26 @@ export default function Profile() {
                 return true;
             })
             .sort((a, b) => {
-                const aDate = new Date(a.created_at).getTime();
-                const bDate = new Date(b.created_at).getTime();
-                return requestSortOrder === 'desc' ? bDate - aDate : aDate - bDate;
+                if (requestSortOrder === 'created_desc') {
+                    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                } else if (requestSortOrder === 'created_asc') {
+                    return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                } else if (requestSortOrder === 'reviewed_desc') {
+                    const aTime = a.reviewed_at ? new Date(a.reviewed_at).getTime() : 0;
+                    const bTime = b.reviewed_at ? new Date(b.reviewed_at).getTime() : 0;
+                    if (aTime === bTime) {
+                        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+                    }
+                    return bTime - aTime;
+                } else if (requestSortOrder === 'reviewed_asc') {
+                    const aTime = a.reviewed_at ? new Date(a.reviewed_at).getTime() : Infinity;
+                    const bTime = b.reviewed_at ? new Date(b.reviewed_at).getTime() : Infinity;
+                    if (aTime === bTime) {
+                        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+                    }
+                    return aTime - bTime;
+                }
+                return 0;
             });
     }, [myRequests, requestSearch, requestStatusFilter, requestDateFrom, requestDateTo, requestSortOrder]);
 
@@ -1662,22 +1711,24 @@ export default function Profile() {
 
                                 {/* Ordenação */}
                                 <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        Ordenar por data
-                                    </label>
-                                    <select
-                                        value={requestSortOrder}
-                                        onChange={(e) => setRequestSortOrder(e.target.value as 'desc' | 'asc')}
-                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
-                                    >
-                                        <option value="desc">Mais recente primeiro</option>
-                                        <option value="asc">Mais antigo primeiro</option>
-                                    </select>
-                                </div>
+                                     <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                         Ordenar por data
+                                     </label>
+                                     <select
+                                         value={requestSortOrder}
+                                         onChange={(e) => setRequestSortOrder(e.target.value)}
+                                         className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                     >
+                                         <option value="created_desc">Mais recente primeiro (Criação)</option>
+                                         <option value="created_asc">Mais antigo primeiro (Criação)</option>
+                                         <option value="reviewed_desc">Mais recente primeiro (Resposta)</option>
+                                         <option value="reviewed_asc">Mais antigo primeiro (Resposta)</option>
+                                     </select>
+                                 </div>
                             </div>
 
                             {/* Botão de limpar filtros se houver filtros ativos */}
-                            {(requestSearch || requestStatusFilter !== 'all' || requestDateFrom || requestDateTo || requestSortOrder !== 'desc') && (
+                            {(requestSearch || requestStatusFilter !== 'all' || requestDateFrom || requestDateTo || requestSortOrder !== 'created_desc') && (
                                 <div className="flex justify-end pt-1">
                                     <button
                                         type="button"
@@ -1686,7 +1737,7 @@ export default function Profile() {
                                             setRequestStatusFilter('all');
                                             setRequestDateFrom('');
                                             setRequestDateTo('');
-                                            setRequestSortOrder('desc');
+                                            setRequestSortOrder('created_desc');
                                         }}
                                         className="text-[11px] font-bold text-gray-500 hover:text-[#F26541] transition cursor-pointer"
                                     >
@@ -1717,104 +1768,121 @@ export default function Profile() {
                                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                                         <div>
                                             <p className="font-bold text-gray-900 dark:text-white">
-                                                {PROFILE_REQUEST_TYPE_LABELS[request.request_type] ??
-                                                    request.request_type}
+                                                {getRequestTitle(request)}
                                             </p>
 
-                                            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                                {request.reason}
-                                            </p>
-
-                                            {request.admin_notes && (
-                                                <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                                                    <strong>Retorno:</strong> {request.admin_notes}
-                                                </p>
-                                            )}
-
-                                            {request.request_type === 'additional_info_remove' && (
-                                                <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                        Item solicitado para remoção
-                                                    </p>
-                                                    <p className="mt-1 font-bold text-gray-900 dark:text-white">
-                                                        {String(request.requested_changes?.title ?? 'Sem título')}
-                                                    </p>
-                                                    <p className="text-gray-600 dark:text-gray-300">
-                                                        {String(request.requested_changes?.text ?? '')}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
-                                                <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                    <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                        Alterações solicitadas
+                                            {!collapsedRequests[request.request_id] && (
+                                                <>
+                                                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                                        {request.reason}
                                                     </p>
 
-                                                    <div className="mt-2 space-y-2">
-                                                        {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
-                                                            const change = rawChange as any;
+                                                    {request.admin_notes && (
+                                                        <p className="mt-2 rounded-lg bg-white p-2 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">
+                                                            <strong>Retorno:</strong> {request.admin_notes}
+                                                        </p>
+                                                    )}
 
-                                                            if (field === 'member_additional_info' || field === 'additional_info') {
-                                                                const infoChange = formatAdditionalInfoChange(change);
+                                                    {request.request_type === 'additional_info_remove' && (
+                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                                Item solicitado para remoção
+                                                            </p>
+                                                            <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                                                {String(request.requested_changes?.title ?? 'Sem título')}
+                                                            </p>
+                                                            <p className="text-gray-600 dark:text-gray-300">
+                                                                {String(request.requested_changes?.text ?? '')}
+                                                            </p>
+                                                        </div>
+                                                    )}
 
-                                                                return (
-                                                                    <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
-                                                                        <p className="text-xs font-bold text-gray-500">
-                                                                            {infoChange.title}
-                                                                        </p>
+                                                    {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
+                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                                Alterações solicitadas
+                                                            </p>
 
-                                                                        <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
-                                                                            <p>
-                                                                                <strong>Atual:</strong> {infoChange.oldText}
+                                                            <div className="mt-2 space-y-2">
+                                                                {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
+                                                                    const change = rawChange as any;
+
+                                                                    if (field === 'member_additional_info' || field === 'additional_info') {
+                                                                        const infoChange = formatAdditionalInfoChange(change);
+
+                                                                        return (
+                                                                            <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+                                                                                <p className="text-xs font-bold text-gray-500">
+                                                                                    {infoChange.title}
+                                                                                </p>
+
+                                                                                <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                                                                                    <p>
+                                                                                        <strong>Atual:</strong> {infoChange.oldText}
+                                                                                    </p>
+                                                                                    <p>
+                                                                                        <strong>Novo:</strong> {infoChange.newText}
+                                                                                    </p>
+                                                                                    <p>
+                                                                                        <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    // Pular campos legados sem estrutura {old, new}
+                                                                    if (typeof change !== 'object' || change === null || !('new' in change)) {
+                                                                        return (
+                                                                            <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                                <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
+                                                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
+                                                                            </div>
+                                                                        );
+                                                                    }
+
+                                                                    return (
+                                                                        <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                            <p className="text-xs font-bold text-gray-500">
+                                                                                {change.label || FIELD_LABELS[field] || field}
                                                                             </p>
-                                                                            <p>
-                                                                                <strong>Novo:</strong> {infoChange.newText}
+                                                                            <p className="text-xs text-gray-400">
+                                                                                Atual: {formatChangeValue(change.old)}
                                                                             </p>
-                                                                            <p>
-                                                                                <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
+                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                                                                Novo: {formatChangeValue(change.new)}
                                                                             </p>
                                                                         </div>
-                                                                    </div>
-                                                                );
-                                                            }
-
-                                                            // Pular campos legados sem estrutura {old, new}
-                                                            if (typeof change !== 'object' || change === null || !('new' in change)) {
-                                                                return (
-                                                                    <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                        <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
-                                                                        <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
-                                                                    </div>
-                                                                );
-                                                            }
-
-                                                            return (
-                                                                <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                    <p className="text-xs font-bold text-gray-500">
-                                                                        {change.label || FIELD_LABELS[field] || field}
-                                                                    </p>
-                                                                    <p className="text-xs text-gray-400">
-                                                                        Atual: {formatChangeValue(change.old)}
-                                                                    </p>
-                                                                    <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                                                        Novo: {formatChangeValue(change.new)}
-                                                                    </p>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </>
                                             )}
                                         </div>
 
                                         <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
-                                            <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                                                {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="inline-flex w-fit rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                    {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleRequestCollapse(request.request_id)}
+                                                    className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition cursor-pointer flex items-center justify-center"
+                                                    title={collapsedRequests[request.request_id] ? "Expandir" : "Recolher"}
+                                                >
+                                                    {collapsedRequests[request.request_id] ? (
+                                                        <ChevronDown size={14} />
+                                                    ) : (
+                                                        <ChevronUp size={14} />
+                                                    )}
+                                                </button>
+                                            </div>
 
                                             {/* Correção 8 — cancelar pelo solicitante */}
-                                            {request.status === 'pending' && (
+                                            {!collapsedRequests[request.request_id] && request.status === 'pending' && (
                                                 <button
                                                     type="button"
                                                     onClick={() => handleCancelMyRequest(request)}
@@ -1826,9 +1894,11 @@ export default function Profile() {
                                         </div>
                                     </div>
 
-                                    <p className="mt-2 text-xs text-gray-400">
-                                        Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
-                                    </p>
+                                    {!collapsedRequests[request.request_id] && (
+                                        <p className="mt-2 text-xs text-gray-400">
+                                            Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
+                                        </p>
+                                    )}
                                 </div>
                             ))}
                         </div>

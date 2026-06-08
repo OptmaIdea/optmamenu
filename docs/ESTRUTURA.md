@@ -10,6 +10,7 @@
   - __tests__/
   - assets/
   - components/
+    - RequirePermission.tsx
     - common/
       - empty-state/
       - tooltip/

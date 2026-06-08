@@ -2,6 +2,7 @@ import { Routes, Route, Outlet, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 
 import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { RequirePermission } from '@/components/RequirePermission';
 import CreateStore from '@/pages/CreateStore';
 
 // Layouts
@@ -168,7 +169,14 @@ export default function AppRoutes() {
             <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
 
             //Users Section
-            <Route path="/admin/users" element={<Users />} />
+            <Route
+              path="/admin/users"
+              element={
+                <RequirePermission permission="users.view">
+                  <Users />
+                </RequirePermission>
+              }
+            />
 
             //Settings Section
             <Route path="/admin/config" element={<Appearance />} />

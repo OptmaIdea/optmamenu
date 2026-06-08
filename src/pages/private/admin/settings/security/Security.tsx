@@ -623,6 +623,7 @@ export default function Security() {
     });
 
     const [permissionSearch, setPermissionSearch] = useState('');
+    const [userPermissionSearch, setUserPermissionSearch] = useState('');
 
     const filteredMatrix = useMemo(() => {
         if (!permissionSearch.trim()) {
@@ -635,6 +636,18 @@ export default function Security() {
                 .some((val) => String(val).toLowerCase().includes(query))
         );
     }, [permissionMatrix, permissionSearch]);
+
+    const filteredMemberPermissionDetail = useMemo(() => {
+        if (!userPermissionSearch.trim()) {
+            return memberPermissionDetail;
+        }
+        const query = userPermissionSearch.trim().toLowerCase();
+        return memberPermissionDetail.filter((row) =>
+            [row.label, row.description, row.permission_code, row.module, row.action]
+                .filter(Boolean)
+                .some((val) => String(val).toLowerCase().includes(query))
+        );
+    }, [memberPermissionDetail, userPermissionSearch]);
 
     const [productDeleteRequirement, setProductDeleteRequirement] = useState<string>('');
 
@@ -2113,23 +2126,56 @@ export default function Security() {
                         </div>
 
                         <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                            <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                Usuário/membro
-                            </label>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                        Usuário/membro
+                                    </label>
+                                    <select
+                                        value={selectedMemberId}
+                                        onChange={(event) => {
+                                            setSelectedMemberId(event.target.value);
+                                            setUserPermissionSearch('');
+                                        }}
+                                        disabled={!canManageSecurity}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                    >
+                                        <option value="">Selecione um membro</option>
+                                        {selectableMembers.map((member) => (
+                                            <option key={member.member_id} value={member.member_id}>
+                                                {member.user_name} | {formatSecurityRole(member.role)}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
 
-                            <select
-                                value={selectedMemberId}
-                                onChange={(event) => setSelectedMemberId(event.target.value)}
-                                disabled={!canManageSecurity}
-                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                            >
-                                <option value="">Selecione um membro</option>
-                                {selectableMembers.map((member) => (
-                                    <option key={member.member_id} value={member.member_id}>
-                                        {member.user_name} â€” {formatSecurityRole(member.role)} â€” {member.user_email || 'sem e-mail'}
-                                    </option>
-                                ))}
-                            </select>
+                                {selectedMemberId && (
+                                    <div className="flex flex-col justify-end">
+                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
+                                            Buscar permissão
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar autorização..."
+                                                value={userPermissionSearch}
+                                                onChange={(e) => setUserPermissionSearch(e.target.value)}
+                                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                            />
+                                            <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+                                            {userPermissionSearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setUserPermissionSearch('')}
+                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             {selectableMembers.length === 0 && (
                                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
@@ -2159,75 +2205,83 @@ export default function Security() {
                                 Nenhuma permissão encontrada para este membro.
                             </div>
                         ) : (
-                            <div className="overflow-x-auto border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
+                            <div className="overflow-auto max-h-[550px] border-collapse relative border border-gray-100 dark:border-gray-700 rounded-xl shadow-sm">
                                 <table className="w-full text-left text-sm whitespace-nowrap">
-                                    <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300">
+                                    <thead className="bg-gray-50 dark:bg-gray-750 text-gray-600 dark:text-gray-300 sticky top-0 z-20 shadow-[inset_0_-1px_0_rgba(0,0,0,0.1)] dark:shadow-[inset_0_-1px_0_rgba(255,255,255,0.1)]">
                                         <tr>
-                                            <th className="p-3">Permissão</th>
-                                            <th className="p-3">Risco</th>
-                                            <th className="p-3 text-center">Papel</th>
-                                            <th className="p-3 text-center">Efetivo</th>
-                                            <th className="p-3">Override individual</th>
+                                            <th className="p-3 bg-gray-50 dark:bg-gray-800">Permissão</th>
+                                            <th className="p-3 bg-gray-50 dark:bg-gray-800">Risco</th>
+                                            <th className="p-3 text-center bg-gray-50 dark:bg-gray-800">Papel</th>
+                                            <th className="p-3 text-center bg-gray-50 dark:bg-gray-800">Efetivo</th>
+                                            <th className="p-3 bg-gray-50 dark:bg-gray-800">Override individual</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                        {memberPermissionDetail.map((row) => (
-                                            <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                <td className="p-3">
-                                                    <div className="font-bold text-gray-800 dark:text-white">
-                                                        {row.label}
-                                                    </div>
-                                                    <div className="text-xs text-gray-400">
-                                                        {formatPermissionModule(row.module)} · {formatPermissionAction(row.action)} · {row.permission_code}
-                                                    </div>
-                                                    {row.description && (
-                                                        <div className="text-xs text-gray-500 mt-0.5">
-                                                            {row.description}
-                                                        </div>
-                                                    )}
-                                                </td>
-
-                                                <td className="p-3">
-                                                    {renderRiskBadge(row.risk_level)}
-                                                </td>
-
-                                                <td className="p-3 text-center">
-                                                    <span className={row.role_allowed ? 'text-green-600 font-bold' : 'text-gray-400 font-semibold'}>
-                                                        {row.role_allowed ? 'Permitido' : 'Bloqueado'}
-                                                    </span>
-                                                </td>
-
-                                                <td className="p-3 text-center">
-                                                    <span className={row.effective_allowed ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
-                                                        {row.effective_allowed ? 'Permitido' : 'Bloqueado'}
-                                                    </span>
-                                                </td>
-
-                                                <td className="p-3">
-                                                    <select
-                                                        value={getOverrideSelectValue(row.permission_code)}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
-                                                        onChange={(event) =>
-                                                            handleMemberOverrideChange(
-                                                                row.permission_code,
-                                                                event.target.value as 'inherit' | 'allow' | 'deny'
-                                                            )
-                                                        }
-                                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                    >
-                                                        <option value="inherit">Herdar do papel</option>
-                                                        <option value="allow">Liberar para este usuário</option>
-                                                        <option value="deny">Bloquear para este usuário</option>
-                                                    </select>
-
-                                                    {row.source !== 'role_template' && (
-                                                        <p className="mt-1 text-xs text-gray-400">
-                                                            Origem atual: {formatPermissionSource(row.source)}
-                                                        </p>
-                                                    )}
+                                        {filteredMemberPermissionDetail.length === 0 ? (
+                                            <tr>
+                                                <td colSpan={5} className="p-8 text-center text-gray-400 bg-white dark:bg-gray-900">
+                                                    Nenhuma permissão corresponde à sua busca.
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            filteredMemberPermissionDetail.map((row) => (
+                                                <tr key={row.permission_code} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                                    <td className="p-3">
+                                                        <div className="font-bold text-gray-800 dark:text-white">
+                                                            {row.label}
+                                                        </div>
+                                                        <div className="text-xs text-gray-400">
+                                                            {formatPermissionModule(row.module)} · {formatPermissionAction(row.action)} · {row.permission_code}
+                                                        </div>
+                                                        {row.description && (
+                                                            <div className="text-xs text-gray-500 mt-0.5">
+                                                                {row.description}
+                                                            </div>
+                                                        )}
+                                                    </td>
+
+                                                    <td className="p-3">
+                                                        {renderRiskBadge(row.risk_level)}
+                                                    </td>
+
+                                                    <td className="p-3 text-center">
+                                                        <span className={row.role_allowed ? 'text-green-600 font-bold' : 'text-gray-400 font-semibold'}>
+                                                            {row.role_allowed ? 'Permitido' : 'Bloqueado'}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="p-3 text-center">
+                                                        <span className={row.effective_allowed ? 'text-green-600 font-bold' : 'text-red-500 font-bold'}>
+                                                            {row.effective_allowed ? 'Permitido' : 'Bloqueado'}
+                                                        </span>
+                                                    </td>
+
+                                                    <td className="p-3">
+                                                        <select
+                                                            value={getOverrideSelectValue(row.permission_code)}
+                                                            disabled={!canManageSecurity || adminLoading.saving}
+                                                            onChange={(event) =>
+                                                                handleMemberOverrideChange(
+                                                                    row.permission_code,
+                                                                    event.target.value as 'inherit' | 'allow' | 'deny'
+                                                                )
+                                                            }
+                                                            className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                        >
+                                                            <option value="inherit">Herdar do papel</option>
+                                                            <option value="allow">Liberar para este usuário</option>
+                                                            <option value="deny">Bloquear para este usuário</option>
+                                                        </select>
+
+                                                        {row.source !== 'role_template' && (
+                                                            <p className="mt-1 text-xs text-gray-400">
+                                                                Origem atual: {formatPermissionSource(row.source)}
+                                                            </p>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
