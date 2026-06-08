@@ -13,6 +13,7 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission, hasAnyEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
+import { useIdleSessionTimeout } from '@/hooks/useIdleSessionTimeout';
 import {
     clearActiveStoreId,
     getActiveStoreId,
@@ -129,6 +130,7 @@ export default function PrivateLayout() {
     const location = useLocation();
     const { pathname } = location;
     const navigate = useNavigate();
+    useIdleSessionTimeout();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
     const [isQuickAccessOpen, setIsQuickAccessOpen] = useState(false);
@@ -215,7 +217,7 @@ export default function PrivateLayout() {
         settings: [
             { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
             { path: '/admin/my-history', icon: ScrollText, label: 'Meu Histórico' },
-            { path: '/admin/settings', icon: Building, label: 'Dados da Loja', permission: ['settings.store.view', 'settings.store.edit', 'settings.store.manage'] },
+            { path: '/admin/settings', icon: Building, label: 'Dados da Loja', permission: ['settings.view', 'settings.manage'] },
             { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários' },

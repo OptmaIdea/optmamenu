@@ -38,8 +38,7 @@ export default function StoreSettings() {
 
     const canEditStoreSettings =
         isOwner ||
-        hasEffectivePermission(permissions, 'settings.store.edit') ||
-        hasEffectivePermission(permissions, 'settings.store.manage');
+        hasEffectivePermission(permissions, 'settings.manage');
 
     const [activeTab, setActiveTab] = useState('corporate');
     const [loading, setLoading] = useState(true);

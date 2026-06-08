@@ -184,7 +184,7 @@ export default function AppRoutes() {
             <Route
               path="/admin/settings"
               element={
-                <RequirePermission permission={['settings.store.view', 'settings.store.edit', 'settings.store.manage']}>
+                <RequirePermission permission={['settings.view', 'settings.manage']}>
                   <Settings />
                 </RequirePermission>
               }

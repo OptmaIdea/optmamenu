@@ -886,6 +886,10 @@ export function UserDetailModal({
             'users.sensitive.manage': 'Usuários · Gerenciar dados sensíveis',
             'security.view': 'Segurança · Ver',
             'security.manage': 'Segurança · Gerenciar',
+            'security.sessions.view': 'Segurança · Ver sessões e inatividade',
+            'security.sessions.manage': 'Segurança · Gerenciar sessões e inatividade',
+            'settings.view': 'Configurações · Ver dados da loja',
+            'settings.manage': 'Configurações · Gerenciar dados da loja',
         };
 
         if (labels[code]) return labels[code];

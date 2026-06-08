@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
     RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
-    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check, Search
+    ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check, Search, Clock
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -240,6 +240,9 @@ function formatPermissionLabelFromCode(code: string): string {
         'users.profile_requests.view': 'Usuários · Ver solicitações cadastrais',
         'users.profile_requests.review': 'Usuários · Analisar solicitações cadastrais',
         'users.profile_requests.manage': 'Usuários · Gerenciar solicitações cadastrais',
+
+        'security.sessions.view': 'Segurança · Ver sessões e inatividade',
+        'security.sessions.manage': 'Segurança · Gerenciar sessões e inatividade',
     };
 
     if (labels[code]) return labels[code];
@@ -615,6 +618,17 @@ export default function Security() {
     const canManageSecurity =
         isOwner || hasEffectivePermission(permissions, 'security.manage');
 
+    const canViewSessionSettings =
+        isOwner ||
+        hasEffectivePermission(permissions, 'security.sessions.view') ||
+        hasEffectivePermission(permissions, 'security.sessions.manage') ||
+        hasEffectivePermission(permissions, 'security.manage');
+
+    const canManageSessions =
+        isOwner ||
+        hasEffectivePermission(permissions, 'security.sessions.manage') ||
+        hasEffectivePermission(permissions, 'security.manage');
+
     const [logFilters, setLogFilters] = useState({
         dateFrom: '',
         dateTo: '',
@@ -666,6 +680,8 @@ export default function Security() {
     // Advanced Settings
     const [tokenExpiry, setTokenExpiry] = useState(15);
     const [maxAttempts, setMaxAttempts] = useState(3);
+    const [idleTimeoutEnabled, setIdleTimeoutEnabled] = useState(true);
+    const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(30);
 
     // Logs State
     const [logs, setLogs] = useState<SecurityLog[]>([]);
@@ -810,7 +826,7 @@ export default function Security() {
 
             const { data: storeSettings, error: storeSettingsError } = await supabase
                 .from('stores')
-                .select('token_expiry_seconds, max_token_attempts')
+                .select('token_expiry_seconds, max_token_attempts, idle_timeout_enabled, idle_timeout_minutes')
                 .eq('id', activeStoreId)
                 .single();
 
@@ -830,11 +846,21 @@ export default function Security() {
                         storeSettings?.max_token_attempts ??
                         adminStore.max_token_attempts ??
                         3,
+                    idle_timeout_enabled:
+                        storeSettings?.idle_timeout_enabled ??
+                        adminStore.idle_timeout_enabled ??
+                        true,
+                    idle_timeout_minutes:
+                        storeSettings?.idle_timeout_minutes ??
+                        adminStore.idle_timeout_minutes ??
+                        30,
                 };
 
                 setStore(mergedStore);
                 setTokenExpiry(mergedStore.token_expiry_seconds ?? 15);
                 setMaxAttempts(mergedStore.max_token_attempts ?? 3);
+                setIdleTimeoutEnabled(mergedStore.idle_timeout_enabled);
+                setIdleTimeoutMinutes(mergedStore.idle_timeout_minutes);
             }
         } catch (error) {
             console.error('Error fetching data:', error);
@@ -1169,6 +1195,36 @@ export default function Security() {
         }
     };
 
+    const handleSaveIdleTimeout = async () => {
+        if (!store) return;
+        setSaving(true);
+        try {
+            const { error: updateError } = await supabase
+                .from('stores')
+                .update({
+                    idle_timeout_enabled: idleTimeoutEnabled,
+                    idle_timeout_minutes: idleTimeoutMinutes,
+                })
+                .eq('id', store.id);
+
+            if (updateError) throw updateError;
+
+            toast.success('Configuração de inatividade salva com sucesso!');
+            await logAction(
+                'Alteração de Configurações de Inatividade',
+                { enabled: idleTimeoutEnabled, minutes: idleTimeoutMinutes },
+                'success'
+            );
+            await fetchInitialData();
+        } catch (err: unknown) {
+            console.error(err);
+            const errMsg = getErrorMessage(err, 'Erro ao salvar configuração.');
+            toast.error('Erro ao salvar: ' + errMsg);
+        } finally {
+            setSaving(false);
+        }
+    };
+
     const tabs = useMemo(() => [
         { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: isOwner || hasEffectivePermission(permissions, 'security.view') },
         { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: isOwner || hasEffectivePermission(permissions, 'security.logs.view') },
@@ -1177,7 +1233,8 @@ export default function Security() {
         { id: 'users_perms', label: 'Permissões por usuário', icon: User, canAccess: isOwner || hasEffectivePermission(permissions, 'security.permissions.view') },
         { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock, canAccess: isOwner || hasEffectivePermission(permissions, 'security.sensitive_actions.view') },
         { id: 'pin_token', label: 'PIN e token', icon: Key, canAccess: isOwner || hasEffectivePermission(permissions, 'security.manage') },
-    ], [isOwner, permissions]);
+        { id: 'session_inactive', label: 'Sessão e inatividade', icon: Clock, canAccess: canViewSessionSettings },
+    ], [isOwner, permissions, canViewSessionSettings]);
 
     const allowedTabs = useMemo(() => tabs.filter((tab) => tab.canAccess), [tabs]);
 
@@ -2885,6 +2942,91 @@ export default function Security() {
                                             <Save size={18} />
                                             {saving ? 'Salvando...' : 'Salvar configurações'}
                                         </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* SESSÃO E INATIVIDADE */}
+                    <div className={activeTab === 'session_inactive' ? 'block space-y-6 animate-fadeIn' : 'hidden'}>
+                        <div className="bg-[#21A896]/5 dark:bg-[#21A896]/10 border border-[#21A896]/20 p-6 rounded-xl">
+                            <div className="flex flex-col md:flex-row md:items-start gap-4">
+                                <div className="p-3 bg-[#21A896]/10 rounded-full text-[#21A896] shrink-0 w-fit">
+                                    <Clock size={24} />
+                                </div>
+                                <div className="flex-1 w-full">
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-1">
+                                        Configuração de Sessão e Inatividade
+                                    </h3>
+                                    <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
+                                        Gerencie as diretrizes de tempo limite de sessão e desconexão automática do painel administrativo por inatividade.
+                                    </p>
+
+                                    <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700 space-y-6">
+                                        <label className="flex items-start gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="mt-1 rounded border-gray-300 dark:border-gray-600 text-[#21A896] focus:ring-[#21A896] outline-none h-4 w-4"
+                                                checked={idleTimeoutEnabled}
+                                                disabled={!canManageSessions}
+                                                onChange={(e) => setIdleTimeoutEnabled(e.target.checked)}
+                                            />
+                                            <div>
+                                                <span className="font-bold text-gray-700 dark:text-gray-300 text-sm">
+                                                    Encerrar sessão por inatividade
+                                                </span>
+                                                <p className="text-xs text-gray-400 dark:text-gray-500">
+                                                    Ao marcar esta opção, o sistema irá desconectar usuários ociosos de forma automática.
+                                                </p>
+                                            </div>
+                                        </label>
+
+                                        {idleTimeoutEnabled && (
+                                            <div className="space-y-3 pt-2">
+                                                <div className="flex justify-between items-center text-sm">
+                                                    <span className="font-bold text-gray-700 dark:text-gray-300">
+                                                        Tempo de inatividade:
+                                                    </span>
+                                                    <span className="text-[#21A896] font-bold">
+                                                        {idleTimeoutMinutes} minutos
+                                                    </span>
+                                                </div>
+
+                                                <div className="relative pt-1">
+                                                    <input
+                                                        type="range"
+                                                        min={15}
+                                                        max={45}
+                                                        step={5}
+                                                        value={idleTimeoutMinutes}
+                                                        disabled={!canManageSessions}
+                                                        onChange={(event) => setIdleTimeoutMinutes(Number(event.target.value))}
+                                                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#21A896]"
+                                                    />
+                                                    <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 px-1 mt-1">
+                                                        <span>15 min</span>
+                                                        <span>20 min</span>
+                                                        <span>25 min</span>
+                                                        <span>30 min (padrão)</span>
+                                                        <span>35 min</span>
+                                                        <span>40 min</span>
+                                                        <span>45 min</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div className="pt-2">
+                                            <button
+                                                type="button"
+                                                disabled={!canManageSessions || saving}
+                                                onClick={handleSaveIdleTimeout}
+                                                className="bg-[#F26541] hover:bg-[#d85535] text-white font-bold py-2.5 px-5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 text-sm cursor-pointer shadow-sm"
+                                            >
+                                                {saving ? 'Salvando...' : 'Salvar configuração'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
