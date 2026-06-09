@@ -149,7 +149,7 @@ O sistema possui **8 papéis built-in**, definidos em `src/types/security.ts`:
 
 | Código | Descrição | Ação |
 |---|---|---|
-| `settings.view` | Configurações - Ver dados da loja | Visualizar dados gerais da loja |
+| `settings.view` | Configurações - Ver dados da loja | Visualizar dados gerais da loja *(não deve ser usada para liberar rotas/abas sensíveis)* |
 | `settings.manage` | Configurações - Gerenciar dados da loja | Alterar dados gerais da loja |
 | `settings.store.view` | Configurações da Loja - Ver | Visualizar configurações da loja |
 | `settings.store.manage` | Configurações da Loja - Gerenciar | Alterar configurações da loja |
@@ -236,7 +236,9 @@ As templates definem as permissões padrão para cada papel. São armazenadas na
 | Fidelidade | view ✓, manage ✓ |
 | Usuários | view ✓, manage ✓, additional_info.view ✓, additional_info.manage ✓ |
 | Segurança | view ✓, logs.view ✓, roles.view ✓ |
-| Configurações | view ✓, store.view ✓, commercial.view ✓, orders.view ✓, stock.view ✓, delivery.view ✓, payment.view ✓ |
+| Configurações | store.view ✓, commercial.view ✓, orders.view ✓, stock.view ✓, delivery.view ✓, payment.view ✓ |
+
+> **Nota:** `settings.view` foi removido do template do manager. Essa permissão pode existir no catálogo, mas não deve ser utilizada para liberar rotas ou abas sensíveis.
 
 ### 4.4 Estoque (`stock_operator`)
 
