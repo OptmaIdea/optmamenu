@@ -36,35 +36,35 @@ const SETTINGS_TABS = [
 
 const settingsTabPermissions = {
   store: {
-    view: ['settings.store.view', 'settings.store.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.store.view', 'settings.store.manage', 'settings.manage'],
     manage: ['settings.store.manage', 'settings.manage'],
   },
   commercial: {
-    view: ['settings.commercial.view', 'settings.commercial.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.commercial.view', 'settings.commercial.manage', 'settings.manage'],
     manage: ['settings.commercial.manage', 'settings.manage'],
   },
   orders: {
-    view: ['settings.orders.view', 'settings.orders.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.orders.view', 'settings.orders.manage', 'settings.manage'],
     manage: ['settings.orders.manage', 'settings.manage'],
   },
   stock: {
-    view: ['settings.stock.view', 'settings.stock.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.stock.view', 'settings.stock.manage', 'settings.manage'],
     manage: ['settings.stock.manage', 'settings.manage'],
   },
   delivery: {
-    view: ['settings.delivery.view', 'settings.delivery.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.delivery.view', 'settings.delivery.manage', 'settings.manage'],
     manage: ['settings.delivery.manage', 'settings.manage'],
   },
   payment: {
-    view: ['settings.payment.view', 'settings.payment.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.payment.view', 'settings.payment.manage', 'settings.manage'],
     manage: ['settings.payment.manage', 'settings.manage'],
   },
   legal: {
-    view: ['settings.legal.view', 'settings.legal.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.legal.view', 'settings.legal.manage', 'settings.manage'],
     manage: ['settings.legal.manage', 'settings.manage'],
   },
   system: {
-    view: ['settings.system.view', 'settings.system.manage', 'settings.view', 'settings.manage'],
+    view: ['settings.system.view', 'settings.system.manage', 'settings.manage'],
     manage: ['settings.system.manage', 'settings.manage'],
   },
 } as const;
@@ -166,12 +166,17 @@ export default function StoreSettings() {
         if (loadingSecurityContext) return;
         if (!isOwner && permissions.length === 0) return;
 
-        if (allowedTabs.length === 0) {
+        if (!allowedTabs.length) {
             navigate('/admin', { replace: true });
-        } else if (!allowedTabs.some((tab) => tab.id === activeTab)) {
+            return;
+        }
+
+        const canAccessActiveTab = allowedTabs.some((tab) => tab.id === activeTab);
+
+        if (!canAccessActiveTab) {
             navigate(`/admin/settings?tab=${allowedTabs[0].id}`, { replace: true });
         }
-    }, [activeTab, allowedTabs, isOwner, permissions, loadingSecurityContext, navigate]);
+    }, [activeTab, allowedTabs, navigate, isOwner, permissions, loadingSecurityContext]);
 
     useEffect(() => {
         if (!loadingSecurityContext) {
@@ -223,9 +228,9 @@ export default function StoreSettings() {
             }
 
             const { data: storeData, error: storeError } = await supabase
-                .from('stores')
-                .select('*')
-                .eq('id', activeStoreId)
+                .rpc('get_store_settings_center', {
+                    p_store_id: activeStoreId
+                })
                 .maybeSingle();
 
             if (storeError) {

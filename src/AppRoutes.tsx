@@ -177,7 +177,6 @@ export default function AppRoutes() {
               element={
                 <RequirePermission
                   permission={[
-                    'settings.view',
                     'settings.manage',
                     'settings.store.view',
                     'settings.store.manage',

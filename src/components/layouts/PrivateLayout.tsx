@@ -194,14 +194,14 @@ export default function PrivateLayout() {
                 queryString: 'tab=payment',
                 icon: WalletCards,
                 label: 'Pagamentos',
-                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.manage']
             },
             {
                 path: '/admin/settings',
                 queryString: 'tab=delivery',
                 icon: Truck,
                 label: 'Entregas',
-                permission: ['settings.delivery.view', 'settings.delivery.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.delivery.view', 'settings.delivery.manage', 'settings.manage']
             },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
             {
@@ -209,7 +209,7 @@ export default function PrivateLayout() {
                 queryString: 'tab=commercial',
                 icon: Settings,
                 label: 'Configurações comerciais',
-                permission: ['settings.commercial.view', 'settings.commercial.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.commercial.view', 'settings.commercial.manage', 'settings.manage']
             },
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
@@ -235,7 +235,7 @@ export default function PrivateLayout() {
                 queryString: 'tab=stock',
                 icon: SlidersHorizontal,
                 label: 'Configurações de Estoque',
-                permission: ['settings.stock.view', 'settings.stock.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.stock.view', 'settings.stock.manage', 'settings.manage']
             },
         ],
         settings: [
@@ -246,14 +246,14 @@ export default function PrivateLayout() {
                 queryString: 'tab=store',
                 icon: Building,
                 label: 'Dados da Loja',
-                permission: ['settings.store.view', 'settings.store.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.store.view', 'settings.store.manage', 'settings.manage']
             },
             {
                 path: '/admin/settings',
                 queryString: 'tab=orders',
                 icon: Smartphone,
                 label: 'Pedido Online',
-                permission: ['settings.orders.view', 'settings.orders.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.orders.view', 'settings.orders.manage', 'settings.manage']
             },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
@@ -263,7 +263,7 @@ export default function PrivateLayout() {
                 queryString: 'tab=payment',
                 icon: CreditCard,
                 label: 'Pagamento',
-                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.view', 'settings.manage']
+                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.manage']
             },
             {
                 path: '/admin/security',
