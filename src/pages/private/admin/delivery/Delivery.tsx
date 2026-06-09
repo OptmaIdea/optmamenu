@@ -1,15 +1,21 @@
 import { Truck, Store, MapPin, Clock } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 
-export default function Delivery() {
+export default function Delivery({ withoutHeader = false, disabled = false }: { withoutHeader?: boolean; disabled?: boolean } = {}) {
     return (
         <PageContainer
             title="Entregas & Retiradas"
             subtitle="Configure as opções de entrega e retirada para seus clientes"
             category="Comercial"
             icon={<Truck size={28} className="text-[#21A896]" />}
+            withoutHeader={withoutHeader}
             flat
         >
+            {disabled && (
+                <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 mb-6 animate-fadeIn">
+                    Você pode visualizar estas configurações, mas não possui permissão para alterá-los.
+                </div>
+            )}
             {/* Coming Soon Card */}
             <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-700 p-8 md:p-12">
                 <div className="text-center">

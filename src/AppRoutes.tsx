@@ -39,12 +39,9 @@ const LoyaltyAdvancedPage = lazy(() => import('@/pages/private/admin/loyalty/Loy
 const CommercialDashboardPage = lazy(() => import('@/pages/private/admin/commercial/dashboard/CommercialDashboardPage'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
 const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
-const PaymentMethodsPage = lazy(() => import('@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage'));
-const CommercialSettingsPage = lazy(() => import('@/pages/private/admin/commercial/settings/CommercialSettingsPage'));
 
 // Cashbook/Payments/Financial Section
 const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
-const Payments = lazy(() => import('@/pages/private/admin/payments/Payments'));
 
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
@@ -62,8 +59,6 @@ const PurchaseInsightsPage = lazy(() => import('@/pages/private/admin/products/i
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
 const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
-const StockSettingsPage = lazy(() => import('@/pages/private/admin/stock/settings/StockSettingsPage'));
-
 // Users Section
 const Users = lazy(() => import('@/pages/private/admin/users/Users'));
 
@@ -76,14 +71,10 @@ const MyHistory = lazy(() => import('@/pages/private/admin/settings/myHistory/My
 const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
 const Security = lazy(() => import('@/pages/private/admin/settings/security/Security'));
-const Appearance = lazy(() => import('@/pages/private/admin/settings/appearance/Appearance'));
 const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
 
 // Marketing Section
 const MarketingCenterPage = lazy(() => import('@/pages/private/admin/marketing/MarketingCenterPage'));
-
-// Delivery Section
-const Delivery = lazy(() => import('@/pages/private/admin/delivery/Delivery'));
 
 // Loading fallback component
 const LoadingFallback = () => (
@@ -128,11 +119,11 @@ export default function AppRoutes() {
             // Commercial Section
             <Route path="/admin/orders" element={<Orders />} />
             <Route path="/admin/sales-channels" element={<SalesChannelsPage />} />
-            <Route path="/admin/payment-methods" element={<PaymentMethodsPage />} />
-            <Route path="/admin/payments" element={<Payments />} />
-            <Route path="/admin/delivery" element={<Delivery />} />
+            <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
+            <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
+            <Route path="/admin/delivery" element={<Navigate to="/admin/settings?tab=delivery" replace />} />
             <Route path="/admin/commercial-dashboard" element={<CommercialDashboardPage />} />
-            <Route path="/admin/commercial-settings" element={<CommercialSettingsPage />} />
+            <Route path="/admin/commercial-settings" element={<Navigate to="/admin/settings?tab=commercial" replace />} />
             <Route path="/admin/customers" element={<Customers />} />
             <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
             <Route path="/admin/loyalty/advanced" element={<LoyaltyAdvancedPage />} />
@@ -166,7 +157,7 @@ export default function AppRoutes() {
             <Route path="/admin/stock-movements" element={<StockMovements />} />
             <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
             <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
-            <Route path="/admin/stock-settings" element={<StockSettingsPage />} />
+            <Route path="/admin/stock-settings" element={<Navigate to="/admin/settings?tab=stock" replace />} />
             <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
 
             //Users Section
@@ -180,11 +171,32 @@ export default function AppRoutes() {
             />
 
             //Settings Section
-            <Route path="/admin/config" element={<Appearance />} />
+            <Route path="/admin/config" element={<Navigate to="/admin/settings?tab=orders" replace />} />
             <Route
               path="/admin/settings"
               element={
-                <RequirePermission permission={['settings.view', 'settings.manage']}>
+                <RequirePermission
+                  permission={[
+                    'settings.view',
+                    'settings.manage',
+                    'settings.store.view',
+                    'settings.store.manage',
+                    'settings.commercial.view',
+                    'settings.commercial.manage',
+                    'settings.orders.view',
+                    'settings.orders.manage',
+                    'settings.stock.view',
+                    'settings.stock.manage',
+                    'settings.delivery.view',
+                    'settings.delivery.manage',
+                    'settings.payment.view',
+                    'settings.payment.manage',
+                    'settings.legal.view',
+                    'settings.legal.manage',
+                    'settings.system.view',
+                    'settings.system.manage',
+                  ]}
+                >
                   <Settings />
                 </RequirePermission>
               }

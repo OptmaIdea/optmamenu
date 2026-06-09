@@ -189,10 +189,28 @@ export default function PrivateLayout() {
         commercial: [
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
             { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
-            { path: '/admin/payment-methods', icon: WalletCards, label: 'Pagamentos' },
-            { path: '/admin/delivery', icon: Truck, label: 'Entregas' },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=payment',
+                icon: WalletCards,
+                label: 'Pagamentos',
+                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.view', 'settings.manage']
+            },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=delivery',
+                icon: Truck,
+                label: 'Entregas',
+                permission: ['settings.delivery.view', 'settings.delivery.manage', 'settings.view', 'settings.manage']
+            },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
-            { path: '/admin/commercial-settings', icon: Settings, label: 'Configurações comerciais' },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=commercial',
+                icon: Settings,
+                label: 'Configurações comerciais',
+                permission: ['settings.commercial.view', 'settings.commercial.manage', 'settings.view', 'settings.manage']
+            },
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
             { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
@@ -212,17 +230,41 @@ export default function PrivateLayout() {
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
-            { path: '/admin/stock-settings', icon: SlidersHorizontal, label: 'Configurações de Estoque' },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=stock',
+                icon: SlidersHorizontal,
+                label: 'Configurações de Estoque',
+                permission: ['settings.stock.view', 'settings.stock.manage', 'settings.view', 'settings.manage']
+            },
         ],
         settings: [
             { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
             { path: '/admin/my-history', icon: ScrollText, label: 'Meu Histórico' },
-            { path: '/admin/settings', icon: Building, label: 'Dados da Loja', permission: ['settings.view', 'settings.manage'] },
-            { path: '/admin/config', icon: Smartphone, label: 'Pedido Online' },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=store',
+                icon: Building,
+                label: 'Dados da Loja',
+                permission: ['settings.store.view', 'settings.store.manage', 'settings.view', 'settings.manage']
+            },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=orders',
+                icon: Smartphone,
+                label: 'Pedido Online',
+                permission: ['settings.orders.view', 'settings.orders.manage', 'settings.view', 'settings.manage']
+            },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários' },
             { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
-            { path: '/admin/payments', icon: CreditCard, label: 'Pagamento' },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=payment',
+                icon: CreditCard,
+                label: 'Pagamento',
+                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.view', 'settings.manage']
+            },
             {
                 path: '/admin/security',
                 icon: Shield,
@@ -663,14 +705,31 @@ export default function PrivateLayout() {
 
     // Resolve o grupo e item ativo
     const currentItem = useMemo(() => {
-        // 1. Tenta correspondência exata de caminho
+        const search = location.search || '';
+        // 1. Tenta correspondência exata de caminho e query string
+        for (const [group, items] of Object.entries(navigationItems)) {
+            const matchedItem = items.find(item => {
+                if (pathname !== item.path) return false;
+                if (item.queryString) {
+                    if (item.path === '/admin/settings' && item.queryString === 'tab=store') {
+                        return search.includes('tab=store') || !search.includes('tab=');
+                    }
+                    return search.includes(item.queryString);
+                }
+                return true;
+            });
+            if (matchedItem) {
+                return { group, item: matchedItem };
+            }
+        }
+        // 2. Se não achar exato com query string, tenta correspondência simples de caminho
         for (const [group, items] of Object.entries(navigationItems)) {
             const matchedItem = items.find(item => pathname === item.path);
             if (matchedItem) {
                 return { group, item: matchedItem };
             }
         }
-        // 2. Se não achar exato, tenta por prefixo de subpasta (excluindo /admin que é raiz)
+        // 3. Se não achar exato, tenta por prefixo de subpasta (excluindo /admin que é raiz)
         for (const [group, items] of Object.entries(navigationItems)) {
             const matchedItem = items.find(item => {
                 if (item.path === '/admin') return false;
@@ -681,7 +740,7 @@ export default function PrivateLayout() {
             }
         }
         return null;
-    }, [navigationItems, pathname]);
+    }, [navigationItems, pathname, location.search]);
 
     // Helper para verificar se um item de menu está ativo no contexto atual
     const isMenuItemActive = useCallback(
@@ -691,7 +750,11 @@ export default function PrivateLayout() {
                 (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
             if (!pathMatches) return false;
             if (item.queryString) {
-                return currentSearch.includes(item.queryString);
+                const search = currentSearch || '';
+                if (item.path === '/admin/settings' && item.queryString === 'tab=store') {
+                    return search.includes('tab=store') || !search.includes('tab=');
+                }
+                return search.includes(item.queryString);
             }
             return true;
         },

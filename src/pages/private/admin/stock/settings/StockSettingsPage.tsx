@@ -87,7 +87,7 @@ function getErrorMessage(error: unknown, fallback = 'Erro desconhecido.') {
     return fallback;
 }
 
-export default function StockSettingsPage() {
+export default function StockSettingsPage({ withoutHeader = false, disabled = false }: { withoutHeader?: boolean; disabled?: boolean } = {}) {
     const { storeId, loading: loadingStore } = useCurrentStore();
 
     const [products, setProducts] = useState<ProductStockSettingsListItem[]>([]);
@@ -404,16 +404,19 @@ export default function StockSettingsPage() {
             category="Produtos"
             icon={<SlidersHorizontal size={28} className="text-[#21A896]" />}
             action={
-                <button
-                    type="button"
-                    onClick={handleSave}
-                    disabled={saving || !selectedProductId || loadingRules}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                    {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                    Salvar regras
-                </button>
+                !disabled && (
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving || !selectedProductId || loadingRules}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                        Salvar regras
+                    </button>
+                )
             }
+            withoutHeader={withoutHeader}
             flat
         >
             {error && (
@@ -538,7 +541,7 @@ export default function StockSettingsPage() {
                                 <button
                                     type="button"
                                     onClick={distributeEqually}
-                                    disabled={!rules.length}
+                                    disabled={!rules.length || disabled}
                                     className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     Dividir igualmente
@@ -547,7 +550,7 @@ export default function StockSettingsPage() {
                                 <button
                                     type="button"
                                     onClick={recalculateByPercent}
-                                    disabled={!rules.length}
+                                    disabled={!rules.length || disabled}
                                     className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                 >
                                     Recalcular por %
@@ -569,6 +572,7 @@ export default function StockSettingsPage() {
                                     onChange={(event) => setMinStock(event.target.value)}
                                     onBlur={() => setMinStock(String(toStockInteger(minStock, 0)))}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                    disabled={disabled}
                                 />
                             </div>
 
@@ -585,6 +589,7 @@ export default function StockSettingsPage() {
                                     onChange={(event) => setMaxStock(event.target.value)}
                                     onBlur={() => setMaxStock(String(toStockInteger(maxStock, 0)))}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                    disabled={disabled}
                                 />
                             </div>
                         </div>
@@ -604,16 +609,18 @@ export default function StockSettingsPage() {
                             <div className="inline-flex w-fit rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-700 dark:bg-gray-950">
                                 <button
                                     type="button"
+                                    disabled={disabled}
                                     onClick={() => setDistributionMode('automatic')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${distributionMode === 'automatic'
                                         ? 'bg-white text-blue-700 shadow-sm dark:bg-gray-800 dark:text-blue-300'
                                         : 'text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'
                                         }`}
                                 >
-                                    Autom&aacute;tico
+                                    Automático
                                 </button>
                                 <button
                                     type="button"
+                                    disabled={disabled}
                                     onClick={() => setDistributionMode('manual')}
                                     className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${distributionMode === 'manual'
                                         ? 'bg-white text-blue-700 shadow-sm dark:bg-gray-800 dark:text-blue-300'
@@ -658,12 +665,13 @@ export default function StockSettingsPage() {
                                                     onChange={(event) =>
                                                         updateRule(rule.location_id, event.target.checked)
                                                     }
+                                                    disabled={disabled}
                                                 />
                                                 Ativo
                                             </label>
                                         </div>
 
-                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
                                             <div>
                                                 <label className="text-xs font-bold text-gray-600 dark:text-gray-300">
                                                     Mín %
@@ -680,6 +688,7 @@ export default function StockSettingsPage() {
                                                     }
                                                     onBlur={() => roundRuleInteger(rule.location_id, 'min_percent')}
                                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                    disabled={disabled}
                                                 />
                                             </div>
 
@@ -699,6 +708,7 @@ export default function StockSettingsPage() {
                                                     }
                                                     onBlur={() => roundRuleInteger(rule.location_id, 'max_percent')}
                                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                    disabled={disabled}
                                                 />
                                             </div>
 
@@ -717,6 +727,7 @@ export default function StockSettingsPage() {
                                                     }
                                                     onBlur={() => roundRuleInteger(rule.location_id, 'min_stock')}
                                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                    disabled={disabled}
                                                 />
                                             </div>
 
@@ -735,6 +746,7 @@ export default function StockSettingsPage() {
                                                     }
                                                     onBlur={() => roundRuleInteger(rule.location_id, 'max_stock')}
                                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                    disabled={disabled}
                                                 />
                                             </div>
                                         </div>

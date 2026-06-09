@@ -74,7 +74,7 @@ const ColorInput = ({ label, value, placeholder, onChange }: ColorInputProps) =>
     );
 };
 
-export default function Config() {
+export default function Config({ withoutHeader = false, disabled = false }: { withoutHeader?: boolean; disabled?: boolean } = {}) {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [storeId, setStoreId] = useState<string | null>(null);
@@ -273,15 +273,18 @@ export default function Config() {
             category="Configurações"
             icon={<Smartphone className="text-[#21A896]" size={28} />}
             action={
-                <button
-                    onClick={handleSave}
-                    disabled={saving}
-                    className="bg-[#21A896] hover:bg-[#1a867a] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
-                >
-                    {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
-                    <span>Salvar Configurações</span>
-                </button>
+                !disabled && (
+                    <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="bg-[#21A896] hover:bg-[#1a867a] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
+                    >
+                        {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
+                        <span>Salvar Configurações</span>
+                    </button>
+                )
             }
+            withoutHeader={withoutHeader}
             flat
         >
 
@@ -334,6 +337,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, visual_title: e.target.value })}
                                             placeholder="Ex: Delivery do João"
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-purple-400 outline-none transition"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div>
@@ -347,10 +351,12 @@ export default function Config() {
                                                 )}
                                             </div>
                                             <div className="flex-1">
-                                                <label className="cursor-pointer bg-white dark:bg-gray-600 hover:bg-gray-50 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-500 shadow-sm transition inline-flex items-center gap-2 text-sm">
-                                                    <Upload size={14} /> Carregar Imagem
-                                                    <input type="file" accept="image/*" className="hidden" onChange={handleIconUpload} />
-                                                </label>
+                                                {!disabled && (
+                                                    <label className="cursor-pointer bg-white dark:bg-gray-600 hover:bg-gray-50 text-gray-700 dark:text-white font-bold px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-500 shadow-sm transition inline-flex items-center gap-2 text-sm">
+                                                        <Upload size={14} /> Carregar Imagem
+                                                        <input type="file" accept="image/*" className="hidden" onChange={handleIconUpload} />
+                                                    </label>
+                                                )}
                                                 <p className="text-xs text-gray-400 mt-2">Recomendado: 64x64px ou 128x128px</p>
                                             </div>
                                         </div>
@@ -391,19 +397,25 @@ export default function Config() {
                                         {config.visual_banner_url ? (
                                             <>
                                                 <img src={config.visual_banner_url} alt="Banner" className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                                                    <label className="cursor-pointer bg-white text-gray-800 font-bold px-4 py-2 rounded-lg shadow-lg transform scale-95 group-hover:scale-100 transition">
-                                                        Trocar Banner
-                                                        <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
-                                                    </label>
-                                                </div>
+                                                {!disabled && (
+                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                                        <label className="cursor-pointer bg-white text-gray-800 font-bold px-4 py-2 rounded-lg shadow-lg transform scale-95 group-hover:scale-100 transition">
+                                                            Trocar Banner
+                                                            <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+                                                        </label>
+                                                    </div>
+                                                )}
                                             </>
                                         ) : (
-                                            <label className="cursor-pointer flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-green transition">
-                                                <Upload size={32} />
-                                                <span className="font-bold text-sm">Carregar Banner (1200x400px)</span>
-                                                <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
-                                            </label>
+                                            !disabled ? (
+                                                <label className="cursor-pointer flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-green transition">
+                                                    <Upload size={32} />
+                                                    <span className="font-bold text-sm">Carregar Banner (1200x400px)</span>
+                                                    <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+                                                </label>
+                                            ) : (
+                                                <span className="font-bold text-sm text-gray-400">Sem Banner</span>
+                                            )
                                         )}
                                     </div>
                                 </div>
@@ -427,6 +439,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, visual_slogan: e.target.value })}
                                             placeholder="Ex: O melhor sabor da região"
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div>
@@ -437,6 +450,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, footer_text: e.target.value })}
                                             placeholder="Ex: Feito com amor para você."
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
+                                            disabled={disabled}
                                         />
                                     </div>
                                 </div>
@@ -458,19 +472,25 @@ export default function Config() {
                                             ) : config.about_image_url ? (
                                                 <>
                                                     <img src={config.about_image_url} alt="Quem Somos" className="w-full h-full object-cover" />
-                                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                                                        <label className="cursor-pointer bg-white text-gray-800 font-bold px-4 py-2 rounded-lg shadow-lg transform scale-95 group-hover:scale-100 transition">
-                                                            Trocar Foto
-                                                            <input type="file" accept="image/*" className="hidden" onChange={handleAboutImageUpload} />
-                                                        </label>
-                                                    </div>
+                                                    {!disabled && (
+                                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                                                            <label className="cursor-pointer bg-white text-gray-800 font-bold px-4 py-2 rounded-lg shadow-lg transform scale-95 group-hover:scale-100 transition">
+                                                                Trocar Foto
+                                                                <input type="file" accept="image/*" className="hidden" onChange={handleAboutImageUpload} />
+                                                            </label>
+                                                        </div>
+                                                    )}
                                                 </>
                                             ) : (
-                                                <label className="cursor-pointer flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-green transition">
-                                                    <Upload size={32} />
-                                                    <span className="font-bold text-sm">Carregar Foto</span>
-                                                    <input type="file" accept="image/*" className="hidden" onChange={handleAboutImageUpload} />
-                                                </label>
+                                                !disabled ? (
+                                                    <label className="cursor-pointer flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-brand-green transition">
+                                                        <Upload size={32} />
+                                                        <span className="font-bold text-sm">Carregar Foto</span>
+                                                        <input type="file" accept="image/*" className="hidden" onChange={handleAboutImageUpload} />
+                                                    </label>
+                                                ) : (
+                                                    <span className="font-bold text-sm text-gray-400">Sem Imagem</span>
+                                                )
                                             )}
                                         </div>
                                     </div>
@@ -486,6 +506,7 @@ export default function Config() {
                                             placeholder="Conte um pouco da sua história..."
                                             rows={5}
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-teal-400 outline-none transition resize-none"
+                                            disabled={disabled}
                                         />
                                         <div className="text-right text-xs text-gray-400 mt-1">
                                             {(config.about_text || '').length}/500
@@ -514,6 +535,7 @@ export default function Config() {
                                                 onChange={(e) => setConfig({ ...config, contact_whatsapp_support: e.target.value })}
                                                 placeholder="5511999999999"
                                                 className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300 font-mono"
+                                                disabled={disabled}
                                             />
                                         </div>
                                         <p className="text-xs text-gray-400 mt-1">Aparecerá no botão flutuante.</p>
@@ -528,6 +550,7 @@ export default function Config() {
                                                 onChange={(e) => setConfig({ ...config, contact_email: e.target.value })}
                                                 placeholder="contato@loja.com"
                                                 className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                                disabled={disabled}
                                             />
                                         </div>
                                     </div>
@@ -539,6 +562,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, contact_address: e.target.value })}
                                             placeholder="Av. Paulista, 1000 - São Paulo, SP"
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-green-400 outline-none transition"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div className="md:col-span-2">
@@ -549,6 +573,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, contact_map_link: e.target.value })}
                                             placeholder="Cole aqui o link de compartilhamento do Google Maps"
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-green-400 outline-none transition"
+                                            disabled={disabled}
                                         />
                                         <p className="text-xs text-gray-400 mt-1">Vá no Google Maps, clique em "Compartilhar" e copie o link.</p>
                                     </div>
@@ -568,6 +593,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, instagram: e.target.value } })}
                                             placeholder="instagram.com/sualoja"
                                             className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -578,6 +604,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, facebook: e.target.value } })}
                                             placeholder="facebook.com/sualoja"
                                             className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -588,6 +615,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, website: e.target.value } })}
                                             placeholder="www.seusite.com.br"
                                             className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -598,6 +626,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, twitter: e.target.value } })}
                                             placeholder="twitter.com/sualoja"
                                             className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -608,6 +637,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, tiktok: e.target.value } })}
                                             placeholder="tiktok.com/@sualoja"
                                             className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                            disabled={disabled}
                                         />
                                     </div>
                                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
@@ -618,6 +648,7 @@ export default function Config() {
                                             onChange={(e) => setConfig({ ...config, social_links: { ...config.social_links, google_reviews: e.target.value } })}
                                             placeholder="Link do Google Maps para Avaliação"
                                             className="w-full bg-transparent p-2 outline-none text-gray-700 dark:text-gray-300"
+                                            disabled={disabled}
                                         />
                                     </div>
                                 </div>

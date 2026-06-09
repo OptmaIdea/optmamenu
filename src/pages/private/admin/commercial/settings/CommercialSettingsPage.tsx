@@ -20,7 +20,7 @@ function asNumber(value: unknown, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-export default function CommercialSettingsPage() {
+export default function CommercialSettingsPage({ withoutHeader = false, disabled = false }: { withoutHeader?: boolean; disabled?: boolean } = {}) {
     const { storeId, loading: loadingStore } = useCurrentStore();
 
     const [store, setStore] = useState<CommercialSettingsStore | null>(null);
@@ -147,7 +147,7 @@ export default function CommercialSettingsPage() {
             icon={<Settings size={28} className="text-[#21A896]" />}
             onRefresh={loadData}
             action={
-                publicUrl && (
+                !disabled && publicUrl && (
                     <a
                         href={publicUrl}
                         target="_blank"
@@ -159,6 +159,7 @@ export default function CommercialSettingsPage() {
                     </a>
                 )
             }
+            withoutHeader={withoutHeader}
             flat
         >
 
@@ -199,6 +200,7 @@ export default function CommercialSettingsPage() {
                                         checked={publicStoreEnabled}
                                         onChange={(event) => setPublicStoreEnabled(event.target.checked)}
                                         className="h-5 w-5"
+                                        disabled={disabled}
                                     />
                                 </div>
                             </label>
@@ -217,6 +219,7 @@ export default function CommercialSettingsPage() {
                                         checked={publicCatalogEnabled}
                                         onChange={(event) => setPublicCatalogEnabled(event.target.checked)}
                                         className="h-5 w-5"
+                                        disabled={disabled}
                                     />
                                 </div>
                             </label>
@@ -232,6 +235,7 @@ export default function CommercialSettingsPage() {
                                     onChange={(event) => setSlug(event.target.value.toLowerCase())}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     placeholder="gelinharessjn"
+                                    disabled={disabled}
                                 />
                                 <p className="mt-1 text-xs text-gray-500">
                                     Use letras minúsculas, números e hífen. O nome deve ser exclusivo.
@@ -246,6 +250,7 @@ export default function CommercialSettingsPage() {
                                     value={publicSalesLocationId}
                                     onChange={(event) => setPublicSalesLocationId(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                    disabled={disabled}
                                 >
                                     <option value="">Selecionar automaticamente</option>
                                     {locations.map((location) => (
@@ -276,6 +281,7 @@ export default function CommercialSettingsPage() {
                                     value={minimumOrderValue}
                                     onChange={(event) => setMinimumOrderValue(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                    disabled={disabled}
                                 />
                                 <p className="mt-1 text-xs text-gray-500">
                                     Hoje usamos como referência para entrega. Retirada pode ficar sem mínimo.
@@ -293,6 +299,7 @@ export default function CommercialSettingsPage() {
                                     value={reservationTimeMinutes}
                                     onChange={(event) => setReservationTimeMinutes(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                    disabled={disabled}
                                 />
                             </div>
                         </div>
@@ -313,6 +320,7 @@ export default function CommercialSettingsPage() {
                                     onChange={(event) => setWhatsappBusiness(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     placeholder="5562999999999"
+                                    disabled={disabled}
                                 />
                             </div>
 
@@ -325,6 +333,7 @@ export default function CommercialSettingsPage() {
                                     onChange={(event) => setMainEmail(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     placeholder="loja@email.com"
+                                    disabled={disabled}
                                 />
                             </div>
 
@@ -337,6 +346,7 @@ export default function CommercialSettingsPage() {
                                     onChange={(event) => setWebsite(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     placeholder="https://..."
+                                    disabled={disabled}
                                 />
                             </div>
 
@@ -349,6 +359,7 @@ export default function CommercialSettingsPage() {
                                     onChange={(event) => setSocialMedia(event.target.value)}
                                     className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     placeholder="https://instagram.com/..."
+                                    disabled={disabled}
                                 />
                             </div>
                         </div>
@@ -377,15 +388,17 @@ export default function CommercialSettingsPage() {
                         <p className="mt-1 text-sm text-gray-500">/{slug}</p>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                        Salvar configurações
-                    </button>
+                    {!disabled && (
+                        <button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                            Salvar configurações
+                        </button>
+                    )}
                 </aside>
             </div>
         </PageContainer>

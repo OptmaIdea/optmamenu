@@ -49,7 +49,7 @@ function statusBadge(active: boolean) {
         : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300';
 }
 
-export default function PaymentMethodsPage() {
+export default function PaymentMethodsPage({ withoutHeader = false, disabled = false }: { withoutHeader?: boolean; disabled?: boolean } = {}) {
     const { storeId, loading: loadingStore } = useCurrentStore();
     const [methods, setMethods] = useState<StorePaymentMethod[]>([]);
     const [loading, setLoading] = useState(true);
@@ -134,6 +134,7 @@ export default function PaymentMethodsPage() {
             category="Comercial"
             icon={<WalletCards size={28} className="text-[#21A896]" />}
             onRefresh={loadMethods}
+            withoutHeader={withoutHeader}
             flat
         >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -174,7 +175,8 @@ export default function PaymentMethodsPage() {
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 {methods.map((method) => {
                     const Icon = METHOD_ICONS[method.code] || WalletCards;
-                    const disabled = savingId === method.id;
+                    const isSaving = savingId === method.id;
+                    const isBtnDisabled = disabled || isSaving;
 
                     return (
                         <div
@@ -217,7 +219,7 @@ export default function PaymentMethodsPage() {
                                     <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                                         <button
                                             type="button"
-                                            disabled={disabled}
+                                            disabled={isBtnDisabled}
                                             onClick={() => toggleMethod(method, 'active')}
                                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                         >
@@ -227,7 +229,7 @@ export default function PaymentMethodsPage() {
 
                                         <button
                                             type="button"
-                                            disabled={disabled || !method.active}
+                                            disabled={isBtnDisabled || !method.active}
                                             onClick={() => toggleMethod(method, 'public_enabled')}
                                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                         >
@@ -237,7 +239,7 @@ export default function PaymentMethodsPage() {
 
                                         <button
                                             type="button"
-                                            disabled={disabled}
+                                            disabled={isBtnDisabled}
                                             onClick={() => toggleMethod(method, 'requires_proof')}
                                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                         >
@@ -247,7 +249,7 @@ export default function PaymentMethodsPage() {
 
                                         <button
                                             type="button"
-                                            disabled={disabled}
+                                            disabled={isBtnDisabled}
                                             onClick={() => toggleMethod(method, 'affects_cashbook')}
                                             className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                                         >
