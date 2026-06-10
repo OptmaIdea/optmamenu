@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone } from 'lucide-react';
 import { toast } from 'sonner';
@@ -36,36 +36,36 @@ const SETTINGS_TABS = [
 
 const settingsTabPermissions = {
   store: {
-    view: ['settings.store.view', 'settings.store.manage', 'settings.manage'],
-    manage: ['settings.store.manage', 'settings.manage'],
+    view: ['settings.store.view', 'settings.store.manage'],
+    manage: ['settings.store.manage'],
   },
   commercial: {
-    view: ['settings.commercial.view', 'settings.commercial.manage', 'settings.manage'],
-    manage: ['settings.commercial.manage', 'settings.manage'],
+    view: ['settings.commercial.view', 'settings.commercial.manage'],
+    manage: ['settings.commercial.manage'],
   },
   orders: {
-    view: ['settings.orders.view', 'settings.orders.manage', 'settings.manage'],
-    manage: ['settings.orders.manage', 'settings.manage'],
+    view: ['settings.orders.view', 'settings.orders.manage'],
+    manage: ['settings.orders.manage'],
   },
   stock: {
-    view: ['settings.stock.view', 'settings.stock.manage', 'settings.manage'],
-    manage: ['settings.stock.manage', 'settings.manage'],
+    view: ['settings.stock.view', 'settings.stock.manage'],
+    manage: ['settings.stock.manage'],
   },
   delivery: {
-    view: ['settings.delivery.view', 'settings.delivery.manage', 'settings.manage'],
-    manage: ['settings.delivery.manage', 'settings.manage'],
+    view: ['settings.delivery.view', 'settings.delivery.manage'],
+    manage: ['settings.delivery.manage'],
   },
   payment: {
-    view: ['settings.payment.view', 'settings.payment.manage', 'settings.manage'],
-    manage: ['settings.payment.manage', 'settings.manage'],
+    view: ['settings.payment.view', 'settings.payment.manage'],
+    manage: ['settings.payment.manage'],
   },
   legal: {
-    view: ['settings.legal.view', 'settings.legal.manage', 'settings.manage'],
-    manage: ['settings.legal.manage', 'settings.manage'],
+    view: ['settings.legal.view', 'settings.legal.manage'],
+    manage: ['settings.legal.manage'],
   },
   system: {
-    view: ['settings.system.view', 'settings.system.manage', 'settings.manage'],
-    manage: ['settings.system.manage', 'settings.manage'],
+    view: ['settings.system.view', 'settings.system.manage'],
+    manage: ['settings.system.manage'],
   },
 } as const;
 
@@ -95,28 +95,54 @@ export default function StoreSettings() {
     const activeTab = searchParams.get('tab') || 'store';
     const [activeStoreSubTab, setActiveStoreSubTab] = useState('corporate');
 
-    const hasAnyPermission = (keys: readonly string[]) => {
+    const canAccessSettingsRoot = useMemo(() => {
+        if (loadingSecurityContext) return true;
+        return isOwner || hasEffectivePermission(permissions, 'settings.view');
+    }, [permissions, isOwner, loadingSecurityContext]);
+
+    const canManageSettingsRoot = useMemo(() => {
+        return canAccessSettingsRoot && (isOwner || hasEffectivePermission(permissions, 'settings.manage'));
+    }, [canAccessSettingsRoot, permissions, isOwner]);
+
+    const canViewSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
+        if (!canAccessSettingsRoot) return false;
         if (isOwner) return true;
-        return keys.some((key) => hasEffectivePermission(permissions, key));
-    };
+
+        return (
+            canManageSettingsRoot ||
+            settingsTabPermissions[tab].view.some((permission) =>
+                hasEffectivePermission(permissions, permission)
+            )
+        );
+    }, [canAccessSettingsRoot, canManageSettingsRoot, isOwner, permissions]);
+
+    const canManageSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
+        if (!canAccessSettingsRoot) return false;
+        if (isOwner) return true;
+
+        return (
+            canManageSettingsRoot ||
+            settingsTabPermissions[tab].manage.some((permission) =>
+                hasEffectivePermission(permissions, permission)
+            )
+        );
+    }, [canAccessSettingsRoot, canManageSettingsRoot, isOwner, permissions]);
 
     const allowedTabs = useMemo(() => {
         return SETTINGS_TABS.filter((tab) =>
-            hasAnyPermission(settingsTabPermissions[tab.id].view)
+            canViewSettingsTab(tab.id)
         );
-    }, [permissions, isOwner]);
+    }, [canViewSettingsTab]);
 
-    const canViewSettings = isOwner || allowedTabs.length > 0;
+    const canManageStore = useMemo(() => canManageSettingsTab('store'), [canManageSettingsTab]);
+    const canManageLegal = useMemo(() => canManageSettingsTab('legal'), [canManageSettingsTab]);
+    const canManageSystem = useMemo(() => canManageSettingsTab('system'), [canManageSettingsTab]);
 
-    const canManageStore = isOwner || hasAnyPermission(settingsTabPermissions.store.manage);
-    const canManageLegal = isOwner || hasAnyPermission(settingsTabPermissions.legal.manage);
-    const canManageSystem = isOwner || hasAnyPermission(settingsTabPermissions.system.manage);
-
-    const canManageSettings = isOwner || (
-        activeTab in settingsTabPermissions
-            ? hasAnyPermission(settingsTabPermissions[activeTab as keyof typeof settingsTabPermissions].manage)
-            : false
-    );
+    const canManageSettings = useMemo(() => {
+        return activeTab in settingsTabPermissions
+            ? canManageSettingsTab(activeTab as keyof typeof settingsTabPermissions)
+            : false;
+    }, [activeTab, canManageSettingsTab]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
@@ -489,17 +515,25 @@ export default function StoreSettings() {
 
     if (loading) return <div className="p-8 flex justify-center"><Loader className="animate-spin text-brand-green" /></div>;
 
-    if (!canViewSettings) {
+    if (!canAccessSettingsRoot) {
         return (
             <PageContainer
-                title="Dados da Loja"
-                subtitle="Preencha as informações para ativar seu cardápio digital."
+                title="Configurações da Loja"
+                subtitle="Gerencie as configurações gerais da sua loja, regras comerciais, formas de pagamento, termos e sistema."
                 category="Configurações"
-                icon={<UserCircle className="text-[#21A896]" size={28} />}
+                icon={<Settings className="text-[#21A896]" size={28} />}
                 flat
             >
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                    Você não tem permissão para acessar os dados da loja.
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn">
+                    <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
+                        <AlertCircle size={48} />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                        Acesso Restrito
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
+                        Você não tem permissão para acessar Configurações.
+                    </p>
                 </div>
             </PageContainer>
         );

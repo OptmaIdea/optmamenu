@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
@@ -9,7 +9,7 @@ import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
     RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
     ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check, Search, Clock,
-    ChevronDown, ChevronUp
+    ChevronDown, ChevronUp, ArrowUp
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -464,36 +464,36 @@ const VALID_TAB_IDS = [
 
 const securityTabPermissions = {
   context: {
-    view: ['security.context.view', 'security.context.manage', 'security.view', 'security.manage'],
-    manage: ['security.context.manage', 'security.manage'],
+    view: ['security.context.view', 'security.context.manage'],
+    manage: ['security.context.manage'],
   },
   logs: {
-    view: ['security.logs.view', 'security.logs.manage', 'security.manage'],
-    manage: ['security.logs.manage', 'security.manage'],
+    view: ['security.logs.view', 'security.logs.manage'],
+    manage: ['security.logs.manage'],
   },
   roles: {
-    view: ['security.roles.view', 'security.roles.manage', 'security.manage'],
-    manage: ['security.roles.manage', 'security.manage'],
+    view: ['security.roles.view', 'security.roles.manage'],
+    manage: ['security.roles.manage'],
   },
   custom_roles: {
-    view: ['security.custom_roles.view', 'security.custom_roles.manage', 'security.manage'],
-    manage: ['security.custom_roles.manage', 'security.manage'],
+    view: ['security.custom_roles.view', 'security.custom_roles.manage'],
+    manage: ['security.custom_roles.manage'],
   },
   user_permissions: {
-    view: ['security.user_permissions.view', 'security.user_permissions.manage', 'security.manage'],
-    manage: ['security.user_permissions.manage', 'security.manage'],
+    view: ['security.user_permissions.view', 'security.user_permissions.manage'],
+    manage: ['security.user_permissions.manage'],
   },
   sensitive_actions: {
-    view: ['security.sensitive_actions.view', 'security.sensitive_actions.manage', 'security.manage'],
-    manage: ['security.sensitive_actions.manage', 'security.manage'],
+    view: ['security.sensitive_actions.view', 'security.sensitive_actions.manage'],
+    manage: ['security.sensitive_actions.manage'],
   },
   pin_token: {
-    view: ['security.pin_token.view', 'security.pin_token.manage', 'security.manage'],
-    manage: ['security.pin_token.manage', 'security.manage'],
+    view: ['security.pin_token.view', 'security.pin_token.manage'],
+    manage: ['security.pin_token.manage'],
   },
   session_inactive: {
-    view: ['security.sessions.view', 'security.sessions.manage', 'security.view', 'security.manage'],
-    manage: ['security.sessions.manage', 'security.manage'],
+    view: ['security.sessions.view', 'security.sessions.manage'],
+    manage: ['security.sessions.manage'],
   },
 } as const;
 
@@ -659,6 +659,17 @@ export default function Security() {
         }));
     }, []);
 
+    const userPermissionsListRef = useRef<HTMLDivElement>(null);
+    const [showUserPermScrollTop, setShowUserPermScrollTop] = useState(false);
+
+    const handleUserPermScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+        setShowUserPermScrollTop(e.currentTarget.scrollTop > 200);
+    }, []);
+
+    const scrollToUserPermTop = useCallback(() => {
+        userPermissionsListRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    }, []);
+
     const {
         permissions,
         loading: loadingPermissions,
@@ -671,24 +682,40 @@ export default function Security() {
         return hasEffectivePermission(permissions, key);
     }, [permissions]);
 
-    const hasAnyPermission = useCallback((keys: readonly string[] | string[]) => {
-        if (isOwner) return true;
-        return keys.some((key) => hasPermission(key));
-    }, [isOwner, hasPermission]);
 
-    const checkTabPermission = useCallback((tabId: keyof typeof securityTabPermissions, type: 'view' | 'manage') => {
-        const requiredPerms = securityTabPermissions[tabId]?.[type];
-        if (!requiredPerms) return false;
-        return hasAnyPermission(requiredPerms);
-    }, [hasAnyPermission]);
+    const canAccessSecurityRoot = useMemo(() => {
+        if (loadingSecurityContext) return true;
+        return isOwner || hasPermission('security.view');
+    }, [isOwner, hasPermission, loadingSecurityContext]);
 
-    const canViewSecurity = useMemo(() => {
+    const canManageSecurityRoot = useMemo(() => {
+        return canAccessSecurityRoot && (isOwner || hasPermission('security.manage'));
+    }, [canAccessSecurityRoot, isOwner, hasPermission]);
+
+    const canViewSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
+        if (!canAccessSecurityRoot) return false;
         if (isOwner) return true;
-        return Object.keys(securityTabPermissions).some((tabKey) => {
-            const requiredPerms = securityTabPermissions[tabKey as keyof typeof securityTabPermissions]?.view;
-            return requiredPerms.some((perm) => hasPermission(perm));
-        });
-    }, [isOwner, hasPermission]);
+
+        return (
+            canManageSecurityRoot ||
+            securityTabPermissions[tab].view.some((permission) =>
+                hasPermission(permission)
+            )
+        );
+    }, [canAccessSecurityRoot, canManageSecurityRoot, isOwner, hasPermission]);
+
+    const canManageSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
+        if (!canAccessSecurityRoot) return false;
+        if (isOwner) return true;
+
+        return (
+            canManageSecurityRoot ||
+            securityTabPermissions[tab].manage.some((permission) =>
+                hasPermission(permission)
+            )
+        );
+    }, [canAccessSecurityRoot, canManageSecurityRoot, isOwner, hasPermission]);
+
 
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -700,28 +727,26 @@ export default function Security() {
     const canManageSecurity = useMemo(() => {
         const currentTabKey = activeTab as keyof typeof securityTabPermissions;
         if (!currentTabKey) return false;
-        const requiredPerms = securityTabPermissions[currentTabKey]?.manage;
-        if (!requiredPerms) return false;
-        return hasAnyPermission(requiredPerms);
-    }, [hasAnyPermission, activeTab]);
+        return canManageSecurityTab(currentTabKey);
+    }, [activeTab, canManageSecurityTab]);
 
     const canManageSessions = useMemo(() => {
-        return checkTabPermission('session_inactive', 'manage');
-    }, [checkTabPermission]);
+        return canManageSecurityTab('session_inactive');
+    }, [canManageSecurityTab]);
 
     const canAccessAdminPermissions = useMemo(() => {
-        const adminTabs: Record<string, keyof typeof securityTabPermissions> = {
-            roles: 'roles',
-            custom_roles: 'custom_roles',
-            user_permissions: 'user_permissions',
-            sensitive_actions: 'sensitive_actions'
-        };
-        return Object.keys(adminTabs).some((tab) => checkTabPermission(tab as keyof typeof securityTabPermissions, 'view'));
-    }, [checkTabPermission]);
+        const adminTabs: (keyof typeof securityTabPermissions)[] = [
+            'roles',
+            'custom_roles',
+            'user_permissions',
+            'sensitive_actions'
+        ];
+        return adminTabs.some((tab) => canViewSecurityTab(tab));
+    }, [canViewSecurityTab]);
 
     const canAccessCustomRoles = useMemo(() => {
-        return checkTabPermission('custom_roles', 'view');
-    }, [checkTabPermission]);
+        return canViewSecurityTab('custom_roles');
+    }, [canViewSecurityTab]);
 
     const {
         permissionMatrix,
@@ -996,10 +1021,10 @@ export default function Security() {
     }, []);
 
     useEffect(() => {
-        if (store?.id && checkTabPermission('logs', 'view') && activeTab === 'logs') {
+        if (store?.id && canViewSecurityTab('logs') && activeTab === 'logs') {
             fetchLogs();
         }
-    }, [store?.id, checkTabPermission, activeTab, fetchLogs]);
+    }, [store?.id, canViewSecurityTab, activeTab, fetchLogs]);
 
     useEffect(() => {
         const today = new Date();
@@ -1025,7 +1050,7 @@ export default function Security() {
     }, [hasPin]);
 
     useEffect(() => {
-        if (!checkTabPermission('user_permissions', 'manage')) return;
+        if (!canManageSecurityTab('user_permissions')) return;
         if (!selectedMemberId) {
             setMemberPermissionOverrides({});
             return;
@@ -1042,7 +1067,7 @@ export default function Security() {
 
             setMemberPermissionOverrides(overrides);
         });
-    }, [selectedMemberId, fetchMemberPermissionDetail, checkTabPermission]);
+    }, [selectedMemberId, fetchMemberPermissionDetail, canManageSecurityTab]);
 
     // Initial data
     const fetchInitialData = useCallback(async () => {
@@ -1494,15 +1519,15 @@ export default function Security() {
     };
 
     const tabs = useMemo(() => [
-        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: checkTabPermission('context', 'view') },
-        { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: checkTabPermission('logs', 'view') },
-        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck, canAccess: checkTabPermission('roles', 'view') },
-        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield, canAccess: checkTabPermission('custom_roles', 'view') },
-        { id: 'user_permissions', label: 'Permissões por usuário', icon: User, canAccess: checkTabPermission('user_permissions', 'view') },
-        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock, canAccess: checkTabPermission('sensitive_actions', 'view') },
-        { id: 'pin_token', label: 'PIN e token', icon: Key, canAccess: checkTabPermission('pin_token', 'view') },
-        { id: 'session_inactive', label: 'Sessão e inatividade', icon: Clock, canAccess: checkTabPermission('session_inactive', 'view') },
-    ], [checkTabPermission]);
+        { id: 'context', label: 'Contexto de acesso', icon: ShieldCheck, canAccess: canViewSecurityTab('context') },
+        { id: 'logs', label: 'Histórico de atividades', icon: History, canAccess: canViewSecurityTab('logs') },
+        { id: 'roles', label: 'Permissões por papel', icon: BadgeCheck, canAccess: canViewSecurityTab('roles') },
+        { id: 'custom_roles', label: 'Funções personalizadas', icon: Shield, canAccess: canViewSecurityTab('custom_roles') },
+        { id: 'user_permissions', label: 'Permissões por usuário', icon: User, canAccess: canViewSecurityTab('user_permissions') },
+        { id: 'sensitive_actions', label: 'Ações sensíveis', icon: Lock, canAccess: canViewSecurityTab('sensitive_actions') },
+        { id: 'pin_token', label: 'PIN e token', icon: Key, canAccess: canViewSecurityTab('pin_token') },
+        { id: 'session_inactive', label: 'Sessão e inatividade', icon: Clock, canAccess: canViewSecurityTab('session_inactive') },
+    ], [canViewSecurityTab]);
 
     const allowedTabs = useMemo(() => tabs.filter((tab) => tab.canAccess), [tabs]);
 
@@ -1755,7 +1780,7 @@ export default function Security() {
         );
     }
 
-    if (!canViewSecurity && !canManageSecurity) {
+    if (!canAccessSecurityRoot) {
         return (
             <PageContainer
                 title="Senhas e Acesso"
@@ -1764,15 +1789,15 @@ export default function Security() {
                 icon={<Shield className="text-[#21A896]" size={28} />}
                 flat
             >
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn">
                     <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
                         <Lock size={48} />
                     </div>
                     <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-                        Acesso Não Autorizado
+                        Acesso Restrito
                     </h3>
                     <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-                        Você não possui permissão de segurança necessária para acessar as configurações de Senhas e Acesso. Entre em contato com o administrador da loja se achar que isso é um erro.
+                        Você não tem permissão para acessar Senhas e Acesso.
                     </p>
                 </div>
             </PageContainer>
@@ -2720,116 +2745,134 @@ export default function Security() {
                                 Nenhuma permissão encontrada para este membro.
                             </div>
                         ) : (
-                            <div className="space-y-6">
-                                {groupedPermissionsForUser.length === 0 ? (
-                                    <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
-                                        Nenhuma permissão corresponde à sua busca.
-                                    </div>
-                                ) : (
-                                    ['Configurações', 'Segurança', 'Operacional'].map((cat) => {
-                                        const groupsInCat = groupedPermissionsForUser.filter(g => g.category === cat);
-                                        if (groupsInCat.length === 0) return null;
+                            <div className="relative">
+                                <div 
+                                    ref={userPermissionsListRef}
+                                    onScroll={handleUserPermScroll}
+                                    className="max-h-[500px] overflow-y-auto pr-2 scrollbar-thin"
+                                >
+                                    <div className="space-y-6 pb-6">
+                                        {groupedPermissionsForUser.length === 0 ? (
+                                            <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
+                                                Nenhuma permissão corresponde à sua busca.
+                                            </div>
+                                        ) : (
+                                            ['Configurações', 'Segurança', 'Operacional'].map((cat) => {
+                                                const groupsInCat = groupedPermissionsForUser.filter(g => g.category === cat);
+                                                if (groupsInCat.length === 0) return null;
 
-                                        return (
-                                            <div key={cat} className="space-y-4">
-                                                <h4 className="text-sm font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-6 border-b border-gray-100 dark:border-gray-800 pb-2">
-                                                    {cat}
-                                                </h4>
+                                                return (
+                                                    <div key={cat} className="space-y-4">
+                                                        <h4 className="text-sm font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-6 border-b border-gray-100 dark:border-gray-800 pb-2">
+                                                            {cat}
+                                                        </h4>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                    {groupsInCat.map((group) => {
-                                                        const isCollapsed = Boolean(collapsedGroups[group.id]);
-                                                        return (
-                                                            <div key={group.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
-                                                                <div 
-                                                                    onClick={() => toggleGroupCollapse(group.id)}
-                                                                    className="cursor-pointer flex items-start justify-between gap-4 select-none"
-                                                                >
-                                                                    <div>
-                                                                        <h5 className="font-bold text-gray-800 dark:text-white text-base">
-                                                                            {group.label}
-                                                                        </h5>
-                                                                        {group.description && !isCollapsed && (
-                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                {group.description}
-                                                                            </p>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                            {groupsInCat.map((group) => {
+                                                                const isCollapsed = Boolean(collapsedGroups[group.id]);
+                                                                return (
+                                                                    <div key={group.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
+                                                                        <div 
+                                                                            onClick={() => toggleGroupCollapse(group.id)}
+                                                                            className="cursor-pointer flex items-start justify-between gap-4 select-none"
+                                                                        >
+                                                                            <div>
+                                                                                <h5 className="font-bold text-gray-800 dark:text-white text-base">
+                                                                                    {group.label}
+                                                                                </h5>
+                                                                                {group.description && !isCollapsed && (
+                                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                                                        {group.description}
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                            <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
+                                                                                {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                                                                            </span>
+                                                                        </div>
+
+                                                                        {!isCollapsed && (
+                                                                            <div className="space-y-4 pt-3 mt-3 border-t border-gray-100 dark:border-gray-700/50">
+                                                                                {group.items.map((item) => {
+                                                                                    const row = item.row;
+                                                                                    const overrideValue = getOverrideSelectValue(item.permissionCode);
+                                                                                    const effectiveValue = row.effective_allowed;
+                                                                                    const roleValue = row.role_allowed;
+
+                                                                                    return (
+                                                                                        <div key={item.permissionCode} className="space-y-2 py-2 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0 last:pb-0">
+                                                                                            <div className="flex items-center justify-between">
+                                                                                                <div className="flex items-center gap-2">
+                                                                                                    <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                                                                                                        {item.actionLabel}
+                                                                                                    </span>
+                                                                                                    {renderRiskBadge(row.risk_level)}
+                                                                                                </div>
+
+                                                                                                <div className="flex items-center gap-3 text-xs">
+                                                                                                    <span className="text-gray-400 dark:text-gray-500">
+                                                                                                        Papel: <strong className={roleValue ? 'text-green-600' : 'text-gray-500'}>{roleValue ? 'Permitido' : 'Bloqueado'}</strong>
+                                                                                                    </span>
+                                                                                                    <span className="text-gray-400 dark:text-gray-500">|</span>
+                                                                                                    <span className="text-gray-400 dark:text-gray-500">
+                                                                                                        Efetivo: <strong className={effectiveValue ? 'text-green-600' : 'text-red-500'}>{effectiveValue ? 'Permitido' : 'Bloqueado'}</strong>
+                                                                                                    </span>
+                                                                                                </div>
+                                                                                            </div>
+
+                                                                                            <div className="flex items-center justify-between gap-4">
+                                                                                                <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[200px]" title={item.permissionCode}>
+                                                                                                    {item.permissionCode}
+                                                                                                </span>
+
+                                                                                                <div className="flex flex-col items-end">
+                                                                                                    <select
+                                                                                                        value={overrideValue}
+                                                                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                                                                        onChange={(event) =>
+                                                                                                            handleMemberOverrideChange(
+                                                                                                                item.permissionCode,
+                                                                                                                event.target.value as 'inherit' | 'allow' | 'deny'
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                                                                                                    >
+                                                                                                        <option value="inherit">Herdar do papel</option>
+                                                                                                        <option value="allow">Liberar para este usuário</option>
+                                                                                                        <option value="deny">Bloquear para este usuário</option>
+                                                                                                    </select>
+
+                                                                                                    {row.source !== 'role_template' && (
+                                                                                                        <p className="mt-1 text-xs text-gray-400">
+                                                                                                            Origem: {formatPermissionSource(row.source)}
+                                                                                                        </p>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    );
+                                                                                })}
+                                                                            </div>
                                                                         )}
                                                                     </div>
-                                                                    <span className="text-gray-450 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
-                                                                        {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                                                                    </span>
-                                                                </div>
-
-                                                                {!isCollapsed && (
-                                                                    <div className="space-y-4 pt-3 mt-3 border-t border-gray-55 dark:border-gray-700/50">
-                                                                        {group.items.map((item) => {
-                                                                            const row = item.row;
-                                                                            const overrideValue = getOverrideSelectValue(item.permissionCode);
-                                                                            const effectiveValue = row.effective_allowed;
-                                                                            const roleValue = row.role_allowed;
-
-                                                                            return (
-                                                                                <div key={item.permissionCode} className="space-y-2 py-2 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0 last:pb-0">
-                                                                                    <div className="flex items-center justify-between">
-                                                                                        <div className="flex items-center gap-2">
-                                                                                            <span className="text-sm font-bold text-gray-800 dark:text-gray-205">
-                                                                                                {item.actionLabel}
-                                                                                            </span>
-                                                                                            {renderRiskBadge(row.risk_level)}
-                                                                                        </div>
-
-                                                                                        <div className="flex items-center gap-3 text-xs">
-                                                                                            <span className="text-gray-400 dark:text-gray-500">
-                                                                                                Papel: <strong className={roleValue ? 'text-green-600' : 'text-gray-500'}>{roleValue ? 'Permitido' : 'Bloqueado'}</strong>
-                                                                                            </span>
-                                                                                            <span className="text-gray-400 dark:text-gray-500">|</span>
-                                                                                            <span className="text-gray-400 dark:text-gray-500">
-                                                                                                Efetivo: <strong className={effectiveValue ? 'text-green-650' : 'text-red-500'}>{effectiveValue ? 'Permitido' : 'Bloqueado'}</strong>
-                                                                                            </span>
-                                                                                        </div>
-                                                                                    </div>
-
-                                                                                    <div className="flex items-center justify-between gap-4">
-                                                                                        <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[200px]" title={item.permissionCode}>
-                                                                                            {item.permissionCode}
-                                                                                        </span>
-
-                                                                                        <div className="flex flex-col items-end">
-                                                                                            <select
-                                                                                                value={overrideValue}
-                                                                                                disabled={!canManageSecurity || adminLoading.saving}
-                                                                                                onChange={(event) =>
-                                                                                                    handleMemberOverrideChange(
-                                                                                                        item.permissionCode,
-                                                                                                        event.target.value as 'inherit' | 'allow' | 'deny'
-                                                                                                    )
-                                                                                                }
-                                                                                                className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                                                            >
-                                                                                                <option value="inherit">Herdar do papel</option>
-                                                                                                <option value="allow">Liberar para este usuário</option>
-                                                                                                <option value="deny">Bloquear para este usuário</option>
-                                                                                            </select>
-
-                                                                                            {row.source !== 'role_template' && (
-                                                                                                <p className="mt-1 text-xs text-gray-400">
-                                                                                                    Origem: {formatPermissionSource(row.source)}
-                                                                                                </p>
-                                                                                            )}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                </div>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        );
-                                    })
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                </div>
+                                {showUserPermScrollTop && (
+                                    <button
+                                        type="button"
+                                        onClick={scrollToUserPermTop}
+                                        className="absolute bottom-4 right-4 z-30 p-2.5 rounded-full bg-[#21A896] text-white shadow-lg hover:bg-[#1A867A] transition duration-200 cursor-pointer flex items-center justify-center"
+                                        title="Voltar ao topo"
+                                    >
+                                        <ArrowUp size={18} />
+                                    </button>
                                 )}
                             </div>
                         )}

@@ -175,27 +175,7 @@ export default function AppRoutes() {
             <Route
               path="/admin/settings"
               element={
-                <RequirePermission
-                  permission={[
-                    'settings.manage',
-                    'settings.store.view',
-                    'settings.store.manage',
-                    'settings.commercial.view',
-                    'settings.commercial.manage',
-                    'settings.orders.view',
-                    'settings.orders.manage',
-                    'settings.stock.view',
-                    'settings.stock.manage',
-                    'settings.delivery.view',
-                    'settings.delivery.manage',
-                    'settings.payment.view',
-                    'settings.payment.manage',
-                    'settings.legal.view',
-                    'settings.legal.manage',
-                    'settings.system.view',
-                    'settings.system.manage',
-                  ]}
-                >
+                <RequirePermission permission="settings.view">
                   <Settings />
                 </RequirePermission>
               }
@@ -229,28 +209,7 @@ export default function AppRoutes() {
             <Route
               path="/admin/security"
               element={
-                <RequirePermission
-                  permission={[
-                    'security.view',
-                    'security.manage',
-                    'security.context.view',
-                    'security.context.manage',
-                    'security.logs.view',
-                    'security.logs.manage',
-                    'security.roles.view',
-                    'security.roles.manage',
-                    'security.custom_roles.view',
-                    'security.custom_roles.manage',
-                    'security.user_permissions.view',
-                    'security.user_permissions.manage',
-                    'security.sensitive_actions.view',
-                    'security.sensitive_actions.manage',
-                    'security.pin_token.view',
-                    'security.pin_token.manage',
-                    'security.sessions.view',
-                    'security.sessions.manage',
-                  ]}
-                >
+                <RequirePermission permission="security.view">
                   <Security />
                 </RequirePermission>
               }

@@ -160,6 +160,34 @@ export default function PrivateLayout() {
             !activeMembership?.onboarding_completed_at
         );
 
+    const isOwner = activeMembership?.role === 'owner';
+
+    const canAccessSettingsRoot = useMemo(() => {
+        if (loadingPermissions) return true;
+        return isOwner || hasEffectivePermission(permissions, 'settings.view');
+    }, [permissions, loadingPermissions, isOwner]);
+
+    const canAccessSecurityRoot = useMemo(() => {
+        if (loadingPermissions) return true;
+        return isOwner || hasEffectivePermission(permissions, 'security.view');
+    }, [permissions, loadingPermissions, isOwner]);
+
+    const isMenuItemVisible = useCallback((item: MenuItem) => {
+        if (isOnboardingPending) {
+            const allowedPaths = ['/admin/my-profile', '/admin/my-history'];
+            return allowedPaths.some((path) =>
+                item.path.startsWith(path)
+            );
+        }
+        if (item.path === '/admin/settings') {
+            return canAccessSettingsRoot && (isOwner || !item.permission || can(item.permission));
+        }
+        if (item.path === '/admin/security') {
+            return canAccessSecurityRoot;
+        }
+        return !item.permission || can(item.permission);
+    }, [isOnboardingPending, canAccessSettingsRoot, canAccessSecurityRoot, isOwner, can]);
+
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
         return !stored;
@@ -269,26 +297,7 @@ export default function PrivateLayout() {
                 path: '/admin/security',
                 icon: Shield,
                 label: 'Senhas e Acesso',
-                permission: [
-                    'security.view',
-                    'security.manage',
-                    'security.context.view',
-                    'security.context.manage',
-                    'security.logs.view',
-                    'security.logs.manage',
-                    'security.roles.view',
-                    'security.roles.manage',
-                    'security.custom_roles.view',
-                    'security.custom_roles.manage',
-                    'security.user_permissions.view',
-                    'security.user_permissions.manage',
-                    'security.sensitive_actions.view',
-                    'security.sensitive_actions.manage',
-                    'security.pin_token.view',
-                    'security.pin_token.manage',
-                    'security.sessions.view',
-                    'security.sessions.manage',
-                ],
+                permission: 'security.view',
             },
         ],
         support: [
@@ -770,10 +779,10 @@ export default function PrivateLayout() {
                 const isSameItem =
                     item.path === currentItem.item.path &&
                     (item.queryString ?? '') === (currentItem.item.queryString ?? '');
-                return !isSameItem && (!item.permission || can(item.permission));
+                return !isSameItem && isMenuItemVisible(item);
             }
         );
-    }, [currentItem, navigationItems, permissions, loadingPermissions, activeMembership]);
+    }, [currentItem, navigationItems, isMenuItemVisible]);
 
     const handleRefresh = () => {
         setIsRefreshing(true);
@@ -997,15 +1006,7 @@ export default function PrivateLayout() {
                                             </button>
                                         )}
                                         {(openSections[section] || isSidebarCollapsed) && items
-                                            // 9.9K.4 — Durante onboarding, exibe apenas rotas permitidas
-                                            .filter((item) => {
-                                                if (isOnboardingPending) {
-                                                    return allowedDuringOnboarding.some((path) =>
-                                                        item.path.startsWith(path)
-                                                    );
-                                                }
-                                                return !item.permission || can(item.permission);
-                                            })
+                                            .filter(isMenuItemVisible)
                                             .map(item => {
                                                 const IconComponent = item.icon;
                                                 const isActive = isMenuItemActive(item, location.search);
