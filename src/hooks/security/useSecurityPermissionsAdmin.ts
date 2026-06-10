@@ -35,6 +35,28 @@ function normalizeRoleCode(role: string) {
   return map[normalized] ?? normalized;
 }
 
+function normalizePermissionMatrixRows(data: unknown): StorePermissionMatrixRow[] {
+  return ((Array.isArray(data) ? data : []) as Partial<StorePermissionMatrixRow>[]).map((item) => ({
+    permission_code: item.permission_code ?? '',
+    label: item.label ?? '',
+    description: item.description ?? null,
+    module: item.module ?? '',
+    action: item.action ?? '',
+    risk_level: item.risk_level ?? 'medium',
+    active: item.active ?? true,
+    sort_order: item.sort_order ?? null,
+
+    owner_allowed: true,
+    admin_allowed: Boolean(item.admin_allowed),
+    manager_allowed: Boolean(item.manager_allowed),
+    stock_operator_allowed: Boolean(item.stock_operator_allowed),
+    cashier_allowed: Boolean(item.cashier_allowed),
+    sales_allowed: Boolean(item.sales_allowed),
+    staff_allowed: Boolean(item.staff_allowed),
+    viewer_allowed: Boolean(item.viewer_allowed),
+  }));
+}
+
 export function useSecurityPermissionsAdmin(enabled = true) {
   const [permissionMatrix, setPermissionMatrix] = useState<StorePermissionMatrixRow[]>([]);
   const [sensitiveActions, setSensitiveActions] = useState<StoreSensitiveActionMatrixRow[]>([]);
@@ -69,7 +91,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
       setError(rpcError.message);
       setPermissionMatrix([]);
     } else {
-      const rows = (data ?? []) as StorePermissionMatrixRow[];
+      const rows = normalizePermissionMatrixRows(data);
       rows.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'pt-BR'));
       setPermissionMatrix(rows);
     }
