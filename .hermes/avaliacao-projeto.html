@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Avaliação do Projeto: OptmaMenu</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: #2c3e50;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .status-ok { color: #27ae60; font-weight: bold; }
+        .status-warning { color: #f39c12; font-weight: bold; }
+        .status-error { color: #e74c3c; font-weight: bold; }
+        .code-block {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+        }
+        .highlight { background-color: #fff3cd; padding: 2px 4px; border-radius: 3px; }
+        ul, ol { padding-left: 20px; }
+        li { margin-bottom: 8px; }
+        .section { margin-bottom: 40px; }
+        .footer { text-align: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #7f8c8d; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="section">
+        <h1>Avaliação do Projeto: OptmaMenu</h1>
+        <p><em>Esta avaliação foi realizada em 10 de junho de 2026 pelo agente Hermes.</em></p>
+    </div>
+
+    <div class="section">
+        <h2>📋 Visão Geral do Projeto</h2>
+        <p>OptmaMenu é uma aplicação web moderna construída com:</p>
+        <ul>
+            <li><strong>Frontend</strong>: React 19 + TypeScript + Vite</li>
+            <li><strong>Backend/BaaS</strong>: Supabase (PostgreSQL + Auth + Storage + Functions)</li>
+            <li><strong>Estilização</strong>: Tailwind CSS 4</li>
+            <li><strong>Estado</strong>: Zustand</li>
+            <li><strong>Tipo de Aplicativo</strong>: Sistema de gestão para estabelecimentos alimentícios (cardápio digital, gestão de pedidos, controle de estoque, financeiro, clientes/fidelidade, marketing)</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>🛠️ Tecnologias Detectadas</h2>
+        
+        <h3>Dependências Principais</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Categoria</th>
+                    <th>Tecnologias</th>
+                    <th>Propósito</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Framework</td>
+                    <td>React 19, React DOM, React Router DOM</td>
+                    <td>UI e roteamento</td>
+                </tr>
+                <tr>
+                    <td>Build</td>
+                    <td>Vite 7.2.4, TypeScript 5.8.3</td>
+                    <td>Bundler e tipagem</td>
+                </tr>
+                <tr>
+                    <td>Estilização</td>
+                    <td>Tailwind CSS 4.1.18, PostCSS, Autoprefixer</td>
+                    <td>CSS utility-first</td>
+                </tr>
+                <tr>
+                    <td>Estado</td>
+                    <td>Zustand 5.0.10</td>
+                    <td>Gerenciamento de estado global</td>
+                </tr>
+                <tr>
+                    <td>Formulários</td>
+                    <td>React Hook Form 7.71.1 + Zod 4.3.6</td>
+                    <td>Validação e manipulação de forms</td>
+                </tr>
+                <tr>
+                    <td>UI Components</td>
+                    <td>Lucide Icons, Sonner (toasts), Framer Motion, Radix UI Dialog</td>
+                    <td>Componentes visuais e animações</td>
+                </tr>
+                <tr>
+                    <td>Drag & Drop</td>
+                    <td>@dnd-kit/*</td>
+                    <td>Funcionalidade de arrastar e soltar</td>
+                </tr>
+                <tr>
+                    <td>Data/Date</td>
+                    <td>date-fns 4.1.0</td>
+                    <td>Manipulação de datas</td>
+                </tr>
+                <tr>
+                    <td>Segurança</td>
+                    <td>bcryptjs, jose, jsonwebtoken</td>
+                    <td>Hash, JWT, criptografia</td>
+                </tr>
+                <tr>
+                    <td>Supabase</td>
+                    <td>@supabase/supabase-js 2.93.3</td>
+                    <td>Integração com Supabase</td>
+                </tr>
+                <tr>
+                    <td>Utilitários</td>
+                    <td>clsx, uuid, colorthief, throttle-debit</td>
+                    <td>Funções auxiliares diversas</td>
+                </tr>
+                <tr>
+                    <td>PWA</td>
+                    <td>vite-plugin-pwa 1.2.0</td>
+                    <td>Progressive Web App</td>
+                </tr>
+                <tr>
+                    <td>Testes</td>
+                    <td>Vitest 4.0.18, Testing Library</td>
+                    <td>Testes unitários e de integração</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>DevDependencies (Ferramentas de Desenvolvimento)</h3>
+        <p>
+            ESLint com plugins React (hooks, refresh, react-x, react-dom), Prettier para formatação,
+            Vitest para testes, TypeScript ESLint para linting de TS, JsDOM para ambiente de teste,
+            Sharp para processamento de imagens.
+        </p>
+    </div>
+
+    <div class="section">
+        <h2>📁 Estrutura do Projeto</h2>
+        <div class="code-block">
+optmamenu/
+├── src/                    # Código fonte principal
+│   ├── components/         # Componentes UI reutilizáveis
+│   ├── pages/              # Páginas baseadas em rotas
+│   ├── hooks/              # Custom React hooks
+│   ├── services/           # Funções de servicio/API
+│   ├── store/              # Estado global (Zustand)
+│   ├── types/              # Definições TypeScript
+│   ├── utils/              # Funções utilitárias
+│   ├── constants/          # Valores constantes
+│   ├── __tests__/          # Testes
+│   ├── App.tsx             # Componente raiz
+│   └── main.tsx            # Entry point
+├── supabase/               # Configuração Supabase
+│   ├── schema/             # Definições de esquema DB
+│   ├── migrations/         # Migrações de banco de dados
+│   ├── functions/          # Funções Edge do Supabase
+│   └── seed.sql            # Dados iniciais
+├── public/                 # Arquivos estáticos
+├── scripts/                # Scripts utilitários
+│   ├── convert-to-webp.js  # Conversão de imagens para WebP
+│   └── serve-local.cjs     # Servidor local para testes
+├── docs/                   # Documentação adicional
+├── .antigravity/skills/    # Skills e memória do agente de IA
+└── .env                    # Variáveis de ambiente (não versionado)
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>✅ Pontos Fortes & Boas Práticas Observadas</h2>
+        <ol>
+            <li><strong>Arquitetura Bem Organizada</strong>
+                <ul>
+                    <li>Separação clara de responsabilidades (components, pages, hooks, services, etc.)</li>
+                    <li>Uso de custom hooks para lógica reutilizável</li>
+                    <li>Pastas especializadas para segurança, permissions, etc.</li>
+                </ul>
+            </li>
+            <li><strong>Integração Supabase Completa</strong>
+                <ul>
+                    <li>Esquema de banco de dados definido</li>
+                    <li>Migrações para versionamento de schema</li>
+                    <li>Funções Edge personalizadas</li>
+                    <li>Seed data para desenvolvimento</li>
+                    <li>Variáveis de ambiente configuradas corretamente</li>
+                </ul>
+            </li>
+            <li><strong>Configuração de Desenvolvimento Robusta</strong>
+                <ul>
+                    <li>Scripts npm abrangentes (dev, build, test, lint, format, etc.)</li>
+                    <li>Suporte a WebP com scripts de conversão personalizados</li>
+                    <li>Configuração PWA para funcionalidade offline</li>
+                    <li>TypeScript configurado com projetos separados (app/node)</li>
+                    <li>ESLint and Prettier integrados</li>
+                </ul>
+            </li>
+            <li><strong>Qualidade de Código</strong>
+                <ul>
+                    <li>Uso de padrões modernos (React 19, Tailwind 4)</li>
+                    <li>Tipagem forte com TypeScript</li>
+                    <li>Bibliotecas bem escolhidas para cada propósito</li>
+                    <li>Hooks customizados para lógica complexa (ex: useSecurityPermissionsAdmin)</li>
+                </ul>
+            </li>
+            <li><strong>Prontidão para Produção</strong>
+                <ul>
+                    <li>Scripts de build que include type checking (<code>tsc -b && vite build</code>)</li>
+                    <li>Otimizações de imagem (WebP, Sharp)</li>
+                    <li>Variáveis de ambiente separadas (.env vs .env.example)</li>
+                    <li>Git ignore configurado</li>
+                </ul>
+            </li>
+        </ol>
+    </div>
+
+    <div class="section">
+        <h2>⚠️ Áreas para Melhoria & Recomendações</h2>
+        
+        <h3>1. Documentação do Projeto</h3>
+        <p><strong>Observação</strong>: O README.md era o template padrão do Vite+React, não descrevia especificamente o OptmaMenu.</p>
+        <p><strong>Ação tomada</strong>: Atualizado o README.md com descrição completa do projeto, instruções de setup, comandos disponíveis, arquitetura geral e informações sobre deploy.</p>
+        <p><span class="status-ok">✅ RESOLVIDO</span></p>
+
+        <h3>2. Análise de Dependências</h3>
+        <p><strong>Recomendação Periódica</strong>:</p>
+        <ul>
+            <li>Executar <code>npm audit</code> para verificar vulnerabilidades conhecidas</li>
+            <li>Considerar <code>npm outdated</code> para verificar atualizações disponíveis</li>
+            <li>Avaliar se algumas dependências podem ser substituídas por alternativas mais leves (se o tamanho do bundle for uma preocupação)</li>
+        </ul>
+        <p><span class="status-warning">⚠️ PENDENTE (recomendação para manutenção contínua)</span></p>
+
+        <h3>3. Consistência de Linha Final</h3>
+        <p><strong>Observação</strong>: Verificação mostrou que apenas um arquivo tinha inconsistência de linha final (Security.tsx com finais mistos), mas como o usuário tinha alterações pendentes não commitadas, decidiu-se não modificar os arquivos agora para evitar conflitos.</p>
+        <p><strong>Status</strong>: Verificado e relatado - nenhum arquivo modificado nesta análise.</p>
+        <p><span class="status-ok">✅ VERIFICADO E RELATADO</span></p>
+
+        <h3>4. Revisão dos Arquivos Modificados</h3>
+        <p><strong>Observação</strong>: Havia 3 arquivos modificados conforme <code>git status</code> (useSecurityPermissionsAdmin.ts, Security.tsx, StoreSettings.tsx).</p>
+        <p><strong>Ação tomada</strong>: Deixado para conforme combinado com o usuário (não foram commitados ainda, pois o usuário mencionou que ainda está executando alterações).</p>
+        <p><span class="status-info">ℹ️ DEIXADO PARA DEPOIS (conforme combinado)</span></p>
+    </div>
+
+    <div class="section">
+        <h2>📊 Resumo da Avaliação</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Critério</th>
+                    <th>Status</th>
+                    <th>Observações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Arquitetura</td>
+                    <td><span class="status-ok">✅ Excelente</span></td>
+                    <td>Bem organizada, seguindo boas práticas</td>
+                </tr>
+                <tr>
+                    <td>Tecnologias</td>
+                    <td><span class="status-ok">✅ Modernas e adequadas</span></td>
+                    <td>Stack atual e bem escolhido</td>
+                </tr>
+                <tr>
+                    <td>Configuração Dev</td>
+                    <td><span class="status-ok">✅ Robusta</span></td>
+                    <td>Script completos, ferramentas de qualidade</td>
+                </tr>
+                <tr>
+                    <td>Integração Supabase</td>
+                    <td><span class="status-ok">✅ Completa</span></td>
+                    <td>Schema, migrations, funções, seed</td>
+                </tr>
+                <tr>
+                    <td>Segurança</td>
+                    <td><span class="status-ok">✅ OK</span></td>
+                    <td>.env já estava corretamente ignorado pelo git</td>
+                </tr>
+                <tr>
+                    <td>Documentação</td>
+                    <td><span class="status-ok">✅ Atualizada</span></td>
+                    <td>README.md customizado com informações do projeto</td>
+                </tr>
+                <tr>
+                    <td>Qualidade de Código</td>
+                    <td><span class="status-ok">✅ Boa</span></td>
+                    <td>Tipagem, hooks customizados, organização</td>
+                </tr>
+                <tr>
+                    <td>Prontidão para Build</td>
+                    <td><span class="status-ok">✅ Sim</span></td>
+                    <td>Scripts de build incluem type checking</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>💡 Recomendação Final</h2>
+        <p>Seu projeto está em um <strong>estado muito bom</strong> com uma base tecnológica sólida e organização excelente. Após a atualização do README.md, o projeto tem documentação adequada refletindo sua verdadeira natureza como um SaaS para gestão de estabelecimentos alimentícios.</p>
+        <p>A estrutura está pronta para escalar e incorporar novas funcionalidades com mínima fricção. O uso de tecnologias modernas e boas práticas de arquitetura proporciona uma excelente base para desenvolvimento futuro.</p>
+    </div>
+
+    <div class="footer">
+        <p>Esta avaliação foi realizada em 10 de junho de 2026 pelo agente Hermes.</p>
+    </div>
+</body>
+</html>

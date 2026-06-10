@@ -471,6 +471,485 @@ const ROLE_PERMISSION_COLUMNS = [
     { role: 'viewer', key: 'viewer_allowed', label: 'Visualizador' },
 ] as const;
 
+export type PermissionMacroGroup = 'settings' | 'security' | 'operational';
+
+export type PermissionGroupDefinition = {
+  id: string;
+  macroGroup: PermissionMacroGroup;
+  label: string;
+  description: string;
+  icon?: React.ElementType;
+  prefixes: string[];
+};
+
+export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
+  // CONFIGURAÇÕES
+  {
+    id: 'settings_general',
+    macroGroup: 'settings',
+    label: 'Acesso geral',
+    description: 'Primeiro libere o acesso geral às configurações. Depois escolha as abas e ações.',
+    prefixes: ['settings.view', 'settings.manage'],
+  },
+  {
+    id: 'settings_store',
+    macroGroup: 'settings',
+    label: 'Dados da Loja',
+    description: 'Dados cadastrais, endereço, contatos e identidade visual da loja.',
+    prefixes: ['settings.store.'],
+  },
+  {
+    id: 'settings_commercial',
+    macroGroup: 'settings',
+    label: 'Comercial',
+    description: 'Regras comerciais, canais e preferências comerciais.',
+    prefixes: ['settings.commercial.'],
+  },
+  {
+    id: 'settings_orders',
+    macroGroup: 'settings',
+    label: 'Pedido Online',
+    description: 'Loja pública, pedido mínimo, canais e regras de pedido.',
+    prefixes: ['settings.orders.'],
+  },
+  {
+    id: 'settings_stock',
+    macroGroup: 'settings',
+    label: 'Estoque',
+    description: 'Regras de estoque global, mínimo, máximo e distribuição por locais.',
+    prefixes: ['settings.stock.'],
+  },
+  {
+    id: 'settings_delivery',
+    macroGroup: 'settings',
+    label: 'Entrega',
+    description: 'Formas, taxas e regras de entrega.',
+    prefixes: ['settings.delivery.'],
+  },
+  {
+    id: 'settings_payment',
+    macroGroup: 'settings',
+    label: 'Pagamento',
+    description: 'Formas e regras de pagamento.',
+    prefixes: ['settings.payment.'],
+  },
+  {
+    id: 'settings_legal',
+    macroGroup: 'settings',
+    label: 'Documentos e Termos',
+    description: 'Termos de uso, política de privacidade, cookies e dados de DPO.',
+    prefixes: ['settings.legal.'],
+  },
+  {
+    id: 'settings_system',
+    macroGroup: 'settings',
+    label: 'Sistema',
+    description: 'Configurações técnicas e avançadas.',
+    prefixes: ['settings.system.'],
+  },
+
+  // SEGURANÇA
+  {
+    id: 'security_general',
+    macroGroup: 'security',
+    label: 'Acesso geral',
+    description: 'Primeiro libere o acesso geral à área Senhas e Acesso. Depois escolha as abas e ações.',
+    prefixes: ['security.view', 'security.manage'],
+  },
+  {
+    id: 'security_context',
+    macroGroup: 'security',
+    label: 'Contexto de acesso',
+    description: 'Informações do vínculo, loja ativa, perfil e contexto de acesso.',
+    prefixes: ['security.context.'],
+  },
+  {
+    id: 'security_logs',
+    macroGroup: 'security',
+    label: 'Histórico de atividades',
+    description: 'Logs gerais de auditoria e segurança da loja.',
+    prefixes: ['security.logs.'],
+  },
+  {
+    id: 'security_roles',
+    macroGroup: 'security',
+    label: 'Permissões por papel',
+    description: 'Matriz padrão de permissões dos papéis/cargos.',
+    prefixes: ['security.roles.'],
+  },
+  {
+    id: 'security_custom_roles',
+    macroGroup: 'security',
+    label: 'Funções personalizadas',
+    description: 'Criação e manutenção de funções personalizadas.',
+    prefixes: ['security.custom_roles.'],
+  },
+  {
+    id: 'security_user_permissions',
+    macroGroup: 'security',
+    label: 'Permissões por usuário',
+    description: 'Exceções individuais aplicadas a membros específicos.',
+    prefixes: ['security.user_permissions.'],
+  },
+  {
+    id: 'security_sensitive_actions',
+    macroGroup: 'security',
+    label: 'Ações sensíveis',
+    description: 'Regras para ações que exigem PIN, senha master, token ou aprovação.',
+    prefixes: ['security.sensitive_actions.'],
+  },
+  {
+    id: 'security_pin_token',
+    macroGroup: 'security',
+    label: 'PIN e Token',
+    description: 'Configurações de PIN, token e limites de tentativa.',
+    prefixes: ['security.pin_token.'],
+  },
+  {
+    id: 'security_sessions',
+    macroGroup: 'security',
+    label: 'Sessões e inatividade',
+    description: 'Tempo ocioso, encerramento automático e sessões.',
+    prefixes: ['security.sessions.'],
+  },
+
+  // OPERACIONAL
+  {
+    id: 'dashboard',
+    macroGroup: 'operational',
+    label: 'Dashboard',
+    description: 'Painéis e visão geral da operação.',
+    prefixes: ['dashboard.'],
+  },
+  {
+    id: 'commercial',
+    macroGroup: 'operational',
+    label: 'Comercial',
+    description: 'Área comercial, pedidos, clientes, fidelidade e campanhas.',
+    prefixes: ['commercial.', 'orders.', 'customers.', 'loyalty.', 'marketing.', 'messages.'],
+  },
+  {
+    id: 'financial',
+    macroGroup: 'operational',
+    label: 'Financeiro',
+    description: 'Livro diário, pagamentos e movimentações financeiras.',
+    prefixes: ['financial.', 'cashbook.'],
+  },
+  {
+    id: 'products',
+    macroGroup: 'operational',
+    label: 'Produtos e Estoque',
+    description: 'Produtos, estoque, compras, transferências e fornecedores.',
+    prefixes: ['products.', 'stock.', 'purchases.', 'transfers.', 'suppliers.'],
+  },
+  {
+    id: 'users',
+    macroGroup: 'operational',
+    label: 'Usuários e Equipe',
+    description: 'Usuários, membros, vínculos e gestão da equipe.',
+    prefixes: ['users.'],
+  },
+  {
+    id: 'reports',
+    macroGroup: 'operational',
+    label: 'Relatórios',
+    description: 'Relatórios, exportações e análises.',
+    prefixes: ['reports.'],
+  },
+];
+
+export const PERMISSION_MACRO_GROUPS: Record<
+  PermissionMacroGroup,
+  {
+    label: string;
+    description: string;
+  }
+> = {
+  settings: {
+    label: 'Configurações',
+    description: 'Dados da loja, regras comerciais, pedido online, entrega, pagamento e sistema.',
+  },
+  security: {
+    label: 'Segurança',
+    description: 'Senhas, acesso, logs, permissões, PIN, token e ações sensíveis.',
+  },
+  operational: {
+    label: 'Operacional',
+    description: 'Dashboard, comercial, financeiro, produtos, estoque, usuários e relatórios.',
+  },
+};
+
+export function getPermissionGroupDefinition(permissionCode: string) {
+  const code = String(permissionCode || '');
+
+  const exactMatch = PERMISSION_GROUP_DEFINITIONS.find((group) =>
+    group.prefixes.some((prefix) => prefix === code)
+  );
+
+  if (exactMatch) return exactMatch;
+
+  const prefixMatch = PERMISSION_GROUP_DEFINITIONS.find((group) =>
+    group.prefixes.some((prefix) => {
+      if (prefix.endsWith('.')) {
+        return code.startsWith(prefix);
+      }
+
+      return code === prefix;
+    })
+  );
+
+  if (prefixMatch) return prefixMatch;
+
+  return {
+    id: 'operational_other',
+    macroGroup: 'operational' as const,
+    label: 'Outros módulos',
+    description: 'Permissões operacionais ainda não classificadas.',
+    prefixes: [],
+  };
+}
+
+export type PermissionMatrixItem = {
+  permission_code: string;
+  label?: string | null;
+  description?: string | null;
+  module?: string | null;
+  action?: string | null;
+  risk_level?: string | null;
+  owner_allowed: boolean;
+  admin_allowed: boolean;
+  manager_allowed: boolean;
+  stock_operator_allowed: boolean;
+  cashier_allowed: boolean;
+  sales_allowed: boolean;
+  staff_allowed: boolean;
+  viewer_allowed: boolean;
+};
+
+export function getGroupedRolePermissions(permissionMatrix: PermissionMatrixItem[]) {
+  const macroGroups = new Map<
+    PermissionMacroGroup,
+    Map<string, {
+      definition: PermissionGroupDefinition;
+      permissions: PermissionMatrixItem[];
+    }>
+  >();
+
+  permissionMatrix.forEach((permission) => {
+    const definition = getPermissionGroupDefinition(permission.permission_code);
+    const macroGroup = definition.macroGroup;
+
+    if (!macroGroups.has(macroGroup)) {
+      macroGroups.set(macroGroup, new Map());
+    }
+
+    const groupMap = macroGroups.get(macroGroup)!;
+
+    if (!groupMap.has(definition.id)) {
+      groupMap.set(definition.id, {
+        definition,
+        permissions: [],
+      });
+    }
+
+    groupMap.get(definition.id)!.permissions.push(permission);
+  });
+
+  const macroOrder: PermissionMacroGroup[] = ['settings', 'security', 'operational'];
+
+  return macroOrder
+    .map((macroGroup) => {
+      const groupMap = macroGroups.get(macroGroup);
+
+      const groups = Array.from(groupMap?.values() ?? [])
+        .map((group) => ({
+          ...group,
+          permissions: group.permissions.sort((a, b) => {
+            const aIsView = a.permission_code.endsWith('.view');
+            const bIsView = b.permission_code.endsWith('.view');
+            const aIsManage = a.permission_code.endsWith('.manage');
+            const bIsManage = b.permission_code.endsWith('.manage');
+
+            if (a.permission_code.endsWith('.view') && b.permission_code.endsWith('.manage')) {
+              return -1;
+            }
+
+            if (a.permission_code.endsWith('.manage') && b.permission_code.endsWith('.view')) {
+              return 1;
+            }
+
+            if (aIsView !== bIsView) return aIsView ? -1 : 1;
+            if (aIsManage !== bIsManage) return aIsManage ? -1 : 1;
+
+            return String(a.label ?? a.permission_code).localeCompare(
+              String(b.label ?? b.permission_code),
+              'pt-BR'
+            );
+          }),
+        }))
+        .sort((a, b) => {
+          const aIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === a.definition.id);
+          const bIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === b.definition.id);
+
+          return aIndex - bIndex;
+        });
+
+      return {
+        id: macroGroup,
+        ...PERMISSION_MACRO_GROUPS[macroGroup],
+        groups,
+      };
+    })
+    .filter((macroGroup) => macroGroup.groups.length > 0);
+}
+
+export function getPermissionSection(permissionCode: string) {
+  const parts = String(permissionCode || '').split('.');
+
+  if (parts.length >= 3) {
+    return parts[1];
+  }
+
+  return 'root';
+}
+
+export function getRoleAllowedFromPermission(
+  permission: PermissionMatrixItem,
+  role: string
+) {
+  const normalizedRole = normalizeRoleCode(role);
+
+  if (normalizedRole === 'owner') return true;
+
+  const column = `${normalizedRole}_allowed` as keyof PermissionMatrixItem;
+
+  return Boolean(permission[column]);
+}
+
+export function getRolePermissionAllowed(
+  permissionMatrix: PermissionMatrixItem[],
+  role: string,
+  permissionCode: string
+) {
+  const normalizedRole = normalizeRoleCode(role);
+
+  if (normalizedRole === 'owner') return true;
+
+  const row = permissionMatrix.find(
+    (item) => item.permission_code === permissionCode
+  );
+
+  if (!row) return false;
+
+  return getRoleAllowedFromPermission(row, normalizedRole);
+}
+
+export function getPermissionActionLabel(permission: PermissionMatrixItem) {
+  const code = permission.permission_code;
+
+  if (code.endsWith('.view')) return 'Ver';
+  if (code.endsWith('.manage')) return 'Gerenciar';
+  if (code.endsWith('.create')) return 'Criar';
+  if (code.endsWith('.confirm')) return 'Confirmar';
+  if (code.endsWith('.cancel')) return 'Cancelar';
+  if (code.endsWith('.adjust')) return 'Ajustar';
+  if (code.endsWith('.export')) return 'Exportar';
+
+  return permission.label ?? code;
+}
+
+interface PermissionRoleGroupCardProps {
+  group: {
+    definition: PermissionGroupDefinition;
+    permissions: PermissionMatrixItem[];
+  };
+  selectedRoleFilter: string;
+  onTogglePermission: (permissionCode: string, role: string, currentAllowed: boolean) => void;
+  canToggleRolePermission: (role: string, permissionCode: string) => boolean;
+}
+
+export function PermissionRoleGroupCard({
+  group,
+  selectedRoleFilter,
+  onTogglePermission,
+  canToggleRolePermission,
+}: PermissionRoleGroupCardProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const definition = group.definition;
+
+  return (
+    <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
+      <div
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="cursor-pointer flex items-start justify-between gap-4 select-none"
+      >
+        <div>
+          <h5 className="font-bold text-gray-805 dark:text-white text-base">
+            {definition.label}
+          </h5>
+          {definition.description && !isCollapsed && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              {definition.description}
+            </p>
+          )}
+        </div>
+        <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
+          {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+        </span>
+      </div>
+
+      {!isCollapsed && (
+        <div className="space-y-3 pt-3 mt-3 border-t border-gray-50 dark:border-gray-700/50">
+          {group.permissions.map((permission) => {
+            const code = permission.permission_code;
+            const allowed = selectedRoleFilter === 'owner' ? true : Boolean(permission[`${selectedRoleFilter}_allowed` as keyof PermissionMatrixItem]);
+            const canToggle = canToggleRolePermission(selectedRoleFilter, code);
+            const disabled = !canToggle;
+
+            return (
+              <div key={code} className="flex items-center justify-between py-1.5 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0">
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-bold ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+                      {getPermissionActionLabel(permission)}
+                    </span>
+                    {permission.risk_level && renderRiskBadge(permission.risk_level)}
+                  </div>
+                  <span className="text-xs text-slate-400">
+                    {code}
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onTogglePermission(code, selectedRoleFilter, allowed)}
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-sm ${allowed
+                    ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                    : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
+                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                >
+                  {allowed ? (
+                    <>
+                      <Check size={14} className="text-green-600" />
+                      <span>permitido</span>
+                    </>
+                  ) : (
+                    <>
+                      <X size={14} className="text-red-500" />
+                      <span>bloqueado</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const VALID_TAB_IDS = [
     'context',
     'logs',
@@ -1222,6 +1701,84 @@ export default function Security() {
     const groupedPermissionsForRoles = useMemo(() => {
         return getGroupedPermissions(filteredMatrix);
     }, [filteredMatrix]);
+
+    const canToggleRolePermission = useCallback((role: string, permissionCode: string) => {
+      const normalizedRole = normalizeRoleCode(role);
+
+      if (normalizedRole === 'owner') return false;
+
+      if (!canManageSecurityTab('roles')) return false;
+
+      // Raiz sempre precisa ser editável para quem gerencia a matriz.
+      if (
+        permissionCode === 'settings.view' ||
+        permissionCode === 'settings.manage' ||
+        permissionCode === 'security.view' ||
+        permissionCode === 'security.manage'
+      ) {
+        return true;
+      }
+
+      if (permissionCode.startsWith('settings.')) {
+        const section = getPermissionSection(permissionCode);
+
+        const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.view');
+        const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.manage');
+        const sectionViewAllowed = getRolePermissionAllowed(
+          permissionMatrix,
+          normalizedRole,
+          `settings.${section}.view`
+        );
+
+        if (!rootViewAllowed) return false;
+
+        if (permissionCode.endsWith('.view')) return true;
+
+        if (permissionCode.endsWith('.manage')) {
+          return rootManageAllowed && sectionViewAllowed;
+        }
+      }
+
+      if (permissionCode.startsWith('security.')) {
+        const section = getPermissionSection(permissionCode);
+
+        const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'security.view');
+        const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'security.manage');
+        const sectionViewAllowed = getRolePermissionAllowed(
+          permissionMatrix,
+          normalizedRole,
+          `security.${section}.view`
+        );
+
+        if (!rootViewAllowed) return false;
+
+        if (permissionCode.endsWith('.view')) return true;
+
+        if (permissionCode.endsWith('.manage')) {
+          return rootManageAllowed && sectionViewAllowed;
+        }
+      }
+
+      // Operacional: regra simples.
+      const module = permissionCode.split('.')[0];
+      const action = permissionCode.split('.')[1];
+
+      if (action === 'view') return true;
+
+      const moduleViewPermission = `${module}.view`;
+      const moduleViewAllowed = getRolePermissionAllowed(
+        permissionMatrix,
+        normalizedRole,
+        moduleViewPermission
+      );
+
+      return moduleViewAllowed;
+    }, [permissionMatrix, canManageSecurityTab]);
+
+    const groupedRolePermissions = useMemo(
+      () => getGroupedRolePermissions(filteredMatrix),
+      [filteredMatrix]
+    );
 
     const groupedPermissionsForUser = useMemo(() => {
         return getGroupedPermissions(filteredMemberPermissionDetail);
@@ -2751,125 +3308,31 @@ export default function Security() {
                             </div>
                         ) : roleFilter !== 'all' ? (
                             /* Layout agrupado para um papel individual */
-                            <div className="space-y-6">
-                                {['Configurações', 'Segurança', 'Operacional'].map((cat) => {
-                                    const groupsInCat = groupedPermissionsForRoles.filter(g => g.category === cat);
-                                    if (groupsInCat.length === 0) return null;
-
-                                    return (
-                                        <div key={cat} className="space-y-4">
-                                            <h4 className="text-sm font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-6 border-b border-gray-100 dark:border-gray-800 pb-2">
-                                                {cat}
-                                            </h4>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                {groupsInCat.map((group) => {
-                                                    const isCollapsed = !expandedGroups[group.id];
-                                                    return (
-                                                        <div key={group.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
-                                                            <div
-                                                                onClick={() => toggleGroupExpand(group.id)}
-                                                                className="cursor-pointer flex items-start justify-between gap-4 select-none"
-                                                            >
-                                                                <div>
-                                                                    <h5 className="font-bold text-gray-805 dark:text-white text-base">
-                                                                        {group.label}
-                                                                    </h5>
-                                                                    {group.description && !isCollapsed && (
-                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                            {group.description}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-                                                                <span className="text-gray-450 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
-                                                                    {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                                                                </span>
-                                                            </div>
-
-                                                            {!isCollapsed && (
-                                                                <div className="space-y-3 pt-3 mt-3 border-t border-gray-50 dark:border-gray-700/50">
-                                                                    {(() => {
-                                                                        const rootPermCode = getGroupRootPermissionCode(group);
-                                                                        const rootRow = rootPermCode ? permissionMatrix.find(r => r.permission_code === rootPermCode) : null;
-                                                                        const rootAllowed = getRoleMatrixAllowed(rootRow, roleFilter);
-
-                                                                        const viewRow = group.items.find(i => i.permissionCode.endsWith('.view'));
-                                                                        const viewAllowed = viewRow ? getRoleMatrixAllowed(viewRow.row, roleFilter) : true;
-
-                                                                        const isRootDisabled = rootAllowed === false;
-                                                                        const showRootHelper = isRootDisabled && !isRootPermissionGroup(group);
-                                                                        const showViewHelper = !showRootHelper && viewAllowed === false && !isRootPermissionGroup(group);
-
-                                                                        return (
-                                                                            <>
-                                                                                {showRootHelper && (
-                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 italic">
-                                                                                        Libere "Ver tudo" para configurar as abas.
-                                                                                    </p>
-                                                                                )}
-                                                                                {showViewHelper && (
-                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 italic">
-                                                                                        {getViewDependencyMessage(group)}
-                                                                                    </p>
-                                                                                )}
-                                                                                {group.items.map((item) => {
-                                                                                    const row = item.row;
-                                                                                    const columnKey = `${roleFilter}_allowed` as keyof StorePermissionMatrixRow;
-                                                                                    const allowed = roleFilter === 'owner' ? true : Boolean(row[columnKey]);
-
-                                                                                    const isBaseDisabled = roleFilter === 'owner' || !canManageSecurity || adminLoading.saving;
-                                                                                    const childDisabled = isRootDisabled && !isRootPermissionGroup(group);
-                                                                                    const manageDisabled = isManagePermissionItem(item) && !viewAllowed;
-                                                                                    const itemDisabled = isBaseDisabled || childDisabled || manageDisabled;
-
-                                                                                    return (
-                                                                                        <div key={item.permissionCode} className="flex items-center justify-between py-1.5 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0">
-                                                                                            <div className="flex items-center gap-2">
-                                                                                                <span className={`text-sm font-bold ${itemDisabled && !isBaseDisabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
-                                                                                                    {item.actionLabel}
-                                                                                                </span>
-                                                                                                {renderRiskBadge(row.risk_level)}
-                                                                                                {manageDisabled && !isBaseDisabled && (
-                                                                                                    <span className="text-[10px] text-amber-500 dark:text-amber-400 italic">(Requer "Ver")</span>
-                                                                                                )}
-                                                                                            </div>
-
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                disabled={itemDisabled}
-                                                                                                onClick={() => handleToggleRolePermission(item.permissionCode, roleFilter, allowed)}
-                                                                                                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-sm ${allowed
-                                                                                                    ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                                                                                                    : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
-                                                                                                    } ${itemDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                                                                                            >
-                                                                                                {allowed ? (
-                                                                                                    <>
-                                                                                                        <Check size={14} className="text-green-600" />
-                                                                                                        <span>permitido</span>
-                                                                                                    </>
-                                                                                                ) : (
-                                                                                                    <>
-                                                                                                        <X size={14} className="text-red-500" />
-                                                                                                        <span>bloqueado</span>
-                                                                                                    </>
-                                                                                                )}
-                                                                                            </button>
-                                                                                        </div>
-                                                                                    );
-                                                                                })}
-                                                                            </>
-                                                                        );
-                                                                    })()}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
+                            <div className="space-y-8">
+                                {groupedRolePermissions.map((macroGroup) => (
+                                    <section key={macroGroup.id} className="space-y-4">
+                                        <div className="border-b pb-3">
+                                            <h3 className="text-sm font-bold uppercase tracking-wide text-slate-500">
+                                                {macroGroup.label}
+                                            </h3>
+                                            <p className="text-xs text-slate-400">
+                                                {macroGroup.description}
+                                            </p>
                                         </div>
-                                    );
-                                })}
+
+                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                            {macroGroup.groups.map((group) => (
+                                                <PermissionRoleGroupCard
+                                                    key={group.definition.id}
+                                                    group={group}
+                                                    selectedRoleFilter={roleFilter}
+                                                    onTogglePermission={handleToggleRolePermission}
+                                                    canToggleRolePermission={canToggleRolePermission}
+                                                />
+                                            ))}
+                                        </div>
+                                    </section>
+                                ))}
                             </div>
                         ) : (
                             /* Matriz agrupada clássica para todos os papéis */
