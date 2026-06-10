@@ -12,6 +12,26 @@ export type PermissionGroup = {
 
 export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
+    id: 'settings-root',
+    label: 'Configurações',
+    description: 'Acesso geral a todas as abas de configurações.',
+    keywords: ['configurações', 'tudo', 'acesso geral'],
+    permissions: {
+      view: 'settings.view',
+      manage: 'settings.manage',
+    },
+  },
+  {
+    id: 'security-root',
+    label: 'Senhas e Acesso',
+    description: 'Acesso geral a todas as abas de segurança.',
+    keywords: ['segurança', 'senhas', 'acesso', 'tudo'],
+    permissions: {
+      view: 'security.view',
+      manage: 'security.manage',
+    },
+  },
+  {
     id: 'settings-store',
     label: 'Dados da Loja',
     description: 'Dados cadastrais, endereço, contatos e identidade visual da loja.',

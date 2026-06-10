@@ -8,11 +8,12 @@ import PageContainer from '@/components/common/PageContainer';
 import { ShieldAlert, AlertTriangle } from 'lucide-react';
 
 type RequirePermissionProps = {
-  permission: string | string[];
+  permission?: string | string[];
+  permissions?: string | string[];
   children: React.ReactNode;
 };
 
-export function RequirePermission({ permission, children }: RequirePermissionProps) {
+export function RequirePermission({ permission, permissions: permissionsProp, children }: RequirePermissionProps) {
   const activeStoreId = getActiveStoreId();
   const { securityContext, loading: securityLoading } = useSecurityContext();
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
@@ -24,13 +25,14 @@ export function RequirePermission({ permission, children }: RequirePermissionPro
   ) || securityContext?.primary_membership || null;
 
   const isOwner = activeMembership?.role === 'owner';
+  const targetPermission = permissionsProp ?? permission ?? '';
   const hasAccess = Boolean(
     activeStoreId &&
     activeMembership &&
     (isOwner ||
-      (Array.isArray(permission)
-        ? hasAnyEffectivePermission(permissions, permission)
-        : hasEffectivePermission(permissions, permission)))
+      (Array.isArray(targetPermission)
+        ? hasAnyEffectivePermission(permissions, targetPermission)
+        : hasEffectivePermission(permissions, targetPermission)))
   );
 
   useEffect(() => {
@@ -81,7 +83,7 @@ export function RequirePermission({ permission, children }: RequirePermissionPro
             "Não foi possível identificar seu vínculo ativo com a loja. Você está sendo redirecionado por segurança."
           ) : (
             <>
-              Esta área é restrita a colaboradores com a permissão <strong>{Array.isArray(permission) ? permission.join(' ou ') : permission}</strong>. Se você precisar de acesso, solicite ao proprietário do estabelecimento.
+              Esta área é restrita a colaboradores com a permissão <strong>{Array.isArray(targetPermission) ? targetPermission.join(' ou ') : targetPermission}</strong>. Se você precisar de acesso, solicite ao proprietário do estabelecimento.
             </>
           )}
         </p>

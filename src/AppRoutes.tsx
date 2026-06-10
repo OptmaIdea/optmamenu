@@ -175,7 +175,7 @@ export default function AppRoutes() {
             <Route
               path="/admin/settings"
               element={
-                <RequirePermission permission="settings.view">
+                <RequirePermission permissions={['settings.view']}>
                   <Settings />
                 </RequirePermission>
               }
@@ -209,7 +209,7 @@ export default function AppRoutes() {
             <Route
               path="/admin/security"
               element={
-                <RequirePermission permission="security.view">
+                <RequirePermission permissions={['security.view']}>
                   <Security />
                 </RequirePermission>
               }

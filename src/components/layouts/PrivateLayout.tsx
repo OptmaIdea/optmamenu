@@ -162,15 +162,18 @@ export default function PrivateLayout() {
 
     const isOwner = activeMembership?.role === 'owner';
 
-    const canAccessSettingsRoot = useMemo(() => {
+    const hasPermission = useCallback((key: string) => {
         if (loadingPermissions) return true;
-        return isOwner || hasEffectivePermission(permissions, 'settings.view');
-    }, [permissions, loadingPermissions, isOwner]);
+        return hasEffectivePermission(permissions, key);
+    }, [permissions, loadingPermissions]);
 
-    const canAccessSecurityRoot = useMemo(() => {
-        if (loadingPermissions) return true;
-        return isOwner || hasEffectivePermission(permissions, 'security.view');
-    }, [permissions, loadingPermissions, isOwner]);
+    const canShowSettings = useMemo(() => {
+        return isOwner || hasPermission('settings.view');
+    }, [isOwner, hasPermission]);
+
+    const canShowSecurity = useMemo(() => {
+        return isOwner || hasPermission('security.view');
+    }, [isOwner, hasPermission]);
 
     const isMenuItemVisible = useCallback((item: MenuItem) => {
         if (isOnboardingPending) {
@@ -180,13 +183,33 @@ export default function PrivateLayout() {
             );
         }
         if (item.path === '/admin/settings') {
-            return canAccessSettingsRoot && (isOwner || !item.permission || can(item.permission));
+            if (!canShowSettings) return false;
+
+            const tabParam = item.queryString?.split('tab=')[1];
+            if (!tabParam) return true;
+
+            if (isOwner) return true;
+
+            const viewKey = `settings.${tabParam}.view`;
+            const manageKey = `settings.${tabParam}.manage`;
+
+            return hasPermission(viewKey) || hasPermission(manageKey) || hasPermission('settings.manage');
         }
         if (item.path === '/admin/security') {
-            return canAccessSecurityRoot;
+            if (!canShowSecurity) return false;
+
+            const tabParam = item.queryString?.split('tab=')[1];
+            if (!tabParam) return true;
+
+            if (isOwner) return true;
+
+            const viewKey = `security.${tabParam}.view`;
+            const manageKey = `security.${tabParam}.manage`;
+
+            return hasPermission(viewKey) || hasPermission(manageKey) || hasPermission('security.manage');
         }
         return !item.permission || can(item.permission);
-    }, [isOnboardingPending, canAccessSettingsRoot, canAccessSecurityRoot, isOwner, can]);
+    }, [isOnboardingPending, canShowSettings, canShowSecurity, isOwner, hasPermission, can]);
 
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');

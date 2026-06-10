@@ -80,6 +80,30 @@ const getInitials = (name: string) => {
         .toUpperCase();
 };
 
+function AccessDenied({ message }: { message: string }) {
+  return (
+    <PageContainer
+      title="Acesso Restrito"
+      subtitle="Verificação de privilégios de segurança"
+      category="Configurações"
+      icon={<AlertCircle className="text-[#DC2626]" size={28} />}
+      flat
+    >
+      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn font-candara">
+        <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
+          <AlertCircle size={48} />
+        </div>
+        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+          Acesso Restrito
+        </h3>
+        <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
+          {message}
+        </p>
+      </div>
+    </PageContainer>
+  );
+}
+
 
 export default function StoreSettings() {
     const { securityContext, isOwner, loading: loadingSecurityContext } = useSecurityContext();
@@ -95,38 +119,32 @@ export default function StoreSettings() {
     const activeTab = searchParams.get('tab') || 'store';
     const [activeStoreSubTab, setActiveStoreSubTab] = useState('corporate');
 
-    const canAccessSettingsRoot = useMemo(() => {
-        if (loadingSecurityContext) return true;
-        return isOwner || hasEffectivePermission(permissions, 'settings.view');
-    }, [permissions, isOwner, loadingSecurityContext]);
+    const hasPermission = useCallback((key: string) => {
+        return hasEffectivePermission(permissions, key);
+    }, [permissions]);
 
-    const canManageSettingsRoot = useMemo(() => {
-        return canAccessSettingsRoot && (isOwner || hasEffectivePermission(permissions, 'settings.manage'));
-    }, [canAccessSettingsRoot, permissions, isOwner]);
+    const canAccessSettingsRoot = isOwner || hasPermission('settings.view');
 
     const canViewSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
         if (!canAccessSettingsRoot) return false;
         if (isOwner) return true;
 
-        return (
-            canManageSettingsRoot ||
-            settingsTabPermissions[tab].view.some((permission) =>
-                hasEffectivePermission(permissions, permission)
-            )
+        return settingsTabPermissions[tab].view.some((permission) =>
+            hasPermission(permission)
         );
-    }, [canAccessSettingsRoot, canManageSettingsRoot, isOwner, permissions]);
+    }, [canAccessSettingsRoot, isOwner, hasPermission]);
 
     const canManageSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
-        if (!canAccessSettingsRoot) return false;
+        if (!canViewSettingsTab(tab)) return false;
         if (isOwner) return true;
 
         return (
-            canManageSettingsRoot ||
+            hasPermission('settings.manage') ||
             settingsTabPermissions[tab].manage.some((permission) =>
-                hasEffectivePermission(permissions, permission)
+                hasPermission(permission)
             )
         );
-    }, [canAccessSettingsRoot, canManageSettingsRoot, isOwner, permissions]);
+    }, [canViewSettingsTab, isOwner, hasPermission]);
 
     const allowedTabs = useMemo(() => {
         return SETTINGS_TABS.filter((tab) =>
@@ -190,19 +208,14 @@ export default function StoreSettings() {
 
     useEffect(() => {
         if (loadingSecurityContext) return;
-        if (!isOwner && permissions.length === 0) return;
-
-        if (!allowedTabs.length) {
-            navigate('/admin', { replace: true });
-            return;
-        }
+        if (!canAccessSettingsRoot || allowedTabs.length === 0) return;
 
         const canAccessActiveTab = allowedTabs.some((tab) => tab.id === activeTab);
 
         if (!canAccessActiveTab) {
             navigate(`/admin/settings?tab=${allowedTabs[0].id}`, { replace: true });
         }
-    }, [activeTab, allowedTabs, navigate, isOwner, permissions, loadingSecurityContext]);
+    }, [activeTab, allowedTabs, navigate, canAccessSettingsRoot, loadingSecurityContext]);
 
     useEffect(() => {
         if (!loadingSecurityContext) {
@@ -517,25 +530,13 @@ export default function StoreSettings() {
 
     if (!canAccessSettingsRoot) {
         return (
-            <PageContainer
-                title="Configurações da Loja"
-                subtitle="Gerencie as configurações gerais da sua loja, regras comerciais, formas de pagamento, termos e sistema."
-                category="Configurações"
-                icon={<Settings className="text-[#21A896]" size={28} />}
-                flat
-            >
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn">
-                    <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
-                        <AlertCircle size={48} />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-                        Acesso Restrito
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-                        Você não tem permissão para acessar Configurações.
-                    </p>
-                </div>
-            </PageContainer>
+            <AccessDenied message="Você não tem permissão para acessar Configurações." />
+        );
+    }
+
+    if (allowedTabs.length === 0) {
+        return (
+            <AccessDenied message="Você tem acesso à área de Configurações, mas nenhuma aba foi liberada para seu perfil." />
         );
     }
 
