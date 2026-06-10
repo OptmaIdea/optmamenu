@@ -36,35 +36,35 @@ const SETTINGS_TABS = [
 
 const settingsTabPermissions = {
   store: {
-    view: ['settings.store.view', 'settings.store.manage'],
+    view: ['settings.store.view'],
     manage: ['settings.store.manage'],
   },
   commercial: {
-    view: ['settings.commercial.view', 'settings.commercial.manage'],
+    view: ['settings.commercial.view'],
     manage: ['settings.commercial.manage'],
   },
   orders: {
-    view: ['settings.orders.view', 'settings.orders.manage'],
+    view: ['settings.orders.view'],
     manage: ['settings.orders.manage'],
   },
   stock: {
-    view: ['settings.stock.view', 'settings.stock.manage'],
+    view: ['settings.stock.view'],
     manage: ['settings.stock.manage'],
   },
   delivery: {
-    view: ['settings.delivery.view', 'settings.delivery.manage'],
+    view: ['settings.delivery.view'],
     manage: ['settings.delivery.manage'],
   },
   payment: {
-    view: ['settings.payment.view', 'settings.payment.manage'],
+    view: ['settings.payment.view'],
     manage: ['settings.payment.manage'],
   },
   legal: {
-    view: ['settings.legal.view', 'settings.legal.manage'],
+    view: ['settings.legal.view'],
     manage: ['settings.legal.manage'],
   },
   system: {
-    view: ['settings.system.view', 'settings.system.manage'],
+    view: ['settings.system.view'],
     manage: ['settings.system.manage'],
   },
 } as const;
@@ -139,7 +139,7 @@ export default function StoreSettings() {
         if (isOwner) return true;
 
         return (
-            hasPermission('settings.manage') ||
+            hasPermission('settings.manage') &&
             settingsTabPermissions[tab].manage.some((permission) =>
                 hasPermission(permission)
             )

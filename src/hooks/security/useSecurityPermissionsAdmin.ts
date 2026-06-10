@@ -16,6 +16,25 @@ type LoadingState = {
   saving: boolean;
 };
 
+function normalizeRoleCode(role: string) {
+  const normalized = String(role || '').trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    proprietário: 'owner',
+    proprietario: 'owner',
+    administrador: 'admin',
+    gerente: 'manager',
+    estoque: 'stock_operator',
+    'operador de estoque': 'stock_operator',
+    caixa: 'cashier',
+    vendas: 'sales',
+    equipe: 'staff',
+    visualizador: 'viewer',
+  };
+
+  return map[normalized] ?? normalized;
+}
+
 export function useSecurityPermissionsAdmin(enabled = true) {
   const [permissionMatrix, setPermissionMatrix] = useState<StorePermissionMatrixRow[]>([]);
   const [sensitiveActions, setSensitiveActions] = useState<StoreSensitiveActionMatrixRow[]>([]);
@@ -30,10 +49,10 @@ export function useSecurityPermissionsAdmin(enabled = true) {
   });
   const [error, setError] = useState<string | null>(null);
 
-  const storeId = useMemo(() => getActiveStoreId(), []);
+  const currentStoreId = useMemo(() => getActiveStoreId(), []);
 
   const fetchPermissionMatrix = useCallback(async () => {
-    if (!storeId) {
+    if (!currentStoreId) {
       setPermissionMatrix([]);
       setLoading((prev) => ({ ...prev, matrix: false }));
       return;
@@ -42,8 +61,8 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     setError(null);
     setLoading((prev) => ({ ...prev, matrix: true }));
 
-    const { data, error: rpcError } = await supabase.rpc('get_store_permission_matrix', {
-      p_store_id: storeId,
+    const { data, error: rpcError } = await supabase.rpc('get_store_permission_matrix_v3', {
+      p_store_id: currentStoreId,
     });
 
     if (rpcError) {
@@ -56,10 +75,10 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     }
 
     setLoading((prev) => ({ ...prev, matrix: false }));
-  }, [storeId]);
+  }, [currentStoreId]);
 
   const fetchSensitiveActions = useCallback(async () => {
-    if (!storeId) {
+    if (!currentStoreId) {
       setSensitiveActions([]);
       setLoading((prev) => ({ ...prev, sensitiveActions: false }));
       return;
@@ -69,7 +88,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     setLoading((prev) => ({ ...prev, sensitiveActions: true }));
 
     const { data, error: rpcError } = await supabase.rpc('get_store_sensitive_action_matrix', {
-      p_store_id: storeId,
+      p_store_id: currentStoreId,
     });
 
     if (rpcError) {
@@ -80,10 +99,10 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     }
 
     setLoading((prev) => ({ ...prev, sensitiveActions: false }));
-  }, [storeId]);
+  }, [currentStoreId]);
 
   const fetchMembersForPermissions = useCallback(async () => {
-    if (!storeId) {
+    if (!currentStoreId) {
       setMembersForPermissions([]);
       setLoading((prev) => ({ ...prev, members: false }));
       return;
@@ -93,7 +112,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     setLoading((prev) => ({ ...prev, members: true }));
 
     const { data, error: rpcError } = await supabase.rpc('get_store_members_for_permissions', {
-      p_store_id: storeId,
+      p_store_id: currentStoreId,
     });
 
     setLoading((prev) => ({ ...prev, members: false }));
@@ -105,7 +124,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     }
 
     setMembersForPermissions((data ?? []) as StoreMemberForPermissionsRow[]);
-  }, [storeId]);
+  }, [currentStoreId]);
 
   const fetchMemberPermissionDetail = useCallback(async (memberId: string) => {
     if (!memberId) {
@@ -168,18 +187,20 @@ export function useSecurityPermissionsAdmin(enabled = true) {
       allowed: boolean;
       reason?: string;
     }) => {
-      if (!storeId) {
+      const { role, permissionCode, allowed, reason } = params;
+
+      if (!currentStoreId) {
         throw new Error('Nenhuma loja ativa selecionada.');
       }
 
       setLoading((prev) => ({ ...prev, saving: true }));
 
-      const { error: rpcError } = await supabase.rpc('update_store_role_permission_template', {
-        p_store_id: storeId,
-        p_role: params.role,
-        p_permission_code: params.permissionCode,
-        p_allowed: params.allowed,
-        p_reason: params.reason ?? null,
+      const { error: rpcError } = await supabase.rpc('set_store_role_permission_v3', {
+        p_store_id: currentStoreId,
+        p_role: normalizeRoleCode(role),
+        p_permission_code: permissionCode,
+        p_allowed: allowed,
+        p_reason: reason ?? null,
       });
 
       setLoading((prev) => ({ ...prev, saving: false }));
@@ -190,7 +211,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
 
       await fetchPermissionMatrix();
     },
-    [storeId, fetchPermissionMatrix]
+    [currentStoreId, fetchPermissionMatrix]
   );
 
   const updateSensitiveAction = useCallback(
@@ -205,14 +226,14 @@ export function useSecurityPermissionsAdmin(enabled = true) {
       requireReason: boolean;
       reason?: string;
     }) => {
-      if (!storeId) {
+      if (!currentStoreId) {
         throw new Error('Nenhuma loja ativa selecionada.');
       }
 
       setLoading((prev) => ({ ...prev, saving: true }));
 
       const { error: rpcError } = await supabase.rpc('update_store_sensitive_action_rule', {
-        p_store_id: storeId,
+        p_store_id: currentStoreId,
         p_action_code: params.actionCode,
         p_enabled: params.enabled,
         p_requirement: params.requirement,
@@ -232,7 +253,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
 
       await fetchSensitiveActions();
     },
-    [storeId, fetchSensitiveActions]
+    [currentStoreId, fetchSensitiveActions]
   );
 
   useEffect(() => {
@@ -243,7 +264,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
   }, [enabled, fetchPermissionMatrix, fetchSensitiveActions, fetchMembersForPermissions]);
 
   return {
-    storeId,
+    storeId: currentStoreId,
     permissionMatrix,
     sensitiveActions,
     memberPermissionDetail,

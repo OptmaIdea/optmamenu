@@ -12,6 +12,7 @@ import {
     ChevronDown, ChevronUp, ArrowUp
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
+import type { StorePermissionMatrixRow } from '@/types/security';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
@@ -19,7 +20,6 @@ import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
 import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermissionsAdmin';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
-import { PERMISSION_GROUPS } from '@/utils/permissionGroups';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -57,6 +57,25 @@ function formatSecurityRole(role: string | null): string {
     };
 
     return role ? labels[role] ?? role : 'Não definido';
+}
+
+function normalizeRoleCode(role: string) {
+    const normalized = String(role || '').trim().toLowerCase();
+
+    const map: Record<string, string> = {
+        proprietário: 'owner',
+        proprietario: 'owner',
+        administrador: 'admin',
+        gerente: 'manager',
+        estoque: 'stock_operator',
+        'operador de estoque': 'stock_operator',
+        caixa: 'cashier',
+        vendas: 'sales',
+        equipe: 'staff',
+        visualizador: 'viewer',
+    };
+
+    return map[normalized] ?? normalized;
 }
 
 function formatSecurityStatus(status: string | null): string {
@@ -103,6 +122,7 @@ function formatPermissionModule(module: string): string {
 }
 
 function formatPermissionAction(action: string): string {
+    if (!action) return 'Ação';
     const labels: Record<string, string> = {
         view: 'Ver',
         create: 'Criar',
@@ -210,15 +230,15 @@ function formatSecurityLogAction(action?: string): string {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  session_store_selected: 'Loja acessada',
-  session_disconnected: 'Sessão encerrada',
-  session_login: 'Login realizado',
-  login: 'Login realizado',
-  logout: 'Logout realizado',
-  idle_timeout: 'Sessão encerrada por inatividade',
-  store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
-  store_role_permission_template_updated: 'Permissão por papel alterada',
-  role_permission_updated: 'Permissão por papel alterada',
+    session_store_selected: 'Loja acessada',
+    session_disconnected: 'Sessão encerrada',
+    session_login: 'Login realizado',
+    login: 'Login realizado',
+    logout: 'Logout realizado',
+    idle_timeout: 'Sessão encerrada por inatividade',
+    store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
+    store_role_permission_template_updated: 'Permissão por papel alterada',
+    role_permission_updated: 'Permissão por papel alterada',
 };
 
 function getActionLabel(action: string | null | undefined): string {
@@ -227,15 +247,15 @@ function getActionLabel(action: string | null | undefined): string {
 }
 
 function getDisplayAction(item: { action?: string | null; display_action?: string | null }) {
-  if (
-    item.display_action &&
-    item.display_action !== item.action &&
-    !item.display_action.includes('_')
-  ) {
-    return item.display_action;
-  }
+    if (
+        item.display_action &&
+        item.display_action !== item.action &&
+        !item.display_action.includes('_')
+    ) {
+        return item.display_action;
+    }
 
-  return getActionLabel(item.action || '');
+    return getActionLabel(item.action || '');
 }
 
 function getStringDetail(
@@ -463,38 +483,38 @@ const VALID_TAB_IDS = [
 ];
 
 const securityTabPermissions = {
-  context: {
-    view: ['security.context.view', 'security.context.manage'],
-    manage: ['security.context.manage'],
-  },
-  logs: {
-    view: ['security.logs.view', 'security.logs.manage'],
-    manage: ['security.logs.manage'],
-  },
-  roles: {
-    view: ['security.roles.view', 'security.roles.manage'],
-    manage: ['security.roles.manage'],
-  },
-  custom_roles: {
-    view: ['security.custom_roles.view', 'security.custom_roles.manage'],
-    manage: ['security.custom_roles.manage'],
-  },
-  user_permissions: {
-    view: ['security.user_permissions.view', 'security.user_permissions.manage'],
-    manage: ['security.user_permissions.manage'],
-  },
-  sensitive_actions: {
-    view: ['security.sensitive_actions.view', 'security.sensitive_actions.manage'],
-    manage: ['security.sensitive_actions.manage'],
-  },
-  pin_token: {
-    view: ['security.pin_token.view', 'security.pin_token.manage'],
-    manage: ['security.pin_token.manage'],
-  },
-  session_inactive: {
-    view: ['security.sessions.view', 'security.sessions.manage'],
-    manage: ['security.sessions.manage'],
-  },
+    context: {
+        view: ['security.context.view'],
+        manage: ['security.context.manage'],
+    },
+    logs: {
+        view: ['security.logs.view'],
+        manage: ['security.logs.manage'],
+    },
+    roles: {
+        view: ['security.roles.view'],
+        manage: ['security.roles.manage'],
+    },
+    custom_roles: {
+        view: ['security.custom_roles.view'],
+        manage: ['security.custom_roles.manage'],
+    },
+    user_permissions: {
+        view: ['security.user_permissions.view'],
+        manage: ['security.user_permissions.manage'],
+    },
+    sensitive_actions: {
+        view: ['security.sensitive_actions.view'],
+        manage: ['security.sensitive_actions.manage'],
+    },
+    pin_token: {
+        view: ['security.pin_token.view'],
+        manage: ['security.pin_token.manage'],
+    },
+    session_inactive: {
+        view: ['security.sessions.view'],
+        manage: ['security.sessions.manage'],
+    },
 } as const;
 
 const SENSITIVE_REQUIREMENT_OPTIONS = [
@@ -518,9 +538,238 @@ const ROLE_OPTIONS = [
     { value: 'viewer', label: 'Visualizador' },
 ] as const;
 
+
+type PermissionGroupCategory = 'Configurações' | 'Segurança' | 'Operacional';
+
+type PermissionGroupDef = {
+    id: string;
+    category: PermissionGroupCategory;
+    label: string;
+    description?: string;
+    permissions: {
+        view?: string;
+        manage?: string;
+        extra?: { code: string; label: string }[];
+    };
+};
+
+const FINAL_PERMISSION_GROUPS: PermissionGroupDef[] = [
+    {
+        id: 'settings-root',
+        category: 'Configurações',
+        label: 'Acesso geral',
+        description: 'Primeiro libere o acesso geral às configurações. Depois escolha as abas e ações.',
+        permissions: {
+            view: 'settings.view',
+            manage: 'settings.manage',
+        },
+    },
+    {
+        id: 'settings-store',
+        category: 'Configurações',
+        label: 'Dados da Loja',
+        description: 'Dados cadastrais, endereço, contatos e identidade visual da loja.',
+        permissions: {
+            view: 'settings.store.view',
+            manage: 'settings.store.manage',
+        },
+    },
+    {
+        id: 'settings-commercial',
+        category: 'Configurações',
+        label: 'Comercial',
+        description: 'Regras comerciais, canais e preferências comerciais.',
+        permissions: {
+            view: 'settings.commercial.view',
+            manage: 'settings.commercial.manage',
+        },
+    },
+    {
+        id: 'settings-orders',
+        category: 'Configurações',
+        label: 'Pedido Online',
+        description: 'Loja pública, pedido mínimo, canais e regras de pedido.',
+        permissions: {
+            view: 'settings.orders.view',
+            manage: 'settings.orders.manage',
+        },
+    },
+    {
+        id: 'settings-stock',
+        category: 'Configurações',
+        label: 'Estoque',
+        description: 'Regras de estoque global, mínimo, máximo e distribuição por locais.',
+        permissions: {
+            view: 'settings.stock.view',
+            manage: 'settings.stock.manage',
+        },
+    },
+    {
+        id: 'settings-delivery',
+        category: 'Configurações',
+        label: 'Entrega',
+        description: 'Formas, taxas e regras de entrega.',
+        permissions: {
+            view: 'settings.delivery.view',
+            manage: 'settings.delivery.manage',
+        },
+    },
+    {
+        id: 'settings-payment',
+        category: 'Configurações',
+        label: 'Pagamento',
+        description: 'Formas e regras de pagamento.',
+        permissions: {
+            view: 'settings.payment.view',
+            manage: 'settings.payment.manage',
+        },
+    },
+    {
+        id: 'settings-legal',
+        category: 'Configurações',
+        label: 'Documentos e Termos',
+        description: 'Termos de uso, política de privacidade, cookies e dados de DPO.',
+        permissions: {
+            view: 'settings.legal.view',
+            manage: 'settings.legal.manage',
+        },
+    },
+    {
+        id: 'settings-system',
+        category: 'Configurações',
+        label: 'Sistema',
+        description: 'Configurações técnicas e avançadas.',
+        permissions: {
+            view: 'settings.system.view',
+            manage: 'settings.system.manage',
+        },
+    },
+
+    {
+        id: 'security-root',
+        category: 'Segurança',
+        label: 'Acesso geral',
+        description: 'Primeiro libere o acesso geral à área Senhas e Acesso. Depois escolha as abas e ações.',
+        permissions: {
+            view: 'security.view',
+            manage: 'security.manage',
+        },
+    },
+    {
+        id: 'security-context',
+        category: 'Segurança',
+        label: 'Contexto de acesso',
+        description: 'Informações do vínculo, loja ativa, perfil e contexto de acesso.',
+        permissions: {
+            view: 'security.context.view',
+            manage: 'security.context.manage',
+        },
+    },
+    {
+        id: 'security-logs',
+        category: 'Segurança',
+        label: 'Histórico de atividades',
+        description: 'Logs gerais de auditoria e segurança da loja.',
+        permissions: {
+            view: 'security.logs.view',
+            manage: 'security.logs.manage',
+        },
+    },
+    {
+        id: 'security-roles',
+        category: 'Segurança',
+        label: 'Permissões por papel',
+        description: 'Matriz padrão de permissões dos papéis/cargos.',
+        permissions: {
+            view: 'security.roles.view',
+            manage: 'security.roles.manage',
+        },
+    },
+    {
+        id: 'security-custom-roles',
+        category: 'Segurança',
+        label: 'Funções personalizadas',
+        description: 'Criação e manutenção de funções personalizadas.',
+        permissions: {
+            view: 'security.custom_roles.view',
+            manage: 'security.custom_roles.manage',
+        },
+    },
+    {
+        id: 'security-user-permissions',
+        category: 'Segurança',
+        label: 'Permissões por usuário',
+        description: 'Exceções individuais aplicadas a membros específicos.',
+        permissions: {
+            view: 'security.user_permissions.view',
+            manage: 'security.user_permissions.manage',
+        },
+    },
+    {
+        id: 'security-sensitive-actions',
+        category: 'Segurança',
+        label: 'Ações sensíveis',
+        description: 'Regras para ações que exigem PIN, senha master, token ou aprovação.',
+        permissions: {
+            view: 'security.sensitive_actions.view',
+            manage: 'security.sensitive_actions.manage',
+        },
+    },
+    {
+        id: 'security-pin-token',
+        category: 'Segurança',
+        label: 'PIN e token',
+        description: 'Configurações de PIN, token e limites de tentativa.',
+        permissions: {
+            view: 'security.pin_token.view',
+            manage: 'security.pin_token.manage',
+        },
+    },
+    {
+        id: 'security-sessions',
+        category: 'Segurança',
+        label: 'Sessões e inatividade',
+        description: 'Tempo ocioso, encerramento automático e sessões.',
+        permissions: {
+            view: 'security.sessions.view',
+            manage: 'security.sessions.manage',
+        },
+    },
+];
+
+const getPermissionCode = (row: any): string => {
+    return String(row?.permission_code ?? row?.permission_key ?? row?.code ?? '').trim();
+};
+
+const normalizePermissionRow = (row: any) => {
+    const permissionCode = getPermissionCode(row);
+    const parts = permissionCode.split('.').filter(Boolean);
+    const module = String(row?.module ?? parts[0] ?? 'other');
+    const action = String(row?.action ?? parts.slice(1).join('_') ?? 'view');
+
+    return {
+        ...row,
+        permission_code: permissionCode,
+        module,
+        action,
+        risk_level: row?.risk_level ?? row?.risk ?? 'medium',
+    };
+};
+
 const getGroupedPermissions = (rows: any[]) => {
+    const normalizedRows = (rows ?? [])
+        .map(normalizePermissionRow)
+        .filter((row) => row.permission_code);
+
+    const rowByCode = new Map<string, any>();
+    normalizedRows.forEach((row) => {
+        if (!rowByCode.has(row.permission_code)) {
+            rowByCode.set(row.permission_code, row);
+        }
+    });
+
     const grouped: {
-        category: 'Configurações' | 'Segurança' | 'Operacional';
+        category: PermissionGroupCategory;
         id: string;
         label: string;
         description?: string;
@@ -531,93 +780,131 @@ const getGroupedPermissions = (rows: any[]) => {
         }[];
     }[] = [];
 
-    // 1. Grupos definidos estaticamente em PERMISSION_GROUPS
-    PERMISSION_GROUPS.forEach((group) => {
-        const items: { actionLabel: string; permissionCode: string; row: any }[] = [];
-        const category = group.id.startsWith('security') ? 'Segurança' : 'Configurações';
+    const mappedCodes = new Set<string>();
 
-        if (group.permissions.view) {
-            const r = rows.find(x => x.permission_code === group.permissions.view);
-            if (r) {
-                items.push({ actionLabel: 'Ver', permissionCode: group.permissions.view, row: r });
-            }
-        }
-        if (group.permissions.manage) {
-            const r = rows.find(x => x.permission_code === group.permissions.manage);
-            if (r) {
-                items.push({ actionLabel: 'Gerenciar', permissionCode: group.permissions.manage, row: r });
-            }
-        }
-        if (group.permissions.extra) {
-            group.permissions.extra.forEach(code => {
-                const r = rows.find(x => x.permission_code === code);
-                if (r) {
-                    const actionName = code.split('.')[2] || 'Gerenciar';
-                    items.push({ actionLabel: formatPermissionAction(actionName), permissionCode: code, row: r });
-                }
+    FINAL_PERMISSION_GROUPS.forEach((group) => {
+        const items: { actionLabel: string; permissionCode: string; row: any }[] = [];
+
+        const addItem = (code: string | undefined, label: string) => {
+            if (!code) return;
+
+            mappedCodes.add(code);
+
+            const row = rowByCode.get(code);
+            if (!row) return;
+
+            items.push({
+                actionLabel: label,
+                permissionCode: code,
+                row,
             });
-        }
+        };
+
+        addItem(group.permissions.view, 'Ver');
+        addItem(group.permissions.manage, 'Gerenciar');
+
+        group.permissions.extra?.forEach((extra) => {
+            addItem(extra.code, extra.label);
+        });
 
         if (items.length > 0) {
             grouped.push({
-                category,
+                category: group.category,
                 id: group.id,
                 label: group.label,
                 description: group.description,
-                items
+                items,
             });
         }
     });
 
-    // 2. Outras permissões (operacionais/não listadas no PERMISSION_GROUPS)
-    const mappedCodes = new Set(
-        PERMISSION_GROUPS.flatMap(g => [
-            g.permissions.view,
-            g.permissions.manage,
-            ...(g.permissions.extra || [])
-        ]).filter(Boolean)
-    );
-
-    const operationalRows = rows.filter(r => !mappedCodes.has(r.permission_code));
+    const remainingRows = normalizedRows.filter((row) => !mappedCodes.has(row.permission_code));
     const modules: Record<string, any[]> = {};
-    operationalRows.forEach(r => {
-        const mod = r.module || 'other';
-        if (!modules[mod]) {
-            modules[mod] = [];
+
+    remainingRows.forEach((row) => {
+        const module = String(row.module || 'other');
+        if (!modules[module]) {
+            modules[module] = [];
         }
-        modules[mod].push(r);
+        modules[module].push(row);
     });
 
-    Object.entries(modules).forEach(([mod, modRows]) => {
-        const items = modRows.map(r => {
-            let actionLabel = formatPermissionAction(r.action);
-            if (r.action === 'view') actionLabel = 'Ver';
-            if (r.action === 'manage') actionLabel = 'Gerenciar';
-            
-            return {
-                actionLabel,
-                permissionCode: r.permission_code,
-                row: r
-            };
-        });
+    Object.entries(modules).forEach(([module, moduleRows]) => {
+        const uniqueRows = Array.from(
+            new Map(moduleRows.map((row) => [row.permission_code, row])).values()
+        );
 
-        items.sort((a, b) => {
-            if (a.actionLabel === 'Ver') return -1;
-            if (b.actionLabel === 'Ver') return 1;
-            return a.actionLabel.localeCompare(b.actionLabel);
-        });
+        const items = uniqueRows
+            .map((row) => {
+                let actionLabel = formatPermissionAction(row.action);
+                if (row.action === 'view') actionLabel = 'Ver';
+                if (row.action === 'manage') actionLabel = 'Gerenciar';
+
+                return {
+                    actionLabel,
+                    permissionCode: row.permission_code,
+                    row,
+                };
+            })
+            .sort((a, b) => {
+                if (a.actionLabel === 'Ver') return -1;
+                if (b.actionLabel === 'Ver') return 1;
+                if (a.actionLabel === 'Gerenciar') return -1;
+                if (b.actionLabel === 'Gerenciar') return 1;
+
+                return String(a.actionLabel ?? '').localeCompare(String(b.actionLabel ?? ''), 'pt-BR');
+            });
 
         grouped.push({
             category: 'Operacional',
-            id: `op-${mod}`,
-            label: formatPermissionModule(mod),
-            description: `Permissões operacionais do módulo de ${formatPermissionModule(mod).toLowerCase()}.`,
-            items
+            id: `op-${module}`,
+            label: formatPermissionModule(module),
+            description: `Permissões operacionais do módulo de ${formatPermissionModule(module).toLowerCase()}.`,
+            items,
         });
     });
 
-    return grouped;
+    const categoryOrder: Record<PermissionGroupCategory, number> = {
+        Configurações: 1,
+        Segurança: 2,
+        Operacional: 3,
+    };
+
+    return grouped.sort((a, b) => {
+        const categoryDiff = categoryOrder[a.category] - categoryOrder[b.category];
+        if (categoryDiff !== 0) return categoryDiff;
+
+        return String(a.label ?? '').localeCompare(String(b.label ?? ''), 'pt-BR');
+    });
 };
+
+type GroupedPermission = ReturnType<typeof getGroupedPermissions>[number];
+type GroupedPermissionItem = GroupedPermission['items'][number];
+
+function getGroupRootPermissionCode(group: GroupedPermission) {
+    const groupModule = group.items[0]?.permissionCode?.split('.')[0];
+    return groupModule ? `${groupModule}.view` : null;
+}
+
+function isRootPermissionGroup(group: GroupedPermission) {
+    return group.id === 'settings-root' || group.id === 'security-root';
+}
+
+function getRoleMatrixAllowed(row: StorePermissionMatrixRow | null | undefined, role: string) {
+    if (!row) return null;
+    if (role === 'owner') return true;
+
+    return Boolean(row[`${role}_allowed` as keyof StorePermissionMatrixRow]);
+}
+
+function getViewDependencyMessage(group: GroupedPermission) {
+    return `Libere "Ver ${group.label}" para configurar a edição desta aba.`;
+}
+
+function isManagePermissionItem(item: GroupedPermissionItem) {
+    return item.actionLabel === 'Gerenciar';
+}
+
 
 const ROLE_FILTER_OPTIONS = [
     { value: 'all', label: 'Todos os papéis' },
@@ -631,27 +918,27 @@ const ROLE_FILTER_OPTIONS = [
 ];
 
 function AccessDenied({ message }: { message: string }) {
-  return (
-    <PageContainer
-      title="Acesso Restrito"
-      subtitle="Verificação de privilégios de segurança"
-      category="Configurações"
-      icon={<AlertCircle className="text-[#DC2626]" size={28} />}
-      flat
-    >
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn font-candara">
-        <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
-          <AlertCircle size={48} />
-        </div>
-        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-          Acesso Restrito
-        </h3>
-        <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-          {message}
-        </p>
-      </div>
-    </PageContainer>
-  );
+    return (
+        <PageContainer
+            title="Acesso Restrito"
+            subtitle="Verificação de privilégios de segurança"
+            category="Configurações"
+            icon={<AlertCircle className="text-[#DC2626]" size={28} />}
+            flat
+        >
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn font-candara">
+                <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
+                    <AlertCircle size={48} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                    Acesso Restrito
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
+                    {message}
+                </p>
+            </div>
+        </PageContainer>
+    );
 }
 
 export default function Security() {
@@ -723,7 +1010,7 @@ export default function Security() {
         if (isOwner) return true;
 
         return (
-            hasPermission('security.manage') ||
+            hasPermission('security.manage') &&
             securityTabPermissions[tab].manage.some((permission) =>
                 hasPermission(permission)
             )
@@ -1662,19 +1949,21 @@ export default function Security() {
         role: string,
         currentAllowed: boolean
     ) => {
+        const normalizedRole = normalizeRoleCode(role);
+
         if (!canManageSecurity) {
             toast.error('Você não tem permissão para alterar permissões.');
             return;
         }
 
-        if (role === 'owner') {
-            toast.info('O proprietário sempre mantém acesso total.');
+        if (normalizedRole === 'owner') {
+            toast.info('O proprietário sempre possui acesso total.');
             return;
         }
 
         try {
             await updateRolePermission({
-                role,
+                role: normalizedRole,
                 permissionCode,
                 allowed: !currentAllowed,
                 reason: `${!currentAllowed ? 'Liberação' : 'Bloqueio'} da permissão ${permissionCode} para o papel ${formatSecurityRole(role)} pela tela de segurança.`,
@@ -1796,25 +2085,7 @@ export default function Security() {
 
     if (!canAccessSecurityRoot) {
         return (
-            <PageContainer
-                title="Senhas e Acesso"
-                subtitle="Gerencie as configurações de segurança, PIN, senhas master e permissões da equipe."
-                category="Configurações"
-                icon={<Shield className="text-[#21A896]" size={28} />}
-                flat
-            >
-                <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn">
-                    <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
-                        <Lock size={48} />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-                        Acesso Restrito
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-                        Você não tem permissão para acessar Senhas e Acesso.
-                    </p>
-                </div>
-            </PageContainer>
+            <AccessDenied message="Você não tem permissão para acessar Senhas e Acesso." />
         );
     }
 
@@ -2421,7 +2692,7 @@ export default function Security() {
                                     Esta tabela mostra as permissões padrão configuradas no sistema para cada papel.
                                 </p>
                             </div>
-                            
+
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                                 {/* Filtro por papel */}
                                 <div className="flex items-center gap-2">
@@ -2496,7 +2767,7 @@ export default function Security() {
                                                     const isCollapsed = !expandedGroups[group.id];
                                                     return (
                                                         <div key={group.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
-                                                            <div 
+                                                            <div
                                                                 onClick={() => toggleGroupExpand(group.id)}
                                                                 className="cursor-pointer flex items-start justify-between gap-4 select-none"
                                                             >
@@ -2518,18 +2789,16 @@ export default function Security() {
                                                             {!isCollapsed && (
                                                                 <div className="space-y-3 pt-3 mt-3 border-t border-gray-50 dark:border-gray-700/50">
                                                                     {(() => {
-                                                                        // Determine root permission state for this group's module
-                                                                        const groupModule = group.items[0]?.permissionCode?.split('.')[0];
-                                                                        const rootPermCode = groupModule ? `${groupModule}.view` : null;
+                                                                        const rootPermCode = getGroupRootPermissionCode(group);
                                                                         const rootRow = rootPermCode ? permissionMatrix.find(r => r.permission_code === rootPermCode) : null;
-                                                                        const rootAllowed = rootRow ? (roleFilter === 'owner' ? true : Boolean(rootRow[`${roleFilter}_allowed`])) : null;
+                                                                        const rootAllowed = getRoleMatrixAllowed(rootRow, roleFilter);
 
-                                                                        // Determine view permission state for "manage depends on view" rule
                                                                         const viewRow = group.items.find(i => i.permissionCode.endsWith('.view'));
-                                                                        const viewAllowed = viewRow ? (roleFilter === 'owner' ? true : Boolean(viewRow.row[`${roleFilter}_allowed`])) : true;
+                                                                        const viewAllowed = viewRow ? getRoleMatrixAllowed(viewRow.row, roleFilter) : true;
 
                                                                         const isRootDisabled = rootAllowed === false;
-                                                                        const showRootHelper = isRootDisabled && group.id !== 'settings-root' && group.id !== 'security-root';
+                                                                        const showRootHelper = isRootDisabled && !isRootPermissionGroup(group);
+                                                                        const showViewHelper = !showRootHelper && viewAllowed === false && !isRootPermissionGroup(group);
 
                                                                         return (
                                                                             <>
@@ -2538,15 +2807,19 @@ export default function Security() {
                                                                                         Libere "Ver tudo" para configurar as abas.
                                                                                     </p>
                                                                                 )}
+                                                                                {showViewHelper && (
+                                                                                    <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                                                                        {getViewDependencyMessage(group)}
+                                                                                    </p>
+                                                                                )}
                                                                                 {group.items.map((item) => {
                                                                                     const row = item.row;
-                                                                                    const columnKey = `${roleFilter}_allowed`;
+                                                                                    const columnKey = `${roleFilter}_allowed` as keyof StorePermissionMatrixRow;
                                                                                     const allowed = roleFilter === 'owner' ? true : Boolean(row[columnKey]);
 
-                                                                                    // Disabled logic
                                                                                     const isBaseDisabled = roleFilter === 'owner' || !canManageSecurity || adminLoading.saving;
-                                                                                    const childDisabled = isRootDisabled && group.id !== 'settings-root' && group.id !== 'security-root';
-                                                                                    const manageDisabled = item.actionLabel === 'Gerenciar' && !viewAllowed;
+                                                                                    const childDisabled = isRootDisabled && !isRootPermissionGroup(group);
+                                                                                    const manageDisabled = isManagePermissionItem(item) && !viewAllowed;
                                                                                     const itemDisabled = isBaseDisabled || childDisabled || manageDisabled;
 
                                                                                     return (
@@ -2568,7 +2841,7 @@ export default function Security() {
                                                                                                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-sm ${allowed
                                                                                                     ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
                                                                                                     : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
-                                                                                                } ${itemDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                                                                                    } ${itemDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                                                                             >
                                                                                                 {allowed ? (
                                                                                                     <>
@@ -2619,6 +2892,10 @@ export default function Security() {
                                                 <Fragment key={group.id}>
                                                     {(() => {
                                                         const isCollapsed = !expandedGroups[group.id];
+                                                        const rootPermCode = getGroupRootPermissionCode(group);
+                                                        const rootRow = rootPermCode ? permissionMatrix.find(r => r.permission_code === rootPermCode) : null;
+                                                        const viewRow = group.items.find(i => i.permissionCode.endsWith('.view'));
+
                                                         return (
                                                             <>
                                                                 {/* Linha separadora do grupo */}
@@ -2652,10 +2929,16 @@ export default function Security() {
                                                                             </td>
                                                                             {ROLE_PERMISSION_COLUMNS.map((column) => {
                                                                                 const allowed = column.role === 'owner' ? true : Boolean(row[column.key]);
+                                                                                const rootAllowed = getRoleMatrixAllowed(rootRow, column.role);
+                                                                                const viewAllowed = viewRow ? getRoleMatrixAllowed(viewRow.row, column.role) : true;
+                                                                                const childDisabled = rootAllowed === false && !isRootPermissionGroup(group);
+                                                                                const manageDisabled = isManagePermissionItem(item) && !viewAllowed;
                                                                                 const disabled =
                                                                                     column.role === 'owner' ||
                                                                                     !canManageSecurity ||
-                                                                                    adminLoading.saving;
+                                                                                    adminLoading.saving ||
+                                                                                    childDisabled ||
+                                                                                    manageDisabled;
 
                                                                                 return (
                                                                                     <td key={column.role} className="p-3 text-center">
@@ -2807,7 +3090,7 @@ export default function Security() {
                             </div>
                         ) : (
                             <div className="relative">
-                                <div 
+                                <div
                                     ref={userPermissionsListRef}
                                     onScroll={handleUserPermScroll}
                                     className="max-h-[500px] overflow-y-auto pr-2 scrollbar-thin"
@@ -2833,7 +3116,7 @@ export default function Security() {
                                                                 const isCollapsed = !expandedGroups[group.id];
                                                                 return (
                                                                     <div key={group.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
-                                                                        <div 
+                                                                        <div
                                                                             onClick={() => toggleGroupExpand(group.id)}
                                                                             className="cursor-pointer flex items-start justify-between gap-4 select-none"
                                                                         >
@@ -2855,18 +3138,16 @@ export default function Security() {
                                                                         {!isCollapsed && (
                                                                             <div className="space-y-4 pt-3 mt-3 border-t border-gray-100 dark:border-gray-700/50">
                                                                                 {(() => {
-                                                                                    // Determine root permission state for this group's module
-                                                                                    const groupModule = group.items[0]?.permissionCode?.split('.')[0];
-                                                                                    const rootPermCode = groupModule ? `${groupModule}.view` : null;
+                                                                                    const rootPermCode = getGroupRootPermissionCode(group);
                                                                                     const rootRow = rootPermCode ? memberPermissionDetail.find(r => r.permission_code === rootPermCode) : null;
                                                                                     const rootAllowed = rootRow ? rootRow.effective_allowed : null;
 
-                                                                                    // Determine view permission state for "manage depends on view" rule
                                                                                     const viewItem = group.items.find(i => i.permissionCode.endsWith('.view'));
                                                                                     const viewEffective = viewItem ? viewItem.row.effective_allowed : true;
 
                                                                                     const isRootDisabled = rootAllowed === false;
-                                                                                    const showRootHelper = isRootDisabled && group.id !== 'settings-root' && group.id !== 'security-root';
+                                                                                    const showRootHelper = isRootDisabled && !isRootPermissionGroup(group);
+                                                                                    const showViewHelper = !showRootHelper && viewEffective === false && !isRootPermissionGroup(group);
 
                                                                                     return (
                                                                                         <>
@@ -2875,14 +3156,19 @@ export default function Security() {
                                                                                                     Libere "Ver tudo" para configurar as abas.
                                                                                                 </p>
                                                                                             )}
+                                                                                            {showViewHelper && (
+                                                                                                <p className="text-xs text-amber-600 dark:text-amber-400 italic">
+                                                                                                    {getViewDependencyMessage(group)}
+                                                                                                </p>
+                                                                                            )}
                                                                                             {group.items.map((item) => {
                                                                                                 const row = item.row;
                                                                                                 const overrideValue = getOverrideSelectValue(item.permissionCode);
                                                                                                 const effectiveValue = row.effective_allowed;
                                                                                                 const roleValue = row.role_allowed;
 
-                                                                                                const childDisabled = isRootDisabled && group.id !== 'settings-root' && group.id !== 'security-root';
-                                                                                                const manageDisabled = item.actionLabel === 'Gerenciar' && !viewEffective;
+                                                                                                const childDisabled = isRootDisabled && !isRootPermissionGroup(group);
+                                                                                                const manageDisabled = isManagePermissionItem(item) && !viewEffective;
                                                                                                 const itemDisabled = !canManageSecurity || adminLoading.saving || childDisabled || manageDisabled;
 
                                                                                                 return (
