@@ -1,92 +1,171 @@
-# React + TypeScript + Vite
+# OptmaMenu
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+SaaS — Painel administrativo para estabelecimentos (restaurantes, lanchonetes, etc.)
 
-Currently, two official plugins are available:
+## 📋 Visão Geral
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+OptmaMenu é uma plataforma SaaS completa que oferece cardápio digital, gestão de pedidos, controle de estoque, financeiro, clientes/fidelidade, marketing e configurações para estabelecimentos alimentícios.
 
-## React Compiler
+Fa parte do ecossistema Optma (OptmaMenu + OptmaIdea).
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🛠️ Stack Tecnológica
 
-## Expanding the ESLint configuration
+| Camada | Tecnologia | Versão |
+|--------|------------|--------|
+| **Framework UI** | React | 19.x |
+| **Linguagem** | TypeScript | ~5.8 |
+| **Build Tool** | Vite | 7.x |
+| **Estilização** | Tailwind CSS | v4 |
+| **Roteamento** | React Router DOM | v7 |
+| **Backend / DB** | Supabase (PostgreSQL) | SDK v2 |
+| **Estado Global** | Zustand | v5 |
+| **Formulários** | React Hook Form + Zod | — |
+| **Animações** | Framer Motion | v12 |
+| **Ícones** | Lucide React | v0.563+ |
+| **Drag and Drop** | @dnd-kit | v6+ |
+| **Toasts** | Sonner | v2 |
+| **PWA** | vite-plugin-pwa | v1 |
+| **Testes** | Vitest + Testing Library | — |
+| **Formatação** | Prettier + ESLint | — |
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🚀 Começando
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Pré-requisitos
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- Node.js (versão LTS recomendada)
+- npm ou yarn
+- Conta no Supabase
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Instalação
+
+1. Clone o repositório:
+   ```bash
+   git clone <URL_DO_REPOSITORIO>
+   cd optmamenu
+   ```
+
+2. Instale as dependências:
+   ```bash
+   npm install
+   ```
+
+3. Configure as variáveis de ambiente:
+   - Copie `.env.example` para `.env`
+   - Preencha os valores necessários (URL e chave do Supabase, etc.)
+
+4. Inicie o Supabase localmente (opcional, para desenvolvimento):
+   ```bash
+   supabase start
+   ```
+
+5. Execute o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   ```
+
+O aplicativo estará disponível em `http://localhost:5173`
+
+## 📜 Scripts Disponíveis
+
+| Script | Descrição |
+|--------|-----------|
+| `npm run dev` | Servidor de desenvolvimento (Vite HMR) |
+| `npm run build` | Build de produção (tsc + vite build) |
+| `npm run preview` | Visualiza o build de produção localmente |
+| `npm run lint` | Verifica código com ESLint |
+| `npm run lint:fix` | Corrige automaticamente problemas do ESLint |
+| `npm run format` | Formata código com Prettier |
+| `npm run format:check` | Verifica se o código está formatado corretamente |
+| `npm run test` | Executa testes com Vitest |
+| `npm run test:watch` | Executa testes em modo watch |
+| `npm run convert:webp` | Converte imagens para formato WebP |
+| `npm run convert:webp:delete` | Remove imagens WebP convertidas |
+| `npm run convert:webp:quality` | Converte imagens WebP com qualidade específica |
+
+## 🗂️ Estrutura do Projeto
+
+```
+optmamenu/
+├── src/                    # Código fonte principal
+│   ├── components/         # Componentes UI reutilizáveis
+│   ├── pages/              # Páginas baseadas em rotas
+│   ├── hooks/              # Custom React hooks
+│   ├── services/           # Funções de serviço/API
+│   ├── store/              # Estado global (Zustand)
+│   ├── types/              # Definições TypeScript
+│   ├── utils/              # Funções utilitárias
+│   ├── constants/          # Valores constantes
+│   ├── __tests__/          # Testes
+│   ├── App.tsx             # Componente raiz
+│   └── main.tsx            # Entry point
+├── supabase/               # Configuração Supabase
+│   ├── schema/             # Definições de esquema DB
+│   ├── migrations/         # Migrações de banco de dados
+│   ├── functions/          # Funções Edge do Supabase
+│   └── seed.sql            # Dados iniciais
+├── public/                 # Arquivos estáticos
+├── scripts/                # Scripts utilitários
+│   ├── convert-to-webp.js  # Conversão de imagens para WebP
+│   └── serve-local.cjs     # Servidor local para testes
+├── docs/                   # Documentação adicional
+├── .antigravity/skills/    # Skills e memória do agente de IA
+└── .env                    # Variáveis de ambiente (não versionado)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🔐 Segurança
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+⚠️ **Importante**: O arquivo `.env` contém variáveis de ambiente sensíveis e **NUNCA** deve ser commitado no repositório. Ele já está configurado no `.gitignore`.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-## 🛠️ Scripts Úteis
+Variáveis necessárias no `.env`:
+- `VITE_SUPABASE_URL`: URL do projeto Supabase
+- `VITE_SUPABASE_ANON_KEY`: chave anonima do Supabase (segura para frontend)
+- `SUPABASE_JWT_SECRET`: secret JWT (apenas para backend, sem prefixo VITE_)
 
-### Conversão para WebP
+Consulte `.env.example` para um modelo completo.
 
-Este projeto utiliza o formato WebP para imagens, que oferece melhor compressão e performance.
+## 📚 Documentação
 
-#### Requisitos
+Documentação detalhada pode ser encontrada na pasta `docs/` e nas skills do agente de IA em `.antigravity/skills/`.
 
-Instale o `libwebp`:
+- `docs/ESTRUTURA.md` - Estrutura detalhada do projeto
+- `.antigravity/skills/MEMORY.md` - Contexto geral e regras do projeto
+- `.antigravity/skills/design_system.md` - Identidade visual completa
+- `.antigravity/skills/page_layout_standard.md` - Padrão de layout das páginas admin
 
+## 🧪 Testes
+
+Execute os testes com:
 ```bash
-# Windows (com Chocolatey)
-choco install libwebp
+npm run test
+```
 
-# macOS (com Homebrew)
-brew install webp
+Para modo watch durante desenvolvimento:
+```bash
+npm run test:watch
+```
 
-# Linux (Debian/Ubuntu)
-sudo apt-get install webp
+## 📦 Build para Produção
+
+Gerar build otimizado para produção:
+```bash
+npm run build
+```
+
+Visualizar o build localmente:
+```bash
+npm run preview
+```
+
+O build será gerado na pasta `dist/`.
+
+## 🤝 Contribuição
+
+Este é um projeto solo atualmente. Para sugestões ou reportes de issues, por favor abra uma issue no repositório.
+
+## 📄 Licença
+
+Este projeto é proprietário e parte do ecossistema Optma.
+
+---
+
+*Desenvolvido com ❤️ usando React, TypeScript, Vite e Supabase*
