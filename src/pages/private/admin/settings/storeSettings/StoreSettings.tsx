@@ -24,50 +24,15 @@ import Delivery from '@/pages/private/admin/delivery/Delivery';
 import PaymentMethodsPage from '@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage';
 
 const SETTINGS_TABS = [
-  { id: 'store', label: 'Dados da Loja', icon: Building },
-  { id: 'commercial', label: 'Comercial', icon: Settings },
-  { id: 'orders', label: 'Pedido Online', icon: Smartphone },
-  { id: 'stock', label: 'Estoque', icon: SlidersHorizontal },
-  { id: 'delivery', label: 'Entrega', icon: Truck },
-  { id: 'payment', label: 'Pagamento', icon: WalletCards },
-  { id: 'legal', label: 'Documentos e Termos', icon: FileText },
-  { id: 'system', label: 'Sistema', icon: UserCircle },
+  { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
+  { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
+  { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
+  { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
+  { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
+  { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
+  { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
+  { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
 ] as const;
-
-const settingsTabPermissions = {
-  store: {
-    view: ['settings.store.view'],
-    manage: ['settings.store.manage'],
-  },
-  commercial: {
-    view: ['settings.commercial.view'],
-    manage: ['settings.commercial.manage'],
-  },
-  orders: {
-    view: ['settings.orders.view'],
-    manage: ['settings.orders.manage'],
-  },
-  stock: {
-    view: ['settings.stock.view'],
-    manage: ['settings.stock.manage'],
-  },
-  delivery: {
-    view: ['settings.delivery.view'],
-    manage: ['settings.delivery.manage'],
-  },
-  payment: {
-    view: ['settings.payment.view'],
-    manage: ['settings.payment.manage'],
-  },
-  legal: {
-    view: ['settings.legal.view'],
-    manage: ['settings.legal.manage'],
-  },
-  system: {
-    view: ['settings.system.view'],
-    manage: ['settings.system.manage'],
-  },
-} as const;
 
 
 // Helper to get initials
@@ -112,7 +77,7 @@ export default function StoreSettings() {
     const fallbackStoreId = securityContext?.primary_membership?.store_id ?? null;
     const activeStoreId = activeStoreIdFromStorage ?? fallbackStoreId;
 
-    const { permissions } = usePermissions(activeStoreId);
+    const { permissions, loading: loadingPermissions } = usePermissions(activeStoreId);
 
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -120,46 +85,41 @@ export default function StoreSettings() {
     const [activeStoreSubTab, setActiveStoreSubTab] = useState('corporate');
 
     const hasPermission = useCallback((key: string) => {
+        if (isOwner) return true;
+        if (loadingPermissions) return false;
         return hasEffectivePermission(permissions, key);
-    }, [permissions]);
+    }, [permissions, loadingPermissions, isOwner]);
 
     const canAccessSettingsRoot = isOwner || hasPermission('settings.view');
 
-    const canViewSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
-        if (!canAccessSettingsRoot) return false;
+    const canViewSettingsTab = useCallback((tabId: string) => {
         if (isOwner) return true;
+        const tab = SETTINGS_TABS.find(t => t.id === tabId);
+        if (!tab) return false;
+        return hasPermission('settings.view') && hasPermission(tab.permissionView);
+    }, [isOwner, hasPermission]);
 
-        return settingsTabPermissions[tab].view.some((permission) =>
-            hasPermission(permission)
-        );
-    }, [canAccessSettingsRoot, isOwner, hasPermission]);
-
-    const canManageSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
-        if (!canViewSettingsTab(tab)) return false;
+    const canManageSettingsTab = useCallback((tabId: string) => {
+        if (!canViewSettingsTab(tabId)) return false;
         if (isOwner) return true;
-
-        return (
-            hasPermission('settings.manage') &&
-            settingsTabPermissions[tab].manage.some((permission) =>
-                hasPermission(permission)
-            )
-        );
+        const tab = SETTINGS_TABS.find(t => t.id === tabId);
+        if (!tab) return false;
+        return hasPermission('settings.manage') && hasPermission(tab.permissionManage);
     }, [canViewSettingsTab, isOwner, hasPermission]);
 
-    const allowedTabs = useMemo(() => {
+    const visibleSettingsTabs = useMemo(() => {
+        if (loadingPermissions) return [];
         return SETTINGS_TABS.filter((tab) =>
             canViewSettingsTab(tab.id)
         );
-    }, [canViewSettingsTab]);
+    }, [canViewSettingsTab, loadingPermissions]);
 
     const canManageStore = useMemo(() => canManageSettingsTab('store'), [canManageSettingsTab]);
     const canManageLegal = useMemo(() => canManageSettingsTab('legal'), [canManageSettingsTab]);
     const canManageSystem = useMemo(() => canManageSettingsTab('system'), [canManageSettingsTab]);
 
     const canManageSettings = useMemo(() => {
-        return activeTab in settingsTabPermissions
-            ? canManageSettingsTab(activeTab as keyof typeof settingsTabPermissions)
-            : false;
+        return activeTab ? canManageSettingsTab(activeTab) : false;
     }, [activeTab, canManageSettingsTab]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -207,15 +167,27 @@ export default function StoreSettings() {
     });
 
     useEffect(() => {
-        if (loadingSecurityContext) return;
-        if (!canAccessSettingsRoot || allowedTabs.length === 0) return;
+        if (loadingSecurityContext || loadingPermissions) return;
+        if (!activeTab) return;
 
-        const canAccessActiveTab = allowedTabs.some((tab) => tab.id === activeTab);
+        const currentTab = SETTINGS_TABS.find((tab) => tab.id === activeTab);
+        if (!currentTab) return;
 
-        if (!canAccessActiveTab) {
-            navigate(`/admin/settings?tab=${allowedTabs[0].id}`, { replace: true });
+        const canViewCurrentTab =
+            isOwner || (
+                hasPermission('settings.view') &&
+                hasPermission(currentTab.permissionView)
+            );
+
+        if (!canViewCurrentTab) {
+            const fallbackTab = visibleSettingsTabs[0];
+
+            navigate(
+                fallbackTab ? `/admin/settings?tab=${fallbackTab.id}` : '/admin/my-profile',
+                { replace: true }
+            );
         }
-    }, [activeTab, allowedTabs, navigate, canAccessSettingsRoot, loadingSecurityContext]);
+    }, [activeTab, visibleSettingsTabs, hasPermission, navigate, loadingSecurityContext, loadingPermissions, isOwner]);
 
     useEffect(() => {
         if (!loadingSecurityContext) {
@@ -464,6 +436,7 @@ export default function StoreSettings() {
             if (error) throw error;
 
             setMessage('Dados salvos com sucesso!');
+            toast.success('Alterações salvas com sucesso.');
             setStockPassword('');
 
             // opcional: se a RPC retornar o id, você pode sincronizar
@@ -534,7 +507,7 @@ export default function StoreSettings() {
         );
     }
 
-    if (allowedTabs.length === 0) {
+    if (visibleSettingsTabs.length === 0) {
         return (
             <AccessDenied message="Você tem acesso à área de Configurações, mas nenhuma aba foi liberada para seu perfil." />
         );
@@ -552,7 +525,7 @@ export default function StoreSettings() {
         >
             {/* Top-level Tabs Navigation */}
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 overflow-x-auto pb-3 mb-6">
-                {allowedTabs.map(tab => (
+                {visibleSettingsTabs.map(tab => (
                     <button
                         key={tab.id}
                         type="button"

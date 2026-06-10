@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
   Package,
   ShoppingBag,
@@ -116,9 +117,34 @@ export default function Dashboard() {
   });
 
   const [loading, setLoading] = useState(true);
-  const [storeId, setStoreId] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(() => getActiveStoreId());
   const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [fatalError, setFatalError] = useState<string | null>(null);
+
+  const navigate = useNavigate();
+  const { hasPermission, loading: loadingPermissions } = usePermissions(storeId);
+
+  const redirectToDefaultLanding = useCallback(async () => {
+    if (!storeId) return;
+    const { data, error } = await supabase.rpc('get_default_admin_landing_path_v3', {
+      p_store_id: storeId,
+    });
+
+    if (!error && data) {
+      navigate(data, { replace: true });
+      return;
+    }
+
+    navigate('/admin/my-profile', { replace: true });
+  }, [storeId, navigate]);
+
+  useEffect(() => {
+    if (loadingPermissions || !storeId) return;
+
+    if (!hasPermission('dashboard.view')) {
+      void redirectToDefaultLanding();
+    }
+  }, [loadingPermissions, storeId, hasPermission, redirectToDefaultLanding]);
 
   const stockAlerts = useStockAlerts(storeId || undefined, { autoRefreshMs: 5 * 60 * 1000 });
 

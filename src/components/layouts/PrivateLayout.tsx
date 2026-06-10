@@ -138,15 +138,6 @@ export default function PrivateLayout() {
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, loading: loadingPermissions, refresh: refreshPermissions } = usePermissions(storeId ?? null);
-    const can = (permissionCode: string | string[]) => {
-        if (loadingPermissions) return true;
-        if (activeMembership?.role === 'owner') return true;
-
-        if (Array.isArray(permissionCode)) {
-            return hasAnyEffectivePermission(permissions, permissionCode);
-        }
-        return hasEffectivePermission(permissions, permissionCode);
-    };
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -162,54 +153,74 @@ export default function PrivateLayout() {
 
     const isOwner = activeMembership?.role === 'owner';
 
+    const can = useCallback((permissionCode: string | string[]) => {
+        if (activeMembership?.role === 'owner') return true;
+        if (loadingPermissions) return false;
+
+        if (Array.isArray(permissionCode)) {
+            return hasAnyEffectivePermission(permissions, permissionCode);
+        }
+
+        return hasEffectivePermission(permissions, permissionCode);
+    }, [activeMembership?.role, loadingPermissions, permissions]);
+
     const hasPermission = useCallback((key: string) => {
-        if (loadingPermissions) return true;
+        if (activeMembership?.role === 'owner') return true;
+        if (loadingPermissions) return false;
+
         return hasEffectivePermission(permissions, key);
-    }, [permissions, loadingPermissions]);
+    }, [permissions, loadingPermissions, activeMembership?.role]);
 
-    const canShowSettings = useMemo(() => {
-        return isOwner || hasPermission('settings.view');
-    }, [isOwner, hasPermission]);
+    const SECTION_ACCESS_PERMISSIONS: Record<string, string | null> = {
+        dashboard: 'dashboard.view',
+        commercial: 'commercial.view',
+        financial: 'financial.view',
+        products: 'products.view',
+        settings: null,
+        support: null,
+    };
 
-    const canShowSecurity = useMemo(() => {
-        return isOwner || hasPermission('security.view');
-    }, [isOwner, hasPermission]);
-
-    const isMenuItemVisible = useCallback((item: MenuItem) => {
+    const isMenuItemVisible = useCallback((section: string, item: MenuItem) => {
         if (isOnboardingPending) {
             const allowedPaths = ['/admin/my-profile', '/admin/my-history'];
             return allowedPaths.some((path) =>
                 item.path.startsWith(path)
             );
         }
+
+        if (isOwner) return true;
+
+        const sectionAccessPermission = SECTION_ACCESS_PERMISSIONS[section];
+        if (sectionAccessPermission && !hasPermission(sectionAccessPermission)) {
+            return false;
+        }
+
         if (item.path === '/admin/settings') {
-            if (!canShowSettings) return false;
-
             const tabParam = item.queryString?.split('tab=')[1];
-            if (!tabParam) return true;
-
-            if (isOwner) return true;
-
+            if (!tabParam) {
+                return hasPermission('settings.view');
+            }
             const viewKey = `settings.${tabParam}.view`;
-            const manageKey = `settings.${tabParam}.manage`;
-
-            return hasPermission(viewKey) || hasPermission(manageKey) || hasPermission('settings.manage');
+            return hasPermission('settings.view') && hasPermission(viewKey);
         }
+
         if (item.path === '/admin/security') {
-            if (!canShowSecurity) return false;
-
             const tabParam = item.queryString?.split('tab=')[1];
-            if (!tabParam) return true;
-
-            if (isOwner) return true;
-
+            if (!tabParam) {
+                return hasPermission('security.view');
+            }
             const viewKey = `security.${tabParam}.view`;
-            const manageKey = `security.${tabParam}.manage`;
-
-            return hasPermission(viewKey) || hasPermission(manageKey) || hasPermission('security.manage');
+            return hasPermission('security.view') && hasPermission(viewKey);
         }
-        return !item.permission || can(item.permission);
-    }, [isOnboardingPending, canShowSettings, canShowSecurity, isOwner, hasPermission, can]);
+
+        if (!item.permission) return true;
+        return can(item.permission);
+    }, [
+        isOnboardingPending,
+        isOwner,
+        hasPermission,
+        can,
+    ]);
 
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -232,61 +243,61 @@ export default function PrivateLayout() {
 
     const navigationItems = useMemo<MenuSection>(() => ({
         dashboard: [
-            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional' },
-            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes' },
-            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas' },
+            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
+            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'security.logs.view' },
+            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas', permission: 'dashboard.view' },
             { path: '/admin/reports', icon: FileStack, label: 'Relatórios', permission: 'reports.view' },
         ],
         commercial: [
-            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos' },
-            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda' },
+            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
+            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda', permission: 'commercial.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=payment',
                 icon: WalletCards,
                 label: 'Pagamentos',
-                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.manage']
+                permission: 'settings.payment.view'
             },
             {
                 path: '/admin/settings',
                 queryString: 'tab=delivery',
                 icon: Truck,
                 label: 'Entregas',
-                permission: ['settings.delivery.view', 'settings.delivery.manage', 'settings.manage']
+                permission: 'settings.delivery.view'
             },
-            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial' },
+            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=commercial',
                 icon: Settings,
                 label: 'Configurações comerciais',
-                permission: ['settings.commercial.view', 'settings.commercial.manage', 'settings.manage']
+                permission: 'settings.commercial.view'
             },
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
             { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
-            { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens' },
+            { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
         ],
         products: [
-            { path: '/admin/products', icon: Package, label: 'Produtos' },
-            { path: '/admin/categories', icon: Layers, label: 'Categorias' },
+            { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.view' },
+            { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'products.view' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque por local', permission: 'stock.view' },
-            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto' },
-            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'stock.transfer' },
-            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores' },
-            { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras' },
-            { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação' },
+            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.view' },
+            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
+            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
+            { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
+            { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'purchases.view' },
             { path: '/admin/stock-movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=stock',
                 icon: SlidersHorizontal,
                 label: 'Configurações de Estoque',
-                permission: ['settings.stock.view', 'settings.stock.manage', 'settings.manage']
+                permission: 'settings.stock.view'
             },
         ],
         settings: [
@@ -297,24 +308,24 @@ export default function PrivateLayout() {
                 queryString: 'tab=store',
                 icon: Building,
                 label: 'Dados da Loja',
-                permission: ['settings.store.view', 'settings.store.manage', 'settings.manage']
+                permission: 'settings.store.view'
             },
             {
                 path: '/admin/settings',
                 queryString: 'tab=orders',
                 icon: Smartphone,
                 label: 'Pedido Online',
-                permission: ['settings.orders.view', 'settings.orders.manage', 'settings.manage']
+                permission: 'settings.orders.view'
             },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
-            { path: '/admin/hours', icon: Clock, label: 'Horários' },
-            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens' },
+            { path: '/admin/hours', icon: Clock, label: 'Horários', permission: 'settings.store.view' },
+            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens', permission: 'settings.system.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=payment',
                 icon: CreditCard,
                 label: 'Pagamento',
-                permission: ['settings.payment.view', 'settings.payment.manage', 'settings.manage']
+                permission: 'settings.payment.view'
             },
             {
                 path: '/admin/security',
@@ -587,17 +598,33 @@ export default function PrivateLayout() {
                 table: 'store_role_permissions',
                 filter: `store_id=eq.${storeId}`,
             });
+            list.push({
+                table: 'store_role_permission_templates',
+                filter: `store_id=eq.${storeId}`,
+            });
+            list.push({
+                table: 'stores',
+                filter: `id=eq.${storeId}`,
+            });
         }
         return list;
     }, [userId, activeMembership?.member_id, storeId]);
 
+    const debouncedOnChanged = useMemo(() => {
+        let timeoutId: any = null;
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            timeoutId = setTimeout(() => {
+                refreshPermissions();
+                window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
+            }, 400);
+        };
+    }, [refreshPermissions]);
+
     useRealtimeListener({
         channelName: `layout_user_rt_${userId || 'pending'}_${storeId || 'none'}`,
         tables: realtimeTables,
-        onChanged: () => {
-            refreshPermissions();
-            window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
-        },
+        onChanged: debouncedOnChanged,
         enabled: !!userId,
     });
 
@@ -802,7 +829,7 @@ export default function PrivateLayout() {
                 const isSameItem =
                     item.path === currentItem.item.path &&
                     (item.queryString ?? '') === (currentItem.item.queryString ?? '');
-                return !isSameItem && isMenuItemVisible(item);
+                return !isSameItem && isMenuItemVisible(currentItem.group, item);
             }
         );
     }, [currentItem, navigationItems, isMenuItemVisible]);
@@ -1005,6 +1032,14 @@ export default function PrivateLayout() {
                         {/* Navigation Menu */}
                         <nav className="space-y-4">
                             {Object.entries(navigationItems).map(([section, items]) => {
+                                const visibleItems = items.filter((item) =>
+                                    isMenuItemVisible(section, item)
+                                );
+
+                                if (!visibleItems.length) {
+                                    return null;
+                                }
+
                                 const isCurrentGroup = currentItem?.group === section;
                                 return (
                                     <div key={section} className="space-y-1">
@@ -1028,8 +1063,7 @@ export default function PrivateLayout() {
                                                 <span className="text-gray-400">{openSections[section] ? '−' : '+'}</span>
                                             </button>
                                         )}
-                                        {(openSections[section] || isSidebarCollapsed) && items
-                                            .filter(isMenuItemVisible)
+                                        {(openSections[section] || isSidebarCollapsed) && visibleItems
                                             .map(item => {
                                                 const IconComponent = item.icon;
                                                 const isActive = isMenuItemActive(item, location.search);

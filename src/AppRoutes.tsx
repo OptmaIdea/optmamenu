@@ -5,6 +5,69 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RequirePermission } from '@/components/RequirePermission';
 import { RequireActiveStoreMember } from '@/components/RequireActiveStoreMember';
 import CreateStore from '@/pages/CreateStore';
+import { useSecurityContext } from '@/hooks/useSecurityContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { getActiveStoreId } from '@/utils/activeStore';
+import { supabase } from '@/lib/supabase';
+import { hasEffectivePermission } from '@/utils/permissions';
+import { useState, useEffect } from 'react';
+
+function AdminLanding() {
+  const activeStoreId = getActiveStoreId();
+  const { securityContext, loading: securityLoading } = useSecurityContext();
+  const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
+
+  const activeMembership = securityContext?.memberships?.find(
+    (m) => m.store_id === activeStoreId && m.status === 'active'
+  ) || securityContext?.primary_membership || null;
+
+  const isOwner = activeMembership?.role === 'owner';
+  const hasDashboardView = isOwner || hasEffectivePermission(permissions, 'dashboard.view');
+
+  useEffect(() => {
+    if (securityLoading || permissionsLoading || !activeStoreId) return;
+
+    if (hasDashboardView) {
+      setRedirectPath('/admin/dashboard');
+    } else {
+      const fetchDefaultPath = async () => {
+        const { data, error } = await supabase.rpc('get_default_admin_landing_path_v3', {
+          p_store_id: activeStoreId,
+        });
+        if (!error && data) {
+          setRedirectPath(data);
+        } else {
+          setRedirectPath('/admin/my-profile');
+        }
+      };
+      void fetchDefaultPath();
+    }
+  }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView]);
+
+  if (securityLoading || permissionsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+      </div>
+    );
+  }
+
+  if (hasDashboardView) {
+    return <Dashboard />;
+  }
+
+  if (redirectPath) {
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+    </div>
+  );
+}
+
 
 // Layouts
 const PublicLayout = lazy(() => import('@/components/layouts/PublicLayout'));
@@ -111,13 +174,20 @@ export default function AppRoutes() {
           <Route path="/onboarding/create-store" element={<CreateStore />} />
           <Route element={<PrivateLayout />}>
             // Dashboard Section
-            <Route path="/admin" element={<Dashboard />} />
+            <Route path="/admin" element={<AdminLanding />} />
             <Route path="/admin/activity" element={<Activity />} />
             <Route path="/admin/alerts" element={<Alerts />} />
             <Route path="/admin/reports" element={<Reports />} />
 
             // Commercial Section
-            <Route path="/admin/orders" element={<Orders />} />
+            <Route
+              path="/admin/orders"
+              element={
+                <RequirePermission permission="orders.view">
+                  <Orders />
+                </RequirePermission>
+              }
+            />
             <Route path="/admin/sales-channels" element={<SalesChannelsPage />} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
@@ -140,12 +210,26 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook" element={<CashbookPage />} />
 
             // Products Section
-            <Route path="/admin/products" element={<Products />} />
+            <Route
+              path="/admin/products"
+              element={
+                <RequirePermission permission="products.view">
+                  <Products />
+                </RequirePermission>
+              }
+            />
             <Route path="/admin/categories" element={<Categories />} />
             <Route path="/admin/inventory" element={<InventoryByLocationPage />} />
             <Route path="/admin/products/lifecycle" element={<ProductLifecycleSelectorPage />} />
             <Route path="/admin/products/:id/lifecycle" element={<ProductLifecyclePage />} />
-            <Route path="/admin/transfers" element={<TransfersPage />} />
+            <Route
+              path="/admin/transfers"
+              element={
+                <RequirePermission permission="transfers.view">
+                  <TransfersPage />
+                </RequirePermission>
+              }
+            />
             <Route path="/admin/transfers/:id" element={<TransferDetailPage />} />
             <Route path="/admin/suppliers" element={<Suppliers />} />
             <Route path="/admin/suppliers/:supplierId/lifecycle" element={<SupplierLifecyclePage />} />

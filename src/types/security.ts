@@ -185,6 +185,17 @@ export type StorePermissionMatrixRow = {
   sales_allowed: boolean;
   staff_allowed: boolean;
   viewer_allowed: boolean;
+  macro_group?: string | null;
+  group_key?: string | null;
+  group_label?: string | null;
+  item_key?: string | null;
+  item_label?: string | null;
+  action_key?: string | null;
+  action_label?: string | null;
+  depends_on?: string | null;
+  access_permission_key?: string | null;
+  ui_sort_order?: number | null;
+  show_in_permission_ui?: boolean | null;
 };
 
 export type StoreMemberPermissionDetailRow = {

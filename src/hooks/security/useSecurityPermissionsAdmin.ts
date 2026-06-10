@@ -54,6 +54,17 @@ function normalizePermissionMatrixRows(data: unknown): StorePermissionMatrixRow[
     sales_allowed: Boolean(item.sales_allowed),
     staff_allowed: Boolean(item.staff_allowed),
     viewer_allowed: Boolean(item.viewer_allowed),
+    macro_group: item.macro_group,
+    group_key: item.group_key,
+    group_label: item.group_label,
+    item_key: item.item_key,
+    item_label: item.item_label,
+    action_key: item.action_key,
+    action_label: item.action_label,
+    depends_on: item.depends_on,
+    access_permission_key: item.access_permission_key,
+    ui_sort_order: item.ui_sort_order,
+    show_in_permission_ui: item.show_in_permission_ui,
   }));
 }
 
@@ -236,6 +247,39 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     [currentStoreId, fetchPermissionMatrix]
   );
 
+  const updateRolePermissionsBulk = useCallback(
+    async (params: {
+      role: string;
+      changes: Array<{
+        permission_code: string;
+        allowed: boolean;
+      }>;
+      reason?: string | null;
+    }) => {
+      if (!currentStoreId) {
+        throw new Error('Nenhuma loja ativa selecionada.');
+      }
+
+      setLoading((prev) => ({ ...prev, saving: true }));
+
+      const { error: rpcError } = await supabase.rpc('set_store_role_permissions_bulk_v3', {
+        p_store_id: currentStoreId,
+        p_role: normalizeRoleCode(params.role),
+        p_changes: params.changes,
+        p_reason: params.reason ?? null,
+      });
+
+      setLoading((prev) => ({ ...prev, saving: false }));
+
+      if (rpcError) {
+        throw rpcError;
+      }
+
+      await fetchPermissionMatrix();
+    },
+    [currentStoreId, fetchPermissionMatrix]
+  );
+
   const updateSensitiveAction = useCallback(
     async (params: {
       actionCode: string;
@@ -301,6 +345,7 @@ export function useSecurityPermissionsAdmin(enabled = true) {
       ]);
     },
     updateRolePermission,
+    updateRolePermissionsBulk,
     updateSensitiveAction,
     fetchMembersForPermissions,
     fetchMemberPermissionDetail,
