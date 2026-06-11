@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, Fragment } from 'react';
+﻿import { useMemo, useState, useEffect, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -395,7 +395,7 @@ export default function InventoryByLocationPage() {
   if (!loading && !hasAnyData) {
     return (
       <PageContainer
-        title="Estoque por local"
+        title="Estoque"
         subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
         category="Produtos"
         icon={<FileText size={28} className="text-[#21A896]" />}
@@ -403,7 +403,7 @@ export default function InventoryByLocationPage() {
       >
         <EmptyState
           icon={<PackageSearch className="h-5 w-5" />}
-          title="Ainda não há posições de estoque por local"
+          title="Ainda não há posições de Estoque"
           description="Assim que houver saldos registrados nos locais de estoque, esta visão começará a exibir as posições."
         />
       </PageContainer>
@@ -424,7 +424,7 @@ export default function InventoryByLocationPage() {
       )}
 
       <PageContainer
-        title="Estoque por local"
+        title="Estoque"
         subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
         category="Produtos"
         icon={<FileText size={28} className="text-[#21A896]" />}

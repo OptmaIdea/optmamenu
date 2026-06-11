@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+﻿import { useMemo, useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
@@ -171,7 +171,7 @@ export default function ProductLifecyclePage() {
   const tabs = useMemo(
     () => [
       { key: 'summary' as const, label: 'Resumo' },
-      { key: 'locations' as const, label: 'Estoque por local' },
+      { key: 'locations' as const, label: 'Estoque' },
       { key: 'movements' as const, label: 'Movimentações' },
       { key: 'audit' as const, label: 'Auditoria' },
     ],
@@ -737,7 +737,7 @@ export default function ProductLifecyclePage() {
       {activeTab === 'locations' && locationRows.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Estoque por local</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white">Estoque</h2>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">

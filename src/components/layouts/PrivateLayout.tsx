@@ -1,4 +1,4 @@
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+﻿import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo, useLayoutEffect, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -289,7 +289,7 @@ export default function PrivateLayout() {
         products: [
             { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.view' },
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'products.view' },
-            { path: '/admin/inventory', icon: FileText, label: 'Estoque por local', permission: 'stock.view' },
+            { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
             { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.view' },
             { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },

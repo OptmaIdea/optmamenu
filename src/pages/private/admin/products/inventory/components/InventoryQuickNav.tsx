@@ -1,4 +1,4 @@
-/**
+﻿/**
  * InventoryQuickNav
  *
  * Regras de exibição por página:
@@ -38,7 +38,7 @@ type NavItem = {
 /** Itens do módulo de estoque (sem Categorias) */
 const MODULE_ITEMS: NavItem[] = [
   { to: '/admin/products',                 icon: <Package size={18} />,        label: 'Produtos' },
-  { to: '/admin/inventory',                icon: <Layers size={18} />,         label: 'Estoque por local' },
+  { to: '/admin/inventory',                icon: <Layers size={18} />,         label: 'Estoque' },
   { to: '/admin/products/lifecycle',       icon: <Activity size={18} />,       label: 'Vida do produto' },
   { to: '/admin/transfers',                icon: <ArrowRightLeft size={18} />, label: 'Transferências' },
   { to: '/admin/suppliers',                icon: <Truck size={18} />,          label: 'Fornecedores' },

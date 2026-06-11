@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { stockService, type InventoryPositionRow } from '@/services/stockService';
@@ -20,8 +20,8 @@ export function useInventoryByLocation() {
       const data = await stockService.getInventoryPositionByStore(storeId);
       setRows(data);
     } catch (error) {
-      console.error('Erro ao carregar estoque por local:', error);
-      toast.error('Erro ao carregar estoque por local');
+      console.error('Erro ao carregar Estoque:', error);
+      toast.error('Erro ao carregar Estoque');
     } finally {
       setLoading(false);
     }
