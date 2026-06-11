@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
@@ -9,7 +9,7 @@ import {
     Lock, History, Key, AlertCircle, CheckCircle, Save, Loader,
     RefreshCw, Smartphone, Eye, EyeOff, Settings, Filter,
     ShieldCheck, User, Store, BadgeCheck, Shield, X, Plus, Check, Search, Clock,
-    ChevronDown, ChevronUp, ArrowUp, Grid3X3
+    ChevronDown, ChevronUp, Grid3X3
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
 import type { StorePermissionMatrixRow, StoreCustomRole } from '@/types/security';
@@ -89,16 +89,7 @@ function formatSecurityStatus(status: string | null): string {
     return status ? labels[status] ?? status : 'Não definido';
 }
 
-function formatPermissionSource(source?: string | null): string {
-    const labels: Record<string, string> = {
-        role_template: 'Papel base',
-        custom_role: 'Função personalizada',
-        individual_override: 'Exceção individual',
-        default_denied: 'Bloqueio padrão',
-    };
 
-    return source ? labels[source] ?? source : 'Não informado';
-}
 
 function formatPermissionModule(module: string): string {
     const labels: Record<string, string> = {
@@ -1027,6 +1018,8 @@ const SENSITIVE_REQUIREMENT_OPTIONS = [
     { value: 'pin_and_token', label: 'PIN + token' },
 ] as const;
 
+export type IndividualPermissionState = 'inherit' | 'allow' | 'deny';
+
 export type RoleCode =
   | 'owner'
   | 'admin'
@@ -1604,27 +1597,8 @@ const getGroupedPermissions = (rows: any[]) => {
     });
 };
 
-type GroupedPermission = ReturnType<typeof getGroupedPermissions>[number];
-type GroupedPermissionItem = GroupedPermission['items'][number];
-
-function getGroupRootPermissionCode(group: GroupedPermission) {
-    const groupModule = group.items[0]?.permissionCode?.split('.')[0];
-    return groupModule ? `${groupModule}.view` : null;
-}
-
-function isRootPermissionGroup(group: GroupedPermission) {
-    return group.id === 'settings-root' || group.id === 'security-root';
-}
 
 
-
-function getViewDependencyMessage(group: GroupedPermission) {
-    return `Libere "Ver ${group.label}" para configurar a edição desta aba.`;
-}
-
-function isManagePermissionItem(item: GroupedPermissionItem) {
-    return item.actionLabel === 'Gerenciar';
-}
 
 
 const ROLE_FILTER_OPTIONS = [
@@ -1728,25 +1702,7 @@ export default function Security() {
         }
     }, [roleFilter]);
 
-    const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
-    const toggleGroupExpand = useCallback((groupId: string) => {
-        setExpandedGroups((prev) => ({
-            ...prev,
-            [groupId]: !prev[groupId],
-        }));
-    }, []);
-
-    const userPermissionsListRef = useRef<HTMLDivElement>(null);
-    const [showUserPermScrollTop, setShowUserPermScrollTop] = useState(false);
-
-    const handleUserPermScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
-        setShowUserPermScrollTop(e.currentTarget.scrollTop > 200);
-    }, []);
-
-    const scrollToUserPermTop = useCallback(() => {
-        userPermissionsListRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-    }, []);
 
     const {
         permissions,
@@ -1832,8 +1788,6 @@ export default function Security() {
         updateRolePermissionsBulk,
         updateSensitiveAction,
         fetchMemberPermissionDetail,
-        updateMemberPermissions,
-        fetchMembersForPermissions,
     } = useSecurityPermissionsAdmin(canAccessAdminPermissions);
 
     const isRoleAllowed = useCallback((role: string, permissionCode: string) => {
@@ -1849,6 +1803,9 @@ export default function Security() {
     const [customRoles, setCustomRoles] = useState<StoreCustomRole[]>([]);
     const [selectedCustomRoleId, setSelectedCustomRoleId] = useState<string | null>(null);
     const [selectedCustomRoleGroupId, setSelectedCustomRoleGroupId] = useState<string>('settings_general');
+
+    const [selectedUserGroupId, setSelectedUserGroupId] = useState<string>('settings_general');
+    const [selectedUserMacroGroup, setSelectedUserMacroGroup] = useState<'settings' | 'security' | 'operational'>('settings');
 
     const selectedCustomRole = useMemo(() => {
         return customRoles.find((role) => role.id === selectedCustomRoleId) ?? null;
@@ -2026,7 +1983,10 @@ export default function Security() {
             setSelectedCustomRoleId(createdRole.id);
         }
     };
-    const [memberPermissionOverrides, setMemberPermissionOverrides] = useState<Record<string, boolean>>({});
+    const [selectedMemberPermissions, setSelectedMemberPermissions] = useState<Record<string, boolean>>({});
+    const selectedMember = useMemo(() => {
+        return membersForPermissions.find((m) => m.member_id === selectedMemberId) ?? null;
+    }, [membersForPermissions, selectedMemberId]);
 
     const selectableMembers = useMemo(() => {
         return membersForPermissions.filter((member) => member.role !== 'owner');
@@ -2045,17 +2005,7 @@ export default function Security() {
 
 
 
-    const filteredMemberPermissionDetail = useMemo(() => {
-        if (!userPermissionSearch.trim()) {
-            return memberPermissionDetail;
-        }
-        const query = userPermissionSearch.trim().toLowerCase();
-        return memberPermissionDetail.filter((row) =>
-            [row.label, row.description, row.permission_code, row.module, row.action]
-                .filter(Boolean)
-                .some((val) => String(val).toLowerCase().includes(query))
-        );
-    }, [memberPermissionDetail, userPermissionSearch]);
+
 
 
 
@@ -2134,9 +2084,7 @@ export default function Security() {
 
 
 
-    const groupedPermissionsForUser = useMemo(() => {
-        return getGroupedPermissions(filteredMemberPermissionDetail);
-    }, [filteredMemberPermissionDetail]);
+
 
     const [productDeleteRequirement, setProductDeleteRequirement] = useState<string>('');
 
@@ -2264,7 +2212,7 @@ export default function Security() {
     useEffect(() => {
         if (!canManageSecurityTab('user_permissions')) return;
         if (!selectedMemberId) {
-            setMemberPermissionOverrides({});
+            setSelectedMemberPermissions({});
             return;
         }
 
@@ -2277,7 +2225,7 @@ export default function Security() {
                 }
             });
 
-            setMemberPermissionOverrides(overrides);
+            setSelectedMemberPermissions(overrides);
         });
     }, [selectedMemberId, fetchMemberPermissionDetail, canManageSecurityTab]);
 
@@ -3124,53 +3072,76 @@ export default function Security() {
         }
     };
 
-    const getOverrideSelectValue = (permissionCode: string): 'inherit' | 'allow' | 'deny' => {
-        if (!(permissionCode in memberPermissionOverrides)) return 'inherit';
-        return memberPermissionOverrides[permissionCode] ? 'allow' : 'deny';
+    const getIndividualPermissionState = (
+        permissions: Record<string, boolean>,
+        permissionCode: string
+    ): IndividualPermissionState => {
+        if (!(permissionCode in permissions)) {
+            return 'inherit';
+        }
+        return permissions[permissionCode] ? 'allow' : 'deny';
     };
 
-    const handleMemberOverrideChange = (
+    const setIndividualPermissionState = (
         permissionCode: string,
-        value: 'inherit' | 'allow' | 'deny'
+        state: IndividualPermissionState
     ) => {
-        setMemberPermissionOverrides((prev) => {
-            const next = { ...prev };
+        setSelectedMemberPermissions((current) => {
+            const next = { ...current };
 
-            if (value === 'inherit') {
+            if (state === 'inherit') {
                 delete next[permissionCode];
-                return next;
+            } else if (state === 'allow') {
+                next[permissionCode] = true;
+            } else if (state === 'deny') {
+                next[permissionCode] = false;
             }
 
-            next[permissionCode] = value === 'allow';
             return next;
         });
     };
 
-    const handleSaveMemberOverrides = async () => {
-        if (!selectedMemberId) {
-            toast.error('Selecione um usuário.');
+    const getPermissionSourceLabel = (source: string) => {
+        switch (source) {
+            case 'member_override':
+                return 'Exceção individual';
+            case 'custom_role':
+                return 'Função personalizada';
+            case 'role':
+                return 'Papel base';
+            case 'owner':
+                return 'Proprietário';
+            default:
+                return 'Padrão';
+        }
+    };
+
+    const saveSelectedMemberPermissions = async () => {
+        if (!selectedMember) return;
+        setSaving(true);
+
+        const { error } = await supabase.rpc('update_store_member_permissions', {
+            p_member_id: selectedMember.member_id,
+            p_permissions: selectedMemberPermissions,
+            p_sensitive_actions: selectedMember.sensitive_actions ?? {},
+            p_reason: 'Atualização de permissões individuais',
+        });
+
+        setSaving(false);
+
+        if (error) {
+            console.error(error);
+            toast.error('Não foi possível salvar as permissões do usuário.');
             return;
         }
 
-        if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar permissões individuais.');
-            return;
-        }
+        toast.success('Permissões individuais salvas com sucesso.');
 
-        try {
-            await updateMemberPermissions({
-                memberId: selectedMemberId,
-                permissions: memberPermissionOverrides,
-                sensitiveActions: {},
-                reason: 'Alteração de permissões individuais pela tela de segurança.',
-            });
-
-            toast.success('Permissões individuais salvas.');
-            await fetchMembersForPermissions();
-            await fetchLogs();
-        } catch (error: unknown) {
-            toast.error(getErrorMessage(error, 'Erro ao salvar permissões individuais.'));
-        }
+        const selectedId = selectedMember.member_id;
+        await refreshAdmin();
+        setSelectedMemberId(selectedId);
+        await fetchMemberPermissionDetail(selectedId);
+        await refreshPermissions();
     };
 
     if (loading || loadingPermissions || loadingSecurityContext) {
@@ -4192,271 +4163,307 @@ export default function Security() {
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                                    Permissões Individuais por Usuário
+                                    Permissões por usuário
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Configure exceções específicas sem alterar o padrão do papel.
+                                    Configure exceções individuais por colaborador (herdar, permitir ou bloquear).
                                 </p>
                             </div>
-
-                            {canManageSecurity && (
-                                <button
-                                    type="button"
-                                    onClick={handleSaveMemberOverrides}
-                                    disabled={!selectedMemberId || adminLoading.saving}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {adminLoading.saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
-                                    Salvar permissões
-                                </button>
-                            )}
                         </div>
 
-                        <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                        Usuário/membro
-                                    </label>
-                                    <select
-                                        value={selectedMemberId}
-                                        onChange={(event) => {
-                                            setSelectedMemberId(event.target.value);
-                                            setUserPermissionSearch('');
-                                        }}
-                                        disabled={!canManageSecurity}
-                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                    >
-                                        <option value="">Selecione um membro</option>
-                                        {selectableMembers.map((member) => (
-                                            <option key={member.member_id} value={member.member_id}>
-                                                {member.user_name} | {formatSecurityRole(member.role)}
-                                            </option>
-                                        ))}
-                                    </select>
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                            {/* Coluna 1: Menus (Macro grupos e grupos) */}
+                            <div className="lg:col-span-4 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
+                                <h4 className="text-base font-bold text-gray-800 dark:text-white mb-4">
+                                    Menus
+                                </h4>
+
+                                <div className="relative mb-4">
+                                    <input
+                                        type="text"
+                                        placeholder="Pesquisar permissões..."
+                                        value={userPermissionSearch}
+                                        onChange={(e) => setUserPermissionSearch(e.target.value)}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
+                                    />
+                                    <Search size={14} className="absolute left-3 top-3 text-gray-400" />
+                                    {userPermissionSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setUserPermissionSearch('')}
+                                            className="absolute right-3 top-2.5 text-gray-400 hover:text-red-500 transition"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                    )}
                                 </div>
 
-                                {selectedMemberId && (
-                                    <div className="flex flex-col justify-end">
-                                        <label className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-300">
-                                            Buscar permissão
-                                        </label>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                placeholder="Buscar autorização..."
-                                                value={userPermissionSearch}
-                                                onChange={(e) => setUserPermissionSearch(e.target.value)}
-                                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                            />
-                                            <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-                                            {userPermissionSearch && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setUserPermissionSearch('')}
-                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
+                                <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
+                                    {ROLE_PERMISSION_TREE.map((macro) => {
+                                        const isMacroCollapsed = !expandedMacroGroups[macro.id];
+                                        
+                                        const filteredGroups = macro.groups.filter((g) => {
+                                            if (!userPermissionSearch.trim()) return true;
+                                            const search = userPermissionSearch.toLowerCase().trim();
+                                            return (
+                                                g.label.toLowerCase().includes(search) ||
+                                                g.permissions.some((p) => p.toLowerCase().includes(search))
+                                            );
+                                        });
+
+                                        if (filteredGroups.length === 0) return null;
+
+                                        return (
+                                            <div key={macro.id} className="space-y-1">
+                                                <div
+                                                    onClick={() =>
+                                                        setExpandedMacroGroups((prev) => ({
+                                                            ...prev,
+                                                            [macro.id]: !prev[macro.id],
+                                                        }))
+                                                    }
+                                                    className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300"
                                                 >
-                                                    <X size={14} />
-                                                </button>
-                                            )}
-                                        </div>
+                                                    <div className="flex items-center gap-2">
+                                                        {macro.icon && <macro.icon size={14} />}
+                                                        <span>{macro.label}</span>
+                                                    </div>
+                                                    <span>
+                                                        {isMacroCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                                    </span>
+                                                </div>
+
+                                                {!isMacroCollapsed && (
+                                                    <div className="pl-2 space-y-1 mt-1">
+                                                        {filteredGroups.map((group) => {
+                                                            const isSelected = selectedUserGroupId === group.id;
+
+                                                            return (
+                                                                <div
+                                                                    key={group.id}
+                                                                    onClick={() => {
+                                                                        setSelectedUserGroupId(group.id);
+                                                                        setSelectedUserMacroGroup(macro.id as any);
+                                                                    }}
+                                                                    className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${
+                                                                        isSelected
+                                                                            ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+                                                                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                                                                    }`}
+                                                                >
+                                                                    <span className="text-xs font-bold text-gray-700 dark:text-gray-255 truncate pr-2 font-candara">
+                                                                        {group.label}
+                                                                    </span>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Coluna 2: Permissões do Menu Selecionado */}
+                            <div className="lg:col-span-5 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
+                                <h4 className="text-base font-bold text-gray-800 dark:text-white mb-4">
+                                    Permissões do menu selecionado
+                                </h4>
+
+                                {!selectedMemberId ? (
+                                    <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
+                                        <User size={32} className="mb-2 opacity-50" />
+                                        <p className="text-xs">Selecione um colaborador na coluna da direita para configurar exceções.</p>
                                     </div>
+                                ) : (
+                                    (() => {
+                                        const macroDef = ROLE_PERMISSION_TREE.find((m) => m.id === selectedUserMacroGroup);
+                                        const groupDef = macroDef?.groups.find((g) => g.id === selectedUserGroupId);
+
+                                        if (!groupDef) {
+                                            return (
+                                                <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
+                                                    <Grid3X3 size={32} className="mb-2 opacity-50" />
+                                                    <p className="text-xs">Selecione um grupo de permissões na coluna à esquerda.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        // Filtrar permissões do colaborador para este grupo
+                                        const groupRows = memberPermissionDetail.filter((row) => {
+                                            if (userPermissionSearch.trim()) {
+                                                const search = userPermissionSearch.toLowerCase().trim();
+                                                const matchesSearch = row.permission_code.toLowerCase().includes(search) ||
+                                                    row.label.toLowerCase().includes(search);
+                                                if (!matchesSearch) return false;
+                                            }
+                                            
+                                            const definition = getPermissionGroupDefinition(row.permission_code);
+                                            return definition.id === groupDef.id;
+                                        });
+
+                                        if (groupRows.length === 0) {
+                                            return (
+                                                <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
+                                                    <p className="text-xs">Nenhuma permissão encontrada para este grupo.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div className="space-y-4 overflow-y-auto max-h-[420px] pr-1 scrollbar-thin flex-1">
+                                                <div className="border-b pb-3 mb-4">
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                                        {macroDef?.label}
+                                                    </span>
+                                                    <h4 className="text-sm font-bold text-gray-800 dark:text-white mt-0.5">
+                                                        {groupDef.label}
+                                                    </h4>
+                                                </div>
+
+                                                <div className="space-y-4">
+                                                    {groupRows.map((row) => {
+                                                        const code = row.permission_code;
+                                                        const overrideValue = getIndividualPermissionState(selectedMemberPermissions, code);
+                                                        const effectiveValue = row.effective_allowed;
+                                                        const sourceLabel = getPermissionSourceLabel(row.source);
+                                                        const itemDisabled = !canManageSecurity || adminLoading.saving;
+
+                                                        return (
+                                                            <div key={code} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-105 dark:border-gray-850 space-y-3">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex flex-col gap-0.5">
+                                                                        <span className="text-xs font-bold text-gray-850 dark:text-gray-200">
+                                                                            {row.label || code}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[240px]" title={code}>
+                                                                            {code}
+                                                                        </span>
+                                                                    </div>
+                                                                    {row.risk_level && renderRiskBadge(row.risk_level)}
+                                                                </div>
+
+                                                                <div className="text-xs space-y-1 bg-white dark:bg-gray-900 p-2.5 rounded-lg border border-gray-100 dark:border-gray-800">
+                                                                    <div className="flex justify-between">
+                                                                        <span className="text-gray-450">Efetivo:</span>
+                                                                        <span className={`font-bold ${effectiveValue ? 'text-green-600' : 'text-red-500'}`}>
+                                                                            {effectiveValue ? 'Permitido' : 'Bloqueado'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="flex justify-between">
+                                                                        <span className="text-gray-455">Origem:</span>
+                                                                        <span className="font-semibold text-gray-700 dark:text-gray-300">
+                                                                            {sourceLabel}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex items-center justify-between gap-4 pt-1">
+                                                                    <span className="text-[11px] font-bold text-gray-500 dark:text-gray-400">
+                                                                        Exceção individual
+                                                                    </span>
+                                                                    <select
+                                                                        value={overrideValue}
+                                                                        disabled={itemDisabled}
+                                                                        onChange={(event) =>
+                                                                            setIndividualPermissionState(
+                                                                                code,
+                                                                                event.target.value as 'inherit' | 'allow' | 'deny'
+                                                                            )
+                                                                        }
+                                                                        className="rounded-lg border border-gray-205 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:border-[#21A896]"
+                                                                    >
+                                                                        <option value="inherit">Herdar</option>
+                                                                        <option value="allow">Permitir</option>
+                                                                        <option value="deny">Bloquear</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
                                 )}
                             </div>
 
-                            {selectableMembers.length === 0 && (
-                                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                    Nenhum membro editável apareceu no contexto atual. Se necessário, criaremos uma RPC para listar todos os membros da loja.
-                                </p>
-                            )}
-                        </div>
+                            {/* Coluna 3: Colaboradores */}
+                            <div className="lg:col-span-3 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-between min-h-[500px]">
+                                <div className="space-y-4">
+                                    <h4 className="text-base font-bold text-gray-800 dark:text-white">
+                                        Colaboradores
+                                    </h4>
 
-                        {!selectedMemberId ? (
-                            <div className="p-8 text-center border border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
-                                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-gray-800">
-                                    <User size={24} />
-                                </div>
-                                <h4 className="text-base font-bold text-gray-800 dark:text-white mb-2">
-                                    Selecione um usuário
-                                </h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
-                                    Escolha um membro para visualizar permissões herdadas e configurar exceções individuais.
-                                </p>
-                            </div>
-                        ) : adminLoading.memberDetail ? (
-                            <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
-                                <Loader className="animate-spin text-brand-green" />
-                            </div>
-                        ) : memberPermissionDetail.length === 0 ? (
-                            <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
-                                Nenhuma permissão encontrada para este membro.
-                            </div>
-                        ) : (
-                            <div className="relative">
-                                <div
-                                    ref={userPermissionsListRef}
-                                    onScroll={handleUserPermScroll}
-                                    className="max-h-[500px] overflow-y-auto pr-2 scrollbar-thin"
-                                >
-                                    <div className="space-y-6 pb-6">
-                                        {groupedPermissionsForUser.length === 0 ? (
-                                            <div className="p-8 text-center text-gray-500 border border-dashed border-gray-200 rounded-xl dark:border-gray-700">
-                                                Nenhuma permissão corresponde à sua busca.
-                                            </div>
-                                        ) : (
-                                            ['Configurações', 'Segurança', 'Operacional'].map((cat) => {
-                                                const groupsInCat = groupedPermissionsForUser.filter(g => g.category === cat);
-                                                if (groupsInCat.length === 0) return null;
+                                    <div className="space-y-2 overflow-y-auto max-h-[380px] pr-1 scrollbar-thin">
+                                        {selectableMembers.map((member) => {
+                                            const isSelected = selectedMemberId === member.member_id;
+                                            const name = member.user_name || member.user_email || 'Colaborador';
+                                            const initials = name.trim().split(/\s+/).slice(0, 2).map(p => p[0]).join('').toUpperCase();
 
-                                                return (
-                                                    <div key={cat} className="space-y-4">
-                                                        <h4 className="text-sm font-black uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-6 border-b border-gray-100 dark:border-gray-800 pb-2">
-                                                            {cat}
-                                                        </h4>
-
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                            {groupsInCat.map((group) => {
-                                                                const isCollapsed = !expandedGroups[group.id];
-                                                                return (
-                                                                    <div key={group.id} className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
-                                                                        <div
-                                                                            onClick={() => toggleGroupExpand(group.id)}
-                                                                            className="cursor-pointer flex items-start justify-between gap-4 select-none"
-                                                                        >
-                                                                            <div>
-                                                                                <h5 className="font-bold text-gray-800 dark:text-white text-base">
-                                                                                    {group.label}
-                                                                                </h5>
-                                                                                {group.description && !isCollapsed && (
-                                                                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                                                        {group.description}
-                                                                                    </p>
-                                                                                )}
-                                                                            </div>
-                                                                            <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
-                                                                                {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-                                                                            </span>
-                                                                        </div>
-
-                                                                        {!isCollapsed && (
-                                                                            <div className="space-y-4 pt-3 mt-3 border-t border-gray-100 dark:border-gray-700/50">
-                                                                                {(() => {
-                                                                                    const rootPermCode = getGroupRootPermissionCode(group);
-                                                                                    const rootRow = rootPermCode ? memberPermissionDetail.find(r => r.permission_code === rootPermCode) : null;
-                                                                                    const rootAllowed = rootRow ? rootRow.effective_allowed : null;
-
-                                                                                    const viewItem = group.items.find(i => i.permissionCode.endsWith('.view'));
-                                                                                    const viewEffective = viewItem ? viewItem.row.effective_allowed : true;
-
-                                                                                    const isRootDisabled = rootAllowed === false;
-                                                                                    const showRootHelper = isRootDisabled && !isRootPermissionGroup(group);
-                                                                                    const showViewHelper = !showRootHelper && viewEffective === false && !isRootPermissionGroup(group);
-
-                                                                                    return (
-                                                                                        <>
-                                                                                            {showRootHelper && (
-                                                                                                <p className="text-xs text-amber-600 dark:text-amber-400 italic">
-                                                                                                    Libere "Ver tudo" para configurar as abas.
-                                                                                                </p>
-                                                                                            )}
-                                                                                            {showViewHelper && (
-                                                                                                <p className="text-xs text-amber-600 dark:text-amber-400 italic">
-                                                                                                    {getViewDependencyMessage(group)}
-                                                                                                </p>
-                                                                                            )}
-                                                                                            {group.items.map((item) => {
-                                                                                                const row = item.row;
-                                                                                                const overrideValue = getOverrideSelectValue(item.permissionCode);
-                                                                                                const effectiveValue = row.effective_allowed;
-                                                                                                const roleValue = row.role_allowed;
-
-                                                                                                const childDisabled = isRootDisabled && !isRootPermissionGroup(group);
-                                                                                                const manageDisabled = isManagePermissionItem(item) && !viewEffective;
-                                                                                                const itemDisabled = !canManageSecurity || adminLoading.saving || childDisabled || manageDisabled;
-
-                                                                                                return (
-                                                                                                    <div key={item.permissionCode} className="space-y-2 py-2 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0 last:pb-0">
-                                                                                                        <div className="flex items-center justify-between">
-                                                                                                            <div className="flex items-center gap-2">
-                                                                                                                <span className={`text-sm font-bold ${itemDisabled && canManageSecurity ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
-                                                                                                                    {item.actionLabel}
-                                                                                                                </span>
-                                                                                                                {renderRiskBadge(row.risk_level)}
-                                                                                                                {manageDisabled && canManageSecurity && (
-                                                                                                                    <span className="text-[10px] text-amber-500 dark:text-amber-400 italic">(Requer "Ver")</span>
-                                                                                                                )}
-                                                                                                            </div>
-
-                                                                                                            <div className="flex items-center gap-3 text-xs">
-                                                                                                                <span className="text-gray-400 dark:text-gray-500">
-                                                                                                                    Papel: <strong className={roleValue ? 'text-green-600' : 'text-gray-500'}>{roleValue ? 'Permitido' : 'Bloqueado'}</strong>
-                                                                                                                </span>
-                                                                                                                <span className="text-gray-400 dark:text-gray-500">|</span>
-                                                                                                                <span className="text-gray-400 dark:text-gray-500">
-                                                                                                                    Efetivo: <strong className={effectiveValue ? 'text-green-600' : 'text-red-500'}>{effectiveValue ? 'Permitido' : 'Bloqueado'}</strong>
-                                                                                                                </span>
-                                                                                                            </div>
-                                                                                                        </div>
-
-                                                                                                        <div className="flex items-center justify-between gap-4">
-                                                                                                            <span className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[200px]" title={item.permissionCode}>
-                                                                                                                {item.permissionCode}
-                                                                                                            </span>
-
-                                                                                                            <div className="flex flex-col items-end">
-                                                                                                                <select
-                                                                                                                    value={overrideValue}
-                                                                                                                    disabled={itemDisabled}
-                                                                                                                    onChange={(event) =>
-                                                                                                                        handleMemberOverrideChange(
-                                                                                                                            item.permissionCode,
-                                                                                                                            event.target.value as 'inherit' | 'allow' | 'deny'
-                                                                                                                        )
-                                                                                                                    }
-                                                                                                                    className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                                                >
-                                                                                                                    <option value="inherit">Herdar do papel</option>
-                                                                                                                    <option value="allow">Liberar para este usuário</option>
-                                                                                                                    <option value="deny">Bloquear para este usuário</option>
-                                                                                                                </select>
-
-                                                                                                                {row.source !== 'role_template' && (
-                                                                                                                    <p className="mt-1 text-xs text-gray-400">
-                                                                                                                        Origem: {formatPermissionSource(row.source)}
-                                                                                                                    </p>
-                                                                                                                )}
-                                                                                                            </div>
-                                                                                                        </div>
-                                                                                                    </div>
-                                                                                                );
-                                                                                            })}
-                                                                                        </>
-                                                                                    );
-                                                                                })()}
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
+                                            return (
+                                                <div
+                                                    key={member.member_id}
+                                                    onClick={() => {
+                                                        setSelectedMemberId(member.member_id);
+                                                    }}
+                                                    className={`flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer select-none ${
+                                                        isSelected
+                                                            ? 'border-green-600 bg-green-50/30 dark:bg-green-950/20 text-green-700 dark:text-green-300'
+                                                            : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
+                                                    }`}
+                                                >
+                                                    {/* Avatar */}
+                                                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                                        isSelected 
+                                                            ? 'bg-green-200 text-green-850 dark:bg-green-800 dark:text-green-100'
+                                                            : 'bg-gray-100 text-gray-650 dark:bg-gray-700 dark:text-gray-300'
+                                                    }`}>
+                                                        {initials}
+                                                    </div>
+                                                    
+                                                    <div className="flex-1 min-w-0 space-y-1">
+                                                        <p className="text-xs font-bold truncate">
+                                                            {name}
+                                                        </p>
+                                                        <div className="text-[10px] space-y-0.5 text-gray-505 dark:text-gray-400">
+                                                            <p>
+                                                                Base: <strong className="font-semibold">{formatSecurityRole(member.role)}</strong>
+                                                            </p>
+                                                            {member.custom_role_name && (
+                                                                <p className="text-purple-650 dark:text-purple-300">
+                                                                    Função: <strong className="font-semibold">{member.custom_role_name}</strong>
+                                                                </p>
+                                                            )}
+                                                            <p>
+                                                                Status: <span className={`font-semibold ${
+                                                                    member.status === 'active' ? 'text-green-650' : 'text-amber-600'
+                                                                }`}>{formatSecurityStatus(member.status)}</span>
+                                                            </p>
                                                         </div>
                                                     </div>
-                                                );
-                                            })
-                                        )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
-                                {showUserPermScrollTop && (
-                                    <button
-                                        type="button"
-                                        onClick={scrollToUserPermTop}
-                                        className="absolute bottom-4 right-4 z-30 p-2.5 rounded-full bg-[#21A896] text-white shadow-lg hover:bg-[#1A867A] transition duration-200 cursor-pointer flex items-center justify-center"
-                                        title="Voltar ao topo"
-                                    >
-                                        <ArrowUp size={18} />
-                                    </button>
+
+                                {selectedMemberId && canManageSecurity && (
+                                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
+                                        <button
+                                            type="button"
+                                            disabled={adminLoading.saving}
+                                            onClick={saveSelectedMemberPermissions}
+                                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {adminLoading.saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+                                            Salvar Permissões
+                                        </button>
+                                    </div>
                                 )}
                             </div>
-                        )}
+                        </div>
                     </div>
 
                     {/* AÇÕES SENSÍVEIS */}

@@ -248,6 +248,10 @@ export type StoreMemberForPermissionsRow = {
   sensitive_actions: Record<string, unknown>;
   created_at: string | null;
   updated_at: string | null;
+  custom_role_name?: string | null;
+  custom_role_id?: string | null;
+  avatar_url?: string | null;
+  profile_avatar_url?: string | null;
 };
 
 export type LoginStoreOption = {
