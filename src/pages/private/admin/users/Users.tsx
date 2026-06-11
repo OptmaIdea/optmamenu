@@ -6,7 +6,6 @@ import { UserInvitesPanel } from '@/components/users/UserInvitesPanel';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useStoreMemberInvites } from '@/hooks/useStoreMemberInvites';
-import { hasEffectivePermission } from '@/utils/permissions';
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { toast } from 'sonner';
@@ -136,7 +135,7 @@ export default function Users() {
 
     const operationalStoreId = activeMembership?.store_id ?? activeStoreId ?? null;
 
-    const { permissions } = usePermissions(operationalStoreId);
+    const { hasPermission } = usePermissions(operationalStoreId);
     const {
         invites,
         loading: loadingInvites,
@@ -144,29 +143,14 @@ export default function Users() {
         refresh: refreshInvites,
         cancelInvite,
     } = useStoreMemberInvites(operationalStoreId);
-    const isOwner = activeMembership?.role === 'owner';
-    const canManageUsers = isOwner || hasEffectivePermission(permissions, 'users.manage');
-    const canViewSensitiveUserData =
-        isOwner ||
-        hasEffectivePermission(permissions, 'users.sensitive.view') ||
-        hasEffectivePermission(permissions, 'users.sensitive.manage') ||
-        hasEffectivePermission(permissions, 'security.manage');
-
-    const canManageSensitiveUserData =
-        isOwner ||
-        hasEffectivePermission(permissions, 'users.sensitive.manage') ||
-        hasEffectivePermission(permissions, 'security.manage');
-
-    const canViewProfileRequests =
-        isOwner ||
-        hasEffectivePermission(permissions, 'users.profile_requests.view') ||
-        hasEffectivePermission(permissions, 'users.profile_requests.review') ||
-        hasEffectivePermission(permissions, 'users.profile_requests.manage');
-
+    const canManageUsers = hasPermission('users.manage');
+    const canViewOwners = hasPermission('users.owner.view');
+    const canViewSensitiveUsers = hasPermission('users.sensitive.view');
+    const canManageSensitiveUsers = hasPermission('users.sensitive.manage');
+    const canViewProfileRequests = hasPermission('users.profile_requests.view');
     const canReviewProfileRequests =
-        isOwner ||
-        hasEffectivePermission(permissions, 'users.profile_requests.review') ||
-        hasEffectivePermission(permissions, 'users.profile_requests.manage');
+        hasPermission('users.profile_requests.review') ||
+        hasPermission('users.profile_requests.manage');
 
     const [profileRequests, setProfileRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingProfileRequests, setLoadingProfileRequests] = useState(false);
@@ -371,6 +355,15 @@ export default function Users() {
             };
         });
     }, [users, sessionSummaryByMemberId]);
+
+    const filteredUsers = useMemo(() => {
+        return usersWithSession.filter((user) => {
+            if (!canViewOwners && user.role === 'owner') {
+                return false;
+            }
+            return true;
+        });
+    }, [usersWithSession, canViewOwners]);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [showFormModal, setShowFormModal] = useState(false);
@@ -828,13 +821,13 @@ export default function Users() {
                 </div>
             ) : (
                 <div className="space-y-3">
-                    {usersWithSession.map((user) => (
+                    {filteredUsers.map((user) => (
                         <UserCard
                             key={user.id}
                             user={user}
                             onView={handleViewUser}
                             canManageUsers={canManageUsers}
-                            canViewSensitiveUserData={canViewSensitiveUserData}
+                            canViewSensitiveUserData={canViewSensitiveUsers}
                         />
                     ))}
                 </div>
@@ -1206,8 +1199,8 @@ export default function Users() {
                 onClose={() => setShowDetailModal(false)}
                 user={selectedUser}
                 canManageUsers={canManageUsers}
-                canViewSensitiveUserData={canViewSensitiveUserData}
-                canManageSensitiveUserData={canManageSensitiveUserData}
+                canViewSensitiveUserData={canViewSensitiveUsers}
+                canManageSensitiveUserData={canManageSensitiveUsers}
                 customRoles={customRoles}
                 onRequestRoleChange={(user, newRole) => {
                     setRoleChangeConfirmation({

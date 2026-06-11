@@ -29,10 +29,12 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
   const hasAccess = Boolean(
     activeStoreId &&
     activeMembership &&
-    (isOwner ||
-      (Array.isArray(targetPermission)
-        ? hasAnyEffectivePermission(permissions, targetPermission)
-        : hasEffectivePermission(permissions, targetPermission)))
+    (targetPermission === 'users.view'
+      ? hasEffectivePermission(permissions, 'users.view')
+      : (isOwner ||
+          (Array.isArray(targetPermission)
+            ? hasAnyEffectivePermission(permissions, targetPermission)
+            : hasEffectivePermission(permissions, targetPermission))))
   );
 
   useEffect(() => {

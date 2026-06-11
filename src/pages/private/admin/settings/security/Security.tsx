@@ -12,7 +12,7 @@ import {
     ChevronDown, ChevronUp, ArrowUp, Grid3X3
 } from 'lucide-react';
 import type { SecurityLog } from '@/types';
-import type { StorePermissionMatrixRow } from '@/types/security';
+import type { StorePermissionMatrixRow, StoreCustomRole } from '@/types/security';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
@@ -1813,9 +1813,13 @@ export default function Security() {
         return adminTabs.some((tab) => canViewSecurityTab(tab));
     }, [canViewSecurityTab]);
 
-    const canAccessCustomRoles = useMemo(() => {
+    const canViewCustomRoles = useMemo(() => {
         return canViewSecurityTab('custom_roles');
     }, [canViewSecurityTab]);
+
+    const canManageCustomRoles = useMemo(() => {
+        return canManageSecurityTab('custom_roles');
+    }, [canManageSecurityTab]);
 
     const {
         permissionMatrix,
@@ -1837,13 +1841,124 @@ export default function Security() {
     }, [permissionMatrix]);
 
     const {
-        items: customRoles,
+        items: customRolesFromHook,
         loading: customRolesLoading,
-        saving: customRolesSaving,
         refresh: refreshCustomRoles,
-        createCustomRole,
-        updateCustomRole,
-    } = useStoreCustomRoles(canAccessCustomRoles);
+    } = useStoreCustomRoles(canViewCustomRoles);
+
+    const [customRoles, setCustomRoles] = useState<StoreCustomRole[]>([]);
+    const [selectedCustomRoleId, setSelectedCustomRoleId] = useState<string | null>(null);
+    const [selectedCustomRoleGroupId, setSelectedCustomRoleGroupId] = useState<string>('settings_general');
+
+    const selectedCustomRole = useMemo(() => {
+        return customRoles.find((role) => role.id === selectedCustomRoleId) ?? null;
+    }, [customRoles, selectedCustomRoleId]);
+
+    useEffect(() => {
+        if (customRolesFromHook) {
+            setCustomRoles(customRolesFromHook);
+            if (!selectedCustomRoleId && customRolesFromHook.length > 0) {
+                setSelectedCustomRoleId(customRolesFromHook[0].id);
+            }
+        }
+    }, [customRolesFromHook]);
+
+    function isCustomRoleAllowed(permissionCode: string) {
+        if (!selectedCustomRole) return false;
+        return Boolean(selectedCustomRole.permissions?.[permissionCode]);
+    }
+
+    /*
+    function updateCustomRolePermissionLocal(permissionCode: string, allowed: boolean) {
+        if (!selectedCustomRole) return;
+        setCustomRoles((current) =>
+            current.map((role) => {
+                if (role.id !== selectedCustomRole.id) return role;
+                return {
+                    ...role,
+                    permissions: {
+                        ...role.permissions,
+                        [permissionCode]: allowed,
+                    },
+                };
+            })
+        );
+    }
+    */
+
+    function handleToggleCustomRolePermissionCascade(
+        permissionCode: string,
+        nextAllowed: boolean,
+        currentGroupPermissions: StorePermissionMatrixRow[]
+    ) {
+        if (!selectedCustomRole) return;
+        const changes = buildRolePermissionCascadeChanges(
+            permissionCode,
+            nextAllowed,
+            currentGroupPermissions
+        );
+        setCustomRoles((current) =>
+            current.map((role) => {
+                if (role.id !== selectedCustomRole.id) return role;
+                const nextPermissions = { ...role.permissions };
+                changes.forEach((change) => {
+                    nextPermissions[change.permission_code] = change.allowed;
+                });
+                return {
+                    ...role,
+                    permissions: nextPermissions,
+                };
+            })
+        );
+    }
+
+    function handleToggleCustomRoleMenuAccess(
+        group: { permissions: readonly string[] },
+        nextAllowed: boolean
+    ) {
+        if (!selectedCustomRole) return;
+        const changes = group.permissions.map((permissionCode) => ({
+            permission_code: permissionCode,
+            allowed: nextAllowed,
+        }));
+        setCustomRoles((current) =>
+            current.map((role) => {
+                if (role.id !== selectedCustomRole.id) return role;
+                const nextPermissions = { ...role.permissions };
+                changes.forEach((change) => {
+                    nextPermissions[change.permission_code] = change.allowed;
+                });
+                return {
+                    ...role,
+                    permissions: nextPermissions,
+                };
+            })
+        );
+    }
+
+    async function saveSelectedCustomRole(reason?: string) {
+        if (!selectedCustomRole) return;
+        setSaving(true);
+        const { error } = await supabase.rpc('update_store_custom_role', {
+            p_custom_role_id: selectedCustomRole.id,
+            p_name: selectedCustomRole.name,
+            p_description: selectedCustomRole.description || null,
+            p_base_role: selectedCustomRole.base_role,
+            p_active: selectedCustomRole.active,
+            p_permissions: selectedCustomRole.permissions ?? {},
+            p_sensitive_actions: selectedCustomRole.sensitive_actions ?? {},
+            p_reason: reason ?? 'Atualização de permissões da função personalizada',
+        });
+        setSaving(false);
+        if (error) {
+            console.error(error);
+            toast.error('Não foi possível salvar a função personalizada.');
+            return;
+        }
+        toast.success('Função personalizada salva com sucesso.');
+        await refreshCustomRoles();
+    }
+
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState('');
     const [saving, setSaving] = useState(false);
@@ -1872,83 +1987,44 @@ export default function Security() {
     const [selectedMemberId, setSelectedMemberId] = useState('');
 
 
-    const [customRoleForm, setCustomRoleForm] = useState<{
-        id?: string;
-        name: string;
-        description: string;
-        base_role: string;
-        active: boolean;
-        permissions: Record<string, boolean>;
-        sensitive_actions: Record<string, unknown>;
-    } | null>(null);
+    const [isCreateCustomRoleOpen, setIsCreateCustomRoleOpen] = useState(false);
+    const [newCustomRoleName, setNewCustomRoleName] = useState('');
+    const [newCustomRoleDescription, setNewCustomRoleDescription] = useState('');
+    const [newCustomRoleBaseRole, setNewCustomRoleBaseRole] = useState<RoleCode>('stock_operator');
 
-    const openNewCustomRoleForm = () => {
-        setCustomRoleForm({
-            name: '',
-            description: '',
-            base_role: 'stock_operator',
-            active: true,
-            permissions: {},
-            sensitive_actions: {},
-        });
-    };
-
-    const openEditCustomRoleForm = (role: {
-        id: string;
-        name: string;
-        description: string | null;
-        base_role: string;
-        active: boolean;
-        permissions: Record<string, boolean>;
-        sensitive_actions: Record<string, unknown>;
-    }) => {
-        setCustomRoleForm({
-            id: role.id,
-            name: role.name,
-            description: role.description ?? '',
-            base_role: role.base_role,
-            active: role.active,
-            permissions: role.permissions ?? {},
-            sensitive_actions: role.sensitive_actions ?? {},
-        });
-    };
-
-    const handleToggleCustomRolePermission = (permissionCode: string, allowed: boolean | null) => {
-        setCustomRoleForm((current) => {
-            if (!current) return current;
-
-            const nextPermissions = { ...current.permissions };
-
-            if (allowed === null) {
-                delete nextPermissions[permissionCode];
-            } else {
-                nextPermissions[permissionCode] = allowed;
-            }
-
-            return {
-                ...current,
-                permissions: nextPermissions,
-            };
-        });
-    };
-
-    const handleSaveCustomRole = async () => {
-        if (!customRoleForm) return;
-
-        if (!customRoleForm.name.trim()) {
-            toast.error('Informe o nome da função personalizada.');
+    const handleCreateCustomRoleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newCustomRoleName.trim()) {
+            toast.error('Informe o nome da função.');
             return;
         }
-
-        if (customRoleForm.id) {
-            await updateCustomRole(customRoleForm, 'Alteração da função personalizada pela tela de segurança.');
-        } else {
-            await createCustomRole(customRoleForm);
+        setSaving(true);
+        const { data, error } = await supabase.rpc('create_store_custom_role', {
+            p_store_id: currentStoreId,
+            p_name: newCustomRoleName.trim(),
+            p_description: newCustomRoleDescription.trim() || null,
+            p_base_role: newCustomRoleBaseRole,
+            p_permissions: null,
+            p_sensitive_actions: {},
+        });
+        setSaving(false);
+        if (error) {
+            console.error(error);
+            toast.error('Não foi possível criar a função personalizada.');
+            return;
         }
-
-        setCustomRoleForm(null);
-        await refreshAdmin();
+        toast.success('Função personalizada criada com sucesso.');
+        setIsCreateCustomRoleOpen(false);
+        setNewCustomRoleName('');
+        setNewCustomRoleDescription('');
+        setNewCustomRoleBaseRole('stock_operator');
+        
         await refreshCustomRoles();
+        
+        const createdRole = Array.isArray(data) ? data[0] : data;
+        if (createdRole && createdRole.id) {
+            setSelectedCustomRoleId(createdRole.id);
+        }
     };
     const [memberPermissionOverrides, setMemberPermissionOverrides] = useState<Record<string, boolean>>({});
 
@@ -5070,112 +5146,399 @@ export default function Security() {
 
                     {/* FUNÇÕES PERSONALIZADAS */}
                     <div className={activeTab === 'custom_roles' ? 'block animate-fadeIn' : 'hidden'}>
-                        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
+                        <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div className="flex-1">
                                 <h3 className="text-lg font-bold text-gray-800 dark:text-white">
                                     Funções personalizadas
                                 </h3>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Crie cargos que herdam de um papel base e ajustam permissões específicas.
+                                    Crie cargos que herdam de um papel base e ajustam permissões específicas da loja.
                                 </p>
                             </div>
 
-                            {canManageSecurity && (
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                                 <button
                                     type="button"
-                                    onClick={openNewCustomRoleForm}
-                                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    onClick={refreshCustomRoles}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
                                 >
-                                    <Plus size={16} />
-                                    Nova função
+                                    <RefreshCw size={16} className={customRolesLoading ? 'animate-spin' : ''} />
+                                    Atualizar
                                 </button>
-                            )}
+                            </div>
                         </div>
 
-                        {customRolesLoading ? (
+                        {customRolesLoading && customRoles.length === 0 ? (
                             <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
                                 <Loader className="animate-spin text-brand-green" />
                             </div>
-                        ) : customRoles.length === 0 ? (
-                            <div className="rounded-xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
-                                <Shield className="mx-auto mb-3 h-8 w-8 text-gray-400" />
-                                <p className="font-bold text-gray-700 dark:text-gray-200">
-                                    Nenhuma função personalizada criada
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                    Crie funções como Supervisor de Estoque, Auxiliar de Compras ou Gerente Financeiro.
-                                </p>
-                            </div>
                         ) : (
-                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                                {customRoles.map((role) => (
-                                    <div
-                                        key={role.id}
-                                        className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
-                                    >
-                                        <div className="flex items-start justify-between gap-3">
-                                            <div>
-                                                <div className="flex flex-wrap items-center gap-2">
-                                                    <h4 className="font-black text-gray-900 dark:text-white">
-                                                        {role.name}
-                                                    </h4>
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                {/* Painel 1: Grupos de Permissão (Col 4) */}
+                                <div className="lg:col-span-4 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="text-base font-bold text-gray-800 dark:text-white">
+                                            Grupos de Permissões
+                                        </h4>
+                                    </div>
 
-                                                    <span
-                                                        className={`rounded-full px-2 py-1 text-xs font-bold ${role.active
-                                                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                                                            : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300'
-                                                            }`}
+                                    {/* Lista de Macro Grupos */}
+                                    <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
+                                        {ROLE_PERMISSION_TREE.map((macro) => {
+                                            const isMacroCollapsed = !expandedMacroGroups[macro.id];
+                                            
+                                            return (
+                                                <div key={macro.id} className="space-y-1">
+                                                    <div
+                                                        onClick={() =>
+                                                            setExpandedMacroGroups((prev) => ({
+                                                                ...prev,
+                                                                [macro.id]: !prev[macro.id],
+                                                            }))
+                                                        }
+                                                        className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300"
                                                     >
-                                                        {role.active ? 'Ativa' : 'Inativa'}
+                                                        <div className="flex items-center gap-2">
+                                                            {macro.icon && <macro.icon size={14} />}
+                                                            <span>{macro.label}</span>
+                                                        </div>
+                                                        <span>
+                                                            {isMacroCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                                                        </span>
+                                                    </div>
+
+                                                    {!isMacroCollapsed && (
+                                                        <div className="pl-2 space-y-1 mt-1">
+                                                            {macro.groups.map((group) => {
+                                                                const isSelected = selectedCustomRoleGroupId === group.id;
+                                                                const hasView = group.accessPermission;
+                                                                const viewDisabled = !canManageCustomRoles || !selectedCustomRole;
+
+                                                                return (
+                                                                    <div
+                                                                        key={group.id}
+                                                                        onClick={() => {
+                                                                            setSelectedCustomRoleGroupId(group.id);
+                                                                            setSelectedMacroGroup(macro.id as any);
+                                                                        }}
+                                                                        className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${
+                                                                            isSelected
+                                                                                ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+                                                                                : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                                                                        }`}
+                                                                    >
+                                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-250 truncate pr-2">
+                                                                            {group.label}
+                                                                        </span>
+
+                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                            {hasView && (
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold">Acessar</span>
+                                                                                    <Switch
+                                                                                        checked={isCustomRoleAllowed(group.accessPermission)}
+                                                                                        onCheckedChange={(checked) =>
+                                                                                            handleToggleCustomRoleMenuAccess(group, checked)
+                                                                                        }
+                                                                                        disabled={viewDisabled}
+                                                                                    />
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Painel 2: Detalhes do Grupo Selecionado (Col 5) */}
+                                <div className="lg:col-span-5 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
+                                    {(() => {
+                                        const macroDef = ROLE_PERMISSION_TREE.find((m) => m.id === selectedMacroGroup);
+                                        const groupDef = macroDef?.groups.find((g) => g.id === selectedCustomRoleGroupId);
+
+                                        if (!selectedCustomRole) {
+                                            return (
+                                                <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
+                                                    <Shield size={32} className="mb-2 opacity-50 text-gray-400" />
+                                                    <p className="text-xs">Selecione uma função personalizada na coluna à direita para configurar.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (!groupDef) {
+                                            return (
+                                                <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
+                                                    <Grid3X3 size={32} className="mb-2 opacity-50" />
+                                                    <p className="text-xs">Selecione um grupo de permissões na coluna à esquerda.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        const selectedGroupAccessAllowed = isCustomRoleAllowed(groupDef.accessPermission);
+
+                                        if (!selectedGroupAccessAllowed) {
+                                            return (
+                                                <div className="rounded-xl border border-dashed border-gray-250 dark:border-gray-700 p-6 text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center flex-1 text-center">
+                                                    <Lock size={32} className="mb-2 opacity-50 text-gray-400" />
+                                                    <p>Libere <strong>Acessar</strong> para configurar os itens deste menu.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        const groupRows = permissionMatrix.filter((row) => 
+                                            row.group_key === groupDef.id || 
+                                            (groupDef.permissions as readonly string[]).includes(row.permission_code)
+                                        );
+
+                                        const accessRow = groupRows.find((row) => row.action_key === 'access');
+
+                                        const searchFilteredRows = groupRows.filter((row) => {
+                                            if (row.action_key === 'access') return false;
+                                            return true;
+                                        });
+
+                                        const items = groupPermissionsByItem(searchFilteredRows);
+
+                                        return (
+                                            <>
+                                                <div className="border-b pb-3 mb-4">
+                                                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                                        {macroDef?.label}
                                                     </span>
+                                                    <h4 className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
+                                                        {groupDef.label}
+                                                    </h4>
                                                 </div>
 
-                                                <p className="mt-1 text-sm font-bold text-brand-green">
-                                                    Base: {formatSecurityRole(role.base_role)}
-                                                </p>
+                                                <div className="space-y-4 overflow-y-auto max-h-[420px] pr-1 scrollbar-thin flex-1">
+                                                    {accessRow && (() => {
+                                                        const code = accessRow.permission_code;
+                                                        const allowed = isCustomRoleAllowed(code);
+                                                        const disabled = !canManageCustomRoles;
 
-                                                {role.description && (
-                                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                                        {role.description}
-                                                    </p>
-                                                )}
-                                            </div>
+                                                        return (
+                                                            <div className="flex items-center justify-between p-3 rounded-xl bg-green-50/50 dark:bg-green-950/10 border border-green-100/50 dark:border-green-900/20 mb-2">
+                                                                <div className="flex flex-col gap-0.5 min-w-0">
+                                                                    <span className={`text-xs font-bold ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-green-800 dark:text-green-300'}`}>
+                                                                        Acessar {groupDef.label}
+                                                                    </span>
+                                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate" title={code}>
+                                                                        {code}
+                                                                    </span>
+                                                                </div>
 
-                                            {canManageSecurity && (
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={disabled}
+                                                                    onClick={() => handleToggleCustomRolePermissionCascade(code, !allowed, groupRows)}
+                                                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${
+                                                                        allowed
+                                                                            ? 'bg-green-600'
+                                                                            : 'bg-gray-200 dark:bg-gray-700'
+                                                                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                >
+                                                                    <span
+                                                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${
+                                                                            allowed ? 'translate-x-4' : 'translate-x-0'
+                                                                        }`}
+                                                                    />
+                                                                </button>
+                                                            </div>
+                                                        );
+                                                    })()}
+
+                                                    {items.length === 0 && !accessRow ? (
+                                                        <p className="text-xs text-gray-400 text-center py-4">Nenhuma permissão encontrada.</p>
+                                                    ) : (
+                                                        items.map((item) => {
+                                                            return (
+                                                                <div key={item.itemKey} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 space-y-2">
+                                                                    <h5 className="text-xs font-bold text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-800 pb-1">
+                                                                        {item.itemLabel}
+                                                                    </h5>
+                                                                    <div className="flex flex-wrap gap-2 pt-1">
+                                                                        {item.permissions.map((row) => {
+                                                                            const code = row.permission_code;
+                                                                            const allowed = isCustomRoleAllowed(code);
+                                                                            const disabled = !canManageCustomRoles;
+                                                                            const actionLabelText = row.action_label || getPermissionActionLabel(row);
+
+                                                                            return (
+                                                                                <button
+                                                                                    key={code}
+                                                                                    type="button"
+                                                                                    disabled={disabled}
+                                                                                    onClick={() => handleToggleCustomRolePermissionCascade(code, !allowed, groupRows)}
+                                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${
+                                                                                        allowed
+                                                                                            ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                                                                                            : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
+                                                                                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                                                                    title={code}
+                                                                                >
+                                                                                    {allowed ? (
+                                                                                        <Check size={12} className="text-green-600" />
+                                                                                    ) : (
+                                                                                        <X size={12} className="text-red-500" />
+                                                                                    )}
+                                                                                    <span>{actionLabelText}</span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                </div>
+                                                            );
+                                                        })
+                                                    )}
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* Painel 3: Funções Personalizadas (Col 3) */}
+                                <div className="lg:col-span-3 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-between min-h-[500px]">
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-base font-bold text-gray-800 dark:text-white">
+                                                Funções
+                                            </h4>
+                                            {canManageCustomRoles && (
                                                 <button
                                                     type="button"
-                                                    onClick={() => openEditCustomRoleForm(role)}
-                                                    className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
+                                                    onClick={() => setIsCreateCustomRoleOpen(true)}
+                                                    className="inline-flex items-center gap-1 text-xs font-bold text-green-600 hover:text-green-700 dark:text-green-400"
                                                 >
-                                                    Editar
+                                                    <Plus size={14} />
+                                                    Nova
                                                 </button>
                                             )}
                                         </div>
 
-                                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                                            <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900/40">
-                                                <p className="text-xs text-gray-400">Liberadas</p>
-                                                <p className="font-black text-green-600">
-                                                    {Object.values(role.permissions ?? {}).filter(Boolean).length}
-                                                </p>
-                                            </div>
+                                        <div className="space-y-2 overflow-y-auto max-h-[220px] pr-1 scrollbar-thin">
+                                            {customRoles.map((role) => {
+                                                const isSelected = selectedCustomRoleId === role.id;
 
-                                            <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900/40">
-                                                <p className="text-xs text-gray-400">Bloqueadas</p>
-                                                <p className="font-black text-red-500">
-                                                    {Object.values(role.permissions ?? {}).filter((value) => value === false).length}
-                                                </p>
-                                            </div>
-
-                                            <div className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900/40">
-                                                <p className="text-xs text-gray-400">Ajustes</p>
-                                                <p className="font-black text-gray-700 dark:text-gray-200">
-                                                    {Object.keys(role.permissions ?? {}).length}
-                                                </p>
-                                            </div>
+                                                return (
+                                                    <div
+                                                        key={role.id}
+                                                        onClick={() => setSelectedCustomRoleId(role.id)}
+                                                        className={`flex flex-col p-3 rounded-xl border transition cursor-pointer select-none ${
+                                                            isSelected
+                                                                ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
+                                                                : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
+                                                        }`}
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs font-bold truncate max-w-[80%]">
+                                                                {role.name}
+                                                            </span>
+                                                            {!role.active && (
+                                                                <span className="text-[9px] font-bold text-red-500 uppercase">Inativa</span>
+                                                            )}
+                                                        </div>
+                                                        <span className="text-[10px] text-gray-400 mt-1">
+                                                            Base: {formatSecurityRole(role.base_role)}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
+
+                                        {selectedCustomRole && (
+                                            <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 space-y-3">
+                                                <h5 className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                                                    Detalhes da Função
+                                                </h5>
+                                                
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">
+                                                            Nome
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={selectedCustomRole.name}
+                                                            disabled={!canManageCustomRoles}
+                                                            onChange={(e) =>
+                                                                setCustomRoles((current) =>
+                                                                    current.map((r) =>
+                                                                        r.id === selectedCustomRole.id
+                                                                            ? { ...r, name: e.target.value }
+                                                                            : r
+                                                                    )
+                                                                )
+                                                            }
+                                                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">
+                                                            Descrição
+                                                        </label>
+                                                        <textarea
+                                                            value={selectedCustomRole.description || ''}
+                                                            disabled={!canManageCustomRoles}
+                                                            onChange={(e) =>
+                                                                setCustomRoles((current) =>
+                                                                    current.map((r) =>
+                                                                        r.id === selectedCustomRole.id
+                                                                            ? { ...r, description: e.target.value }
+                                                                            : r
+                                                                    )
+                                                                )
+                                                            }
+                                                            rows={2}
+                                                            className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white resize-none"
+                                                        />
+                                                    </div>
+                                                    
+                                                    <label className="flex items-center gap-2 cursor-pointer text-xs pt-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedCustomRole.active}
+                                                            disabled={!canManageCustomRoles}
+                                                            onChange={(e) =>
+                                                                setCustomRoles((current) =>
+                                                                    current.map((r) =>
+                                                                        r.id === selectedCustomRole.id
+                                                                            ? { ...r, active: e.target.checked }
+                                                                            : r
+                                                                    )
+                                                                )
+                                                            }
+                                                            className="h-3.5 w-3.5 accent-green-600 rounded"
+                                                        />
+                                                        <span className="font-bold text-gray-700 dark:text-gray-300">
+                                                            Função ativa
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+
+                                    {/* Botão de Salvar Alterações */}
+                                    {selectedCustomRole && canManageCustomRoles && (
+                                        <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
+                                            <button
+                                                type="button"
+                                                onClick={() => saveSelectedCustomRole()}
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition"
+                                            >
+                                                <Save size={14} />
+                                                Salvar Função
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -5183,56 +5546,45 @@ export default function Security() {
                 </div>
             </div>
 
-            {customRoleForm && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
-                        <div className="mb-5 flex items-start justify-between gap-4">
-                            <div>
-                                <h3 className="text-lg font-black text-gray-900 dark:text-white">
-                                    {customRoleForm.id ? 'Editar função personalizada' : 'Nova função personalizada'}
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                    Defina um papel base e ajuste permissões específicas deste cargo.
-                                </p>
-                            </div>
-
+            {/* Modal de Nova Função Personalizada */}
+            {isCreateCustomRoleOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800 animate-zoomIn">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                                Nova função personalizada
+                            </h3>
                             <button
                                 type="button"
-                                onClick={() => setCustomRoleForm(null)}
+                                onClick={() => setIsCreateCustomRoleOpen(false)}
                                 className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700"
                             >
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                        <form onSubmit={handleCreateCustomRoleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">
                                     Nome da função
-                                </span>
+                                </label>
                                 <input
-                                    value={customRoleForm.name}
-                                    onChange={(event) =>
-                                        setCustomRoleForm((current) =>
-                                            current ? { ...current, name: event.target.value } : current
-                                        )
-                                    }
+                                    type="text"
+                                    required
+                                    value={newCustomRoleName}
+                                    onChange={(e) => setNewCustomRoleName(e.target.value)}
                                     placeholder="Ex.: Supervisor de Estoque"
                                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                 />
-                            </label>
+                            </div>
 
-                            <label className="block">
-                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">
                                     Papel base
-                                </span>
+                                </label>
                                 <select
-                                    value={customRoleForm.base_role}
-                                    onChange={(event) =>
-                                        setCustomRoleForm((current) =>
-                                            current ? { ...current, base_role: event.target.value } : current
-                                        )
-                                    }
+                                    value={newCustomRoleBaseRole}
+                                    onChange={(e) => setNewCustomRoleBaseRole(e.target.value as RoleCode)}
                                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                 >
                                     {ROLE_OPTIONS.filter((role) => role.value !== 'owner').map((role) => (
@@ -5241,132 +5593,37 @@ export default function Security() {
                                         </option>
                                     ))}
                                 </select>
-                            </label>
+                            </div>
 
-                            <label className="block md:col-span-2">
-                                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                    Descrição
-                                </span>
+                            <div>
+                                <label className="block text-xs font-bold uppercase tracking-wide text-gray-400 mb-1">
+                                    Descrição (opcional)
+                                </label>
                                 <textarea
-                                    value={customRoleForm.description}
-                                    onChange={(event) =>
-                                        setCustomRoleForm((current) =>
-                                            current ? { ...current, description: event.target.value } : current
-                                        )
-                                    }
-                                    rows={3}
+                                    value={newCustomRoleDescription}
+                                    onChange={(e) => setNewCustomRoleDescription(e.target.value)}
                                     placeholder="Explique quando este cargo deve ser usado."
+                                    rows={3}
                                     className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                 />
-                            </label>
-
-                            <label className="flex items-center gap-2 rounded-xl border border-gray-200 p-3 text-sm dark:border-gray-700">
-                                <input
-                                    type="checkbox"
-                                    checked={customRoleForm.active}
-                                    onChange={(event) =>
-                                        setCustomRoleForm((current) =>
-                                            current ? { ...current, active: event.target.checked } : current
-                                        )
-                                    }
-                                />
-                                <span className="font-bold text-gray-700 dark:text-gray-300">
-                                    Função ativa
-                                </span>
-                            </label>
-                        </div>
-
-                        <div className="mt-6">
-                            <h4 className="mb-2 font-black text-gray-900 dark:text-white">
-                                Ajustes de permissões
-                            </h4>
-                            <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-                                â€œHerdarâ€ usa o papel base. â€œLiberarâ€ e â€œBloquearâ€ sobrescrevem apenas nesta função personalizada.
-                            </p>
-
-                            <div className="overflow-x-auto rounded-xl border border-gray-100 dark:border-gray-700">
-                                <table className="w-full text-left text-sm">
-                                    <thead className="bg-gray-50 text-gray-600 dark:bg-gray-700/50 dark:text-gray-300">
-                                        <tr>
-                                            <th className="p-3">Permissão</th>
-                                            <th className="p-3">Risco</th>
-                                            <th className="p-3">Ajuste da função</th>
-                                        </tr>
-                                    </thead>
-
-                                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                                        {permissionMatrix.map((permission) => {
-                                            const value = customRoleForm.permissions?.[permission.permission_code];
-
-                                            return (
-                                                <tr key={permission.permission_code}>
-                                                    <td className="p-3">
-                                                        <div className="font-bold text-gray-800 dark:text-white">
-                                                            {permission.label}
-                                                        </div>
-                                                        <div className="text-xs text-gray-400">
-                                                            {formatPermissionModule(permission.module)} · {formatPermissionAction(permission.action)} · {permission.permission_code}
-                                                        </div>
-                                                    </td>
-
-                                                    <td className="p-3">
-                                                        {renderRiskBadge(permission.risk_level)}
-                                                    </td>
-
-                                                    <td className="p-3">
-                                                        <select
-                                                            value={
-                                                                value === true
-                                                                    ? 'allow'
-                                                                    : value === false
-                                                                        ? 'deny'
-                                                                        : 'inherit'
-                                                            }
-                                                            onChange={(event) => {
-                                                                const next = event.target.value;
-
-                                                                handleToggleCustomRolePermission(
-                                                                    permission.permission_code,
-                                                                    next === 'inherit'
-                                                                        ? null
-                                                                        : next === 'allow'
-                                                                );
-                                                            }}
-                                                            className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                                                        >
-                                                            <option value="inherit">Herdar do papel base</option>
-                                                            <option value="allow">Liberar nesta função</option>
-                                                            <option value="deny">Bloquear nesta função</option>
-                                                        </select>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
                             </div>
-                        </div>
 
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setCustomRoleForm(null)}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                            >
-                                Cancelar
-                            </button>
-
-                            {canManageSecurity && (
+                            <div className="flex justify-end gap-3 pt-2">
                                 <button
                                     type="button"
-                                    onClick={handleSaveCustomRole}
-                                    disabled={customRolesSaving}
-                                    className="rounded-xl bg-brand-green px-4 py-2 text-sm font-bold text-white hover:bg-brand-green/90 disabled:opacity-50"
+                                    onClick={() => setIsCreateCustomRoleOpen(false)}
+                                    className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-650 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
                                 >
-                                    {customRolesSaving ? 'Salvando...' : 'Salvar função'}
+                                    Cancelar
                                 </button>
-                            )}
-                        </div>
+                                <button
+                                    type="submit"
+                                    className="rounded-xl bg-green-600 px-4 py-2 text-sm font-bold text-white hover:bg-green-700"
+                                >
+                                    Criar Função
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

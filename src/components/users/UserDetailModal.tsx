@@ -1643,16 +1643,18 @@ export function UserDetailModal({
                                                     Esta imagem será usada para identificar o colaborador no sistema.
                                                 </p>
 
-                                                <label className={`mt-3 inline-flex cursor-pointer items-center rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#188b7c] ${savingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                                    Alterar foto
-                                                    <input
-                                                        type="file"
-                                                        accept="image/png,image/jpeg,image/webp"
-                                                        className="hidden"
-                                                        disabled={savingAvatar}
-                                                        onChange={handleAvatarChange}
-                                                    />
-                                                </label>
+                                                {canManageUsers && (
+                                                    <label className={`mt-3 inline-flex cursor-pointer items-center rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#188b7c] ${savingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                        Alterar foto
+                                                        <input
+                                                            type="file"
+                                                            accept="image/png,image/jpeg,image/webp"
+                                                            className="hidden"
+                                                            disabled={savingAvatar}
+                                                            onChange={handleAvatarChange}
+                                                        />
+                                                    </label>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -1683,6 +1685,7 @@ export function UserDetailModal({
                                                 label="Apelido"
                                                 placeholder="Como prefere ser chamado"
                                                 value={profileForm.internalAlias}
+                                                disabled={!canManageUsers}
                                                 onChange={(value) =>
                                                     setProfileForm((current) => ({ ...current, internalAlias: value }))
                                                 }
@@ -1883,14 +1886,16 @@ export function UserDetailModal({
                                     )}
 
                                     <div className="flex justify-end">
-                                        <button
-                                            type="button"
-                                            onClick={handleSaveProfileDetails}
-                                            disabled={!onSaveProfileDetails || savingProfileDetails}
-                                            className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
-                                        >
-                                            {savingProfileDetails ? 'Salvando...' : 'Salvar dados'}
-                                        </button>
+                                        {canManageUsers && (
+                                            <button
+                                                type="button"
+                                                onClick={handleSaveProfileDetails}
+                                                disabled={!onSaveProfileDetails || savingProfileDetails}
+                                                className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
+                                            >
+                                                {savingProfileDetails ? 'Salvando...' : 'Salvar dados'}
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             )}

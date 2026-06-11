@@ -73,6 +73,7 @@ export function UserCard({
     onToggleStatus,
     onDelete,
     showActions = true,
+    canManageUsers = false,
     canViewSensitiveUserData = false,
 }: UserCardProps) {
     const [showMenu, setShowMenu] = React.useState(false);
@@ -246,7 +247,7 @@ export function UserCard({
                 </div>
 
                 {/* Actions Menu */}
-                {showActions && (onToggleStatus || onDelete) && (
+                {showActions && (onView || (canManageUsers && (onToggleStatus || onDelete))) && (
                     <div className="relative" onClick={(event) => event.stopPropagation()}>
                         <button
                             onClick={() => setShowMenu(!showMenu)}
@@ -271,7 +272,7 @@ export function UserCard({
                                             Detalhes do usuário
                                         </button>
                                     )}
-                                    {onToggleStatus && (
+                                    {onToggleStatus && canManageUsers && (
                                         <button
                                             onClick={() =>
                                                 handleAction(() => {
@@ -299,7 +300,7 @@ export function UserCard({
                                             )}
                                         </button>
                                     )}
-                                    {onDelete && user.status === 'invited' && !user.accepted_at && (
+                                    {onDelete && user.status === 'invited' && !user.accepted_at && canManageUsers && (
                                         <button
                                             onClick={() =>
                                                 handleAction(() => {

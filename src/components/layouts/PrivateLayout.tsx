@@ -188,6 +188,10 @@ export default function PrivateLayout() {
             );
         }
 
+        if (item.path === '/admin/users') {
+            return hasPermission('users.view');
+        }
+
         if (isOwner) return true;
 
         const sectionAccessPermission = SECTION_ACCESS_PERMISSIONS[section];
