@@ -142,7 +142,6 @@ export default function CommercialDashboardPage() {
       subtitle="Visão inicial de vendas, pedidos, caixa, clientes, produtos e fidelidade."
       category="Comercial"
       icon={<BarChart3 size={28} className="text-[#21A896]" />}
-      withoutHeader={true}
       flat
     >
       {error && (
@@ -230,7 +229,7 @@ export default function CommercialDashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:border-gray-900">
           <div className="flex items-center gap-2 text-gray-600">
             <CreditCard size={18} />
             <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">
@@ -334,7 +333,7 @@ export default function CommercialDashboardPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:border-gray-900">
           <div className="flex items-center gap-2">
             <Coins size={18} className="text-amber-600" />
             <h2 className="text-lg font-black text-gray-900 dark:text-white">
@@ -380,7 +379,7 @@ export default function CommercialDashboardPage() {
         </section>
       </div>
 
-      <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+      <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:border-gray-900">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-black text-gray-900 dark:text-white">
             Pedidos recentes

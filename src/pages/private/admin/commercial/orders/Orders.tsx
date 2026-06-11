@@ -1,19 +1,27 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Filter, ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
+import OrderStatusFilter from '@/components/common/OrderStatusFilter';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
-
 
 export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterStatus, setFilterStatus] = useState<string>('current');
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
+
+    // Filter displayed orders locally if 'current' is selected
+    const displayedOrders = useMemo(() => {
+        if (filterStatus === 'current') {
+            return orders.filter(o => o.status === 'reserved' || o.status === 'confirmed');
+        }
+        return orders;
+    }, [orders, filterStatus]);
 
     // Fetch orders
     const fetchOrders = useCallback(async () => {
@@ -37,9 +45,11 @@ export default function Orders() {
 
             setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
 
+            const rpcStatus = (filterStatus === 'all' || filterStatus === 'current') ? 'all' : filterStatus;
+
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
                 p_store_id: store.id,
-                p_status: filterStatus === 'all' ? 'all' : filterStatus,
+                p_status: rpcStatus,
                 p_limit: 200,
             });
 
@@ -53,7 +63,6 @@ export default function Orders() {
             }
 
             setOrders(result.orders || []);
-
         } catch (error) {
             console.error('Error fetching orders:', error);
         } finally {
@@ -164,7 +173,7 @@ export default function Orders() {
             return;
         }
 
-        const phone = (order.customer_phone ?? '').replace(/\D/g, '');
+        const phone = (order.customer_phone ?? '').replace(/\\D/g, '');
         if (phone.length < 10) return;
 
         const firstName = (order.customer_name ?? 'Cliente').split(' ')[0];
@@ -269,27 +278,11 @@ export default function Orders() {
             category="Comercial"
             icon={<ShoppingBag className="text-[#21A896]" size={28} />}
             onRefresh={fetchOrders}
-            action={
-                <div className="relative flex-1 md:w-48">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={15} />
-                    <select
-                        value={filterStatus}
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-800 border border-gray-250 dark:border-gray-700 text-gray-700 dark:text-gray-400 rounded-xl focus:ring-2 focus:ring-brand-green outline-none appearance-none text-xs font-bold"
-                    >
-                        <option value="all">Todos os Status</option>
-                        <option value="reserved">Novos</option>
-                        <option value="confirmed">Em Preparo</option>
-                        <option value="completed">Finalizados</option>
-                        <option value="cancelled">Cancelados</option>
-                    </select>
-                </div>
-            }
             flat
         >
-
+            <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
             {/* Kanban / List */}
-            {orders.length === 0 && !loading ? (
+            {displayedOrders.length === 0 && !loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl">
                     <ShoppingBag size={64} className="opacity-20 mb-4" />
                     <h2 className="text-xl font-bold">Nenhum pedido encontrado</h2>
@@ -297,7 +290,7 @@ export default function Orders() {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4">
-                    {orders.map(order => {
+                    {displayedOrders.map(order => {
                         // Calculate timer for this order if reserved
                         let timerDisplay = null;
                         let isExpiring = false;
@@ -317,10 +310,11 @@ export default function Orders() {
                         }
 
                         return (
-                            <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${order.status === 'reserved' ? 'border-l-yellow-400' :
+                            <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${
+                                order.status === 'reserved' ? 'border-l-yellow-400' :
                                 order.status === 'confirmed' ? 'border-l-blue-400' :
-                                    order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'
-                                }`}>
+                                order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'
+                            }`}>
                                 {/* Card Header */}
                                 <div
                                     className="p-5 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 cursor-pointer"
@@ -330,8 +324,8 @@ export default function Orders() {
                                     <div className="flex items-center gap-4 flex-1">
                                         <div className={`p-3 rounded-full ${statusColors[order.status]} bg-opacity-20`}>
                                             {order.status === 'reserved' ? <AlertCircle size={24} /> :
-                                                order.status === 'confirmed' ? <Clock size={24} /> :
-                                                    order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
+                                             order.status === 'confirmed' ? <Clock size={24} /> :
+                                             order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2">
@@ -373,7 +367,6 @@ export default function Orders() {
                                 {expandedOrder === order.id && (
                                     <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-5 animate-fade-in-down">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-
                                             {/* Contact Info */}
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-gray-700 dark:text-gray-300 uppercase text-xs tracking-widest">Detalhes do Cliente</h4>
@@ -382,7 +375,7 @@ export default function Orders() {
                                                     <p className="flex justify-between"><span className="text-gray-500">Telefone:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_phone || 'Não informado'}</span></p>
                                                     <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
                                                         <a
-                                                            href={`https://wa.me/55${(order.customer_phone ?? '').replace(/\D/g, '')}`}
+                                                            href={`https://wa.me/55${(order.customer_phone ?? '').replace(/\\D/g, '')}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="flex items-center justify-center gap-2 w-full p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition text-sm font-bold"
@@ -394,7 +387,7 @@ export default function Orders() {
                                                                 onClick={() => sendSmsNotification(order, 'prepared')}
                                                                 className="flex items-center justify-center gap-2 w-full p-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition text-sm font-bold mt-2"
                                                             >
-                                                                <MessageCircle size={16} /> Enviar Aviso "Preparando"
+                                                                <MessageCircle size={16} /> Enviar Aviso \"Preparando\"
                                                             </button>
                                                         )}
                                                     </div>
@@ -422,63 +415,65 @@ export default function Orders() {
                                                     ))}
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Action Buttons */}
-                                        <div className="mt-6 flex flex-wrap gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-                                            {/* Actions based on status */}
-                                            {order.status === 'reserved' && (
-                                                <>
-                                                    {/* Extend Reservation */}
-                                                    <button
-                                                        onClick={() => extendReservation(order.id)}
-                                                        className="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-bold text-sm transition flex items-center gap-2"
-                                                        title={`Adicionar +${storeData?.config?.extension_minutes || 10} minutos ao prazo`}
-                                                    >
-                                                        Prorrogar (+{storeData?.config?.extension_minutes || 10}min)
-                                                    </button>
+                                            {/* Action Buttons */}
+                                            <div className="mt-6 flex flex-wrap gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                                                {/* Actions based on status */}
+                                                {order.status === 'reserved' && (
+                                                    <>
+                                                        {/* Extend Reservation */}
+                                                        <button
+                                                            onClick={() => extendReservation(order.id)}
+                                                            className="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-bold text-sm transition flex items-center gap-2"
+                                                            title={`Adicionar +${storeData?.config?.extension_minutes || 10} minutos ao prazo`}
+                                                        >
+                                                            Prorrogar (+{storeData?.config?.extension_minutes || 10}min)
+                                                        </button>
 
-                                                    <button
-                                                        onClick={() => updateStatus(order.id, 'cancelled')}
-                                                        className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
-                                                    >
-                                                        Recusar / Cancelar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            const confirmSend = window.confirm('Deseja enviar aviso automático para o cliente?');
-                                                            updateStatus(order.id, 'confirmed');
-                                                            if (confirmSend) sendSmsNotification(order, 'prepared');
-                                                        }}
-                                                        className="px-6 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg font-bold text-sm transition shadow-lg shadow-teal-200 flex items-center gap-2"
-                                                    >
-                                                        <Clock size={16} /> Aceitar e Preparar
-                                                    </button>
-                                                </>
-                                            )}
+                                                        <button
+                                                            onClick={() => updateStatus(order.id, 'cancelled')}
+                                                            className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
+                                                        >
+                                                            Recusar / Cancelar
+                                                        </button>
 
-                                            {order.status === 'confirmed' && (
-                                                <>
-                                                    <button
-                                                        onClick={() => updateStatus(order.id, 'cancelled')}
-                                                        className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
-                                                    >
-                                                        Cancelar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => updateStatus(order.id, 'completed')}
-                                                        className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"
-                                                    >
-                                                        <CheckCircle size={16} /> Prontificar / Finalizar
-                                                    </button>
-                                                </>
-                                            )}
+                                                        <button
+                                                            onClick={() => {
+                                                                const confirmSend = window.confirm('Deseja enviar aviso automático para o cliente?');
+                                                                updateStatus(order.id, 'confirmed');
+                                                                if (confirmSend) sendSmsNotification(order, 'prepared');
+                                                            }}
+                                                            className="px-6 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg font-bold text-sm transition shadow-lg shadow-teal-200 flex items-center gap-2"
+                                                        >
+                                                            <Clock size={16} /> Aceitar e Preparar
+                                                        </button>
+                                                    </>
+                                                )}
 
-                                            {order.status === 'completed' && (
-                                                <span className="px-4 py-2 text-green-600 bg-green-50 rounded-lg font-bold text-sm flex items-center gap-2 cursor-default">
-                                                    <CheckCircle size={16} /> Pedido Concluído
-                                                </span>
-                                            )}
+                                                {order.status === 'confirmed' && (
+                                                    <>
+                                                        <button
+                                                            onClick={() => updateStatus(order.id, 'cancelled')}
+                                                            className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+
+                                                        <button
+                                                            onClick={() => updateStatus(order.id, 'completed')}
+                                                            className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"
+                                                        >
+                                                            <CheckCircle size={16} /> Prontificar / Finalizar
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {order.status === 'completed' && (
+                                                    <span className="px-4 py-2 text-green-600 bg-green-50 rounded-lg font-bold text-sm flex items-center gap-2 cursor-default">
+                                                        <CheckCircle size={16} /> Pedido Concluído
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
