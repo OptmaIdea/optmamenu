@@ -10,6 +10,7 @@ interface CategoryCardProps {
     onDelete: (category: Category) => void;
     onViewProducts: (category: Category) => void;
     deletingId: string | null;
+    canManage?: boolean;
 }
 
 export default function CategoryCard({
@@ -19,6 +20,7 @@ export default function CategoryCard({
     onDelete,
     onViewProducts,
     deletingId,
+    canManage = true,
 }: CategoryCardProps) {
     return (
         <div className="p-4 bg-white dark:bg-gray-800 first:rounded-t-xl last:rounded-b-xl border-b border-gray-100 dark:border-gray-700 last:border-0">
@@ -68,31 +70,35 @@ export default function CategoryCard({
                 >
                     <Eye size={16} /> Ver
                 </button>
-                <button
-                    onClick={() => onEdit(category)}
-                    className="flex-1 py-2 px-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
-                >
-                    <Edit size={16} /> Editar
-                </button>
-                <button
-                    onClick={() => {
-                        if (category.products_count && category.products_count > 0) {
-                            toast.warning('Esta categoria possui produtos vinculados. Remova ou transfira os produtos antes de excluir a categoria.');
-                            return;
-                        }
-                        onDelete(category);
-                    }}
-                    disabled={deletingId === category.id}
-                    className="flex-1 py-2 px-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
-                >
-                    {deletingId === category.id ? (
-                        <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                        <>
-                            <Trash2 size={16} /> Excluir
-                        </>
-                    )}
-                </button>
+                {canManage && (
+                    <>
+                        <button
+                            onClick={() => onEdit(category)}
+                            className="flex-1 py-2 px-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-sm font-bold flex items-center justify-center gap-2"
+                        >
+                            <Edit size={16} /> Editar
+                        </button>
+                        <button
+                            onClick={() => {
+                                if (category.products_count && category.products_count > 0) {
+                                    toast.warning('Esta categoria possui produtos vinculados. Remova ou transfira os produtos antes de excluir a categoria.');
+                                    return;
+                                }
+                                onDelete(category);
+                            }}
+                            disabled={deletingId === category.id}
+                            className="flex-1 py-2 px-3 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                            {deletingId === category.id ? (
+                                <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <>
+                                    <Trash2 size={16} /> Excluir
+                                </>
+                            )}
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     );

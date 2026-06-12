@@ -177,7 +177,7 @@ export default function PrivateLayout() {
         financial: 'financial.view',
         products: 'products.view',
         settings: null,
-        support: null,
+        support: 'support.view',
     };
 
     const isMenuItemVisible = useCallback((section: string, item: MenuItem) => {
@@ -248,8 +248,8 @@ export default function PrivateLayout() {
     const navigationItems = useMemo<MenuSection>(() => ({
         dashboard: [
             { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
-            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'security.logs.view' },
-            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas', permission: 'dashboard.view' },
+            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'dashboard.activity.view' },
+            { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas', permission: 'dashboard.alerts.view' },
             { path: '/admin/reports', icon: FileStack, label: 'Relatórios', permission: 'reports.view' },
         ],
         commercial: [
@@ -288,14 +288,14 @@ export default function PrivateLayout() {
         ],
         products: [
             { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.view' },
-            { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'products.view' },
+            { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
             { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.view' },
             { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'purchases.view' },
-            { path: '/admin/stock-movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
+            { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=stock',
@@ -323,7 +323,7 @@ export default function PrivateLayout() {
             },
             { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
             { path: '/admin/hours', icon: Clock, label: 'Horários', permission: 'settings.store.view' },
-            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens', permission: 'settings.system.view' },
+            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens', permission: 'messages.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=payment',
@@ -339,9 +339,9 @@ export default function PrivateLayout() {
             },
         ],
         support: [
-            { path: '/admin/legal', icon: FileText, label: 'Termos Legais' },
-            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ' },
-            { path: '/admin/docs', icon: BookOpen, label: 'Documentação' },
+            { path: '/admin/legal', icon: FileText, label: 'Termos Legais', permission: 'support.view' },
+            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ', permission: 'support.view' },
+            { path: '/admin/docs', icon: BookOpen, label: 'Documentação', permission: 'support.view' },
         ]
     }), []);
 

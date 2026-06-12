@@ -13,6 +13,7 @@ interface CategoryEditModalProps {
     category?: Category | null;
     storeId: string;
     onSuccess: () => void;
+    canManage?: boolean;
 }
 
 export default function CategoryEditModal({
@@ -21,6 +22,7 @@ export default function CategoryEditModal({
     category,
     storeId: _storeId,
     onSuccess,
+    canManage = true,
 }: CategoryEditModalProps) {
     const isEditing = !!category;
     const categoryId = category?.id || uuidv4();
@@ -60,6 +62,10 @@ export default function CategoryEditModal({
     };
 
     const handleSaveClick = () => {
+        if (!canManage) {
+            toast.error('Você não tem permissão para gerenciar categorias.');
+            return;
+        }
         if (!form.name.trim()) {
             toast.error('O nome da categoria é obrigatório.');
             return;
@@ -190,7 +196,7 @@ export default function CategoryEditModal({
                         </button>
                         <button
                             onClick={handleSaveClick}
-                            disabled={saving || !form.name}
+                            disabled={saving || !form.name || !canManage}
                             className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
                         >
                             {saving ? (

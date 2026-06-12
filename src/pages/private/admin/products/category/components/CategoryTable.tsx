@@ -10,6 +10,7 @@ interface CategoryTableProps {
     onDelete: (category: Category) => void;
     onViewProducts: (category: Category) => void;
     deletingId: string | null;
+    canManage?: boolean;
 }
 
 export default function CategoryTable({
@@ -19,6 +20,7 @@ export default function CategoryTable({
     onDelete,
     onViewProducts,
     deletingId,
+    canManage = true,
 }: CategoryTableProps) {
     // ✅ Garantia de que categories é um array
     const safeCategories = Array.isArray(categories) ? categories : [];
@@ -97,31 +99,35 @@ export default function CategoryTable({
                                     >
                                         <Eye size={18} />
                                     </button>
-                                    <button
-                                        onClick={() => onEdit(category)}
-                                        className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
-                                        title="Editar"
-                                    >
-                                        <Edit size={18} />
-                                    </button>
-                                    <button
-                                        onClick={() => {
-                                            if (category.products_count && category.products_count > 0) {
-                                                toast.warning('Esta categoria possui produtos vinculados. Remova ou transfira os produtos antes de excluir a categoria.');
-                                                return;
-                                            }
-                                            onDelete(category);
-                                        }}
-                                        disabled={deletingId === category.id}
-                                        className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition disabled:opacity-50"
-                                        title="Excluir"
-                                    >
-                                        {deletingId === category.id ? (
-                                            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                                        ) : (
-                                            <Trash2 size={18} />
-                                        )}
-                                    </button>
+                                    {canManage && (
+                                        <>
+                                            <button
+                                                onClick={() => onEdit(category)}
+                                                className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
+                                                title="Editar"
+                                            >
+                                                <Edit size={18} />
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    if (category.products_count && category.products_count > 0) {
+                                                        toast.warning('Esta categoria possui produtos vinculados. Remova ou transfira os produtos antes de excluir a categoria.');
+                                                        return;
+                                                    }
+                                                    onDelete(category);
+                                                }}
+                                                disabled={deletingId === category.id}
+                                                className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition disabled:opacity-50"
+                                                title="Excluir"
+                                            >
+                                                {deletingId === category.id ? (
+                                                    <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                                                ) : (
+                                                    <Trash2 size={18} />
+                                                )}
+                                            </button>
+                                        </>
+                                    )}
                                 </div>
                             </td>
                         </tr>

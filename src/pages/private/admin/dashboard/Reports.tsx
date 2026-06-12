@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FileText, Printer, TrendingUp, Package, ShoppingCart, Users } from 'lucide-react';
+/* import { useState } from 'react';
+ */import { FileText, /* Printer */ TrendingUp, Package, ShoppingCart, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageContainer from '@/components/common/PageContainer';
 
@@ -12,8 +12,8 @@ interface ReportCard {
 }
 
 export default function ReportsPage() {
-    const [printing, setPrinting] = useState<string | null>(null);
-
+    /* const [printing, setPrinting] = useState<string | null>(null);
+ */
     const reports: ReportCard[] = [
         {
             title: 'Movimentações de Estoque',
@@ -45,14 +45,14 @@ export default function ReportsPage() {
         },
     ];
 
-    const handlePrint = (reportPath: string) => {
-        setPrinting(reportPath);
-        // Navegar para o relatório e imprimir
-        setTimeout(() => {
-            window.print();
-            setPrinting(null);
-        }, 500);
-    };
+    /*     const handlePrint = (reportPath: string) => {
+            setPrinting(reportPath);
+            // Navegar para o relatório e imprimir
+            setTimeout(() => {
+                window.print();
+                setPrinting(null);
+            }, 500);
+        }; */
 
     return (
         <PageContainer
@@ -86,15 +86,16 @@ export default function ReportsPage() {
                                                 to={report.path}
                                                 className="flex-1 px-3 py-2 bg-[#21A896] text-white text-sm rounded-lg hover:bg-[#1a867a] text-center font-medium"
                                             >
-                                                Ver Relatório
+                                                Gerar Relatório
                                             </Link>
-                                            <button
+                                            {/*                                             <button
                                                 onClick={() => handlePrint(report.path)}
                                                 disabled={printing === report.path}
+                                                title="Gera relatório"
                                                 className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium flex items-center gap-1 disabled:opacity-50"
                                             >
                                                 <Printer size={16} />
-                                            </button>
+                                            </button> */}
                                         </>
                                     ) : (
                                         <button

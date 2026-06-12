@@ -456,510 +456,517 @@ function renderRiskBadge(risk: string) {
 export type PermissionMacroGroup = 'settings' | 'security' | 'operational';
 
 export type PermissionGroupDefinition = {
-  id: string;
-  macroGroup: PermissionMacroGroup;
-  label: string;
-  description: string;
-  icon?: React.ElementType;
-  prefixes: string[];
+    id: string;
+    macroGroup: PermissionMacroGroup;
+    label: string;
+    description: string;
+    icon?: React.ElementType;
+    prefixes: string[];
 };
 
 export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
-  // CONFIGURAÇÕES
-  {
-    id: 'settings_general',
-    macroGroup: 'settings',
-    label: 'Acesso geral',
-    description: 'Primeiro libere o acesso geral às configurações. Depois escolha as abas e ações.',
-    prefixes: ['settings.view', 'settings.manage'],
-  },
-  {
-    id: 'settings_store',
-    macroGroup: 'settings',
-    label: 'Dados da Loja',
-    description: 'Dados cadastrais, endereço, contatos e identidade visual da loja.',
-    prefixes: ['settings.store.'],
-  },
-  {
-    id: 'settings_commercial',
-    macroGroup: 'settings',
-    label: 'Comercial',
-    description: 'Regras comerciais, canais e preferências comerciais.',
-    prefixes: ['settings.commercial.'],
-  },
-  {
-    id: 'settings_orders',
-    macroGroup: 'settings',
-    label: 'Pedido Online',
-    description: 'Loja pública, pedido mínimo, canais e regras de pedido.',
-    prefixes: ['settings.orders.'],
-  },
-  {
-    id: 'settings_stock',
-    macroGroup: 'settings',
-    label: 'Estoque',
-    description: 'Regras de estoque global, mínimo, máximo e distribuição por locais.',
-    prefixes: ['settings.stock.'],
-  },
-  {
-    id: 'settings_delivery',
-    macroGroup: 'settings',
-    label: 'Entrega',
-    description: 'Formas, taxas e regras de entrega.',
-    prefixes: ['settings.delivery.'],
-  },
-  {
-    id: 'settings_payment',
-    macroGroup: 'settings',
-    label: 'Pagamento',
-    description: 'Formas e regras de pagamento.',
-    prefixes: ['settings.payment.'],
-  },
-  {
-    id: 'settings_legal',
-    macroGroup: 'settings',
-    label: 'Documentos e Termos',
-    description: 'Termos de uso, política de privacidade, cookies e dados de DPO.',
-    prefixes: ['settings.legal.'],
-  },
-  {
-    id: 'settings_system',
-    macroGroup: 'settings',
-    label: 'Sistema',
-    description: 'Configurações técnicas e avançadas.',
-    prefixes: ['settings.system.'],
-  },
+    // CONFIGURAÇÕES
+    {
+        id: 'settings_general',
+        macroGroup: 'settings',
+        label: 'Acesso geral',
+        description: 'Primeiro libere o acesso geral às configurações. Depois escolha as abas e ações.',
+        prefixes: ['settings.view', 'settings.manage'],
+    },
+    {
+        id: 'settings_store',
+        macroGroup: 'settings',
+        label: 'Dados da Loja',
+        description: 'Dados cadastrais, endereço, contatos e identidade visual da loja.',
+        prefixes: ['settings.store.'],
+    },
+    {
+        id: 'settings_commercial',
+        macroGroup: 'settings',
+        label: 'Comercial',
+        description: 'Regras comerciais, canais e preferências comerciais.',
+        prefixes: ['settings.commercial.'],
+    },
+    {
+        id: 'settings_orders',
+        macroGroup: 'settings',
+        label: 'Pedido Online',
+        description: 'Loja pública, pedido mínimo, canais e regras de pedido.',
+        prefixes: ['settings.orders.'],
+    },
+    {
+        id: 'settings_stock',
+        macroGroup: 'settings',
+        label: 'Estoque',
+        description: 'Regras de estoque global, mínimo, máximo e distribuição por locais.',
+        prefixes: ['settings.stock.'],
+    },
+    {
+        id: 'settings_delivery',
+        macroGroup: 'settings',
+        label: 'Entrega',
+        description: 'Formas, taxas e regras de entrega.',
+        prefixes: ['settings.delivery.'],
+    },
+    {
+        id: 'settings_payment',
+        macroGroup: 'settings',
+        label: 'Pagamento',
+        description: 'Formas e regras de pagamento.',
+        prefixes: ['settings.payment.'],
+    },
+    {
+        id: 'settings_legal',
+        macroGroup: 'settings',
+        label: 'Documentos e Termos',
+        description: 'Termos de uso, política de privacidade, cookies e dados de DPO.',
+        prefixes: ['settings.legal.'],
+    },
+    {
+        id: 'settings_system',
+        macroGroup: 'settings',
+        label: 'Sistema',
+        description: 'Configurações técnicas e avançadas.',
+        prefixes: ['settings.system.'],
+    },
 
-  // SEGURANÇA
-  {
-    id: 'security_general',
-    macroGroup: 'security',
-    label: 'Acesso geral',
-    description: 'Primeiro libere o acesso geral à área Senhas e Acesso. Depois escolha as abas e ações.',
-    prefixes: ['security.view', 'security.manage'],
-  },
-  {
-    id: 'security_context',
-    macroGroup: 'security',
-    label: 'Contexto de acesso',
-    description: 'Informações do vínculo, loja ativa, perfil e contexto de acesso.',
-    prefixes: ['security.context.'],
-  },
-  {
-    id: 'security_logs',
-    macroGroup: 'security',
-    label: 'Histórico de atividades',
-    description: 'Logs gerais de auditoria e segurança da loja.',
-    prefixes: ['security.logs.'],
-  },
-  {
-    id: 'security_roles',
-    macroGroup: 'security',
-    label: 'Permissões por papel',
-    description: 'Matriz padrão de permissões dos papéis/cargos.',
-    prefixes: ['security.roles.'],
-  },
-  {
-    id: 'security_custom_roles',
-    macroGroup: 'security',
-    label: 'Funções personalizadas',
-    description: 'Criação e manutenção de funções personalizadas.',
-    prefixes: ['security.custom_roles.'],
-  },
-  {
-    id: 'security_user_permissions',
-    macroGroup: 'security',
-    label: 'Permissões por usuário',
-    description: 'Exceções individuais aplicadas a membros específicos.',
-    prefixes: ['security.user_permissions.'],
-  },
-  {
-    id: 'security_sensitive_actions',
-    macroGroup: 'security',
-    label: 'Ações sensíveis',
-    description: 'Regras para ações que exigem PIN, senha master, token ou aprovação.',
-    prefixes: ['security.sensitive_actions.'],
-  },
-  {
-    id: 'security_pin_token',
-    macroGroup: 'security',
-    label: 'PIN e Token',
-    description: 'Configurações de PIN, token e limites de tentativa.',
-    prefixes: ['security.pin_token.'],
-  },
-  {
-    id: 'security_sessions',
-    macroGroup: 'security',
-    label: 'Sessões e inatividade',
-    description: 'Tempo ocioso, encerramento automático e sessões.',
-    prefixes: ['security.sessions.'],
-  },
+    // SEGURANÇA
+    {
+        id: 'security_general',
+        macroGroup: 'security',
+        label: 'Acesso geral',
+        description: 'Primeiro libere o acesso geral à área Senhas e Acesso. Depois escolha as abas e ações.',
+        prefixes: ['security.view', 'security.manage'],
+    },
+    {
+        id: 'security_context',
+        macroGroup: 'security',
+        label: 'Contexto de acesso',
+        description: 'Informações do vínculo, loja ativa, perfil e contexto de acesso.',
+        prefixes: ['security.context.'],
+    },
+    {
+        id: 'security_logs',
+        macroGroup: 'security',
+        label: 'Histórico de atividades',
+        description: 'Logs gerais de auditoria e segurança da loja.',
+        prefixes: ['security.logs.'],
+    },
+    {
+        id: 'security_roles',
+        macroGroup: 'security',
+        label: 'Permissões por papel',
+        description: 'Matriz padrão de permissões dos papéis/cargos.',
+        prefixes: ['security.roles.'],
+    },
+    {
+        id: 'security_custom_roles',
+        macroGroup: 'security',
+        label: 'Funções personalizadas',
+        description: 'Criação e manutenção de funções personalizadas.',
+        prefixes: ['security.custom_roles.'],
+    },
+    {
+        id: 'security_user_permissions',
+        macroGroup: 'security',
+        label: 'Permissões por usuário',
+        description: 'Exceções individuais aplicadas a membros específicos.',
+        prefixes: ['security.user_permissions.'],
+    },
+    {
+        id: 'security_sensitive_actions',
+        macroGroup: 'security',
+        label: 'Ações sensíveis',
+        description: 'Regras para ações que exigem PIN, senha master, token ou aprovação.',
+        prefixes: ['security.sensitive_actions.'],
+    },
+    {
+        id: 'security_pin_token',
+        macroGroup: 'security',
+        label: 'PIN e Token',
+        description: 'Configurações de PIN, token e limites de tentativa.',
+        prefixes: ['security.pin_token.'],
+    },
+    {
+        id: 'security_sessions',
+        macroGroup: 'security',
+        label: 'Sessões e inatividade',
+        description: 'Tempo ocioso, encerramento automático e sessões.',
+        prefixes: ['security.sessions.'],
+    },
 
-  // OPERACIONAL
-  {
-    id: 'dashboard',
-    macroGroup: 'operational',
-    label: 'Dashboard',
-    description: 'Painéis e visão geral da operação.',
-    prefixes: ['dashboard.'],
-  },
-  {
-    id: 'commercial',
-    macroGroup: 'operational',
-    label: 'Comercial',
-    description: 'Área comercial, pedidos, clientes, fidelidade e campanhas.',
-    prefixes: ['commercial.', 'orders.', 'customers.', 'loyalty.', 'marketing.', 'messages.'],
-  },
-  {
-    id: 'financial',
-    macroGroup: 'operational',
-    label: 'Financeiro',
-    description: 'Livro diário, pagamentos e movimentações financeiras.',
-    prefixes: ['financial.', 'cashbook.'],
-  },
-  {
-    id: 'products',
-    macroGroup: 'operational',
-    label: 'Produtos e Estoque',
-    description: 'Produtos, estoque, compras, transferências e fornecedores.',
-    prefixes: ['products.', 'stock.', 'purchases.', 'transfers.', 'suppliers.'],
-  },
-  {
-    id: 'users',
-    macroGroup: 'operational',
-    label: 'Usuários e Equipe',
-    description: 'Usuários, membros, vínculos e gestão da equipe.',
-    prefixes: ['users.'],
-  },
-  {
-    id: 'reports',
-    macroGroup: 'operational',
-    label: 'Relatórios',
-    description: 'Relatórios, exportações e análises.',
-    prefixes: ['reports.'],
-  },
+    // OPERACIONAL
+    {
+        id: 'dashboard',
+        macroGroup: 'operational',
+        label: 'Dashboard',
+        description: 'Painéis e visão geral da operação.',
+        prefixes: ['dashboard.'],
+    },
+    {
+        id: 'commercial',
+        macroGroup: 'operational',
+        label: 'Comercial',
+        description: 'Área comercial, pedidos, clientes, fidelidade e campanhas.',
+        prefixes: ['commercial.', 'orders.', 'customers.', 'loyalty.', 'marketing.', 'messages.'],
+    },
+    {
+        id: 'financial',
+        macroGroup: 'operational',
+        label: 'Financeiro',
+        description: 'Livro diário, pagamentos e movimentações financeiras.',
+        prefixes: ['financial.', 'cashbook.'],
+    },
+    {
+        id: 'products',
+        macroGroup: 'operational',
+        label: 'Produtos e Estoque',
+        description: 'Produtos, categorias, estoque, compras, transferências e fornecedores.',
+        prefixes: ['products.', 'categories.', 'stock.', 'purchases.', 'transfers.', 'suppliers.'],
+    },
+    {
+        id: 'users',
+        macroGroup: 'operational',
+        label: 'Usuários e Equipe',
+        description: 'Usuários, membros, vínculos e gestão da equipe.',
+        prefixes: ['users.'],
+    },
+    {
+        id: 'support',
+        macroGroup: 'operational',
+        label: 'Suporte',
+        description: 'Termos legais, FAQ, documentação e conteúdos de apoio.',
+        prefixes: ['support.'],
+    },
+    {
+        id: 'reports',
+        macroGroup: 'operational',
+        label: 'Relatórios',
+        description: 'Relatórios, exportações e análises.',
+        prefixes: ['reports.'],
+    },
 ];
 
 export const PERMISSION_MACRO_GROUPS: Record<
-  PermissionMacroGroup,
-  {
-    label: string;
-    description: string;
-  }
+    PermissionMacroGroup,
+    {
+        label: string;
+        description: string;
+    }
 > = {
-  settings: {
-    label: 'Configurações',
-    description: 'Dados da loja, regras comerciais, pedido online, entrega, pagamento e sistema.',
-  },
-  security: {
-    label: 'Segurança',
-    description: 'Senhas, acesso, logs, permissões, PIN, token e ações sensíveis.',
-  },
-  operational: {
-    label: 'Operacional',
-    description: 'Dashboard, comercial, financeiro, produtos, estoque, usuários e relatórios.',
-  },
+    settings: {
+        label: 'Configurações',
+        description: 'Dados da loja, regras comerciais, pedido online, entrega, pagamento e sistema.',
+    },
+    security: {
+        label: 'Segurança',
+        description: 'Senhas, acesso, logs, permissões, PIN, token e ações sensíveis.',
+    },
+    operational: {
+        label: 'Operacional',
+        description: 'Dashboard, comercial, financeiro, produtos, estoque, usuários, suporte e relatórios.',
+    },
 };
 
 export function getPermissionGroupDefinition(permissionCode: string) {
-  const code = String(permissionCode || '');
+    const code = String(permissionCode || '');
 
-  const exactMatch = PERMISSION_GROUP_DEFINITIONS.find((group) =>
-    group.prefixes.some((prefix) => prefix === code)
-  );
+    const exactMatch = PERMISSION_GROUP_DEFINITIONS.find((group) =>
+        group.prefixes.some((prefix) => prefix === code)
+    );
 
-  if (exactMatch) return exactMatch;
+    if (exactMatch) return exactMatch;
 
-  const prefixMatch = PERMISSION_GROUP_DEFINITIONS.find((group) =>
-    group.prefixes.some((prefix) => {
-      if (prefix.endsWith('.')) {
-        return code.startsWith(prefix);
-      }
+    const prefixMatch = PERMISSION_GROUP_DEFINITIONS.find((group) =>
+        group.prefixes.some((prefix) => {
+            if (prefix.endsWith('.')) {
+                return code.startsWith(prefix);
+            }
 
-      return code === prefix;
-    })
-  );
+            return code === prefix;
+        })
+    );
 
-  if (prefixMatch) return prefixMatch;
+    if (prefixMatch) return prefixMatch;
 
-  return {
-    id: 'operational_other',
-    macroGroup: 'operational' as const,
-    label: 'Outros módulos',
-    description: 'Permissões operacionais ainda não classificadas.',
-    prefixes: [],
-  };
+    return {
+        id: 'operational_other',
+        macroGroup: 'operational' as const,
+        label: 'Outros módulos',
+        description: 'Permissões operacionais ainda não classificadas.',
+        prefixes: [],
+    };
 }
 
 export type PermissionMatrixItem = StorePermissionMatrixRow;
 
 export function getGroupedRolePermissions(permissionMatrix: PermissionMatrixItem[]) {
-  const macroGroups = new Map<
-    PermissionMacroGroup,
-    Map<string, {
-      definition: PermissionGroupDefinition;
-      permissions: PermissionMatrixItem[];
-    }>
-  >();
+    const macroGroups = new Map<
+        PermissionMacroGroup,
+        Map<string, {
+            definition: PermissionGroupDefinition;
+            permissions: PermissionMatrixItem[];
+        }>
+    >();
 
-  permissionMatrix.forEach((permission) => {
-    const definition = getPermissionGroupDefinition(permission.permission_code);
-    const macroGroup = definition.macroGroup;
+    permissionMatrix.forEach((permission) => {
+        const definition = getPermissionGroupDefinition(permission.permission_code);
+        const macroGroup = definition.macroGroup;
 
-    if (!macroGroups.has(macroGroup)) {
-      macroGroups.set(macroGroup, new Map());
-    }
+        if (!macroGroups.has(macroGroup)) {
+            macroGroups.set(macroGroup, new Map());
+        }
 
-    const groupMap = macroGroups.get(macroGroup)!;
+        const groupMap = macroGroups.get(macroGroup)!;
 
-    if (!groupMap.has(definition.id)) {
-      groupMap.set(definition.id, {
-        definition,
-        permissions: [],
-      });
-    }
+        if (!groupMap.has(definition.id)) {
+            groupMap.set(definition.id, {
+                definition,
+                permissions: [],
+            });
+        }
 
-    groupMap.get(definition.id)!.permissions.push(permission);
-  });
+        groupMap.get(definition.id)!.permissions.push(permission);
+    });
 
-  const macroOrder: PermissionMacroGroup[] = ['settings', 'security', 'operational'];
+    const macroOrder: PermissionMacroGroup[] = ['settings', 'security', 'operational'];
 
-  return macroOrder
-    .map((macroGroup) => {
-      const groupMap = macroGroups.get(macroGroup);
+    return macroOrder
+        .map((macroGroup) => {
+            const groupMap = macroGroups.get(macroGroup);
 
-      const groups = Array.from(groupMap?.values() ?? [])
-        .map((group) => ({
-          ...group,
-          permissions: group.permissions.sort((a, b) => {
-            const aIsView = a.permission_code.endsWith('.view');
-            const bIsView = b.permission_code.endsWith('.view');
-            const aIsManage = a.permission_code.endsWith('.manage');
-            const bIsManage = b.permission_code.endsWith('.manage');
+            const groups = Array.from(groupMap?.values() ?? [])
+                .map((group) => ({
+                    ...group,
+                    permissions: group.permissions.sort((a, b) => {
+                        const aIsView = a.permission_code.endsWith('.view');
+                        const bIsView = b.permission_code.endsWith('.view');
+                        const aIsManage = a.permission_code.endsWith('.manage');
+                        const bIsManage = b.permission_code.endsWith('.manage');
 
-            if (a.permission_code.endsWith('.view') && b.permission_code.endsWith('.manage')) {
-              return -1;
-            }
+                        if (a.permission_code.endsWith('.view') && b.permission_code.endsWith('.manage')) {
+                            return -1;
+                        }
 
-            if (a.permission_code.endsWith('.manage') && b.permission_code.endsWith('.view')) {
-              return 1;
-            }
+                        if (a.permission_code.endsWith('.manage') && b.permission_code.endsWith('.view')) {
+                            return 1;
+                        }
 
-            if (aIsView !== bIsView) return aIsView ? -1 : 1;
-            if (aIsManage !== bIsManage) return aIsManage ? -1 : 1;
+                        if (aIsView !== bIsView) return aIsView ? -1 : 1;
+                        if (aIsManage !== bIsManage) return aIsManage ? -1 : 1;
 
-            return String(a.label ?? a.permission_code).localeCompare(
-              String(b.label ?? b.permission_code),
-              'pt-BR'
-            );
-          }),
-        }))
-        .sort((a, b) => {
-          const aIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === a.definition.id);
-          const bIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === b.definition.id);
+                        return String(a.label ?? a.permission_code).localeCompare(
+                            String(b.label ?? b.permission_code),
+                            'pt-BR'
+                        );
+                    }),
+                }))
+                .sort((a, b) => {
+                    const aIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === a.definition.id);
+                    const bIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === b.definition.id);
 
-          return aIndex - bIndex;
-        });
+                    return aIndex - bIndex;
+                });
 
-      return {
-        id: macroGroup,
-        ...PERMISSION_MACRO_GROUPS[macroGroup],
-        groups,
-      };
-    })
-    .filter((macroGroup) => macroGroup.groups.length > 0);
+            return {
+                id: macroGroup,
+                ...PERMISSION_MACRO_GROUPS[macroGroup],
+                groups,
+            };
+        })
+        .filter((macroGroup) => macroGroup.groups.length > 0);
 }
 
 export function getPermissionSection(permissionCode: string) {
-  const parts = String(permissionCode || '').split('.');
+    const parts = String(permissionCode || '').split('.');
 
-  if (parts.length >= 3) {
-    return parts[1];
-  }
+    if (parts.length >= 3) {
+        return parts[1];
+    }
 
-  return 'root';
+    return 'root';
 }
 
 export function getRoleAllowedFromPermission(
-  permission: PermissionMatrixItem,
-  role: string
+    permission: PermissionMatrixItem,
+    role: string
 ) {
-  const normalizedRole = normalizeRoleCode(role);
+    const normalizedRole = normalizeRoleCode(role);
 
-  if (normalizedRole === 'owner') return true;
+    if (normalizedRole === 'owner') return true;
 
-  const column = `${normalizedRole}_allowed` as keyof PermissionMatrixItem;
+    const column = `${normalizedRole}_allowed` as keyof PermissionMatrixItem;
 
-  return Boolean(permission[column]);
+    return Boolean(permission[column]);
 }
 
 export function getRolePermissionAllowed(
-  permissionMatrix: PermissionMatrixItem[],
-  role: string,
-  permissionCode: string
+    permissionMatrix: PermissionMatrixItem[],
+    role: string,
+    permissionCode: string
 ) {
-  const normalizedRole = normalizeRoleCode(role);
+    const normalizedRole = normalizeRoleCode(role);
 
-  if (normalizedRole === 'owner') return true;
+    if (normalizedRole === 'owner') return true;
 
-  const row = permissionMatrix.find(
-    (item) => item.permission_code === permissionCode
-  );
+    const row = permissionMatrix.find(
+        (item) => item.permission_code === permissionCode
+    );
 
-  if (!row) return false;
+    if (!row) return false;
 
-  return getRoleAllowedFromPermission(row, normalizedRole);
+    return getRoleAllowedFromPermission(row, normalizedRole);
 }
 
 export function getPermissionActionLabel(permission: PermissionMatrixItem) {
-  const code = permission.permission_code;
+    const code = permission.permission_code;
 
-  if (code.endsWith('.view')) return 'Ver';
-  if (code.endsWith('.manage')) return 'Gerenciar';
-  if (code.endsWith('.create')) return 'Criar';
-  if (code.endsWith('.confirm')) return 'Confirmar';
-  if (code.endsWith('.cancel')) return 'Cancelar';
-  if (code.endsWith('.adjust')) return 'Ajustar';
-  if (code.endsWith('.export')) return 'Exportar';
+    if (code.endsWith('.view')) return 'Ver';
+    if (code.endsWith('.manage')) return 'Gerenciar';
+    if (code.endsWith('.create')) return 'Criar';
+    if (code.endsWith('.confirm')) return 'Confirmar';
+    if (code.endsWith('.cancel')) return 'Cancelar';
+    if (code.endsWith('.adjust')) return 'Ajustar';
+    if (code.endsWith('.export')) return 'Exportar';
 
-  return permission.label ?? code;
+    return permission.label ?? code;
 }
 
 export function groupPermissionsByItem(permissions: PermissionMatrixItem[]) {
-  const map = new Map<
-    string,
-    {
-      itemKey: string;
-      itemLabel: string;
-      permissions: PermissionMatrixItem[];
-    }
-  >();
+    const map = new Map<
+        string,
+        {
+            itemKey: string;
+            itemLabel: string;
+            permissions: PermissionMatrixItem[];
+        }
+    >();
 
-  permissions.forEach((permission) => {
-    const itemKey =
-      permission.item_key ||
-      permission.module ||
-      permission.permission_code.split('.')[0];
+    permissions.forEach((permission) => {
+        const itemKey =
+            permission.item_key ||
+            permission.module ||
+            permission.permission_code.split('.')[0];
 
-    const itemLabel =
-      permission.item_label ||
-      permission.label ||
-      itemKey;
+        const itemLabel =
+            permission.item_label ||
+            permission.label ||
+            itemKey;
 
-    if (!map.has(itemKey)) {
-      map.set(itemKey, {
-        itemKey,
-        itemLabel,
-        permissions: [],
-      });
-    }
+        if (!map.has(itemKey)) {
+            map.set(itemKey, {
+                itemKey,
+                itemLabel,
+                permissions: [],
+            });
+        }
 
-    map.get(itemKey)!.permissions.push(permission);
-  });
+        map.get(itemKey)!.permissions.push(permission);
+    });
 
-  return Array.from(map.values()).map((item) => ({
-    ...item,
-    permissions: item.permissions.sort((a, b) => {
-      const order = ['access', 'view', 'manage', 'create', 'confirm', 'cancel', 'adjust', 'export'];
+    return Array.from(map.values()).map((item) => ({
+        ...item,
+        permissions: item.permissions.sort((a, b) => {
+            const order = ['access', 'view', 'manage', 'create', 'confirm', 'cancel', 'adjust', 'export'];
 
-      return (
-        order.indexOf(a.action_key || '') -
-        order.indexOf(b.action_key || '')
-      );
-    }),
-  }));
+            return (
+                order.indexOf(a.action_key || '') -
+                order.indexOf(b.action_key || '')
+            );
+        }),
+    }));
 }
 
 interface PermissionRoleGroupCardProps {
-  group: {
-    definition: PermissionGroupDefinition;
-    permissions: PermissionMatrixItem[];
-  };
-  selectedRoleFilter: string;
-  onTogglePermission: (permissionCode: string, role: string, currentAllowed: boolean) => void;
-  canToggleRolePermission: (role: string, permissionCode: string) => boolean;
+    group: {
+        definition: PermissionGroupDefinition;
+        permissions: PermissionMatrixItem[];
+    };
+    selectedRoleFilter: string;
+    onTogglePermission: (permissionCode: string, role: string, currentAllowed: boolean) => void;
+    canToggleRolePermission: (role: string, permissionCode: string) => boolean;
 }
 
 export function PermissionRoleGroupCard({
-  group,
-  selectedRoleFilter,
-  onTogglePermission,
-  canToggleRolePermission,
+    group,
+    selectedRoleFilter,
+    onTogglePermission,
+    canToggleRolePermission,
 }: PermissionRoleGroupCardProps) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const definition = group.definition;
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    const definition = group.definition;
 
-  return (
-    <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
-      <div
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="cursor-pointer flex items-start justify-between gap-4 select-none"
-      >
-        <div>
-          <h5 className="font-bold text-gray-805 dark:text-white text-base">
-            {definition.label}
-          </h5>
-          {definition.description && !isCollapsed && (
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {definition.description}
-            </p>
-          )}
-        </div>
-        <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
-          {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
-        </span>
-      </div>
-
-      {!isCollapsed && (
-        <div className="space-y-3 pt-3 mt-3 border-t border-gray-50 dark:border-gray-700/50">
-          {group.permissions.map((permission) => {
-            const code = permission.permission_code;
-            const allowed = selectedRoleFilter === 'owner' ? true : Boolean(permission[`${selectedRoleFilter}_allowed` as keyof PermissionMatrixItem]);
-            const canToggle = canToggleRolePermission(selectedRoleFilter, code);
-            const disabled = !canToggle;
-
-            return (
-              <div key={code} className="flex items-center justify-between py-1.5 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0">
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <span className={`text-sm font-bold ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
-                      {getPermissionActionLabel(permission)}
-                    </span>
-                    {permission.risk_level && renderRiskBadge(permission.risk_level)}
-                  </div>
-                  <span className="text-xs text-slate-400">
-                    {code}
-                  </span>
+    return (
+        <div className="bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col justify-start h-fit">
+            <div
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="cursor-pointer flex items-start justify-between gap-4 select-none"
+            >
+                <div>
+                    <h5 className="font-bold text-gray-805 dark:text-white text-base">
+                        {definition.label}
+                    </h5>
+                    {definition.description && !isCollapsed && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            {definition.description}
+                        </p>
+                    )}
                 </div>
+                <span className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0">
+                    {isCollapsed ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+                </span>
+            </div>
 
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onTogglePermission(code, selectedRoleFilter, allowed)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-sm ${allowed
-                    ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                    : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
-                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                >
-                  {allowed ? (
-                    <>
-                      <Check size={14} className="text-green-600" />
-                      <span>permitido</span>
-                    </>
-                  ) : (
-                    <>
-                      <X size={14} className="text-red-500" />
-                      <span>bloqueado</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            );
-          })}
+            {!isCollapsed && (
+                <div className="space-y-3 pt-3 mt-3 border-t border-gray-50 dark:border-gray-700/50">
+                    {group.permissions.map((permission) => {
+                        const code = permission.permission_code;
+                        const allowed = selectedRoleFilter === 'owner' ? true : Boolean(permission[`${selectedRoleFilter}_allowed` as keyof PermissionMatrixItem]);
+                        const canToggle = canToggleRolePermission(selectedRoleFilter, code);
+                        const disabled = !canToggle;
+
+                        return (
+                            <div key={code} className="flex items-center justify-between py-1.5 border-b border-dashed border-gray-50 dark:border-gray-700 last:border-b-0">
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-bold ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-gray-800 dark:text-gray-200'}`}>
+                                            {getPermissionActionLabel(permission)}
+                                        </span>
+                                        {permission.risk_level && renderRiskBadge(permission.risk_level)}
+                                    </div>
+                                    <span className="text-xs text-slate-400">
+                                        {code}
+                                    </span>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    disabled={disabled}
+                                    onClick={() => onTogglePermission(code, selectedRoleFilter, allowed)}
+                                    className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition shadow-sm ${allowed
+                                        ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                                        : 'border-gray-200 bg-gray-50 text-gray-400 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
+                                        } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                >
+                                    {allowed ? (
+                                        <>
+                                            <Check size={14} className="text-green-600" />
+                                            <span>permitido</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <X size={14} className="text-red-500" />
+                                            <span>bloqueado</span>
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </div>
-      )}
-    </div>
-  );
+    );
 }
 
 const VALID_TAB_IDS = [
@@ -1021,240 +1028,266 @@ const SENSITIVE_REQUIREMENT_OPTIONS = [
 export type IndividualPermissionState = 'inherit' | 'allow' | 'deny';
 
 export type RoleCode =
-  | 'owner'
-  | 'admin'
-  | 'manager'
-  | 'stock_operator'
-  | 'cashier'
-  | 'sales'
-  | 'staff'
-  | 'viewer';
+    | 'owner'
+    | 'admin'
+    | 'manager'
+    | 'stock_operator'
+    | 'cashier'
+    | 'sales'
+    | 'staff'
+    | 'viewer';
 
 export const ROLE_OPTIONS: Array<{
-  code: RoleCode;
-  value: RoleCode;
-  label: string;
+    code: RoleCode;
+    value: RoleCode;
+    label: string;
 }> = [
-  { code: 'owner', value: 'owner', label: 'Proprietário' },
-  { code: 'admin', value: 'admin', label: 'Admin' },
-  { code: 'manager', value: 'manager', label: 'Gerente' },
-  { code: 'stock_operator', value: 'stock_operator', label: 'Estoque' },
-  { code: 'cashier', value: 'cashier', label: 'Caixa' },
-  { code: 'sales', value: 'sales', label: 'Vendas' },
-  { code: 'staff', value: 'staff', label: 'Equipe' },
-  { code: 'viewer', value: 'viewer', label: 'Visualizador' },
-];
+        { code: 'owner', value: 'owner', label: 'Proprietário' },
+        { code: 'admin', value: 'admin', label: 'Admin' },
+        { code: 'manager', value: 'manager', label: 'Gerente' },
+        { code: 'stock_operator', value: 'stock_operator', label: 'Estoque' },
+        { code: 'cashier', value: 'cashier', label: 'Caixa' },
+        { code: 'sales', value: 'sales', label: 'Vendas' },
+        { code: 'staff', value: 'staff', label: 'Equipe' },
+        { code: 'viewer', value: 'viewer', label: 'Visualizador' },
+    ];
 
 export const ROLE_PERMISSION_TREE = [
-  {
-    id: 'settings',
-    label: 'Configurações',
-    icon: Settings,
-    groups: [
-      {
-        id: 'settings_general',
-        label: 'Geral',
-        accessPermission: 'settings.view',
-        permissions: ['settings.view', 'settings.manage'],
-      },
-      {
-        id: 'settings_store',
-        label: 'Dados da Loja',
-        accessPermission: 'settings.store.view',
-        permissions: ['settings.store.view', 'settings.store.manage'],
-      },
-      {
-        id: 'settings_commercial',
-        label: 'Comercial',
-        accessPermission: 'settings.commercial.view',
-        permissions: ['settings.commercial.view', 'settings.commercial.manage'],
-      },
-      {
-        id: 'settings_orders',
-        label: 'Pedido Online',
-        accessPermission: 'settings.orders.view',
-        permissions: ['settings.orders.view', 'settings.orders.manage'],
-      },
-      {
-        id: 'settings_stock',
-        label: 'Estoque',
-        accessPermission: 'settings.stock.view',
-        permissions: ['settings.stock.view', 'settings.stock.manage'],
-      },
-      {
-        id: 'settings_delivery',
-        label: 'Entrega',
-        accessPermission: 'settings.delivery.view',
-        permissions: ['settings.delivery.view', 'settings.delivery.manage'],
-      },
-      {
-        id: 'settings_payment',
-        label: 'Pagamento',
-        accessPermission: 'settings.payment.view',
-        permissions: ['settings.payment.view', 'settings.payment.manage'],
-      },
-      {
-        id: 'settings_legal',
-        label: 'Documentos e Termos',
-        accessPermission: 'settings.legal.view',
-        permissions: ['settings.legal.view', 'settings.legal.manage'],
-      },
-      {
-        id: 'settings_system',
-        label: 'Sistema',
-        accessPermission: 'settings.system.view',
-        permissions: ['settings.system.view', 'settings.system.manage'],
-      },
-    ],
-  },
+    {
+        id: 'settings',
+        label: 'Configurações',
+        icon: Settings,
+        groups: [
+            {
+                id: 'settings_general',
+                label: 'Geral',
+                accessPermission: 'settings.view',
+                permissions: ['settings.view', 'settings.manage'],
+            },
+            {
+                id: 'settings_store',
+                label: 'Dados da Loja',
+                accessPermission: 'settings.store.view',
+                permissions: ['settings.store.view', 'settings.store.manage'],
+            },
+            {
+                id: 'settings_commercial',
+                label: 'Comercial',
+                accessPermission: 'settings.commercial.view',
+                permissions: ['settings.commercial.view', 'settings.commercial.manage'],
+            },
+            {
+                id: 'settings_orders',
+                label: 'Pedido Online',
+                accessPermission: 'settings.orders.view',
+                permissions: ['settings.orders.view', 'settings.orders.manage'],
+            },
+            {
+                id: 'settings_stock',
+                label: 'Estoque',
+                accessPermission: 'settings.stock.view',
+                permissions: ['settings.stock.view', 'settings.stock.manage'],
+            },
+            {
+                id: 'settings_delivery',
+                label: 'Entrega',
+                accessPermission: 'settings.delivery.view',
+                permissions: ['settings.delivery.view', 'settings.delivery.manage'],
+            },
+            {
+                id: 'settings_payment',
+                label: 'Pagamento',
+                accessPermission: 'settings.payment.view',
+                permissions: ['settings.payment.view', 'settings.payment.manage'],
+            },
+            {
+                id: 'settings_legal',
+                label: 'Documentos e Termos',
+                accessPermission: 'settings.legal.view',
+                permissions: ['settings.legal.view', 'settings.legal.manage'],
+            },
+            {
+                id: 'settings_system',
+                label: 'Sistema',
+                accessPermission: 'settings.system.view',
+                permissions: ['settings.system.view', 'settings.system.manage'],
+            },
+        ],
+    },
 
-  {
-    id: 'security',
-    label: 'Segurança',
-    icon: Shield,
-    groups: [
-      {
-        id: 'security_general',
-        label: 'Geral',
-        accessPermission: 'security.view',
-        permissions: ['security.view', 'security.manage'],
-      },
-      {
-        id: 'security_context',
-        label: 'Contexto de acesso',
-        accessPermission: 'security.context.view',
-        permissions: ['security.context.view', 'security.context.manage'],
-      },
-      {
-        id: 'security_logs',
-        label: 'Histórico de atividades',
-        accessPermission: 'security.logs.view',
-        permissions: ['security.logs.view', 'security.logs.manage'],
-      },
-      {
-        id: 'security_roles',
-        label: 'Permissões por papel',
-        accessPermission: 'security.roles.view',
-        permissions: ['security.roles.view', 'security.roles.manage'],
-      },
-      {
-        id: 'security_custom_roles',
-        label: 'Funções personalizadas',
-        accessPermission: 'security.custom_roles.view',
-        permissions: ['security.custom_roles.view', 'security.custom_roles.manage'],
-      },
-      {
-        id: 'security_user_permissions',
-        label: 'Permissões por usuário',
-        accessPermission: 'security.user_permissions.view',
-        permissions: ['security.user_permissions.view', 'security.user_permissions.manage'],
-      },
-      {
-        id: 'security_sensitive_actions',
-        label: 'Ações sensíveis',
-        accessPermission: 'security.sensitive_actions.view',
-        permissions: ['security.sensitive_actions.view', 'security.sensitive_actions.manage'],
-      },
-      {
-        id: 'security_pin_token',
-        label: 'PIN e Token',
-        accessPermission: 'security.pin_token.view',
-        permissions: ['security.pin_token.view', 'security.pin_token.manage'],
-      },
-      {
-        id: 'security_sessions',
-        label: 'Sessões e inatividade',
-        accessPermission: 'security.sessions.view',
-        permissions: ['security.sessions.view', 'security.sessions.manage'],
-      },
-    ],
-  },
+    {
+        id: 'security',
+        label: 'Segurança',
+        icon: Shield,
+        groups: [
+            {
+                id: 'security_general',
+                label: 'Geral',
+                accessPermission: 'security.view',
+                permissions: ['security.view', 'security.manage'],
+            },
+            {
+                id: 'security_context',
+                label: 'Contexto de acesso',
+                accessPermission: 'security.context.view',
+                permissions: ['security.context.view', 'security.context.manage'],
+            },
+            {
+                id: 'security_logs',
+                label: 'Histórico de atividades',
+                accessPermission: 'security.logs.view',
+                permissions: ['security.logs.view', 'security.logs.manage'],
+            },
+            {
+                id: 'security_roles',
+                label: 'Permissões por papel',
+                accessPermission: 'security.roles.view',
+                permissions: ['security.roles.view', 'security.roles.manage'],
+            },
+            {
+                id: 'security_custom_roles',
+                label: 'Funções personalizadas',
+                accessPermission: 'security.custom_roles.view',
+                permissions: ['security.custom_roles.view', 'security.custom_roles.manage'],
+            },
+            {
+                id: 'security_user_permissions',
+                label: 'Permissões por usuário',
+                accessPermission: 'security.user_permissions.view',
+                permissions: ['security.user_permissions.view', 'security.user_permissions.manage'],
+            },
+            {
+                id: 'security_sensitive_actions',
+                label: 'Ações sensíveis',
+                accessPermission: 'security.sensitive_actions.view',
+                permissions: ['security.sensitive_actions.view', 'security.sensitive_actions.manage'],
+            },
+            {
+                id: 'security_pin_token',
+                label: 'PIN e Token',
+                accessPermission: 'security.pin_token.view',
+                permissions: ['security.pin_token.view', 'security.pin_token.manage'],
+            },
+            {
+                id: 'security_sessions',
+                label: 'Sessões e inatividade',
+                accessPermission: 'security.sessions.view',
+                permissions: ['security.sessions.view', 'security.sessions.manage'],
+            },
+        ],
+    },
 
-  {
-    id: 'operational',
-    label: 'Operacional',
-    icon: Grid3X3,
-    groups: [
-      {
-        id: 'dashboard',
-        label: 'Dashboard',
-        accessPermission: 'dashboard.view',
-        permissions: ['dashboard.view'],
-      },
-      {
-        id: 'commercial',
-        label: 'Comercial',
-        accessPermission: 'commercial.view',
-        permissions: [
-          'commercial.view',
-          'orders.view',
-          'orders.manage',
-          'orders.cancel',
-          'customers.view',
-          'customers.manage',
-          'loyalty.view',
-          'loyalty.manage',
-          'marketing.view',
-          'marketing.manage',
-          'messages.view',
-          'messages.manage',
+    {
+        id: 'operational',
+        label: 'Operacional',
+        icon: Grid3X3,
+        groups: [
+            {
+                id: 'dashboard',
+                label: 'Dashboard',
+                accessPermission: 'dashboard.view',
+                permissions: [
+                    'dashboard.view',
+                    'dashboard.activity.view',
+                    'dashboard.alerts.view',
+                    'reports.view',
+                    'reports.export',
+                ],
+            },
+            {
+                id: 'commercial',
+                label: 'Comercial',
+                accessPermission: 'commercial.view',
+                permissions: [
+                    'commercial.view',
+                    'orders.view',
+                    'orders.manage',
+                    'orders.cancel',
+                    'customers.view',
+                    'customers.manage',
+                    'loyalty.view',
+                    'loyalty.manage',
+                    'marketing.view',
+                    'marketing.manage',
+                    'messages.view',
+                    'messages.manage',
+                ],
+            },
+            {
+                id: 'financial',
+                label: 'Financeiro',
+                accessPermission: 'financial.view',
+                permissions: [
+                    'financial.view',
+                    'financial.manage',
+                    'cashbook.view',
+                    'cashbook.create',
+                    'cashbook.cancel',
+                ],
+            },
+            {
+                id: 'products_stock',
+                label: 'Produtos e Estoque',
+                accessPermission: 'products.view',
+                permissions: [
+                    'products.view',
+                    'products.manage',
+                    'categories.view',
+                    'categories.manage',
+                    'stock.view',
+                    'stock.manage',
+                    'stock.adjust',
+                    'purchases.view',
+                    'purchases.create',
+                    'purchases.confirm',
+                    'purchases.cancel',
+                    'transfers.view',
+                    'transfers.create',
+                    'transfers.confirm',
+                    'transfers.cancel',
+                    'suppliers.view',
+                    'suppliers.manage',
+                ],
+            },
+            {
+                id: 'users_team',
+                label: 'Usuários e Equipe',
+                accessPermission: 'users.view',
+                permissions: [
+                    'users.view',
+                    'users.manage',
+                    'users.owner.view',
+                    'users.sensitive.view',
+                    'users.sensitive.manage',
+                    'users.additional_info.view',
+                    'users.additional_info.manage',
+                    'users.additional_info_sensitive.view',
+                    'users.additional_info_sensitive.manage',
+                    'users.profile_requests.view',
+                    'users.profile_requests.review',
+                    'users.profile_requests.manage',
+                ],
+            },
+            {
+                id: 'support',
+                label: 'Suporte',
+                accessPermission: 'support.view',
+                permissions: [
+                    'support.view',
+                    'support.manage',
+                ],
+            },
+            {
+                id: 'reports',
+                label: 'Relatórios',
+                accessPermission: 'reports.view',
+                permissions: [
+                    'reports.view',
+                    'reports.export',
+                ],
+            },
         ],
-      },
-      {
-        id: 'financial',
-        label: 'Financeiro',
-        accessPermission: 'financial.view',
-        permissions: [
-          'financial.view',
-          'financial.manage',
-          'cashbook.view',
-          'cashbook.create',
-          'cashbook.cancel',
-        ],
-      },
-      {
-        id: 'products_stock',
-        label: 'Produtos e Estoque',
-        accessPermission: 'products.view',
-        permissions: [
-          'products.view',
-          'products.manage',
-          'stock.view',
-          'stock.manage',
-          'stock.adjust',
-          'purchases.view',
-          'purchases.create',
-          'purchases.confirm',
-          'purchases.cancel',
-          'transfers.view',
-          'transfers.create',
-          'transfers.confirm',
-          'transfers.cancel',
-          'suppliers.view',
-          'suppliers.manage',
-        ],
-      },
-      {
-        id: 'users_team',
-        label: 'Usuários e Equipe',
-        accessPermission: 'users.view',
-        permissions: [
-          'users.view',
-          'users.manage',
-          'users.owner.view',
-        ],
-      },
-      {
-        id: 'reports',
-        label: 'Relatórios',
-        accessPermission: 'reports.view',
-        permissions: [
-          'reports.view',
-          'reports.export',
-        ],
-      },
-    ],
-  },
+    },
 ] as const;
 
 const ROLE_FILTER_OPTIONS = [
@@ -1307,16 +1340,14 @@ function Switch({ checked, onCheckedChange, disabled }: SwitchProps) {
                 e.stopPropagation();
                 onCheckedChange(!checked);
             }}
-            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${
-                checked
-                    ? 'bg-green-600'
-                    : 'bg-gray-200 dark:bg-gray-700'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${checked
+                ? 'bg-green-600'
+                : 'bg-gray-200 dark:bg-gray-700'
+                } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             <span
-                className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${
-                    checked ? 'translate-x-3' : 'translate-x-0'
-                }`}
+                className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${checked ? 'translate-x-3' : 'translate-x-0'
+                    }`}
             />
         </button>
     );
@@ -1631,9 +1662,9 @@ export default function Security() {
         setNewCustomRoleName('');
         setNewCustomRoleDescription('');
         setNewCustomRoleBaseRole('stock_operator');
-        
+
         await refreshCustomRoles();
-        
+
         const createdRole = Array.isArray(data) ? data[0] : data;
         if (createdRole && createdRole.id) {
             setSelectedCustomRoleId(createdRole.id);
@@ -1666,76 +1697,76 @@ export default function Security() {
 
 
     const canToggleRolePermission = useCallback((role: string, permissionCode: string) => {
-      const normalizedRole = normalizeRoleCode(role);
+        const normalizedRole = normalizeRoleCode(role);
 
-      if (normalizedRole === 'owner') return false;
+        if (normalizedRole === 'owner') return false;
 
-      if (!canManageSecurityTab('roles')) return false;
+        if (!canManageSecurityTab('roles')) return false;
 
-      // Raiz sempre precisa ser editável para quem gerencia a matriz.
-      if (
-        permissionCode === 'settings.view' ||
-        permissionCode === 'settings.manage' ||
-        permissionCode === 'security.view' ||
-        permissionCode === 'security.manage'
-      ) {
-        return true;
-      }
+        // Raiz sempre precisa ser editável para quem gerencia a matriz.
+        if (
+            permissionCode === 'settings.view' ||
+            permissionCode === 'settings.manage' ||
+            permissionCode === 'security.view' ||
+            permissionCode === 'security.manage'
+        ) {
+            return true;
+        }
 
-      if (permissionCode.startsWith('settings.')) {
-        const section = getPermissionSection(permissionCode);
+        if (permissionCode.startsWith('settings.')) {
+            const section = getPermissionSection(permissionCode);
 
-        const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.view');
-        const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.manage');
-        const sectionViewAllowed = getRolePermissionAllowed(
-          permissionMatrix,
-          normalizedRole,
-          `settings.${section}.view`
+            const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.view');
+            const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.manage');
+            const sectionViewAllowed = getRolePermissionAllowed(
+                permissionMatrix,
+                normalizedRole,
+                `settings.${section}.view`
+            );
+
+            if (!rootViewAllowed) return false;
+
+            if (permissionCode.endsWith('.view')) return true;
+
+            if (permissionCode.endsWith('.manage')) {
+                return rootManageAllowed && sectionViewAllowed;
+            }
+        }
+
+        if (permissionCode.startsWith('security.')) {
+            const section = getPermissionSection(permissionCode);
+
+            const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'security.view');
+            const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'security.manage');
+            const sectionViewAllowed = getRolePermissionAllowed(
+                permissionMatrix,
+                normalizedRole,
+                `security.${section}.view`
+            );
+
+            if (!rootViewAllowed) return false;
+
+            if (permissionCode.endsWith('.view')) return true;
+
+            if (permissionCode.endsWith('.manage')) {
+                return rootManageAllowed && sectionViewAllowed;
+            }
+        }
+
+        // Operacional: regra simples.
+        const module = permissionCode.split('.')[0];
+        const action = permissionCode.split('.')[1];
+
+        if (action === 'view') return true;
+
+        const moduleViewPermission = `${module}.view`;
+        const moduleViewAllowed = getRolePermissionAllowed(
+            permissionMatrix,
+            normalizedRole,
+            moduleViewPermission
         );
 
-        if (!rootViewAllowed) return false;
-
-        if (permissionCode.endsWith('.view')) return true;
-
-        if (permissionCode.endsWith('.manage')) {
-          return rootManageAllowed && sectionViewAllowed;
-        }
-      }
-
-      if (permissionCode.startsWith('security.')) {
-        const section = getPermissionSection(permissionCode);
-
-        const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'security.view');
-        const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'security.manage');
-        const sectionViewAllowed = getRolePermissionAllowed(
-          permissionMatrix,
-          normalizedRole,
-          `security.${section}.view`
-        );
-
-        if (!rootViewAllowed) return false;
-
-        if (permissionCode.endsWith('.view')) return true;
-
-        if (permissionCode.endsWith('.manage')) {
-          return rootManageAllowed && sectionViewAllowed;
-        }
-      }
-
-      // Operacional: regra simples.
-      const module = permissionCode.split('.')[0];
-      const action = permissionCode.split('.')[1];
-
-      if (action === 'view') return true;
-
-      const moduleViewPermission = `${module}.view`;
-      const moduleViewAllowed = getRolePermissionAllowed(
-        permissionMatrix,
-        normalizedRole,
-        moduleViewPermission
-      );
-
-      return moduleViewAllowed;
+        return moduleViewAllowed;
     }, [permissionMatrix, canManageSecurityTab]);
 
 
@@ -2461,221 +2492,221 @@ export default function Security() {
 
 
     function buildRolePermissionCascadeChanges(
-      permissionCode: string,
-      nextAllowed: boolean,
-      currentGroupPermissions: StorePermissionMatrixRow[]
+        permissionCode: string,
+        nextAllowed: boolean,
+        currentGroupPermissions: StorePermissionMatrixRow[]
     ) {
-      const changes: Array<{
-        permission_code: string;
-        allowed: boolean;
-      }> = [];
+        const changes: Array<{
+            permission_code: string;
+            allowed: boolean;
+        }> = [];
 
-      const permission = permissionMatrix.find(
-        (item) => item.permission_code === permissionCode
-      );
+        const permission = permissionMatrix.find(
+            (item) => item.permission_code === permissionCode
+        );
 
-      if (!permission) return changes;
+        if (!permission) return changes;
 
-      const isAccessPermission = permission.action_key === 'access';
-      const isRootView =
-        permissionCode === 'settings.view' ||
-        permissionCode === 'security.view';
+        const isAccessPermission = permission.action_key === 'access';
+        const isRootView =
+            permissionCode === 'settings.view' ||
+            permissionCode === 'security.view';
 
-      const isRootManage =
-        permissionCode === 'settings.manage' ||
-        permissionCode === 'security.manage';
+        const isRootManage =
+            permissionCode === 'settings.manage' ||
+            permissionCode === 'security.manage';
 
-      changes.push({
-        permission_code: permissionCode,
-        allowed: nextAllowed,
-      });
-
-      // Acessar bloqueado: desliga tudo do grupo.
-      if (isAccessPermission && !nextAllowed) {
-        currentGroupPermissions.forEach((item) => {
-          changes.push({
-            permission_code: item.permission_code,
-            allowed: false,
-          });
+        changes.push({
+            permission_code: permissionCode,
+            allowed: nextAllowed,
         });
-      }
 
-      // Acessar permitido: liga permissões de visualização/acesso do grupo.
-      if (isAccessPermission && nextAllowed) {
-        currentGroupPermissions.forEach((item) => {
-          if (
-            item.action_key === 'access' ||
-            item.action_key === 'view'
-          ) {
-            changes.push({
-              permission_code: item.permission_code,
-              allowed: true,
+        // Acessar bloqueado: desliga tudo do grupo.
+        if (isAccessPermission && !nextAllowed) {
+            currentGroupPermissions.forEach((item) => {
+                changes.push({
+                    permission_code: item.permission_code,
+                    allowed: false,
+                });
             });
-          }
-        });
-      }
+        }
 
-      // Ver geral bloqueado: desliga tudo do macrogrupo.
-      if (isRootView && !nextAllowed) {
-        const prefix = permissionCode.startsWith('settings.')
-          ? 'settings.'
-          : 'security.';
-
-        permissionMatrix
-          .filter((item) => item.permission_code.startsWith(prefix))
-          .forEach((item) => {
-            changes.push({
-              permission_code: item.permission_code,
-              allowed: false,
+        // Acessar permitido: liga permissões de visualização/acesso do grupo.
+        if (isAccessPermission && nextAllowed) {
+            currentGroupPermissions.forEach((item) => {
+                if (
+                    item.action_key === 'access' ||
+                    item.action_key === 'view'
+                ) {
+                    changes.push({
+                        permission_code: item.permission_code,
+                        allowed: true,
+                    });
+                }
             });
-          });
-      }
+        }
 
-      // Ver geral permitido: liga todos os views daquele macrogrupo.
-      if (isRootView && nextAllowed) {
-        const prefix = permissionCode.startsWith('settings.')
-          ? 'settings.'
-          : 'security.';
+        // Ver geral bloqueado: desliga tudo do macrogrupo.
+        if (isRootView && !nextAllowed) {
+            const prefix = permissionCode.startsWith('settings.')
+                ? 'settings.'
+                : 'security.';
 
-        permissionMatrix
-          .filter((item) =>
-            item.permission_code.startsWith(prefix) &&
-            (item.action_key === 'view' || item.action_key === 'access')
-          )
-          .forEach((item) => {
-            changes.push({
-              permission_code: item.permission_code,
-              allowed: true,
-            });
-          });
-      }
+            permissionMatrix
+                .filter((item) => item.permission_code.startsWith(prefix))
+                .forEach((item) => {
+                    changes.push({
+                        permission_code: item.permission_code,
+                        allowed: false,
+                    });
+                });
+        }
 
-      // Gerenciar geral bloqueado: desliga todos os manages do macrogrupo.
-      if (isRootManage && !nextAllowed) {
-        const prefix = permissionCode.startsWith('settings.')
-          ? 'settings.'
-          : 'security.';
+        // Ver geral permitido: liga todos os views daquele macrogrupo.
+        if (isRootView && nextAllowed) {
+            const prefix = permissionCode.startsWith('settings.')
+                ? 'settings.'
+                : 'security.';
 
-        permissionMatrix
-          .filter((item) =>
-            item.permission_code.startsWith(prefix) &&
-            item.action_key === 'manage'
-          )
-          .forEach((item) => {
-            changes.push({
-              permission_code: item.permission_code,
-              allowed: false,
-            });
-          });
-      }
+            permissionMatrix
+                .filter((item) =>
+                    item.permission_code.startsWith(prefix) &&
+                    (item.action_key === 'view' || item.action_key === 'access')
+                )
+                .forEach((item) => {
+                    changes.push({
+                        permission_code: item.permission_code,
+                        allowed: true,
+                    });
+                });
+        }
 
-      // Gerenciar geral permitido: liga todos os manages do macrogrupo.
-      if (isRootManage && nextAllowed) {
-        const prefix = permissionCode.startsWith('settings.')
-          ? 'settings.'
-          : 'security.';
+        // Gerenciar geral bloqueado: desliga todos os manages do macrogrupo.
+        if (isRootManage && !nextAllowed) {
+            const prefix = permissionCode.startsWith('settings.')
+                ? 'settings.'
+                : 'security.';
 
-        permissionMatrix
-          .filter((item) =>
-            item.permission_code.startsWith(prefix) &&
-            item.action_key === 'manage'
-          )
-          .forEach((item) => {
-            changes.push({
-              permission_code: item.permission_code,
-              allowed: true,
-            });
-          });
-      }
+            permissionMatrix
+                .filter((item) =>
+                    item.permission_code.startsWith(prefix) &&
+                    item.action_key === 'manage'
+                )
+                .forEach((item) => {
+                    changes.push({
+                        permission_code: item.permission_code,
+                        allowed: false,
+                    });
+                });
+        }
 
-      return Array.from(
-        new Map(changes.map((item) => [item.permission_code, item])).values()
-      );
+        // Gerenciar geral permitido: liga todos os manages do macrogrupo.
+        if (isRootManage && nextAllowed) {
+            const prefix = permissionCode.startsWith('settings.')
+                ? 'settings.'
+                : 'security.';
+
+            permissionMatrix
+                .filter((item) =>
+                    item.permission_code.startsWith(prefix) &&
+                    item.action_key === 'manage'
+                )
+                .forEach((item) => {
+                    changes.push({
+                        permission_code: item.permission_code,
+                        allowed: true,
+                    });
+                });
+        }
+
+        return Array.from(
+            new Map(changes.map((item) => [item.permission_code, item])).values()
+        );
     }
 
     async function handleToggleRolePermissionCascade(
-      permissionCode: string,
-      nextAllowed: boolean,
-      currentGroupPermissions: StorePermissionMatrixRow[]
+        permissionCode: string,
+        nextAllowed: boolean,
+        currentGroupPermissions: StorePermissionMatrixRow[]
     ) {
-      const normalizedRole = normalizeRoleCode(selectedRole);
+        const normalizedRole = normalizeRoleCode(selectedRole);
 
-      if (!canManageSecurity) {
-        toast.error('Você não tem permissão para alterar permissões.');
-        return;
-      }
+        if (!canManageSecurity) {
+            toast.error('Você não tem permissão para alterar permissões.');
+            return;
+        }
 
-      if (normalizedRole === 'owner') {
-        toast.info('O proprietário sempre possui acesso total.');
-        return;
-      }
+        if (normalizedRole === 'owner') {
+            toast.info('O proprietário sempre possui acesso total.');
+            return;
+        }
 
-      try {
-        const changes = buildRolePermissionCascadeChanges(
-          permissionCode,
-          nextAllowed,
-          currentGroupPermissions
-        );
+        try {
+            const changes = buildRolePermissionCascadeChanges(
+                permissionCode,
+                nextAllowed,
+                currentGroupPermissions
+            );
 
-        await updateRolePermissionsBulk({
-          role: selectedRole,
-          changes,
-          reason: `Alteração em cascata da permissão ${permissionCode} para o papel ${formatSecurityRole(selectedRole)} pela tela de segurança.`,
-        });
+            await updateRolePermissionsBulk({
+                role: selectedRole,
+                changes,
+                reason: `Alteração em cascata da permissão ${permissionCode} para o papel ${formatSecurityRole(selectedRole)} pela tela de segurança.`,
+            });
 
-        toast.success('Permissões atualizadas com sucesso.');
-        await refreshPermissions();
-        await refreshAdmin();
-        await fetchLogs();
-      } catch (error: unknown) {
-        toast.error(getErrorMessage(error, 'Erro ao atualizar permissões em lote.'));
-      }
+            toast.success('Permissões atualizadas com sucesso.');
+            await refreshPermissions();
+            await refreshAdmin();
+            await fetchLogs();
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, 'Erro ao atualizar permissões em lote.'));
+        }
     }
 
     async function handleToggleMenuAccess(
-      group: {
-        accessPermission: string;
-        permissions: readonly string[];
-      },
-      nextAllowed: boolean
+        group: {
+            accessPermission: string;
+            permissions: readonly string[];
+        },
+        nextAllowed: boolean
     ) {
-      if (!canManageSecurity) {
-        toast.error('Você não tem permissão para alterar permissões.');
-        return;
-      }
+        if (!canManageSecurity) {
+            toast.error('Você não tem permissão para alterar permissões.');
+            return;
+        }
 
-      const normalizedRole = normalizeRoleCode(selectedRole);
-      if (normalizedRole === 'owner') {
-        toast.info('O proprietário sempre possui acesso total.');
-        return;
-      }
+        const normalizedRole = normalizeRoleCode(selectedRole);
+        if (normalizedRole === 'owner') {
+            toast.info('O proprietário sempre possui acesso total.');
+            return;
+        }
 
-      try {
-        const changes = group.permissions.map((permissionCode) => ({
-          permission_code: permissionCode,
-          allowed: nextAllowed,
-        }));
+        try {
+            const changes = group.permissions.map((permissionCode) => ({
+                permission_code: permissionCode,
+                allowed: nextAllowed,
+            }));
 
-        await updateRolePermissionsBulk({
-          role: selectedRole,
-          changes,
-          reason: nextAllowed
-            ? `Acesso liberado para ${group.accessPermission}`
-            : `Acesso bloqueado para ${group.accessPermission}`,
-        });
+            await updateRolePermissionsBulk({
+                role: selectedRole,
+                changes,
+                reason: nextAllowed
+                    ? `Acesso liberado para ${group.accessPermission}`
+                    : `Acesso bloqueado para ${group.accessPermission}`,
+            });
 
-        await refreshPermissions();
-        await refreshAdmin();
+            await refreshPermissions();
+            await refreshAdmin();
 
-        toast.success(
-          nextAllowed
-            ? 'Acesso liberado com sucesso.'
-            : 'Acesso bloqueado com sucesso.'
-        );
-        await fetchLogs();
-      } catch (error: unknown) {
-        toast.error(getErrorMessage(error, 'Erro ao atualizar acesso ao menu.'));
-      }
+            toast.success(
+                nextAllowed
+                    ? 'Acesso liberado com sucesso.'
+                    : 'Acesso bloqueado com sucesso.'
+            );
+            await fetchLogs();
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error, 'Erro ao atualizar acesso ao menu.'));
+        }
     }
 
     const handleUpdateSensitiveAction = async (
@@ -3510,7 +3541,7 @@ export default function Security() {
                                     <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
                                         {ROLE_PERMISSION_TREE.map((macro) => {
                                             const isMacroCollapsed = !expandedMacroGroups[macro.id];
-                                            
+
                                             // Filtra os grupos baseado na busca
                                             const filteredGroups = macro.groups.filter((g) => {
                                                 if (!permissionSearch.trim()) return true;
@@ -3547,7 +3578,7 @@ export default function Security() {
                                                         <div className="pl-2 space-y-1 mt-1">
                                                             {filteredGroups.map((group) => {
                                                                 const isSelected = selectedGroupId === group.id;
-                                                                
+
                                                                 // Permissão de Visualização
                                                                 const hasView = group.accessPermission;
                                                                 const viewDisabled = hasView
@@ -3561,11 +3592,10 @@ export default function Security() {
                                                                             setSelectedGroupId(group.id);
                                                                             setSelectedMacroGroup(macro.id as any);
                                                                         }}
-                                                                        className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${
-                                                                            isSelected
-                                                                                ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
-                                                                                : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                                                                        }`}
+                                                                        className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                                            ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+                                                                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                                                                            }`}
                                                                     >
                                                                         <span className="text-xs font-bold text-gray-700 dark:text-gray-250 truncate pr-2">
                                                                             {group.label}
@@ -3623,8 +3653,8 @@ export default function Security() {
                                         }
 
                                         // Encontra todas as linhas da matriz que pertencem a este grupo selecionado (groupDef.id)
-                                        const groupRows = permissionMatrix.filter((row) => 
-                                            row.group_key === groupDef.id || 
+                                        const groupRows = permissionMatrix.filter((row) =>
+                                            row.group_key === groupDef.id ||
                                             (groupDef.permissions as readonly string[]).includes(row.permission_code)
                                         );
 
@@ -3636,7 +3666,7 @@ export default function Security() {
                                             if (row.action_key === 'access') return false; // Fica fixa no topo se presente
                                             if (!permissionSearch.trim()) return true;
                                             const search = permissionSearch.toLowerCase().trim();
-                                            
+
                                             const label = row.label || '';
                                             const itemLabel = row.item_label || '';
                                             const actionLabel = row.action_label || '';
@@ -3686,16 +3716,14 @@ export default function Security() {
                                                                     type="button"
                                                                     disabled={disabled}
                                                                     onClick={() => handleToggleRolePermissionCascade(code, !allowed, groupRows)}
-                                                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${
-                                                                        allowed
-                                                                            ? 'bg-green-600'
-                                                                            : 'bg-gray-200 dark:bg-gray-700'
-                                                                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${allowed
+                                                                        ? 'bg-green-600'
+                                                                        : 'bg-gray-200 dark:bg-gray-700'
+                                                                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                 >
                                                                     <span
-                                                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${
-                                                                            allowed ? 'translate-x-4' : 'translate-x-0'
-                                                                        }`}
+                                                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${allowed ? 'translate-x-4' : 'translate-x-0'
+                                                                            }`}
                                                                     />
                                                                 </button>
                                                             </div>
@@ -3725,11 +3753,10 @@ export default function Security() {
                                                                                     type="button"
                                                                                     disabled={disabled}
                                                                                     onClick={() => handleToggleRolePermissionCascade(code, !allowed, groupRows)}
-                                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${
-                                                                                        allowed
-                                                                                            ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                                                                                            : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
-                                                                                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${allowed
+                                                                                        ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                                                                                        : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
+                                                                                        } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                                                                     title={code}
                                                                                 >
                                                                                     {allowed ? (
@@ -3762,7 +3789,7 @@ export default function Security() {
                                         <div className="space-y-2">
                                             {ROLE_OPTIONS.map((role) => {
                                                 const isSelected = selectedRole === role.code;
-                                                
+
                                                 // Resolve um ícone simples para o papel
                                                 let RoleIcon = User;
                                                 if (role.code === 'owner') RoleIcon = Shield;
@@ -3776,11 +3803,10 @@ export default function Security() {
                                                             setSelectedRole(role.code);
                                                             setRoleFilter(role.code);
                                                         }}
-                                                        className={`flex items-center justify-between p-3 rounded-xl border transition cursor-pointer select-none ${
-                                                            isSelected
-                                                                ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
-                                                                : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
-                                                        }`}
+                                                        className={`flex items-center justify-between p-3 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                            ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
+                                                            : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
+                                                            }`}
                                                     >
                                                         <div className="flex items-center gap-3">
                                                             <RoleIcon size={16} className={isSelected ? 'text-green-600' : 'text-gray-400'} />
@@ -3857,7 +3883,7 @@ export default function Security() {
                                 <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
                                     {ROLE_PERMISSION_TREE.map((macro) => {
                                         const isMacroCollapsed = !expandedMacroGroups[macro.id];
-                                        
+
                                         const filteredGroups = macro.groups.filter((g) => {
                                             if (!userPermissionSearch.trim()) return true;
                                             const search = userPermissionSearch.toLowerCase().trim();
@@ -3901,11 +3927,10 @@ export default function Security() {
                                                                         setSelectedUserGroupId(group.id);
                                                                         setSelectedUserMacroGroup(macro.id as any);
                                                                     }}
-                                                                    className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${
-                                                                        isSelected
-                                                                            ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
-                                                                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                                                                    }`}
+                                                                    className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                                        ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+                                                                        : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                                                                        }`}
                                                                 >
                                                                     <span className="text-xs font-bold text-gray-700 dark:text-gray-255 truncate pr-2 font-candara">
                                                                         {group.label}
@@ -3954,7 +3979,7 @@ export default function Security() {
                                                     row.label.toLowerCase().includes(search);
                                                 if (!matchesSearch) return false;
                                             }
-                                            
+
                                             const definition = getPermissionGroupDefinition(row.permission_code);
                                             return definition.id === groupDef.id;
                                         });
@@ -4064,21 +4089,19 @@ export default function Security() {
                                                     onClick={() => {
                                                         setSelectedMemberId(member.member_id);
                                                     }}
-                                                    className={`flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer select-none ${
-                                                        isSelected
-                                                            ? 'border-green-600 bg-green-50/30 dark:bg-green-950/20 text-green-700 dark:text-green-300'
-                                                            : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
-                                                    }`}
+                                                    className={`flex items-start gap-3 p-3 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                        ? 'border-green-600 bg-green-50/30 dark:bg-green-950/20 text-green-700 dark:text-green-300'
+                                                        : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
+                                                        }`}
                                                 >
                                                     {/* Avatar */}
-                                                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                                                        isSelected 
-                                                            ? 'bg-green-200 text-green-850 dark:bg-green-800 dark:text-green-100'
-                                                            : 'bg-gray-100 text-gray-650 dark:bg-gray-700 dark:text-gray-300'
-                                                    }`}>
+                                                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isSelected
+                                                        ? 'bg-green-200 text-green-850 dark:bg-green-800 dark:text-green-100'
+                                                        : 'bg-gray-100 text-gray-650 dark:bg-gray-700 dark:text-gray-300'
+                                                        }`}>
                                                         {initials}
                                                     </div>
-                                                    
+
                                                     <div className="flex-1 min-w-0 space-y-1">
                                                         <p className="text-xs font-bold truncate">
                                                             {name}
@@ -4093,9 +4116,8 @@ export default function Security() {
                                                                 </p>
                                                             )}
                                                             <p>
-                                                                Status: <span className={`font-semibold ${
-                                                                    member.status === 'active' ? 'text-green-650' : 'text-amber-600'
-                                                                }`}>{formatSecurityStatus(member.status)}</span>
+                                                                Status: <span className={`font-semibold ${member.status === 'active' ? 'text-green-650' : 'text-amber-600'
+                                                                    }`}>{formatSecurityStatus(member.status)}</span>
                                                             </p>
                                                         </div>
                                                     </div>
@@ -4849,7 +4871,7 @@ export default function Security() {
                                     <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
                                         {ROLE_PERMISSION_TREE.map((macro) => {
                                             const isMacroCollapsed = !expandedMacroGroups[macro.id];
-                                            
+
                                             return (
                                                 <div key={macro.id} className="space-y-1">
                                                     <div
@@ -4884,11 +4906,10 @@ export default function Security() {
                                                                             setSelectedCustomRoleGroupId(group.id);
                                                                             setSelectedMacroGroup(macro.id as any);
                                                                         }}
-                                                                        className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${
-                                                                            isSelected
-                                                                                ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
-                                                                                : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                                                                        }`}
+                                                                        className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                                            ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+                                                                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                                                                            }`}
                                                                     >
                                                                         <span className="text-xs font-bold text-gray-700 dark:text-gray-250 truncate pr-2">
                                                                             {group.label}
@@ -4954,8 +4975,8 @@ export default function Security() {
                                             );
                                         }
 
-                                        const groupRows = permissionMatrix.filter((row) => 
-                                            row.group_key === groupDef.id || 
+                                        const groupRows = permissionMatrix.filter((row) =>
+                                            row.group_key === groupDef.id ||
                                             (groupDef.permissions as readonly string[]).includes(row.permission_code)
                                         );
 
@@ -5000,16 +5021,14 @@ export default function Security() {
                                                                     type="button"
                                                                     disabled={disabled}
                                                                     onClick={() => handleToggleCustomRolePermissionCascade(code, !allowed, groupRows)}
-                                                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${
-                                                                        allowed
-                                                                            ? 'bg-green-600'
-                                                                            : 'bg-gray-200 dark:bg-gray-700'
-                                                                    } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${allowed
+                                                                        ? 'bg-green-600'
+                                                                        : 'bg-gray-200 dark:bg-gray-700'
+                                                                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                                 >
                                                                     <span
-                                                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${
-                                                                            allowed ? 'translate-x-4' : 'translate-x-0'
-                                                                        }`}
+                                                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${allowed ? 'translate-x-4' : 'translate-x-0'
+                                                                            }`}
                                                                     />
                                                                 </button>
                                                             </div>
@@ -5038,11 +5057,10 @@ export default function Security() {
                                                                                     type="button"
                                                                                     disabled={disabled}
                                                                                     onClick={() => handleToggleCustomRolePermissionCascade(code, !allowed, groupRows)}
-                                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${
-                                                                                        allowed
-                                                                                            ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                                                                                            : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
-                                                                                    } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${allowed
+                                                                                        ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                                                                                        : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
+                                                                                        } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                                                                                     title={code}
                                                                                 >
                                                                                     {allowed ? (
@@ -5092,11 +5110,10 @@ export default function Security() {
                                                     <div
                                                         key={role.id}
                                                         onClick={() => setSelectedCustomRoleId(role.id)}
-                                                        className={`flex flex-col p-3 rounded-xl border transition cursor-pointer select-none ${
-                                                            isSelected
-                                                                ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
-                                                                : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
-                                                        }`}
+                                                        className={`flex flex-col p-3 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                            ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
+                                                            : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
+                                                            }`}
                                                     >
                                                         <div className="flex items-center justify-between">
                                                             <span className="text-xs font-bold truncate max-w-[80%]">
@@ -5119,7 +5136,7 @@ export default function Security() {
                                                 <h5 className="text-xs font-bold text-gray-700 dark:text-gray-300">
                                                     Detalhes da Função
                                                 </h5>
-                                                
+
                                                 <div className="space-y-2">
                                                     <div>
                                                         <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">
@@ -5141,7 +5158,7 @@ export default function Security() {
                                                             className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                                         />
                                                     </div>
-                                                    
+
                                                     <div>
                                                         <label className="block text-[10px] font-bold uppercase tracking-wide text-gray-400 mb-0.5">
                                                             Descrição
@@ -5162,7 +5179,7 @@ export default function Security() {
                                                             className="w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs outline-none focus:border-brand-green dark:border-gray-700 dark:bg-gray-900 dark:text-white resize-none"
                                                         />
                                                     </div>
-                                                    
+
                                                     <label className="flex items-center gap-2 cursor-pointer text-xs pt-1">
                                                         <input
                                                             type="checkbox"

@@ -175,9 +175,9 @@ export default function AppRoutes() {
           <Route element={<PrivateLayout />}>
             // Dashboard Section
             <Route path="/admin" element={<AdminLanding />} />
-            <Route path="/admin/activity" element={<Activity />} />
-            <Route path="/admin/alerts" element={<Alerts />} />
-            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/activity" element={<RequirePermission permission="dashboard.activity.view"><Activity /></RequirePermission>} />
+            <Route path="/admin/alerts" element={<RequirePermission permission="dashboard.alerts.view"><Alerts /></RequirePermission>} />
+            <Route path="/admin/reports" element={<RequirePermission permission="reports.view"><Reports /></RequirePermission>} />
 
             // Commercial Section
             <Route
@@ -188,26 +188,25 @@ export default function AppRoutes() {
                 </RequirePermission>
               }
             />
-            <Route path="/admin/sales-channels" element={<SalesChannelsPage />} />
+            <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.view"><SalesChannelsPage /></RequirePermission>} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/delivery" element={<Navigate to="/admin/settings?tab=delivery" replace />} />
-            <Route path="/admin/commercial-dashboard" element={<CommercialDashboardPage />} />
+            <Route path="/admin/commercial-dashboard" element={<RequirePermission permission="commercial.view"><CommercialDashboardPage /></RequirePermission>} />
             <Route path="/admin/commercial-settings" element={<Navigate to="/admin/settings?tab=commercial" replace />} />
-            <Route path="/admin/customers" element={<Customers />} />
-            <Route path="/admin/loyalty" element={<LoyaltyConfig />} />
-            <Route path="/admin/loyalty/advanced" element={<LoyaltyAdvancedPage />} />
-            <Route path="/admin/messages-admin" element={<AdminMessages />} />
-            <Route path="/admin/marketing" element={<MarketingCenterPage />} />
+            <Route path="/admin/customers" element={<RequirePermission permission="customers.view"><Customers /></RequirePermission>} />
+            <Route path="/admin/loyalty" element={<RequirePermission permission="loyalty.view"><LoyaltyConfig /></RequirePermission>} />
+            <Route path="/admin/loyalty/advanced" element={<RequirePermission permission="loyalty.view"><LoyaltyAdvancedPage /></RequirePermission>} />
+            <Route path="/admin/messages-admin" element={<RequirePermission permission="messages.view"><AdminMessages /></RequirePermission>} />
+            <Route path="/admin/marketing" element={<RequirePermission permission="marketing.view"><MarketingCenterPage /></RequirePermission>} />
 
             // Customers Section
-            <Route path="/admin/customers" element={<Customers />} />
-            <Route path="/admin/customers/new" element={<CustomerFormPage />} />
-            <Route path="/admin/customers/:customerId/edit" element={<CustomerEditPage />} />
-            <Route path="/admin/customers/:customerId" element={<CustomerLifecyclePage />} />
+            <Route path="/admin/customers/new" element={<RequirePermission permission="customers.view"><CustomerFormPage /></RequirePermission>} />
+            <Route path="/admin/customers/:customerId/edit" element={<RequirePermission permission="customers.view"><CustomerEditPage /></RequirePermission>} />
+            <Route path="/admin/customers/:customerId" element={<RequirePermission permission="customers.view"><CustomerLifecyclePage /></RequirePermission>} />
 
             // Financial Section
-            <Route path="/admin/cashbook" element={<CashbookPage />} />
+            <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
 
             // Products Section
             <Route
@@ -218,10 +217,10 @@ export default function AppRoutes() {
                 </RequirePermission>
               }
             />
-            <Route path="/admin/categories" element={<Categories />} />
-            <Route path="/admin/inventory" element={<InventoryByLocationPage />} />
-            <Route path="/admin/products/lifecycle" element={<ProductLifecycleSelectorPage />} />
-            <Route path="/admin/products/:id/lifecycle" element={<ProductLifecyclePage />} />
+            <Route path="/admin/categories" element={<RequirePermission permission="categories.view"><Categories /></RequirePermission>} />
+            <Route path="/admin/inventory" element={<RequirePermission permission="stock.view"><InventoryByLocationPage /></RequirePermission>} />
+            <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.view"><ProductLifecycleSelectorPage /></RequirePermission>} />
+            <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.view"><ProductLifecyclePage /></RequirePermission>} />
             <Route
               path="/admin/transfers"
               element={
@@ -230,15 +229,16 @@ export default function AppRoutes() {
                 </RequirePermission>
               }
             />
-            <Route path="/admin/transfers/:id" element={<TransferDetailPage />} />
-            <Route path="/admin/suppliers" element={<Suppliers />} />
-            <Route path="/admin/suppliers/:supplierId/lifecycle" element={<SupplierLifecyclePage />} />
-            <Route path="/admin/suppliers/:id" element={<SupplierDetailPage />} />
-            <Route path="/admin/cashbook/purchases" element={<PurchasesLedger />} />
-            <Route path="/admin/stock/purchase-documents" element={<PurchaseDocumentsPage />} />
-            <Route path="/admin/stock/purchase-insights" element={<PurchaseInsightsPage />} />
-            <Route path="/admin/stock/quotations" element={<PurchaseQuotationsPage />} />
-            <Route path="/admin/stock-movements" element={<StockMovements />} />
+            <Route path="/admin/transfers/:id" element={<RequirePermission permission="transfers.view"><TransferDetailPage /></RequirePermission>} />
+            <Route path="/admin/suppliers" element={<RequirePermission permission="suppliers.view"><Suppliers /></RequirePermission>} />
+            <Route path="/admin/suppliers/:supplierId/lifecycle" element={<RequirePermission permission="suppliers.view"><SupplierLifecyclePage /></RequirePermission>} />
+            <Route path="/admin/suppliers/:id" element={<RequirePermission permission="suppliers.view"><SupplierDetailPage /></RequirePermission>} />
+            <Route path="/admin/cashbook/purchases" element={<RequirePermission permission="purchases.view"><PurchasesLedger /></RequirePermission>} />
+            <Route path="/admin/stock/purchase-documents" element={<RequirePermission permission="purchases.view"><PurchaseDocumentsPage /></RequirePermission>} />
+            <Route path="/admin/stock/purchase-insights" element={<RequirePermission permission="purchases.view"><PurchaseInsightsPage /></RequirePermission>} />
+            <Route path="/admin/stock/quotations" element={<RequirePermission permission="purchases.view"><PurchaseQuotationsPage /></RequirePermission>} />
+            <Route path="/admin/stock/movements" element={<RequirePermission permission="stock.view"><StockMovements /></RequirePermission>} />
+            <Route path="/admin/stock-movements" element={<Navigate to="/admin/stock/movements" replace />} />
             <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
             <Route path="/admin/stock/exits" element={<Navigate to="/admin/stock-movements?type=exit" replace />} />
             <Route path="/admin/stock-settings" element={<Navigate to="/admin/settings?tab=stock" replace />} />
@@ -288,8 +288,8 @@ export default function AppRoutes() {
                 </RequireActiveStoreMember>
               }
             />
-            <Route path="/admin/hours" element={<Hours />} />
-            <Route path="/admin/messages" element={<MessageSettings />} />
+            <Route path="/admin/hours" element={<RequirePermission permission="settings.store.view"><Hours /></RequirePermission>} />
+            <Route path="/admin/messages" element={<RequirePermission permission="messages.view"><MessageSettings /></RequirePermission>} />
             <Route
               path="/admin/security"
               element={
@@ -300,9 +300,9 @@ export default function AppRoutes() {
             />
 
             //Help Section
-            <Route path="/admin/legal" element={<Legal />} />
-            <Route path="/admin/faq" element={<FAQ />} />
-            <Route path="/admin/docs" element={<Documentation />} />
+            <Route path="/admin/legal" element={<RequirePermission permission="support.view"><Legal /></RequirePermission>} />
+            <Route path="/admin/faq" element={<RequirePermission permission="support.view"><FAQ /></RequirePermission>} />
+            <Route path="/admin/docs" element={<RequirePermission permission="support.view"><Documentation /></RequirePermission>} />
           </Route>
         </Route>
 

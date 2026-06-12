@@ -95,12 +95,17 @@ export const useCategorySave = () => {
                 if (error) throw error;
             } else {
                 // EDITAR: trava pela loja ativa para evitar edição cruzada
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('categories')
                     .update(basePayload)
                     .eq('id', categoryId)
-                    .eq('store_id', activeStoreId);
+                    .eq('store_id', activeStoreId)
+                    .select('id, name')
+                    .maybeSingle();
                 if (error) throw error;
+                if (!data) {
+                    throw new Error('Nenhuma categoria foi alterada. Verifique se a categoria pertence à loja ativa ou se há permissão para editar.');
+                }
             }
 
             // 4. Se a categoria antiga tinha uma imagem e foi substituída, remove a antiga
@@ -108,7 +113,6 @@ export const useCategorySave = () => {
                 await deleteImage(formData.image_url);
             }
 
-            toast.success(categoryId ? 'Categoria atualizada com sucesso!' : 'Categoria criada com sucesso!');
             onSuccess();
         } catch (error: any) {
             console.error('Erro ao salvar categoria:', error);

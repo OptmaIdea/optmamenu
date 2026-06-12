@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
 import type { Category } from './category/types/category.types';
+import { usePermissions } from '@/hooks/usePermissions';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 // Hooks
 import { useCategories } from '@/pages/private/admin/products/category/hooks/useCategories';
@@ -19,10 +21,12 @@ import CategoryEditModal from '@/pages/private/admin/products/category/component
 import CategoryDeleteConfirmModal from '@/pages/private/admin/products/category/components/CategoryDeleteConfirmModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import CategoryProductsSimpleModal from '@/pages/private/admin/products/category/components/CategoryProductsSimpleModal';
-import { getActiveStoreId } from '@/utils/activeStore';
 
 export default function CategoriesPage() {
     const [storeId, setStoreId] = useState<string | null>(null);
+    const activeStoreId = getActiveStoreId();
+    const { hasPermission } = usePermissions(activeStoreId);
+    const canManageCategories = hasPermission('categories.manage');
 
     // Dados e operações principais
     const { categories, loading, deletingId, lastUpdated, deleteCategory, refresh } = useCategories();
@@ -136,14 +140,16 @@ export default function CategoriesPage() {
                         >
                             <Package size={16} />
                         </Link>
-                        <button
-                            onClick={openNewModal}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-md transition-colors"
-                        >
-                            <Plus size={16} />
-                            <span className="hidden md:inline">Nova Categoria</span>
-                            <span className="md:hidden">Nova</span>
-                        </button>
+                        {canManageCategories && (
+                            <button
+                                onClick={openNewModal}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-md transition-colors"
+                            >
+                                <Plus size={16} />
+                                <span className="hidden md:inline">Nova Categoria</span>
+                                <span className="md:hidden">Nova</span>
+                            </button>
+                        )}
                     </div>
                 }
             >
@@ -198,6 +204,7 @@ export default function CategoriesPage() {
                     onDelete={openDeleteModal}
                     onViewProducts={handleViewProducts}
                     deletingId={deletingId}
+                    canManage={canManageCategories}
                 />
 
                 {/* Cards Mobile */}
@@ -211,6 +218,7 @@ export default function CategoriesPage() {
                             onDelete={openDeleteModal}
                             onViewProducts={handleViewProducts}
                             deletingId={deletingId}
+                            canManage={canManageCategories}
                         />
                     ))}
                 </div>
@@ -249,6 +257,7 @@ export default function CategoriesPage() {
                         category={editCategory}
                         storeId={storeId}
                         onSuccess={handleSaveSuccess}
+                        canManage={canManageCategories}
                     />
 
                     <CategoryEditModal
@@ -257,6 +266,7 @@ export default function CategoriesPage() {
                         category={null}
                         storeId={storeId}
                         onSuccess={handleSaveSuccess}
+                        canManage={canManageCategories}
                     />
                 </>
             )}
