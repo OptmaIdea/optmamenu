@@ -22,6 +22,7 @@ interface SaveParams {
     minStock: number;
     maxStock: number;
     isEditing: boolean;
+    canManageProducts: boolean;
     onSuccess: () => void;
     onClose: () => void;
 }
@@ -45,9 +46,15 @@ export const useProductSave = () => {
         minStock,
         maxStock,
         isEditing,
+        canManageProducts,
         onSuccess,
         onClose,
     }: SaveParams) => {
+        if (!canManageProducts) {
+            toast.error('Você não tem permissão para gerenciar produtos.');
+            return;
+        }
+
         const activeStoreId = getActiveStoreId();
 
         if (!activeStoreId) {
@@ -111,12 +118,24 @@ export const useProductSave = () => {
                 if (error) throw error;
             } else {
                 // UPDATE: filtra pela loja ativa para evitar edição cruzada
-                const { error } = await supabase
+                const { data, error } = await supabase
                     .from('products')
                     .update(basePayload)
                     .eq('id', productId)
-                    .eq('store_id', activeStoreId);
-                if (error) throw error;
+                    .eq('store_id', activeStoreId)
+                    .select('id, name')
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('Erro ao salvar produto:', error);
+                    throw new Error('Não foi possível salvar o produto.');
+                }
+
+                if (!data) {
+                    throw new Error(
+                        'Nenhum produto foi alterado. Verifique se o produto pertence à loja ativa ou se há permissão para editar.'
+                    );
+                }
             }
 
             // 4. Limpar imagens removidas

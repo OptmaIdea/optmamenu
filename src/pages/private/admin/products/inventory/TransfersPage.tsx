@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { useStockTransferSuggestions } from './hooks/useStockTransferSuggestions';
 import { useInventoryTransit } from './hooks/useInventoryTransit';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import type { StockTransferSuggestion } from './types/transferSuggestion.types';
 
 const STATUS_OPTIONS = [
@@ -71,6 +72,12 @@ export default function TransfersPage() {
   }, []);
 
   const { storeId, loading: loadingStore } = useCurrentStore();
+
+  // Permissões
+  const { hasPermission } = usePermissions(storeId ?? null);
+  const canCreateTransfers = hasPermission('transfers.create');
+  const canConfirmTransfers = hasPermission('transfers.confirm');
+  const canCancelTransfers = hasPermission('transfers.cancel');
 
   const {
     suggestions: allSuggestions,
@@ -273,6 +280,11 @@ export default function TransfersPage() {
   };
 
   const handleCreateManualBatchDraft = async () => {
+    if (!canCreateTransfers) {
+      toast.error('Você não tem permissão para criar transferências.');
+      return;
+    }
+
     if (!storeId) {
       toast.error('Loja atual não identificada. Atualize a página e tente novamente.');
       return;
@@ -399,6 +411,11 @@ export default function TransfersPage() {
     destinationLocationId: string;
     items: StockTransferSuggestion[];
   }) => {
+    if (!canCreateTransfers) {
+      toast.error('Você não tem permissão para criar transferências.');
+      return;
+    }
+
     const selectedItems = group.items
       .filter((suggestion) => selectedSuggestionKeys.has(getSuggestionKey(suggestion)))
       .map((suggestion) => ({
@@ -500,6 +517,11 @@ export default function TransfersPage() {
 
   const handleCreateDraftFromPrefill = async () => {
     if (!prefillTransfer) return;
+
+    if (!canCreateTransfers) {
+      toast.error('Você não tem permissão para criar transferências.');
+      return;
+    }
 
     try {
       setCreatingDraft(true);
@@ -657,15 +679,17 @@ export default function TransfersPage() {
         flat
       >
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
-          <button
-            type="button"
-            onClick={openManualBatchModal}
-            disabled={!storeId}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
-          >
-            <Plus size={15} />
-            Nova transferência manual
-          </button>
+          {canCreateTransfers && (
+            <button
+              type="button"
+              onClick={openManualBatchModal}
+              disabled={!storeId}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
+            >
+              <Plus size={15} />
+              Nova transferência manual
+            </button>
+          )}
         </div>
         <EmptyState
           icon={<ArrowRightLeft className="h-5 w-5" />}
@@ -680,15 +704,17 @@ export default function TransfersPage() {
     <>
       {portalContainer && createPortal(
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={openManualBatchModal}
-            disabled={!storeId}
-            className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0 disabled:opacity-60"
-          >
-            <Plus size={13} />
-            <span>Nova Transferência Manual</span>
-          </button>
+          {canCreateTransfers && (
+            <button
+              type="button"
+              onClick={openManualBatchModal}
+              disabled={!storeId}
+              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0 disabled:opacity-60"
+            >
+              <Plus size={13} />
+              <span>Nova Transferência Manual</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={handleExportCsv}

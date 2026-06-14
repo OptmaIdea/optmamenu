@@ -22,6 +22,7 @@ import PageContainer from '@/components/common/PageContainer';
 import { CashbookService, type CashbookDirection, type CashbookEntry, type CashbookSummary } from '@/services/cashbookService';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
+import { usePermissions } from '@/hooks/usePermissions';
 
 function getDateInputValue(value: Date) {
     return value.toISOString().slice(0, 10);
@@ -100,6 +101,13 @@ function getFormTitle(form: CashbookFormState) {
 
 export default function CashbookPage() {
     const { storeId, loading: loadingStore } = useCurrentStore();
+
+    // Permissões
+    const { hasPermission } = usePermissions(storeId ?? null);
+    const canCreateCashbookEntry = hasPermission('cashbook.create');
+    const canCancelCashbookEntry = hasPermission('cashbook.cancel');
+    const canExportReports = hasPermission('reports.export');
+
     const [entries, setEntries] = useState<CashbookEntry[]>([]);
     const [summary, setSummary] = useState<CashbookSummary | null>(null);
     const [loading, setLoading] = useState(true);
@@ -199,6 +207,11 @@ export default function CashbookPage() {
         event.preventDefault();
         if (!storeId || !formState) return;
 
+        if (!canCreateCashbookEntry) {
+            alert('Você não tem permissão para lançar no Livro Diário.');
+            return;
+        }
+
         const amount = Number(formState.amount.replace(',', '.'));
         const isSaleEdit = formState.mode === 'edit' && formState.entry?.type === 'sale';
 
@@ -251,6 +264,12 @@ export default function CashbookPage() {
 
     async function handleCancelEntry(entry: CashbookEntry) {
         if (!storeId || entry.type === 'sale') return;
+
+        if (!canCancelCashbookEntry) {
+            alert('Você não tem permissão para cancelar lançamentos do Livro Diário.');
+            return;
+        }
+
         if (!window.confirm('Cancelar este lançamento? Ele deixará de afetar o saldo.')) return;
 
         try {
@@ -273,22 +292,35 @@ export default function CashbookPage() {
             onRefresh={loadData}
             action={
                 <div className="flex items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => openCreateForm('in')}
-                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
-                    >
-                        <Plus size={16} />
-                        Nova Entrada
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => openCreateForm('out')}
-                        className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
-                    >
-                        <Minus size={16} />
-                        Nova Saída
-                    </button>
+                    {canCreateCashbookEntry && (
+                        <>
+                            <button
+                                type="button"
+                                onClick={() => openCreateForm('in')}
+                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
+                            >
+                                <Plus size={16} />
+                                Nova Entrada
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => openCreateForm('out')}
+                                className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
+                            >
+                                <Minus size={16} />
+                                Nova Saída
+                            </button>
+                        </>
+                    )}
+                    {canExportReports && (
+                        <button
+                            type="button"
+                            onClick={() => window.print()}
+                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                        >
+                            Imprimir
+                        </button>
+                    )}
                 </div>
             }
             flat
@@ -479,7 +511,7 @@ export default function CashbookPage() {
                                                 >
                                                     <Edit2 size={15} />
                                                 </button>
-                                                {entry.type !== 'sale' && !isCancelled && (
+                                                {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
                                                     <button
                                                         type="button"
                                                         onClick={() => handleCancelEntry(entry)}
@@ -613,11 +645,11 @@ export default function CashbookPage() {
                             </button>
                             <button
                                 type="submit"
-                                disabled={savingForm}
+                                disabled={savingForm || !canCreateCashbookEntry}
                                 className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-black text-white transition hover:bg-[#188575] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <Save size={16} />
-                                Salvar
+                                Salvar lançamento
                             </button>
                         </div>
                     </form>

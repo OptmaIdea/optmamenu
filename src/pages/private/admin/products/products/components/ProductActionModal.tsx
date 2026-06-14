@@ -13,6 +13,7 @@ interface ProductActionModalProps {
     onEdit: () => void;
     onView: (product: Product) => void;
     onDelete: (product: Product) => void;
+    canManageProducts: boolean;
 }
 
 export default function ProductActionModal({
@@ -22,6 +23,7 @@ export default function ProductActionModal({
     onEdit,
     onView,
     onDelete,
+    canManageProducts,
 }: ProductActionModalProps) {
     const navigate = useNavigate();
     const [actionLoading, setActionLoading] = useState<'view' | 'delete' | null>(null);
@@ -89,21 +91,23 @@ export default function ProductActionModal({
                     </button>
 
                     {/* Editar */}
-                    <button
-                        onClick={() => {
-                            onEdit();  // agora chama handleEditProduct no pai
-                            onClose();
-                        }}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left"
-                    >
-                        <Edit size={18} className="text-blue-500" />
-                        <div>
-                            <div className="font-medium text-gray-900 dark:text-white">Editar</div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                Alterar informações
+                    {canManageProducts && (
+                        <button
+                            onClick={() => {
+                                onEdit();  // agora chama handleEditProduct no pai
+                                onClose();
+                            }}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left"
+                        >
+                            <Edit size={18} className="text-blue-500" />
+                            <div>
+                                <div className="font-medium text-gray-900 dark:text-white">Editar</div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    Alterar informações
+                                </div>
                             </div>
-                        </div>
-                    </button>
+                        </button>
+                    )}
 
                     {/* Vida do produto */}
                     <button
@@ -123,25 +127,27 @@ export default function ProductActionModal({
                     </button>
 
                     {/* Excluir / Descontinuar */}
-                    <button
-                        onClick={handleDelete}
-                        disabled={actionLoading !== null}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-left disabled:opacity-50"
-                    >
-                        {actionLoading === 'delete' ? (
-                            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                            <Trash2 size={18} className="text-red-500" />
-                        )}
-                        <div>
-                            <div className="font-medium text-red-600 dark:text-red-400">
-                                Excluir / Descontinuar
+                    {canManageProducts && (
+                        <button
+                            onClick={handleDelete}
+                            disabled={actionLoading !== null}
+                            className="w-full flex items-center gap-3 p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-left disabled:opacity-50"
+                        >
+                            {actionLoading === 'delete' ? (
+                                <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <Trash2 size={18} className="text-red-500" />
+                            )}
+                            <div>
+                                <div className="font-medium text-red-600 dark:text-red-400">
+                                    Excluir / Descontinuar
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                    Requer senha de estoque
+                                </div>
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                Requer senha de estoque
-                            </div>
-                        </div>
-                    </button>
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

@@ -675,6 +675,11 @@ export default function PurchaseDocumentsPage() {
 
   const confirmDocument = useCallback(
     async (docId: string) => {
+      if (!canConfirmPurchase) {
+        toast.error('Você não tem permissão para confirmar compras.');
+        return;
+      }
+
       const confirmed = window.confirm(
         'Confirmar esta entrada lançará o estoque e não poderá ser desfeito automaticamente.\n\nDeseja continuar?',
       );
@@ -1280,7 +1285,7 @@ export default function PurchaseDocumentsPage() {
                       </button>
                     ) : null}
 
-                    {editingDocId && !editingReadOnly ? (
+                    {editingDocId && !editingReadOnly && canConfirmPurchase ? (
                       <button
                         className="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
                         onClick={() => void confirmDocument(editingDocId)}
@@ -1292,7 +1297,7 @@ export default function PurchaseDocumentsPage() {
                       </button>
                     ) : null}
 
-                    {editingDocId && editingStatus === 'confirmed' ? (
+                    {editingDocId && editingStatus === 'confirmed' && canCancelPurchase ? (
                       <button
                         className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
                         onClick={() => openCancelModal({

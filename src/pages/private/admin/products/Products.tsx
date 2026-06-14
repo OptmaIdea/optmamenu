@@ -14,6 +14,8 @@ import { useModals } from '@/pages/private/admin/products/products/hooks/useModa
 import { useExport } from '@/pages/private/admin/products/products/hooks/useExport';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 
 
 // Components
@@ -29,6 +31,12 @@ import EmptyState from '@/components/common/empty-state/EmptyState';
 import { PackageSearch } from 'lucide-react';
 
 export default function ProductsPage() {
+    // Permissões
+    const { storeId } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+    const canViewProducts = hasPermission('products.view');
+    const canManageProducts = hasPermission('products.manage');
+
     // Products data
     const { products, loading, deletingId, lastUpdated, handleRefresh } = useProducts();
 
@@ -186,7 +194,7 @@ export default function ProductsPage() {
 
     return (
         <>
-            {portalContainer && createPortal(
+            {canManageProducts && portalContainer && createPortal(
                 <button
                     onClick={handleNewProduct}
                     className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
@@ -315,23 +323,28 @@ export default function ProductsPage() {
                 onEdit={() => handleEditProduct(selectedProduct!)}
                 onView={handleViewProduct}
                 onDelete={handleDeleteProduct}
+                canManageProducts={canManageProducts}
             />
 
             {/* Modal de edição de produto */}
-            <AdminProductEditModal
-                isOpen={editModalProduct !== null}
-                onClose={() => setEditModalProduct(null)}
-                product={editModalProduct}
-                onSuccess={handleProductSaved}
-            />
+            {canManageProducts && (
+                <AdminProductEditModal
+                    isOpen={editModalProduct !== null}
+                    onClose={() => setEditModalProduct(null)}
+                    product={editModalProduct}
+                    onSuccess={handleProductSaved}
+                />
+            )}
 
             {/* Modal de novo produto */}
-            <AdminProductEditModal
-                isOpen={isNewProductModalOpen}
-                onClose={() => setIsNewProductModalOpen(false)}
-                product={null}
-                onSuccess={handleProductSaved}
-            />
+            {canManageProducts && (
+                <AdminProductEditModal
+                    isOpen={isNewProductModalOpen}
+                    onClose={() => setIsNewProductModalOpen(false)}
+                    product={null}
+                    onSuccess={handleProductSaved}
+                />
+            )}
 
             {/* Render condicional dos modais */}
             <AdminProductViewModal
@@ -341,12 +354,14 @@ export default function ProductsPage() {
                 onEdit={handleEditProduct}
             />
 
-            <ProductDeleteConfirmModal
-                isOpen={deleteProduct !== null}
-                onClose={() => setDeleteProduct(null)}
-                product={deleteProduct}
-                onSuccess={handleDeleteSuccess}
-            />
+            {canManageProducts && (
+                <ProductDeleteConfirmModal
+                    isOpen={deleteProduct !== null}
+                    onClose={() => setDeleteProduct(null)}
+                    product={deleteProduct}
+                    onSuccess={handleDeleteSuccess}
+                />
+            )}
 
             {/* Discontinued Products Modal */}
             <DiscontinuedProductsModal

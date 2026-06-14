@@ -62,6 +62,11 @@ export default function SupplierLifecyclePage() {
   });
 
   const handleCreateContact = async () => {
+    if (!canManageSuppliers) {
+      toast.error('Você não tem permissão para gerenciar fornecedores.');
+      return;
+    }
+
     if (!supplierId || !contactForm.name.trim()) {
       toast.warning('Informe o nome do contato.');
       return;
@@ -105,6 +110,11 @@ export default function SupplierLifecyclePage() {
   };
 
   const handleCreateEvent = async () => {
+    if (!canManageSuppliers) {
+      toast.error('Você não tem permissão para gerenciar fornecedores.');
+      return;
+    }
+
     if (!supplierId || !eventForm.title.trim()) {
       toast.warning('Informe o título do evento.');
       return;
@@ -387,25 +397,29 @@ export default function SupplierLifecyclePage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowContactForm((value) => !value)}
-            disabled={savingAction}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-          >
-            <Plus size={16} />
-            Novo contato
-          </button>
+          {canManageSuppliers && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowContactForm((value) => !value)}
+                disabled={savingAction}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              >
+                <Plus size={16} />
+                Novo contato
+              </button>
 
-          <button
-            type="button"
-            onClick={() => setShowEventForm((value) => !value)}
-            disabled={savingAction}
-            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-          >
-            <Plus size={16} />
-            Registrar evento
-          </button>
+              <button
+                type="button"
+                onClick={() => setShowEventForm((value) => !value)}
+                disabled={savingAction}
+                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+              >
+                <Plus size={16} />
+                Registrar evento
+              </button>
+            </>
+          )}
 
           <button
             type="button"

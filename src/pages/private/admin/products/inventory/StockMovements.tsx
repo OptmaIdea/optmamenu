@@ -38,6 +38,8 @@ import {
   getTransferDivergenceResolutionLabel,
 } from './utils/productMovementNarrative';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const INITIAL_MOVEMENTS_LIMIT = 7;
 const MOVEMENTS_PAGE_SIZE = 50;
@@ -69,6 +71,12 @@ export default function StockMovementsPage() {
 
   const { fetchMovements } = useStockMovement();
   const { products: allProducts, refresh: refreshInventory } = useInventory();
+
+  // Permissões
+  const { storeId } = useCurrentStore();
+  const { hasPermission } = usePermissions(storeId ?? null);
+  const canAdjustStock = hasPermission('stock.adjust');
+  const canExportReports = hasPermission('reports.export');
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [total, setTotal] = useState(0);
@@ -441,14 +449,16 @@ export default function StockMovementsPage() {
     <>
       {portalContainer && createPortal(
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setAdjustmentModalOpen(true)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
-          >
-            <PlusCircle size={13} />
-            <span>Registrar ajuste</span>
-          </button>
+          {canAdjustStock && (
+            <button
+              type="button"
+              onClick={() => setAdjustmentModalOpen(true)}
+              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+            >
+              <PlusCircle size={13} />
+              <span>Registrar ajuste</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setShowFilters(!showFilters)}
@@ -459,22 +469,26 @@ export default function StockMovementsPage() {
             <Filter size={13} />
             <span>Filtros</span>
           </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
-          >
-            <Printer size={13} />
-            <span>Imprimir</span>
-          </button>
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
-          >
-            <FileText size={13} />
-            <span>Exportar CSV</span>
-          </button>
+          {canExportReports && (
+            <>
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
+              >
+                <Printer size={13} />
+                <span>Imprimir</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm cursor-pointer shrink-0"
+              >
+                <FileText size={13} />
+                <span>Exportar CSV</span>
+              </button>
+            </>
+          )}
         </div>,
         portalContainer
       )}

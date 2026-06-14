@@ -16,6 +16,8 @@ import ProductFormPanel from './panels/ProductFormPanel';
 import { logAction } from '@/pages/private/admin/products/products/utils/securityLog';
 import { useStockMovement } from '@/pages/private/admin/products/inventory/hooks/useStockMovement';
 import { useProductSave } from '@/pages/private/admin/products/products/hooks/useProductSave';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 
 
 import type { Category, Product } from '../../types/product.types';
@@ -51,6 +53,11 @@ export default function AdminProductEditModal({
 }: AdminProductEditModalProps) {
     const isEditing = !!product;
     const productId = product?.id || uuidv4();
+
+    // Permissões
+    const { storeId: currentStoreId } = useCurrentStore();
+    const { hasPermission } = usePermissions(currentStoreId ?? null);
+    const canManageProducts = hasPermission('products.manage');
 
     // ----- TODOS OS ESTADOS DENTRO DO COMPONENTE -----
     const { handleSave: saveProduct, saving } = useProductSave();
@@ -383,6 +390,7 @@ export default function AdminProductEditModal({
             minStock,
             maxStock,
             isEditing,
+            canManageProducts,
             onSuccess: () => {
                 onSuccess();
                 resetForm();

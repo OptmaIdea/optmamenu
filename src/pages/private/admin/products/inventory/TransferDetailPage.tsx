@@ -13,6 +13,8 @@ import { stockService } from '@/services/stockService';
 import { downloadCsv } from '@/utils/export/csv';
 import OperationalTimeline from './components/OperationalTimeline';
 import { useOperationalTimeline } from './hooks/useOperationalTimeline';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
     formatNumberPtBr,
     formatCurrencyPtBr,
@@ -41,6 +43,12 @@ const getTransferStatusLabel = (status: string | null | undefined) => {
 export default function TransferDetailPage() {
     const { id } = useParams();
     const { data, loading, refresh } = useStockTransferDetail(id);
+
+    // Permissões
+    const { storeId } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+    const canConfirmTransfers = hasPermission('transfers.confirm');
+    const canCancelTransfers = hasPermission('transfers.cancel');
 
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -111,6 +119,12 @@ export default function TransferDetailPage() {
 
     const handleShipTransfer = async () => {
         if (!transfer?.id) return;
+
+        if (!canConfirmTransfers) {
+            toast.error('Você não tem permissão para enviar transferências.');
+            return;
+        }
+
         const confirmed = window.confirm(
             'Enviar esta transferência agora? O estoque será baixado da origem e a ação não deve ser feita se a remessa ainda não saiu fisicamente.'
         );
@@ -133,6 +147,12 @@ export default function TransferDetailPage() {
 
     const handleCancelTransfer = async () => {
         if (!transfer?.id) return;
+
+        if (!canCancelTransfers) {
+            toast.error('Você não tem permissão para cancelar transferências.');
+            return;
+        }
+
         const reason = window.prompt('Informe o motivo do cancelamento:');
         if (!reason?.trim()) {
             toast.warning('Informe o motivo do cancelamento.');
@@ -156,6 +176,11 @@ export default function TransferDetailPage() {
 
     const handleReceiveTransfer = async () => {
         if (!transfer?.id || !items.length) return;
+
+        if (!canConfirmTransfers) {
+            toast.error('Você não tem permissão para receber transferências.');
+            return;
+        }
 
         const mappedItems = items.map((item) => {
             const row = receiveRows[item.id];
@@ -244,29 +269,33 @@ export default function TransferDetailPage() {
 
                     {transfer.status === 'draft' && (
                         <>
-                            <button
-                                type="button"
-                                onClick={handleShipTransfer}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1.5 h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
-                            >
-                                <Send size={13} />
-                                <span>Enviar</span>
-                            </button>
+                            {canConfirmTransfers && (
+                                <button
+                                    type="button"
+                                    onClick={handleShipTransfer}
+                                    disabled={actionLoading}
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+                                >
+                                    <Send size={13} />
+                                    <span>Enviar</span>
+                                </button>
+                            )}
 
-                            <button
-                                type="button"
-                                onClick={handleCancelTransfer}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300"
-                            >
-                                <XCircle size={13} />
-                                <span>Cancelar</span>
-                            </button>
+                            {canCancelTransfers && (
+                                <button
+                                    type="button"
+                                    onClick={handleCancelTransfer}
+                                    disabled={actionLoading}
+                                    className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-red-200 bg-red-50 text-xs font-bold text-red-700 hover:bg-red-100 disabled:opacity-60 dark:border-red-900/40 dark:bg-red-950/20 dark:text-red-300"
+                                >
+                                    <XCircle size={13} />
+                                    <span>Cancelar</span>
+                                </button>
+                            )}
                         </>
                     )}
 
-                    {transfer.status === 'shipped' && (
+                    {transfer.status === 'shipped' && canConfirmTransfers && (
                         <button
                             type="button"
                             onClick={() => setShowReceiveForm((v) => !v)}
