@@ -1405,16 +1405,25 @@ export default function Security() {
         return hasEffectivePermission(permissions, key);
     }, [permissions]);
 
+    const hasExplicitPermission = useCallback((key: string) => {
+        if (isOwner) return true;
 
-    const canAccessSecurityRoot = isOwner || hasPermission('security.view');
+        if (Array.isArray(allowedPermissions)) {
+            return allowedPermissions.includes(key);
+        }
+
+        return false;
+    }, [isOwner, allowedPermissions]);
+
+    const canAccessSecurityRoot = isOwner || hasExplicitPermission('security.view');
     const canViewSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
         if (!canAccessSecurityRoot) return false;
         if (isOwner) return true;
 
         return securityTabPermissions[tab].view.some((permission) =>
-            hasPermission(permission)
+            hasExplicitPermission(permission)
         );
-    }, [canAccessSecurityRoot, isOwner, hasPermission]);
+    }, [canAccessSecurityRoot, isOwner, hasExplicitPermission]);
 
     const canManageSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
         if (!canViewSecurityTab(tab)) return false;
@@ -1427,6 +1436,15 @@ export default function Security() {
             )
         );
     }, [canViewSecurityTab, isOwner, hasPermission]);
+
+    console.log('[SECURITY_TAB_DEBUG]', {
+        allowedPermissions,
+        rolesView: hasExplicitPermission('security.roles.view'),
+        rolesManage: hasPermission('security.roles.manage'),
+        securityManage: hasPermission('security.manage'),
+        canViewRolesTab: canViewSecurityTab('roles'),
+    });
+
 
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
