@@ -23,6 +23,7 @@ import { CashbookService, type CashbookDirection, type CashbookEntry, type Cashb
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
 import { usePermissions } from '@/hooks/usePermissions';
+import { toast } from 'sonner';
 
 function getDateInputValue(value: Date) {
     return value.toISOString().slice(0, 10);
@@ -107,6 +108,14 @@ export default function CashbookPage() {
     const canCreateCashbookEntry = hasPermission('cashbook.create');
     const canCancelCashbookEntry = hasPermission('cashbook.cancel');
     const canExportReports = hasPermission('reports.export');
+
+    function handlePrint() {
+        if (!canExportReports) {
+            toast.error('Você não tem permissão para imprimir relatórios.');
+            return;
+        }
+        window.print();
+    }
 
     const [entries, setEntries] = useState<CashbookEntry[]>([]);
     const [summary, setSummary] = useState<CashbookSummary | null>(null);
@@ -315,7 +324,7 @@ export default function CashbookPage() {
                     {canExportReports && (
                         <button
                             type="button"
-                            onClick={() => window.print()}
+                            onClick={handlePrint}
                             className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                         >
                             Imprimir

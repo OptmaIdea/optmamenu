@@ -34,7 +34,7 @@ export default function ProductsPage() {
     // Permissões
     const { storeId } = useCurrentStore();
     const { hasPermission } = usePermissions(storeId ?? null);
-    const canViewProducts = hasPermission('products.view');
+    // const canViewProducts = hasPermission('products.view');
     const canManageProducts = hasPermission('products.manage');
 
     // Products data

@@ -76,8 +76,8 @@ export default function TransfersPage() {
   // Permissões
   const { hasPermission } = usePermissions(storeId ?? null);
   const canCreateTransfers = hasPermission('transfers.create');
-  const canConfirmTransfers = hasPermission('transfers.confirm');
-  const canCancelTransfers = hasPermission('transfers.cancel');
+  // const canConfirmTransfers = hasPermission('transfers.confirm');
+  // const canCancelTransfers = hasPermission('transfers.cancel');
 
   const {
     suggestions: allSuggestions,

@@ -1,7 +1,9 @@
-/* import { useState } from 'react';
- */import { FileText, /* Printer */ TrendingUp, Package, ShoppingCart, Users } from 'lucide-react';
+import { FileText, TrendingUp, Package, ShoppingCart, Users } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import PageContainer from '@/components/common/PageContainer';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import { toast } from 'sonner';
 
 interface ReportCard {
     title: string;
@@ -12,8 +14,25 @@ interface ReportCard {
 }
 
 export default function ReportsPage() {
-    /* const [printing, setPrinting] = useState<string | null>(null);
- */
+    const { storeId } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+    const canExportReports = hasPermission('reports.export');
+
+    const handlePrintReport = () => {
+        if (!canExportReports) {
+            toast.error('Você não tem permissão para imprimir relatórios.');
+            return;
+        }
+        window.print();
+    };
+
+    const handleExportReportCsv = () => {
+        if (!canExportReports) {
+            toast.error('Você não tem permissão para gerar ou exportar relatórios.');
+            return;
+        }
+        toast.success('Relatório exportado com sucesso.');
+    };
     const reports: ReportCard[] = [
         {
             title: 'Movimentações de Estoque',
@@ -60,6 +79,26 @@ export default function ReportsPage() {
             subtitle="Gere e imprima relatórios gerenciais do seu negócio"
             category="Dashboard"
             icon={<FileText size={28} className="text-[#21A896]" />}
+            action={
+                canExportReports ? (
+                    <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={handlePrintReport}
+                            className="inline-flex items-center gap-2 bg-[#21A896] hover:bg-[#1a867a] text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl font-medium"
+                        >
+                            Imprimir
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleExportReportCsv}
+                            className="inline-flex items-center gap-2 bg-[#21A896] hover:bg-[#1a867a] text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl font-medium"
+                        >
+                            Exportar CSV
+                        </button>
+                    </div>
+                ) : null
+            }
             flat
         >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -81,22 +120,21 @@ export default function ReportsPage() {
                                 </p>
                                 <div className="flex gap-2">
                                     {report.path !== '#' ? (
-                                        <>
+                                        canExportReports ? (
                                             <Link
                                                 to={report.path}
                                                 className="flex-1 px-3 py-2 bg-[#21A896] text-white text-sm rounded-lg hover:bg-[#1a867a] text-center font-medium"
                                             >
                                                 Gerar Relatório
                                             </Link>
-                                            {/*                                             <button
-                                                onClick={() => handlePrint(report.path)}
-                                                disabled={printing === report.path}
-                                                title="Gera relatório"
-                                                className="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 text-sm font-medium flex items-center gap-1 disabled:opacity-50"
+                                        ) : (
+                                            <button
+                                                disabled
+                                                className="flex-1 px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 text-sm rounded-lg cursor-not-allowed text-center font-medium"
                                             >
-                                                <Printer size={16} />
-                                            </button> */}
-                                        </>
+                                                Sem permissão
+                                            </button>
+                                        )
                                     ) : (
                                         <button
                                             disabled

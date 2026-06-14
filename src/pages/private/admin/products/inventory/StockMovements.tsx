@@ -40,6 +40,7 @@ import {
 import { getActiveStoreId } from '@/utils/activeStore';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
+import { toast } from 'sonner';
 
 const INITIAL_MOVEMENTS_LIMIT = 7;
 const MOVEMENTS_PAGE_SIZE = 50;
@@ -109,10 +110,18 @@ export default function StockMovementsPage() {
 
   const printRef = useRef<HTMLDivElement>(null);
 
-  const handlePrint = useReactToPrint({
+  const triggerPrint = useReactToPrint({
     contentRef: printRef,
     documentTitle: `Relatorio_Movimentacoes_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '-')}`,
   });
+
+  const handlePrint = () => {
+    if (!canExportReports) {
+      toast.error('Você não tem permissão para imprimir relatórios.');
+      return;
+    }
+    triggerPrint();
+  };
 
   useEffect(() => {
     const movementType = searchParams.get('type') as StockMovementType | null;
@@ -369,6 +378,10 @@ export default function StockMovementsPage() {
   const formatDateOnly = (dateString: string) => formatDatePtBr(dateString);
 
   const handleExportCsv = () => {
+    if (!canExportReports) {
+      toast.error('Você não tem permissão para exportar CSV.');
+      return;
+    }
     const exportableMovements = movements;
     downloadCsv({
       filename: `movimentacoes_estoque_${getLocalDateInputValue()}.csv`,
