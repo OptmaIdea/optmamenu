@@ -11,7 +11,7 @@ import AddressTab from './tabs/AddressTab';
 import ContactsTab from './tabs/ContactsTab';
 import LegalTab from './tabs/LegalTab';
 import { TEMPLATE_PRIVACY_POLICY, TEMPLATE_TERMS_OF_USE, TEMPLATE_COOKIE_POLICY } from '@/constants/legalTemplates';
-import { getActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
+import { getActiveStoreId, setActiveStoreId, resolveActiveMembership } from '@/utils/activeStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 // import { hasEffectivePermission } from '@/utils/permissions';
@@ -24,14 +24,14 @@ import Delivery from '@/pages/private/admin/delivery/Delivery';
 import PaymentMethodsPage from '@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage';
 
 const SETTINGS_TABS = [
-  { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
-  { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
-  { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
-  { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
-  { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
-  { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
-  { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
-  { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
+    { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
+    { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
+    { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
+    { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
+    { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
+    { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
+    { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
+    { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
 ] as const;
 
 const settingsTabPermissions = {
@@ -81,32 +81,32 @@ const getInitials = (name: string) => {
 };
 
 function AccessDenied({ message }: { message: string }) {
-  return (
-    <PageContainer
-      title="Acesso Restrito"
-      subtitle="Verificação de privilégios de segurança"
-      category="Configurações"
-      icon={<AlertCircle className="text-[#DC2626]" size={28} />}
-      flat
-    >
-      <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn font-candara">
-        <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
-          <AlertCircle size={48} />
-        </div>
-        <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
-          Acesso Restrito
-        </h3>
-        <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
-          {message}
-        </p>
-      </div>
-    </PageContainer>
-  );
+    return (
+        <PageContainer
+            title="Acesso Restrito"
+            subtitle="Verificação de privilégios de segurança"
+            category="Configurações"
+            icon={<AlertCircle className="text-[#DC2626]" size={28} />}
+            flat
+        >
+            <div className="flex flex-col items-center justify-center min-h-[400px] text-center p-6 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm animate-fadeIn font-candara">
+                <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-full text-red-500 mb-4">
+                    <AlertCircle size={48} />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-2">
+                    Acesso Restrito
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 text-sm max-w-md">
+                    {message}
+                </p>
+            </div>
+        </PageContainer>
+    );
 }
 
 
 export default function StoreSettings() {
-    const { securityContext, isOwner, loading: loadingSecurityContext } = useSecurityContext();
+    const { securityContext, loading: loadingSecurityContext } = useSecurityContext();
 
     const activeStoreIdFromStorage = getActiveStoreId();
     const fallbackStoreId = securityContext?.primary_membership?.store_id ?? null;
@@ -114,19 +114,25 @@ export default function StoreSettings() {
 
     const { permissions, loading: loadingPermissions, allowedPermissions } = usePermissions(activeStoreId);
 
+    const activeMembership = resolveActiveMembership(
+        securityContext?.memberships,
+        securityContext?.primary_membership
+    );
+    const isStoreOwner = activeMembership?.role === 'owner';
+
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const activeTab = searchParams.get('tab') || 'store';
     const [activeStoreSubTab, setActiveStoreSubTab] = useState('corporate');
     // const hasPermission = useCallback((key: string) => {
-    //     if (isOwner) return true;
+    //     if (isStoreOwner) return true;
     //     if (loadingPermissions) return false;
     //     return hasEffectivePermission(permissions, key);
-    // }, [permissions, loadingPermissions, isOwner]);
+    // }, [permissions, loadingPermissions, isStoreOwner]);
 
 
     const hasExplicitPermission = useCallback((key: string) => {
-        if (isOwner) return true;
+        if (isStoreOwner) return true;
         if (loadingPermissions) return false;
 
         const rawPermissions = permissions as unknown;
@@ -166,21 +172,21 @@ export default function StoreSettings() {
         }
 
         return false;
-    }, [isOwner, permissions, allowedPermissions, loadingPermissions]);
+    }, [isStoreOwner, permissions, allowedPermissions, loadingPermissions]);
 
-    const canAccessSettingsRoot = isOwner || hasExplicitPermission('settings.view');
+    const canAccessSettingsRoot = isStoreOwner || hasExplicitPermission('settings.view');
     const canViewSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
         if (!canAccessSettingsRoot) return false;
-        if (isOwner) return true;
+        if (isStoreOwner) return true;
 
         return settingsTabPermissions[tab].view.some((permission) =>
             hasExplicitPermission(permission)
         );
-    }, [canAccessSettingsRoot, isOwner, hasExplicitPermission]);
+    }, [canAccessSettingsRoot, isStoreOwner, hasExplicitPermission]);
 
     const canManageSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
         if (!canViewSettingsTab(tab)) return false;
-        if (isOwner) return true;
+        if (isStoreOwner) return true;
 
         return (
             hasExplicitPermission('settings.manage') ||
@@ -188,7 +194,7 @@ export default function StoreSettings() {
                 hasExplicitPermission(permission)
             )
         );
-    }, [canViewSettingsTab, isOwner, hasExplicitPermission]);
+    }, [canViewSettingsTab, isStoreOwner, hasExplicitPermission]);
 
     const visibleSettingsTabs = useMemo(() => {
         if (loadingPermissions) return [];

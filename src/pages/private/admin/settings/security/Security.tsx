@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
@@ -1373,6 +1373,7 @@ export default function Security() {
     const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
     const currentStoreSlug = activeMembership?.store_slug ?? '';
     const currentRole = activeMembership?.role ?? null;
+    const isStoreOwner = currentRole === 'owner';
     const [roleFilter, setRoleFilter] = useState('all');
     const [selectedRole, setSelectedRole] = useState<RoleCode>('admin');
     const [selectedMacroGroup, setSelectedMacroGroup] = useState<'settings' | 'security' | 'operational'>('settings');
@@ -1406,28 +1407,28 @@ export default function Security() {
     }, [permissions]);
 
     const hasExplicitPermission = useCallback((key: string) => {
-        if (isOwner) return true;
+        if (isStoreOwner) return true;
 
         if (Array.isArray(allowedPermissions)) {
             return allowedPermissions.includes(key);
         }
 
         return false;
-    }, [isOwner, allowedPermissions]);
+    }, [isStoreOwner, allowedPermissions]);
 
-    const canAccessSecurityRoot = isOwner || hasExplicitPermission('security.view');
+    const canAccessSecurityRoot = isStoreOwner || hasExplicitPermission('security.view');
     const canViewSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
         if (!canAccessSecurityRoot) return false;
-        if (isOwner) return true;
+        if (isStoreOwner) return true;
 
         return securityTabPermissions[tab].view.some((permission) =>
             hasExplicitPermission(permission)
         );
-    }, [canAccessSecurityRoot, isOwner, hasExplicitPermission]);
+    }, [canAccessSecurityRoot, isStoreOwner, hasExplicitPermission]);
 
     const canManageSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
         if (!canViewSecurityTab(tab)) return false;
-        if (isOwner) return true;
+        if (isStoreOwner) return true;
 
         return (
             hasPermission('security.manage') ||
@@ -1435,7 +1436,7 @@ export default function Security() {
                 hasPermission(permission)
             )
         );
-    }, [canViewSecurityTab, isOwner, hasPermission]);
+    }, [canViewSecurityTab, isStoreOwner, hasPermission]);
 
     console.log('[SECURITY_TAB_DEBUG]', {
         allowedPermissions,
@@ -1444,6 +1445,7 @@ export default function Security() {
         securityManage: hasPermission('security.manage'),
         canViewRolesTab: canViewSecurityTab('roles'),
     });
+
 
 
     const [searchParams, setSearchParams] = useSearchParams();
@@ -1472,6 +1474,10 @@ export default function Security() {
     const canViewSensitiveActionsTab = canViewSecurityTab('sensitive_actions');
     const canViewUserPermissionsTab = canViewSecurityTab('user_permissions');
 
+    const isRolesTabActive = activeTab === 'roles';
+    const isSensitiveActionsTabActive = activeTab === 'sensitive_actions';
+    const isUserPermissionsTabActive = activeTab === 'user_permissions';
+
     const {
         permissionMatrix,
         sensitiveActions: sensitiveActionsMatrix,
@@ -1484,10 +1490,13 @@ export default function Security() {
         updateSensitiveAction,
         fetchMemberPermissionDetail,
     } = useSecurityPermissionsAdmin({
-        enabled: canViewRolesTab || canViewSensitiveActionsTab || canViewUserPermissionsTab,
-        matrix: canViewRolesTab,
-        sensitiveActions: canViewSensitiveActionsTab,
-        members: canViewUserPermissionsTab,
+        enabled:
+            (isRolesTabActive && canViewRolesTab) ||
+            (isSensitiveActionsTabActive && canViewSensitiveActionsTab) ||
+            (isUserPermissionsTabActive && canViewUserPermissionsTab),
+        matrix: isRolesTabActive && canViewRolesTab,
+        sensitiveActions: isSensitiveActionsTabActive && canViewSensitiveActionsTab,
+        members: isUserPermissionsTabActive && canViewUserPermissionsTab,
     });
 
     const isRoleAllowed = useCallback((role: string, permissionCode: string) => {
