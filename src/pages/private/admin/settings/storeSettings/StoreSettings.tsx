@@ -14,7 +14,7 @@ import { TEMPLATE_PRIVACY_POLICY, TEMPLATE_TERMS_OF_USE, TEMPLATE_COOKIE_POLICY 
 import { getActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission } from '@/utils/permissions';
+// import { hasEffectivePermission } from '@/utils/permissions';
 
 // Import sub-pages
 import CommercialSettingsPage from '@/pages/private/admin/commercial/settings/CommercialSettingsPage';
@@ -33,6 +33,41 @@ const SETTINGS_TABS = [
   { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
   { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
 ] as const;
+
+const settingsTabPermissions = {
+    store: {
+        view: ['settings.store.view'],
+        manage: ['settings.store.manage'],
+    },
+    commercial: {
+        view: ['settings.commercial.view'],
+        manage: ['settings.commercial.manage'],
+    },
+    orders: {
+        view: ['settings.orders.view'],
+        manage: ['settings.orders.manage'],
+    },
+    stock: {
+        view: ['settings.stock.view'],
+        manage: ['settings.stock.manage'],
+    },
+    delivery: {
+        view: ['settings.delivery.view'],
+        manage: ['settings.delivery.manage'],
+    },
+    payment: {
+        view: ['settings.payment.view'],
+        manage: ['settings.payment.manage'],
+    },
+    legal: {
+        view: ['settings.legal.view'],
+        manage: ['settings.legal.manage'],
+    },
+    system: {
+        view: ['settings.system.view'],
+        manage: ['settings.system.manage'],
+    },
+} as const;
 
 
 // Helper to get initials
@@ -77,41 +112,87 @@ export default function StoreSettings() {
     const fallbackStoreId = securityContext?.primary_membership?.store_id ?? null;
     const activeStoreId = activeStoreIdFromStorage ?? fallbackStoreId;
 
-    const { permissions, loading: loadingPermissions } = usePermissions(activeStoreId);
+    const { permissions, loading: loadingPermissions, allowedPermissions } = usePermissions(activeStoreId);
 
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const activeTab = searchParams.get('tab') || 'store';
     const [activeStoreSubTab, setActiveStoreSubTab] = useState('corporate');
+    // const hasPermission = useCallback((key: string) => {
+    //     if (isOwner) return true;
+    //     if (loadingPermissions) return false;
+    //     return hasEffectivePermission(permissions, key);
+    // }, [permissions, loadingPermissions, isOwner]);
 
-    const hasPermission = useCallback((key: string) => {
+
+    const hasExplicitPermission = useCallback((key: string) => {
         if (isOwner) return true;
         if (loadingPermissions) return false;
-        return hasEffectivePermission(permissions, key);
-    }, [permissions, loadingPermissions, isOwner]);
 
-    const canAccessSettingsRoot = isOwner || hasPermission('settings.view');
+        const rawPermissions = permissions as unknown;
 
-    const canViewSettingsTab = useCallback((tabId: string) => {
+        if (Array.isArray(allowedPermissions)) {
+            return allowedPermissions.includes(key);
+        }
+
+        if (Array.isArray(rawPermissions)) {
+            return rawPermissions.some((item) => {
+                if (typeof item === 'string') return item === key;
+
+                if (
+                    item &&
+                    typeof item === 'object' &&
+                    'permission_code' in item &&
+                    'allowed' in item
+                ) {
+                    return (
+                        String((item as { permission_code: unknown }).permission_code) === key &&
+                        Boolean((item as { allowed: unknown }).allowed)
+                    );
+                }
+
+                return false;
+            });
+        }
+
+        if (rawPermissions && typeof rawPermissions === 'object') {
+            const value = (rawPermissions as Record<string, unknown>)[key];
+
+            if (typeof value === 'boolean') return value;
+
+            if (value && typeof value === 'object' && 'allowed' in value) {
+                return Boolean((value as { allowed: unknown }).allowed);
+            }
+        }
+
+        return false;
+    }, [isOwner, permissions, allowedPermissions, loadingPermissions]);
+
+    const canAccessSettingsRoot = isOwner || hasExplicitPermission('settings.view');
+    const canViewSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
+        if (!canAccessSettingsRoot) return false;
         if (isOwner) return true;
-        const tab = SETTINGS_TABS.find(t => t.id === tabId);
-        if (!tab) return false;
-        return hasPermission('settings.view') && hasPermission(tab.permissionView);
-    }, [isOwner, hasPermission]);
 
-    const canManageSettingsTab = useCallback((tabId: string) => {
-        if (!canViewSettingsTab(tabId)) return false;
+        return settingsTabPermissions[tab].view.some((permission) =>
+            hasExplicitPermission(permission)
+        );
+    }, [canAccessSettingsRoot, isOwner, hasExplicitPermission]);
+
+    const canManageSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
+        if (!canViewSettingsTab(tab)) return false;
         if (isOwner) return true;
-        const tab = SETTINGS_TABS.find(t => t.id === tabId);
-        if (!tab) return false;
-        return hasPermission('settings.manage') && hasPermission(tab.permissionManage);
-    }, [canViewSettingsTab, isOwner, hasPermission]);
+
+        return (
+            hasExplicitPermission('settings.manage') ||
+            settingsTabPermissions[tab].manage.some((permission) =>
+                hasExplicitPermission(permission)
+            )
+        );
+    }, [canViewSettingsTab, isOwner, hasExplicitPermission]);
 
     const visibleSettingsTabs = useMemo(() => {
         if (loadingPermissions) return [];
-        return SETTINGS_TABS.filter((tab) =>
-            canViewSettingsTab(tab.id)
-        );
+        return SETTINGS_TABS.filter((tab) => canViewSettingsTab(tab.id as keyof typeof settingsTabPermissions));
     }, [canViewSettingsTab, loadingPermissions]);
 
     const canManageStore = useMemo(() => canManageSettingsTab('store'), [canManageSettingsTab]);
@@ -119,8 +200,14 @@ export default function StoreSettings() {
     const canManageSystem = useMemo(() => canManageSettingsTab('system'), [canManageSettingsTab]);
 
     const canManageSettings = useMemo(() => {
-        return activeTab ? canManageSettingsTab(activeTab) : false;
+        return activeTab ? canManageSettingsTab(activeTab as keyof typeof settingsTabPermissions) : false;
     }, [activeTab, canManageSettingsTab]);
+    // const canAccessRequestedTab = useMemo(() => {
+    //     const tabKey = activeTab as keyof typeof settingsTabPermissions;
+    //     if (!(tabKey in settingsTabPermissions)) return true;
+    //     return canViewSettingsTab(tabKey);
+    // }, [activeTab, canViewSettingsTab]);
+
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState('');
@@ -166,28 +253,38 @@ export default function StoreSettings() {
         dpo_contact: ''
     });
 
+    const setActiveTab = useCallback((next: string) => {
+        navigate(`/admin/settings?tab=${next}`, { replace: true });
+    }, [navigate]);
+
     useEffect(() => {
         if (loadingSecurityContext || loadingPermissions) return;
-        if (!activeTab) return;
 
-        const currentTab = SETTINGS_TABS.find((tab) => tab.id === activeTab);
-        if (!currentTab) return;
-
-        const canViewCurrentTab =
-            isOwner || (
-                hasPermission('settings.view') &&
-                hasPermission(currentTab.permissionView)
-            );
-
-        if (!canViewCurrentTab) {
-            const fallbackTab = visibleSettingsTabs[0];
-
-            navigate(
-                fallbackTab ? `/admin/settings?tab=${fallbackTab.id}` : '/admin/my-profile',
-                { replace: true }
-            );
+        if (!canAccessSettingsRoot) {
+            navigate('/admin/my-profile', { replace: true });
+            return;
         }
-    }, [activeTab, visibleSettingsTabs, hasPermission, navigate, loadingSecurityContext, loadingPermissions, isOwner]);
+
+        const currentAllowed = visibleSettingsTabs.some((tab) => tab.id === activeTab);
+
+        if (!currentAllowed) {
+            const firstAllowedTab = visibleSettingsTabs[0];
+
+            if (firstAllowedTab) {
+                setActiveTab(firstAllowedTab.id);
+            } else {
+                navigate('/admin/my-profile', { replace: true });
+            }
+        }
+    }, [
+        loadingSecurityContext,
+        loadingPermissions,
+        canAccessSettingsRoot,
+        activeTab,
+        visibleSettingsTabs,
+        navigate,
+        setActiveTab,
+    ]);
 
     useEffect(() => {
         if (!loadingSecurityContext) {
@@ -460,8 +557,8 @@ export default function StoreSettings() {
         e.preventDefault();
         setMessage('');
 
-        if (!canManageSettings) {
-            toast.error('Você não tem permissão para editar os dados da loja.');
+        if (!canManageSettingsTab(activeTab as keyof typeof settingsTabPermissions)) {
+            toast.error('Você não tem permissão para editar esta configuração.');
             return;
         }
 

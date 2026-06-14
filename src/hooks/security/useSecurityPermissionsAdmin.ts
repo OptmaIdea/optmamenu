@@ -68,7 +68,22 @@ function normalizePermissionMatrixRows(data: unknown): StorePermissionMatrixRow[
   }));
 }
 
-export function useSecurityPermissionsAdmin(enabled = true) {
+type UseSecurityPermissionsAdminOptions =
+  | boolean
+  | {
+      enabled?: boolean;
+      matrix?: boolean;
+      sensitiveActions?: boolean;
+      members?: boolean;
+    };
+
+export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdminOptions = true) {
+  const enabled = typeof options === 'boolean' ? options : options.enabled ?? true;
+  const matrixEnabled = typeof options === 'boolean' ? options : options.matrix ?? enabled;
+  const sensitiveActionsEnabled =
+    typeof options === 'boolean' ? options : options.sensitiveActions ?? enabled;
+  const membersEnabled = typeof options === 'boolean' ? options : options.members ?? enabled;
+
   const [permissionMatrix, setPermissionMatrix] = useState<StorePermissionMatrixRow[]>([]);
   const [sensitiveActions, setSensitiveActions] = useState<StoreSensitiveActionMatrixRow[]>([]);
   const [memberPermissionDetail, setMemberPermissionDetail] = useState<StoreMemberPermissionDetailRow[]>([]);
@@ -324,10 +339,36 @@ export function useSecurityPermissionsAdmin(enabled = true) {
 
   useEffect(() => {
     if (!enabled) return;
-    void fetchPermissionMatrix();
-    void fetchSensitiveActions();
-    void fetchMembersForPermissions();
-  }, [enabled, fetchPermissionMatrix, fetchSensitiveActions, fetchMembersForPermissions]);
+
+    if (matrixEnabled) {
+      void fetchPermissionMatrix();
+    } else {
+      setPermissionMatrix([]);
+      setLoading((prev) => ({ ...prev, matrix: false }));
+    }
+
+    if (sensitiveActionsEnabled) {
+      void fetchSensitiveActions();
+    } else {
+      setSensitiveActions([]);
+      setLoading((prev) => ({ ...prev, sensitiveActions: false }));
+    }
+
+    if (membersEnabled) {
+      void fetchMembersForPermissions();
+    } else {
+      setMembersForPermissions([]);
+      setLoading((prev) => ({ ...prev, members: false }));
+    }
+  }, [
+    enabled,
+    matrixEnabled,
+    sensitiveActionsEnabled,
+    membersEnabled,
+    fetchPermissionMatrix,
+    fetchSensitiveActions,
+    fetchMembersForPermissions,
+  ]);
 
   return {
     storeId: currentStoreId,
@@ -338,11 +379,21 @@ export function useSecurityPermissionsAdmin(enabled = true) {
     loading,
     error,
     refresh: async () => {
-      await Promise.all([
-        fetchPermissionMatrix(),
-        fetchSensitiveActions(),
-        fetchMembersForPermissions(),
-      ]);
+      const tasks: Promise<void>[] = [];
+
+      if (matrixEnabled) {
+        tasks.push(fetchPermissionMatrix());
+      }
+
+      if (sensitiveActionsEnabled) {
+        tasks.push(fetchSensitiveActions());
+      }
+
+      if (membersEnabled) {
+        tasks.push(fetchMembersForPermissions());
+      }
+
+      await Promise.all(tasks);
     },
     updateRolePermission,
     updateRolePermissionsBulk,

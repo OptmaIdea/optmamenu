@@ -15,7 +15,7 @@ import type { SecurityLog } from '@/types';
 import type { StorePermissionMatrixRow, StoreCustomRole } from '@/types/security';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission } from '@/utils/permissions';
+// import { hasEffectivePermission } from '@/utils/permissions';
 import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
 import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermissionsAdmin';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
@@ -1400,33 +1400,75 @@ export default function Security() {
         getActionRequirement,
         refresh: refreshPermissions,
     } = usePermissions(currentStoreId);
+    // const hasPermission = useCallback((key: string) => {
+    //     return hasEffectivePermission(permissions, key);
+    // }, [permissions]);
 
-    const hasPermission = useCallback((key: string) => {
-        return hasEffectivePermission(permissions, key);
-    }, [permissions]);
+
+    const hasExplicitPermission = useCallback((key: string) => {
+        if (isOwner) return true;
+
+        const rawPermissions = permissions as unknown;
+
+        if (Array.isArray(allowedPermissions)) {
+            return allowedPermissions.includes(key);
+        }
+
+        if (Array.isArray(rawPermissions)) {
+            return rawPermissions.some((item) => {
+                if (typeof item === 'string') return item === key;
+
+                if (
+                    item &&
+                    typeof item === 'object' &&
+                    'permission_code' in item &&
+                    'allowed' in item
+                ) {
+                    return (
+                        String((item as { permission_code: unknown }).permission_code) === key &&
+                        Boolean((item as { allowed: unknown }).allowed)
+                    );
+                }
+
+                return false;
+            });
+        }
+
+        if (rawPermissions && typeof rawPermissions === 'object') {
+            const value = (rawPermissions as Record<string, unknown>)[key];
+
+            if (typeof value === 'boolean') return value;
+
+            if (value && typeof value === 'object' && 'allowed' in value) {
+                return Boolean((value as { allowed: unknown }).allowed);
+            }
+        }
+
+        return false;
+    }, [isOwner, permissions, allowedPermissions]);
 
 
-    const canAccessSecurityRoot = isOwner || hasPermission('security.view');
+    const canAccessSecurityRoot = isOwner || hasExplicitPermission('security.view');
     const canViewSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
         if (!canAccessSecurityRoot) return false;
         if (isOwner) return true;
 
         return securityTabPermissions[tab].view.some((permission) =>
-            hasPermission(permission)
+            hasExplicitPermission(permission)
         );
-    }, [canAccessSecurityRoot, isOwner, hasPermission]);
+    }, [canAccessSecurityRoot, isOwner, hasExplicitPermission]);
 
     const canManageSecurityTab = useCallback((tab: keyof typeof securityTabPermissions) => {
         if (!canViewSecurityTab(tab)) return false;
         if (isOwner) return true;
 
         return (
-            hasPermission('security.manage') ||
+            hasExplicitPermission('security.manage') ||
             securityTabPermissions[tab].manage.some((permission) =>
-                hasPermission(permission)
+                hasExplicitPermission(permission)
             )
         );
-    }, [canViewSecurityTab, isOwner, hasPermission]);
+    }, [canViewSecurityTab, isOwner, hasExplicitPermission]);
 
     const [searchParams, setSearchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -1446,13 +1488,28 @@ export default function Security() {
         return activeTab ? canManageSecurityTab(activeTab as keyof typeof securityTabPermissions) : false;
     }, [activeTab, canManageSecurityTab]);
 
+    const canAccessAdminPermissions = useMemo(() => {
+        const adminTabs: (keyof typeof securityTabPermissions)[] = [
+            'roles',
+            'custom_roles',
+            'user_permissions',
+            'sensitive_actions'
+        ];
+        return adminTabs.some((tab) => canViewSecurityTab(tab));
+    }, [canViewSecurityTab]);
+
     const canViewCustomRoles = useMemo(() => {
         return canViewSecurityTab('custom_roles');
     }, [canViewSecurityTab]);
+    // const requestedTab = tabFromUrl ?? 'context';
 
-    const canViewRolesTab = canViewSecurityTab('roles');
-    const canViewSensitiveActionsTab = canViewSecurityTab('sensitive_actions');
-    const canViewUserPermissionsTab = canViewSecurityTab('user_permissions');
+    // const canAccessRequestedSecurityTab = useMemo(() => {
+    //     const tabKey = requestedTab as keyof typeof securityTabPermissions;
+    //     if (!(tabKey in securityTabPermissions)) return true;
+    //     return canViewSecurityTab(tabKey);
+    // }, [requestedTab, canViewSecurityTab]);
+
+
 
     const {
         permissionMatrix,
@@ -1465,12 +1522,7 @@ export default function Security() {
         updateRolePermissionsBulk,
         updateSensitiveAction,
         fetchMemberPermissionDetail,
-    } = useSecurityPermissionsAdmin({
-        enabled: canViewRolesTab || canViewSensitiveActionsTab || canViewUserPermissionsTab,
-        matrix: canViewRolesTab,
-        sensitiveActions: canViewSensitiveActionsTab,
-        members: canViewUserPermissionsTab,
-    });
+    } = useSecurityPermissionsAdmin(canAccessAdminPermissions);
 
     const isRoleAllowed = useCallback((role: string, permissionCode: string) => {
         return getRolePermissionAllowed(permissionMatrix, role, permissionCode);
@@ -2372,7 +2424,6 @@ export default function Security() {
     ], [canViewSecurityTab]);
 
     const allowedTabs = useMemo(() => tabs.filter((tab) => tab.canAccess), [tabs]);
-
     useEffect(() => {
         if (loadingSecurityContext || loadingPermissions) return;
 
@@ -2381,14 +2432,13 @@ export default function Security() {
             return;
         }
 
-        const requestedTab =
-            tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl)
-                ? tabFromUrl
-                : 'context';
+        const requested = tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl)
+            ? tabFromUrl
+            : 'context';
 
-        const requestedTabAllowed = allowedTabs.some((tab) => tab.id === requestedTab);
+        const currentAllowed = allowedTabs.some((tab) => tab.id === requested);
 
-        if (!requestedTabAllowed) {
+        if (!currentAllowed) {
             const firstAllowedTab = allowedTabs[0];
 
             if (firstAllowedTab) {
@@ -2400,8 +2450,8 @@ export default function Security() {
             return;
         }
 
-        if (activeTab !== requestedTab) {
-            setActiveTabState(requestedTab);
+        if (requested !== activeTab) {
+            setActiveTabState(requested);
         }
     }, [
         loadingSecurityContext,
