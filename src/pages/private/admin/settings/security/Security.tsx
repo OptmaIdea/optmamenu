@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import PageContainer from '@/components/common/PageContainer';
@@ -1438,13 +1438,7 @@ export default function Security() {
         );
     }, [canViewSecurityTab, isStoreOwner, hasPermission]);
 
-    console.log('[SECURITY_TAB_DEBUG]', {
-        allowedPermissions,
-        rolesView: hasExplicitPermission('security.roles.view'),
-        rolesManage: hasPermission('security.roles.manage'),
-        securityManage: hasPermission('security.manage'),
-        canViewRolesTab: canViewSecurityTab('roles'),
-    });
+
 
 
 
