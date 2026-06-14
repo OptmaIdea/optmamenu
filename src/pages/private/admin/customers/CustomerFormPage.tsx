@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { ArrowLeft, Loader2, Save, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Customers360Service } from '@/services/customers360Service';
 
 function parseTags(value: string) {
@@ -14,6 +16,9 @@ function parseTags(value: string) {
 export default function CustomerFormPage() {
     const navigate = useNavigate();
     const { storeId, loading: loadingStore } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+
+    const canManageCustomers = hasPermission('customers.manage');
 
     const [fullName, setFullName] = useState('');
     const [phone, setPhone] = useState('');
@@ -30,6 +35,11 @@ export default function CustomerFormPage() {
 
     async function handleSubmit(event: React.FormEvent) {
         event.preventDefault();
+
+        if (!canManageCustomers) {
+            toast.error('Você não tem permissão para gerenciar clientes.');
+            return;
+        }
 
         if (!storeId) return;
 
@@ -248,14 +258,20 @@ export default function CustomerFormPage() {
                 </div>
 
                 <div className="mt-6 flex justify-end">
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                        Salvar cliente
-                    </button>
+                    {canManageCustomers ? (
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                            Salvar cliente
+                        </button>
+                    ) : (
+                        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                            Você não tem permissão para criar clientes.
+                        </p>
+                    )}
                 </div>
             </form>
         </div>

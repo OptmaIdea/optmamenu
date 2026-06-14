@@ -115,7 +115,7 @@ function formatPermissionModule(module: string): string {
 function formatPermissionAction(action: string): string {
     if (!action) return 'Ação';
     const labels: Record<string, string> = {
-        view: 'Ver',
+        view: 'Visualizar',
         create: 'Criar',
         update: 'Editar',
         delete: 'Excluir',
@@ -821,7 +821,7 @@ export function getRolePermissionAllowed(
 export function getPermissionActionLabel(permission: PermissionMatrixItem) {
     const code = permission.permission_code;
 
-    if (code.endsWith('.view')) return 'Ver';
+    if (code.endsWith('.view')) return 'Visualizar';
     if (code.endsWith('.manage')) return 'Gerenciar';
     if (code.endsWith('.create')) return 'Criar';
     if (code.endsWith('.confirm')) return 'Confirmar';
@@ -1191,7 +1191,7 @@ export const ROLE_PERMISSION_TREE = [
                     'dashboard.activity.view',
                     'dashboard.alerts.view',
                     'reports.view',
-                    'reports.export',
+                    // 'reports.export',
                 ],
             },
             {
@@ -1277,15 +1277,15 @@ export const ROLE_PERMISSION_TREE = [
                     'support.manage',
                 ],
             },
-            {
-                id: 'reports',
-                label: 'Relatórios',
-                accessPermission: 'reports.view',
-                permissions: [
-                    'reports.view',
-                    'reports.export',
-                ],
-            },
+            /*             {
+                            id: 'reports',
+                            label: 'Relatórios',
+                            accessPermission: 'reports.view',
+                            permissions: [
+                                'reports.view',
+                                // 'reports.export',
+                            ],
+                        }, */
         ],
     },
 ] as const;
@@ -1378,9 +1378,9 @@ export default function Security() {
     const [selectedGroupId, setSelectedGroupId] = useState<string>('settings_general');
 
     const [expandedMacroGroups, setExpandedMacroGroups] = useState<Record<string, boolean>>({
-        settings: true,
-        security: true,
-        operational: true,
+        settings: false,
+        security: false,
+        operational: false,
     });
 
     useEffect(() => {

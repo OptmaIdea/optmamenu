@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
     Customers360Service,
     type Customer360,
@@ -55,6 +56,9 @@ export default function CustomerLifecyclePage() {
     const navigate = useNavigate();
     const { customerId } = useParams();
     const { storeId, loading: loadingStore } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+
+    const canManageCustomers = hasPermission('customers.manage');
 
     const [data, setData] = useState<Customer360 | null>(null);
     const [loading, setLoading] = useState(true);
@@ -165,14 +169,16 @@ export default function CustomerLifecyclePage() {
                         </div>
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                        <Edit3 size={18} />
-                        Editar
-                    </button>
+                    {canManageCustomers && !isProtected && (
+                        <button
+                            type="button"
+                            onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                            <Edit3 size={18} />
+                            Editar
+                        </button>
+                    )}
                 </div>
             </div>
 

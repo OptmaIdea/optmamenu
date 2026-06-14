@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import PageContainer from '@/components/common/PageContainer';
 import {
     Customers360Service,
@@ -73,6 +74,10 @@ function getOwnershipClass(customer: CustomerListItem) {
 export default function Customers() {
     const navigate = useNavigate();
     const { storeId, loading: loadingStore } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+
+    const canViewCustomers = hasPermission('customers.view');
+    const canManageCustomers = hasPermission('customers.manage');
 
     const [customers, setCustomers] = useState<CustomerListItem[]>([]);
     const [loading, setLoading] = useState(true);
@@ -168,14 +173,16 @@ export default function Customers() {
             icon={<Users size={28} className="text-[#21A896]" />}
             onRefresh={loadCustomers}
             action={
-                <button
-                    type="button"
-                    onClick={() => navigate('/admin/customers/new')}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1b8f80]"
-                >
-                    <Plus size={18} />
-                    Novo cliente
-                </button>
+                canManageCustomers ? (
+                    <button
+                        type="button"
+                        onClick={() => navigate('/admin/customers/new')}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1b8f80]"
+                    >
+                        <Plus size={18} />
+                        Novo cliente
+                    </button>
+                ) : undefined
             }
             flat
         >
@@ -341,14 +348,28 @@ export default function Customers() {
                                         </td>
 
                                         <td className="px-4 py-3 text-right">
-                                            <button
-                                                type="button"
-                                                onClick={() => navigate(`/admin/customers/${customer.id}`)}
-                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                            >
-                                                <Eye size={15} />
-                                                Vida do cliente
-                                            </button>
+                                            <div className="flex items-center justify-end gap-2">
+                                                {canViewCustomers && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate(`/admin/customers/${customer.id}`)}
+                                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                    >
+                                                        <Eye size={15} />
+                                                        Vida do cliente
+                                                    </button>
+                                                )}
+
+                                                {canManageCustomers && customer.data_ownership !== 'customer_owned' && customer.editable_by_store !== false && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}
+                                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                    >
+                                                        Editar
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}

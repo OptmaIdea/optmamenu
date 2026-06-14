@@ -9,7 +9,9 @@ import {
     UserRound,
 } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import {
     Customers360Service,
     type Customer360,
@@ -34,6 +36,9 @@ export default function CustomerEditPage() {
     const navigate = useNavigate();
     const { customerId } = useParams();
     const { storeId, loading: loadingStore } = useCurrentStore();
+    const { hasPermission } = usePermissions(storeId ?? null);
+
+    const canManageCustomers = hasPermission('customers.manage');
 
     const [data, setData] = useState<Customer360 | null>(null);
     const [loading, setLoading] = useState(true);
@@ -104,6 +109,16 @@ export default function CustomerEditPage() {
 
     async function handleSubmit(event: React.FormEvent) {
         event.preventDefault();
+
+        if (!canManageCustomers) {
+            toast.error('Você não tem permissão para gerenciar clientes.');
+            return;
+        }
+
+        if (isProtected) {
+            toast.error('Este cliente foi criado pelo canal público e não pode ter dados pessoais editados pela administração.');
+            return;
+        }
 
         if (!storeId || !customerId) return;
 
@@ -423,14 +438,22 @@ export default function CustomerEditPage() {
                         Cancelar
                     </button>
 
-                    <button
-                        type="submit"
-                        disabled={saving}
-                        className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                        Salvar alterações
-                    </button>
+                    {canManageCustomers && !isProtected ? (
+                        <button
+                            type="submit"
+                            disabled={saving}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                            Salvar alterações
+                        </button>
+                    ) : (
+                        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
+                            {!canManageCustomers
+                                ? 'Você não tem permissão para salvar alterações.'
+                                : 'Dados pessoais protegidos. Apenas campos internos podem ser alterados.'}
+                        </p>
+                    )}
                 </div>
             </form>
         </div>
