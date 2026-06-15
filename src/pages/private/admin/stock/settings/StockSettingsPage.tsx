@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
     AlertTriangle,
     Boxes,
@@ -335,6 +336,11 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
 
     async function handleSave() {
         if (!storeId || !selectedProductId) return;
+
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
 
         if (toStockInteger(maxStock, 0) < toStockInteger(minStock, 0)) {
             setError('O estoque máximo global não pode ser menor que o mínimo global.');
@@ -784,6 +790,20 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                             </div>
                         )}
                     </section>
+
+                    {withoutHeader && !disabled && (
+                        <div className="mt-6 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={saving || !selectedProductId || loadingRules}
+                                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-green text-white px-6 py-3 text-sm font-bold hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                                Salvar configurações de estoque
+                            </button>
+                        </div>
+                    )}
                 </main>
             </div>
         </PageContainer>

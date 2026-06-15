@@ -1,4 +1,4 @@
-﻿import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo, useLayoutEffect, useCallback } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -10,7 +10,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission, hasAnyEffectivePermission } from '@/utils/permissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import { useIdleSessionTimeout } from '@/hooks/useIdleSessionTimeout';
@@ -66,8 +66,10 @@ type MenuItem = {
     path: string;
     icon: LucideIcon;
     label: string;
-    permission?: string | string[];
+    permission?: string;
+    permissions?: string[];
     queryString?: string;
+    alwaysVisible?: boolean;
 };
 
 type MenuSection = Record<string, MenuItem[]>;
@@ -153,17 +155,6 @@ export default function PrivateLayout() {
 
     const isOwner = activeMembership?.role === 'owner';
 
-    const can = useCallback((permissionCode: string | string[]) => {
-        if (activeMembership?.role === 'owner') return true;
-        if (loadingPermissions) return false;
-
-        if (Array.isArray(permissionCode)) {
-            return hasAnyEffectivePermission(permissions, permissionCode);
-        }
-
-        return hasEffectivePermission(permissions, permissionCode);
-    }, [activeMembership?.role, loadingPermissions, permissions]);
-
     const hasPermission = useCallback((key: string) => {
         if (activeMembership?.role === 'owner') return true;
         if (loadingPermissions) return false;
@@ -171,12 +162,20 @@ export default function PrivateLayout() {
         return hasEffectivePermission(permissions, key);
     }, [permissions, loadingPermissions, activeMembership?.role]);
 
+    const can = useCallback((permissionCode: string | string[]) => {
+        if (Array.isArray(permissionCode)) {
+            return permissionCode.every((code) => hasPermission(code));
+        }
+
+        return hasPermission(permissionCode);
+    }, [hasPermission]);
+
     const SECTION_ACCESS_PERMISSIONS: Record<string, string | null> = {
         dashboard: 'dashboard.view',
         commercial: 'commercial.view',
         financial: 'financial.view',
         products: 'products.view',
-        settings: null,
+        settings: 'settings.view',
         support: 'support.view',
     };
 
@@ -200,31 +199,51 @@ export default function PrivateLayout() {
         }
 
         if (item.path === '/admin/settings') {
+            if (item.alwaysVisible) return true;
+
+            if (item.permissions?.length) {
+                return can(item.permissions);
+            }
+
             const tabParam = item.queryString?.split('tab=')[1];
+
             if (!tabParam) {
                 return hasPermission('settings.view');
             }
+
             const viewKey = `settings.${tabParam}.view`;
+
             return hasPermission('settings.view') && hasPermission(viewKey);
         }
 
         if (item.path === '/admin/security') {
-            const tabParam = item.queryString?.split('tab=')[1];
-            if (!tabParam) {
-                return hasPermission('security.view');
+            if (item.alwaysVisible) return true;
+
+            if (item.permissions?.length) {
+                return can(item.permissions);
             }
-            const viewKey = `security.${tabParam}.view`;
-            return hasPermission('security.view') && hasPermission(viewKey);
+
+            if (item.permission) {
+                return can(item.permission);
+            }
+
+            return hasPermission('security.view');
         }
 
-        if (!item.permission) return true;
-        return can(item.permission);
-    }, [
-        isOnboardingPending,
-        isOwner,
-        hasPermission,
-        can,
-    ]);
+        if (item.alwaysVisible) {
+            return true;
+        }
+
+        if (item.permissions?.length) {
+            return can(item.permissions);
+        }
+
+        if (item.permission) {
+            return can(item.permission);
+        }
+
+        return true;
+    }, [isOnboardingPending, isOwner, hasPermission, can]);
 
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -246,6 +265,20 @@ export default function PrivateLayout() {
     const [popoverTimeoutId, setPopoverTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     const navigationItems = useMemo<MenuSection>(() => ({
+        personal: [
+            {
+                path: '/admin/my-profile',
+                icon: UserCircle,
+                label: 'Meus Dados',
+                alwaysVisible: true,
+            },
+            {
+                path: '/admin/my-history',
+                icon: ScrollText,
+                label: 'Meu Histórico',
+                alwaysVisible: true,
+            },
+        ],
         dashboard: [
             { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
             { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'dashboard.activity.view' },
@@ -260,14 +293,14 @@ export default function PrivateLayout() {
                 queryString: 'tab=payment',
                 icon: WalletCards,
                 label: 'Pagamentos',
-                permission: 'settings.payment.view'
+                permissions: ['settings.view', 'settings.payment.view']
             },
             {
                 path: '/admin/settings',
                 queryString: 'tab=delivery',
                 icon: Truck,
                 label: 'Entregas',
-                permission: 'settings.delivery.view'
+                permissions: ['settings.view', 'settings.delivery.view']
             },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.view' },
             {
@@ -275,7 +308,7 @@ export default function PrivateLayout() {
                 queryString: 'tab=commercial',
                 icon: Settings,
                 label: 'Configurações comerciais',
-                permission: 'settings.commercial.view'
+                permissions: ['settings.view', 'settings.commercial.view']
             },
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
@@ -301,41 +334,52 @@ export default function PrivateLayout() {
                 queryString: 'tab=stock',
                 icon: SlidersHorizontal,
                 label: 'Configurações de Estoque',
-                permission: 'settings.stock.view'
+                permissions: ['settings.view', 'settings.stock.view']
+            },
+        ],
+        team: [
+            {
+                path: '/admin/users',
+                icon: Users,
+                label: 'Usuários',
+                permission: 'users.view',
             },
         ],
         settings: [
-            { path: '/admin/my-profile', icon: UserCircle, label: 'Meus Dados' },
-            { path: '/admin/my-history', icon: ScrollText, label: 'Meu Histórico' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=store',
                 icon: Building,
                 label: 'Dados da Loja',
-                permission: 'settings.store.view'
+                permissions: ['settings.view', 'settings.store.view']
             },
             {
                 path: '/admin/settings',
                 queryString: 'tab=orders',
                 icon: Smartphone,
                 label: 'Pedido Online',
-                permission: 'settings.orders.view'
+                permissions: ['settings.view', 'settings.orders.view']
             },
-            { path: '/admin/users', icon: Users, label: 'Usuários', permission: 'users.view' },
-            { path: '/admin/hours', icon: Clock, label: 'Horários', permission: 'settings.store.view' },
-            { path: '/admin/messages', icon: MessageCircle, label: 'Mensagens', permission: 'messages.view' },
+            { path: '/admin/hours', icon: Clock, label: 'Horários', permissions: ['settings.view', 'settings.store.view'] },
+            {
+                path: '/admin/settings',
+                queryString: 'tab=messages',
+                icon: MessageCircle,
+                label: 'Mensagens',
+                permissions: ['settings.view', 'messages.view'],
+            },
             {
                 path: '/admin/settings',
                 queryString: 'tab=payment',
                 icon: CreditCard,
                 label: 'Pagamento',
-                permission: 'settings.payment.view'
+                permissions: ['settings.view', 'settings.payment.view']
             },
             {
                 path: '/admin/security',
                 icon: Shield,
                 label: 'Senhas e Acesso',
-                permission: 'security.view',
+                permissions: ['settings.view', 'security.view']
             },
         ],
         support: [
@@ -347,10 +391,12 @@ export default function PrivateLayout() {
 
     const SIDEBAR_GROUPS_STORAGE_KEY = 'optmamenu.sidebar.groups';
     const defaultOpenSections = {
+        personal: true,
         dashboard: true,
         commercial: false,
         financial: false,
         products: false,
+        team: false,
         settings: false,
         support: false,
     };
@@ -850,10 +896,12 @@ export default function PrivateLayout() {
         setOpenSections((prev) => {
             const isOpening = !prev[section];
             const next = {
+                personal: false,
                 dashboard: false,
                 commercial: false,
                 financial: false,
                 products: false,
+                team: false,
                 settings: false,
                 support: false,
             };
@@ -1040,7 +1088,7 @@ export default function PrivateLayout() {
                                     isMenuItemVisible(section, item)
                                 );
 
-                                if (!visibleItems.length) {
+                                if (visibleItems.length === 0) {
                                     return null;
                                 }
 
@@ -1057,10 +1105,12 @@ export default function PrivateLayout() {
                                                     }`}
                                             >
                                                 <span>
+                                                    {section === 'personal' && 'Pessoal'}
                                                     {section === 'dashboard' && 'Dashboard'}
                                                     {section === 'commercial' && 'Comercial'}
                                                     {section === 'financial' && 'Financeiro'}
                                                     {section === 'products' && 'Produtos'}
+                                                    {section === 'team' && 'Usuários e Equipe'}
                                                     {section === 'settings' && 'Configurações'}
                                                     {section === 'support' && 'Suporte'}
                                                 </span>

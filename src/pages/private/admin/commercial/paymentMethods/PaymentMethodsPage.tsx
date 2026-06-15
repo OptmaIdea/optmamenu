@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
+import { toast } from 'sonner';
 import {
     Banknote,
     CreditCard,
@@ -97,6 +98,11 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
         method: StorePaymentMethod,
         field: 'active' | 'public_enabled' | 'requires_proof' | 'requires_change_for' | 'affects_cashbook'
     ) {
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
+
         try {
             setSavingId(method.id);
 
@@ -176,7 +182,6 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                 {methods.map((method) => {
                     const Icon = METHOD_ICONS[method.code] || WalletCards;
                     const isSaving = savingId === method.id;
-                    const isBtnDisabled = disabled || isSaving;
 
                     return (
                         <div
@@ -216,47 +221,48 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                                         {METHOD_HINTS[method.code]}
                                     </p>
 
-                                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                        <button
-                                            type="button"
-                                            disabled={isBtnDisabled}
-                                            onClick={() => toggleMethod(method, 'active')}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                        >
-                                            {method.active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                                            {method.active ? 'Desativar' : 'Ativar'}
-                                        </button>
+                                    {!disabled && (
+                                        <div className="mt-4 grid grid-cols-2 gap-2">
+                                            <button
+                                                type="button"
+                                                disabled={isSaving}
+                                                onClick={() => toggleMethod(method, 'active')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            >
+                                                {method.active ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
+                                                {method.active ? 'Desativar' : 'Ativar'}
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            disabled={isBtnDisabled || !method.active}
-                                            onClick={() => toggleMethod(method, 'public_enabled')}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                        >
-                                            {method.public_enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}
-                                            {method.public_enabled ? 'Ocultar no público' : 'Exibir no público'}
-                                        </button>
+                                            <button
+                                                type="button"
+                                                disabled={isSaving || !method.active}
+                                                onClick={() => toggleMethod(method, 'public_enabled')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            >
+                                                {method.public_enabled ? 'Ocultar no público' : 'Exibir no público'}
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            disabled={isBtnDisabled}
-                                            onClick={() => toggleMethod(method, 'requires_proof')}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                        >
-                                            <ReceiptText size={18} />
-                                            {method.requires_proof ? 'Com comprovante' : 'Sem comprovante'}
-                                        </button>
+                                            <button
+                                                type="button"
+                                                disabled={isSaving}
+                                                onClick={() => toggleMethod(method, 'requires_proof')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            >
+                                                <ReceiptText size={18} />
+                                                {method.requires_proof ? 'Com comprovante' : 'Sem comprovante'}
+                                            </button>
 
-                                        <button
-                                            type="button"
-                                            disabled={isBtnDisabled}
-                                            onClick={() => toggleMethod(method, 'affects_cashbook')}
-                                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                        >
-                                            <WalletCards size={18} />
-                                            {method.affects_cashbook ? 'Entra no caixa' : 'Não entra no caixa'}
-                                        </button>
-                                    </div>
+                                            <button
+                                                type="button"
+                                                disabled={isSaving}
+                                                onClick={() => toggleMethod(method, 'affects_cashbook')}
+                                                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                            >
+                                                <WalletCards size={18} />
+                                                {method.affects_cashbook ? 'Entra no caixa' : 'Não entra no caixa'}
+                                            </button>
+                                        </div>
+                                    )}
 
                                     <div className="mt-4 flex flex-wrap gap-2">
                                         {method.public_enabled && (

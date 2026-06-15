@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import {
     ExternalLink,
     Loader2,
@@ -91,6 +92,11 @@ export default function CommercialSettingsPage({ withoutHeader = false, disabled
 
     async function handleSave() {
         if (!storeId) return;
+
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
 
         try {
             setSaving(true);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import {
     Save,
     Loader,
@@ -29,10 +30,11 @@ interface ColorInputProps {
     label: string;
     value?: string;
     placeholder: string;
+    disabled?: boolean;
     onChange: (newValue: string) => void;
 }
 
-const ColorInput = ({ label, value, placeholder, onChange }: ColorInputProps) => {
+const ColorInput = ({ label, value, placeholder, disabled = false, onChange }: ColorInputProps) => {
     const [localValue, setLocalValue] = useState(value?.replace('#', '') || '');
 
     useEffect(() => {
@@ -40,33 +42,46 @@ const ColorInput = ({ label, value, placeholder, onChange }: ColorInputProps) =>
     }, [value]);
 
     const handleBlur = () => {
+        if (disabled) return;
+
         let cleanHex = localValue.replace(/[^A-Fa-f0-9]/g, '').toUpperCase();
         if (cleanHex.length > 6) cleanHex = cleanHex.slice(0, 6);
         onChange('#' + cleanHex);
     };
 
     return (
-        <div className="flex flex-col gap-2">
+        <div
+            className="flex flex-col gap-2"
+            title={disabled ? 'Você não tem permissão para executar esta alteração.' : undefined}
+        >
             <label className="text-xs font-bold text-gray-500 uppercase">{label}</label>
             <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg border border-gray-200 dark:border-gray-600 focus-within:ring-2 focus-within:ring-brand-green">
                 <div className="relative">
                     <input
                         type="color"
                         value={value || '#000000'}
-                        onChange={(e) => onChange(e.target.value.toUpperCase())}
-                        className="h-10 w-10 rounded-lg cursor-pointer border-none bg-transparent"
+                        disabled={disabled}
+                        onChange={(e) => {
+                            if (disabled) return;
+                            onChange(e.target.value.toUpperCase());
+                        }}
+                        className="h-10 w-10 rounded-lg cursor-pointer border-none bg-transparent disabled:cursor-not-allowed disabled:opacity-60"
                     />
                 </div>
+
                 <div className="flex items-center flex-1">
                     <span className="text-gray-400 font-mono select-none">#</span>
                     <input
                         type="text"
                         value={localValue}
-                        onChange={(e) => setLocalValue(e.target.value)}
+                        disabled={disabled}
+                        onChange={(e) => {
+                            if (disabled) return;
+                            setLocalValue(e.target.value);
+                        }}
                         onBlur={handleBlur}
-                        className="w-full bg-transparent text-sm font-mono font-bold outline-none text-gray-700 dark:text-gray-200 uppercase p-1"
+                        className="w-full bg-transparent text-sm font-mono font-bold outline-none text-gray-700 dark:text-gray-200 uppercase p-1 disabled:cursor-not-allowed disabled:opacity-60"
                         placeholder={placeholder.replace('#', '')}
-                        maxLength={6}
                     />
                 </div>
             </div>
@@ -167,6 +182,12 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
 
     const handleSave = async () => {
         if (!storeId) return;
+
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
+
         setSaving(true);
         setMessage(null);
 
@@ -188,6 +209,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     };
 
     const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
         const fileExt = file.name.split('.').pop();
@@ -211,6 +236,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     };
 
     const handleBannerUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
         const fileExt = file.name.split('.').pop();
@@ -234,6 +263,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     };
 
     const handleAboutImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (disabled) {
+            toast.error('Você não tem permissão para executar esta alteração.');
+            return;
+        }
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
         const fileExt = file.name.split('.').pop();
@@ -380,10 +413,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                     </a>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <ColorInput label="Cor Principal (Header)" value={config.visual_color_primary} placeholder="#00D65F" onChange={(val) => setConfig({ ...config, visual_color_primary: val })} />
-                                    <ColorInput label="Cor de Fundo" value={config.visual_color_secondary} placeholder="#F9FAFB" onChange={(val) => setConfig({ ...config, visual_color_secondary: val })} />
-                                    <ColorInput label="Cor do Texto" value={config.visual_color_text} placeholder="#1F2937" onChange={(val) => setConfig({ ...config, visual_color_text: val })} />
-                                    <ColorInput label="Cor de Destaque" value={config.visual_color_highlight} placeholder="#FBBF24" onChange={(val) => setConfig({ ...config, visual_color_highlight: val })} />
+                                    <ColorInput label="Cor Principal (Header)" value={config.visual_color_primary} placeholder="#00D65F" disabled={disabled} onChange={(val) => setConfig({ ...config, visual_color_primary: val })} />
+                                    <ColorInput label="Cor de Fundo" value={config.visual_color_secondary} placeholder="#F9FAFB" disabled={disabled} onChange={(val) => setConfig({ ...config, visual_color_secondary: val })} />
+                                    <ColorInput label="Cor do Texto" value={config.visual_color_text} placeholder="#1F2937" disabled={disabled} onChange={(val) => setConfig({ ...config, visual_color_text: val })} />
+                                    <ColorInput label="Cor de Destaque" value={config.visual_color_highlight} placeholder="#FBBF24" disabled={disabled} onChange={(val) => setConfig({ ...config, visual_color_highlight: val })} />
                                 </div>
                             </section>
 

@@ -3750,9 +3750,31 @@ export default function Security() {
                                                                     <div className="flex flex-wrap gap-2 pt-1">
                                                                         {item.permissions.map((row) => {
                                                                             const code = row.permission_code;
-                                                                            const allowed = selectedRole === 'owner' ? true : Boolean(row[`${selectedRole}_allowed` as keyof StorePermissionMatrixRow]);
+                                                                            const columnKey = `${selectedRole}_allowed` as keyof StorePermissionMatrixRow;
+                                                                            const allowed = selectedRole === 'owner' ? true : Boolean(row[columnKey]);
+
+                                                                            const matchingViewPermissionCode = code.endsWith('.manage')
+                                                                                ? code.replace(/\.manage$/, '.view')
+                                                                                : null;
+
+                                                                            const matchingViewRow = matchingViewPermissionCode
+                                                                                ? permissionMatrix.find((permission) => permission.permission_code === matchingViewPermissionCode)
+                                                                                : null;
+
+                                                                            const matchingViewAllowed = matchingViewRow
+                                                                                ? selectedRole === 'owner'
+                                                                                    ? true
+                                                                                    : Boolean(matchingViewRow[columnKey])
+                                                                                : true;
+
                                                                             const canToggle = canToggleRolePermission(selectedRole, code);
-                                                                            const disabled = !canToggle;
+                                                                            const isBaseDisabled = !canToggle;
+
+                                                                            const manageDisabled =
+                                                                                code.endsWith('.manage') &&
+                                                                                !matchingViewAllowed;
+
+                                                                            const disabled = isBaseDisabled || manageDisabled;
                                                                             const actionLabelText = row.action_label || getPermissionActionLabel(row);
 
                                                                             return (
@@ -3773,6 +3795,11 @@ export default function Security() {
                                                                                         <X size={12} className="text-red-500" />
                                                                                     )}
                                                                                     <span>{actionLabelText}</span>
+                                                                                    {manageDisabled && !isBaseDisabled && (
+                                                                                        <span className="text-[10px] text-amber-500 dark:text-amber-400 italic ml-1">
+                                                                                            (Requer "Acessar")
+                                                                                        </span>
+                                                                                    )}
                                                                                 </button>
                                                                             );
                                                                         })}

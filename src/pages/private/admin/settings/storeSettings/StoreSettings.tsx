@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone } from 'lucide-react';
+import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone, MessageCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import bcrypt from 'bcryptjs';
@@ -14,7 +14,6 @@ import { TEMPLATE_PRIVACY_POLICY, TEMPLATE_TERMS_OF_USE, TEMPLATE_COOKIE_POLICY 
 import { getActiveStoreId, setActiveStoreId, resolveActiveMembership } from '@/utils/activeStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
-// import { hasEffectivePermission } from '@/utils/permissions';
 
 // Import sub-pages
 import CommercialSettingsPage from '@/pages/private/admin/commercial/settings/CommercialSettingsPage';
@@ -24,14 +23,15 @@ import Delivery from '@/pages/private/admin/delivery/Delivery';
 import PaymentMethodsPage from '@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage';
 
 const SETTINGS_TABS = [
-    { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
-    { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
-    { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
-    { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
-    { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
-    { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
-    { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
-    { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
+  { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
+  { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
+  { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
+  { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
+  { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
+  { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
+  { id: 'messages', label: 'Mensagens', icon: MessageCircle, permissionView: 'messages.view', permissionManage: 'messages.manage' },
+  { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
+  { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
 ] as const;
 
 const settingsTabPermissions = {
@@ -59,6 +59,10 @@ const settingsTabPermissions = {
         view: ['settings.payment.view'],
         manage: ['settings.payment.manage'],
     },
+    messages: {
+        view: ['messages.view'],
+        manage: ['messages.manage'],
+    },
     legal: {
         view: ['settings.legal.view'],
         manage: ['settings.legal.manage'],
@@ -69,6 +73,25 @@ const settingsTabPermissions = {
     },
 } as const;
 
+
+const NO_WRITE_PERMISSION_MESSAGE = 'Você não tem permissão para executar esta alteração.';
+
+function PermissionLockedWrapper({
+    locked,
+    children,
+}: {
+    locked: boolean;
+    children: React.ReactNode;
+}) {
+    return (
+        <div
+            title={locked ? NO_WRITE_PERMISSION_MESSAGE : undefined}
+            className={locked ? 'cursor-not-allowed' : undefined}
+        >
+            {children}
+        </div>
+    );
+}
 
 // Helper to get initials
 const getInitials = (name: string) => {
@@ -112,69 +135,49 @@ export default function StoreSettings() {
     const fallbackStoreId = securityContext?.primary_membership?.store_id ?? null;
     const activeStoreId = activeStoreIdFromStorage ?? fallbackStoreId;
 
-    const { permissions, loading: loadingPermissions, allowedPermissions } = usePermissions(activeStoreId);
+    const { loading: loadingPermissions, allowedPermissions } = usePermissions(activeStoreId);
 
-    const activeMembership = resolveActiveMembership(
+    const activeMembership = useMemo(() => {
+        const memberships = securityContext?.memberships ?? [];
+
+        if (activeStoreId) {
+            const membershipForActiveStore = memberships.find(
+                (membership) => membership.store_id === activeStoreId
+            );
+
+            if (membershipForActiveStore) {
+                return membershipForActiveStore;
+            }
+        }
+
+        return resolveActiveMembership(
+            securityContext?.memberships,
+            securityContext?.primary_membership
+        );
+    }, [
         securityContext?.memberships,
-        securityContext?.primary_membership
-    );
+        securityContext?.primary_membership,
+        activeStoreId,
+    ]);
+
     const isStoreOwner = activeMembership?.role === 'owner';
 
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const activeTab = searchParams.get('tab') || 'store';
     const [activeStoreSubTab, setActiveStoreSubTab] = useState('corporate');
-    // const hasPermission = useCallback((key: string) => {
-    //     if (isStoreOwner) return true;
-    //     if (loadingPermissions) return false;
-    //     return hasEffectivePermission(permissions, key);
-    // }, [permissions, loadingPermissions, isStoreOwner]);
-
-
     const hasExplicitPermission = useCallback((key: string) => {
         if (isStoreOwner) return true;
-        if (loadingPermissions) return false;
-
-        const rawPermissions = permissions as unknown;
 
         if (Array.isArray(allowedPermissions)) {
             return allowedPermissions.includes(key);
         }
 
-        if (Array.isArray(rawPermissions)) {
-            return rawPermissions.some((item) => {
-                if (typeof item === 'string') return item === key;
-
-                if (
-                    item &&
-                    typeof item === 'object' &&
-                    'permission_code' in item &&
-                    'allowed' in item
-                ) {
-                    return (
-                        String((item as { permission_code: unknown }).permission_code) === key &&
-                        Boolean((item as { allowed: unknown }).allowed)
-                    );
-                }
-
-                return false;
-            });
-        }
-
-        if (rawPermissions && typeof rawPermissions === 'object') {
-            const value = (rawPermissions as Record<string, unknown>)[key];
-
-            if (typeof value === 'boolean') return value;
-
-            if (value && typeof value === 'object' && 'allowed' in value) {
-                return Boolean((value as { allowed: unknown }).allowed);
-            }
-        }
-
         return false;
-    }, [isStoreOwner, permissions, allowedPermissions, loadingPermissions]);
+    }, [isStoreOwner, allowedPermissions]);
 
     const canAccessSettingsRoot = isStoreOwner || hasExplicitPermission('settings.view');
+
     const canViewSettingsTab = useCallback((tab: keyof typeof settingsTabPermissions) => {
         if (!canAccessSettingsRoot) return false;
         if (isStoreOwner) return true;
@@ -188,24 +191,20 @@ export default function StoreSettings() {
         if (!canViewSettingsTab(tab)) return false;
         if (isStoreOwner) return true;
 
-        return (
-            hasExplicitPermission('settings.manage') ||
-            settingsTabPermissions[tab].manage.some((permission) =>
-                hasExplicitPermission(permission)
-            )
+        return settingsTabPermissions[tab].manage.some((permission) =>
+            hasExplicitPermission(permission)
         );
     }, [canViewSettingsTab, isStoreOwner, hasExplicitPermission]);
 
-    const visibleSettingsTabs = useMemo(() => {
-        if (loadingPermissions) return [];
-        return SETTINGS_TABS.filter((tab) => canViewSettingsTab(tab.id as keyof typeof settingsTabPermissions));
-    }, [canViewSettingsTab, loadingPermissions]);
+    const allowedTabs = useMemo(() => {
+        if (loadingSecurityContext || loadingPermissions) return [];
 
-    const canManageStore = useMemo(() => canManageSettingsTab('store'), [canManageSettingsTab]);
-    const canManageLegal = useMemo(() => canManageSettingsTab('legal'), [canManageSettingsTab]);
-    const canManageSystem = useMemo(() => canManageSettingsTab('system'), [canManageSettingsTab]);
+        return SETTINGS_TABS.filter((tab) =>
+            canViewSettingsTab(tab.id as keyof typeof settingsTabPermissions)
+        );
+    }, [canViewSettingsTab, loadingSecurityContext, loadingPermissions]);
 
-    const canManageSettings = useMemo(() => {
+    const canManageCurrentTab = useMemo(() => {
         return activeTab ? canManageSettingsTab(activeTab as keyof typeof settingsTabPermissions) : false;
     }, [activeTab, canManageSettingsTab]);
     // const canAccessRequestedTab = useMemo(() => {
@@ -259,25 +258,27 @@ export default function StoreSettings() {
         dpo_contact: ''
     });
 
-    const setActiveTab = useCallback((next: string) => {
-        navigate(`/admin/settings?tab=${next}`, { replace: true });
-    }, [navigate]);
+
 
     useEffect(() => {
-        if (loadingSecurityContext || loadingPermissions) return;
+        if (loadingSecurityContext || loadingPermissions || !activeMembership) return;
 
         if (!canAccessSettingsRoot) {
             navigate('/admin/my-profile', { replace: true });
             return;
         }
 
-        const currentAllowed = visibleSettingsTabs.some((tab) => tab.id === activeTab);
+        const tabKey = activeTab as keyof typeof settingsTabPermissions;
 
-        if (!currentAllowed) {
-            const firstAllowedTab = visibleSettingsTabs[0];
+        const requestedAllowed =
+            tabKey in settingsTabPermissions &&
+            allowedTabs.some((tab) => tab.id === activeTab);
+
+        if (!requestedAllowed) {
+            const firstAllowedTab = allowedTabs[0];
 
             if (firstAllowedTab) {
-                setActiveTab(firstAllowedTab.id);
+                navigate(`/admin/settings?tab=${firstAllowedTab.id}`, { replace: true });
             } else {
                 navigate('/admin/my-profile', { replace: true });
             }
@@ -285,11 +286,11 @@ export default function StoreSettings() {
     }, [
         loadingSecurityContext,
         loadingPermissions,
+        activeMembership,
         canAccessSettingsRoot,
         activeTab,
-        visibleSettingsTabs,
+        allowedTabs,
         navigate,
-        setActiveTab,
     ]);
 
     useEffect(() => {
@@ -563,8 +564,8 @@ export default function StoreSettings() {
         e.preventDefault();
         setMessage('');
 
-        if (!canManageSettingsTab(activeTab as keyof typeof settingsTabPermissions)) {
-            toast.error('Você não tem permissão para editar esta configuração.');
+        if (!canManageCurrentTab) {
+            toast.error(NO_WRITE_PERMISSION_MESSAGE);
             return;
         }
 
@@ -610,7 +611,7 @@ export default function StoreSettings() {
         );
     }
 
-    if (visibleSettingsTabs.length === 0) {
+    if (allowedTabs.length === 0) {
         return (
             <AccessDenied message="Você tem acesso à área de Configurações, mas nenhuma aba foi liberada para seu perfil." />
         );
@@ -628,7 +629,7 @@ export default function StoreSettings() {
         >
             {/* Top-level Tabs Navigation */}
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 overflow-x-auto pb-3 mb-6">
-                {visibleSettingsTabs.map(tab => (
+                {allowedTabs.map(tab => (
                     <button
                         key={tab.id}
                         type="button"
@@ -646,11 +647,11 @@ export default function StoreSettings() {
             {/* Tab Contents */}
             {activeTab === 'store' && (
                 <div className="space-y-6">
-                    {!canManageStore && (
+                    {!canManageCurrentTab && (
                         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 animate-fadeIn">
                             Você pode visualizar estes dados, mas não possui permissão para alterá-los.
                         </div>
-                    )}
+                      )}
 
                     {message && (
                         <div className={`p-4 rounded-xl flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300' : 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'}`}>
@@ -672,7 +673,7 @@ export default function StoreSettings() {
                                 )}
 
                                 {/* Overlay for upload */}
-                                {canManageStore && (
+                                {canManageCurrentTab && (
                                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition cursor-pointer">
                                         <label htmlFor="logo-upload" className="cursor-pointer text-white font-bold text-xs flex flex-col items-center">
                                             <span className="mb-1">Alterar</span>
@@ -681,7 +682,7 @@ export default function StoreSettings() {
                                     </div>
                                 )}
                             </div>
-                            {canManageStore && (
+                            {canManageCurrentTab && (
                                 <label htmlFor="logo-upload" className="absolute bottom-0 right-0 bg-brand-green text-white p-2 rounded-full shadow-md cursor-pointer hover:brightness-110 transition">
                                     <User size={16} />
                                 </label>
@@ -692,7 +693,7 @@ export default function StoreSettings() {
                                 accept="image/*"
                                 className="hidden"
                                 onChange={handleLogoChange}
-                                disabled={!canManageStore}
+                                disabled={!canManageCurrentTab}
                             />
                         </div>
 
@@ -722,9 +723,9 @@ export default function StoreSettings() {
                                     value={userData?.name || ''}
                                     onChange={e => setUserData(prev => prev ? { ...prev, name: e.target.value } : null)}
                                     placeholder="Seu Nome"
-                                    disabled={!canManageStore}
+                                    disabled={!canManageCurrentTab}
                                 />
-                                {canManageStore && (
+                                {canManageCurrentTab && (
                                     <span className="text-xs text-brand-green cursor-pointer hover:underline" title="O nome será salvo ao clicar em 'Salvar Alterações'">Editar</span>
                                 )}
                             </div>
@@ -739,7 +740,8 @@ export default function StoreSettings() {
                         </div>
                     </section>
 
-                    <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fadeIn">
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fadeIn">
                         {/* Sub-tabs Header */}
                         <div className="flex border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
                             <button
@@ -774,7 +776,7 @@ export default function StoreSettings() {
                         {/* Tab Content */}
                         <div className="p-6 md:p-8">
                             {activeStoreSubTab === 'corporate' && (
-                                <CorporateTab store={store} setStore={setStore} disabled={!canManageStore} />
+                                <CorporateTab store={store} setStore={setStore} disabled={!canManageCurrentTab} />
                             )}
                             {activeStoreSubTab === 'address' && (
                                 <AddressTab
@@ -785,16 +787,16 @@ export default function StoreSettings() {
                                     loadingCities={loadingCities}
                                     searchingCep={searchingCep}
                                     handleZipLookup={handleZipLookup}
-                                    disabled={!canManageStore}
+                                    disabled={!canManageCurrentTab}
                                 />
                             )}
                             {activeStoreSubTab === 'contacts' && (
-                                <ContactsTab store={store} setStore={setStore} disabled={!canManageStore} />
+                                <ContactsTab store={store} setStore={setStore} disabled={!canManageCurrentTab} />
                             )}
                         </div>
 
                         {/* Save Button Area */}
-                        {canManageStore && (
+                        {canManageCurrentTab && (
                             <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end p-6 md:p-8">
                                 <button
                                     type="submit"
@@ -807,44 +809,75 @@ export default function StoreSettings() {
                                 </button>
                             </div>
                         )}
-                    </form>
+                        </form>
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {/* RENDER SUB-PAGES WITH withoutHeader=true */}
             {activeTab === 'commercial' && (
                 <div className="animate-fadeIn">
-                    <CommercialSettingsPage withoutHeader={true} disabled={!canManageSettings} />
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <CommercialSettingsPage withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {activeTab === 'orders' && (
                 <div className="animate-fadeIn">
-                    <Config withoutHeader={true} disabled={!canManageSettings} />
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <Config withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {activeTab === 'stock' && (
                 <div className="animate-fadeIn">
-                    <StockSettingsPage withoutHeader={true} disabled={!canManageSettings} />
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <StockSettingsPage withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {activeTab === 'delivery' && (
                 <div className="animate-fadeIn">
-                    <Delivery withoutHeader={true} disabled={!canManageSettings} />
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <Delivery withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {activeTab === 'payment' && (
                 <div className="animate-fadeIn">
-                    <PaymentMethodsPage withoutHeader={true} disabled={!canManageSettings} />
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <PaymentMethodsPage withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLockedWrapper>
+                </div>
+            )}
+
+            {activeTab === 'messages' && (
+                <div className="animate-fadeIn">
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
+                            <div className="flex items-center gap-3 mb-2">
+                                <MessageCircle className="text-[#21A896]" size={22} />
+                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                                    Configurações de Mensagens
+                                </h3>
+                            </div>
+
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                As configurações de mensagens serão organizadas nesta área. Por enquanto,
+                                a central de mensagens continua disponível no menu Comercial.
+                            </p>
+                        </div>
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {activeTab === 'legal' && (
                 <div className="space-y-6 animate-fadeIn">
-                    {!canManageLegal && (
+                    {!canManageCurrentTab && (
                         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
                             Você pode visualizar estes dados, mas não possui permissão para alterá-los.
                         </div>
@@ -857,18 +890,19 @@ export default function StoreSettings() {
                         </div>
                     )}
 
-                    <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden p-6 md:p-8">
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden p-6 md:p-8">
                         <LegalTab
                             store={store}
                             setStore={setStore}
                             templatePrivacyPolicy={TEMPLATE_PRIVACY_POLICY}
                             templateTermsOfUse={TEMPLATE_TERMS_OF_USE}
                             templateCookiePolicy={TEMPLATE_COOKIE_POLICY}
-                            disabled={!canManageLegal}
+                            disabled={!canManageCurrentTab}
                         />
 
                         {/* Save Button Area */}
-                        {canManageLegal && (
+                        {canManageCurrentTab && (
                             <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
                                 <button
                                     type="submit"
@@ -881,13 +915,14 @@ export default function StoreSettings() {
                                 </button>
                             </div>
                         )}
-                    </form>
+                        </form>
+                    </PermissionLockedWrapper>
                 </div>
             )}
 
             {activeTab === 'system' && (
                 <div className="space-y-6 animate-fadeIn">
-                    {!canManageSystem && (
+                    {!canManageCurrentTab && (
                         <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
                             Você pode visualizar estes dados, mas não possui permissão para alterá-los.
                         </div>
@@ -900,7 +935,8 @@ export default function StoreSettings() {
                         </div>
                     )}
 
-                    <form onSubmit={handleSave} className="space-y-6">
+                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                        <form onSubmit={handleSave} className="space-y-6">
                         <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
                             <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
                                 <UserCircle className="text-[#21A896]" size={20} /> Configurações de Sistema
@@ -914,7 +950,7 @@ export default function StoreSettings() {
                                         onChange={(e) => setStore({ ...store, sms_gateway_token: e.target.value })}
                                         placeholder="Insira o token do gateway de SMS"
                                         className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-brand-green outline-none transition disabled:opacity-60"
-                                        disabled={!canManageSystem}
+                                        disabled={!canManageCurrentTab}
                                     />
                                 </div>
                                 <div>
@@ -925,12 +961,12 @@ export default function StoreSettings() {
                                         onChange={(e) => setStockPassword(e.target.value)}
                                         placeholder="Deixe em branco para manter a atual"
                                         className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-brand-green outline-none transition disabled:opacity-60"
-                                        disabled={!canManageSystem}
+                                        disabled={!canManageCurrentTab}
                                     />
                                 </div>
                             </div>
                         </section>
-                        {canManageSystem && (
+                        {canManageCurrentTab && (
                             <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
                                 <button
                                     type="submit"
@@ -942,7 +978,8 @@ export default function StoreSettings() {
                                 </button>
                             </div>
                         )}
-                    </form>
+                        </form>
+                    </PermissionLockedWrapper>
                 </div>
             )}
         </PageContainer>
