@@ -2894,6 +2894,9 @@ export default function Security() {
         );
     }
 
+    const showInitialMatrixLoading = adminLoading.matrix && permissionMatrix.length === 0;
+    const showMatrixRefreshing = adminLoading.matrixRefreshing && permissionMatrix.length > 0;
+
     return (
         <PageContainer
             title="Senhas e Acesso"
@@ -3546,7 +3549,7 @@ export default function Security() {
                             </div>
                         )}
 
-                        {adminLoading.matrix ? (
+                        {showInitialMatrixLoading ? (
                             <div className="flex min-h-40 items-center justify-center rounded-xl border border-gray-100 dark:border-gray-700">
                                 <Loader className="animate-spin text-brand-green" />
                             </div>
@@ -3555,6 +3558,13 @@ export default function Security() {
                                 Nenhuma permissão configurada ou erro na leitura do banco.
                             </div>
                         ) : (
+                            <>
+                                {showMatrixRefreshing && (
+                                    <div className="mb-3 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5 animate-pulse">
+                                        <Loader size={12} className="animate-spin text-[#21A896]" />
+                                        <span>Atualizando permissões em segundo plano...</span>
+                                    </div>
+                                )}
                             /* Layout de 3 painéis Premium (Image 2 style) */
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                                 {/* Painel 1: Grupos de Permissão (Col 4) */}
@@ -3901,18 +3911,20 @@ export default function Security() {
                                     <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
                                         <button
                                             type="button"
+                                            disabled={adminLoading.saving}
                                             onClick={async () => {
                                                 toast.success('Configurações de permissões salvas com sucesso!');
                                                 await refreshAdmin();
                                             }}
-                                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition"
+                                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            <Save size={14} />
-                                            Salvar Alterações
+                                            {adminLoading.saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+                                            {adminLoading.saving ? 'Salvando...' : 'Salvar Alterações'}
                                         </button>
                                     </div>
                                 </div>
                             </div>
+                            </>
                         )}
                     </div>
 
@@ -4212,7 +4224,7 @@ export default function Security() {
                                             className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
                                             {adminLoading.saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
-                                            Salvar Permissões
+                                            {adminLoading.saving ? 'Salvando...' : 'Salvar Permissões'}
                                         </button>
                                     </div>
                                 )}
@@ -5286,11 +5298,12 @@ export default function Security() {
                                         <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
                                             <button
                                                 type="button"
+                                                disabled={saving}
                                                 onClick={() => saveSelectedCustomRole()}
-                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition"
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                             >
-                                                <Save size={14} />
-                                                Salvar Função
+                                                {saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+                                                {saving ? 'Salvando...' : 'Salvar Função'}
                                             </button>
                                         </div>
                                     )}
