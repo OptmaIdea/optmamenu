@@ -139,7 +139,7 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
-    const { permissions, loading: loadingPermissions, refresh: refreshPermissions } = usePermissions(storeId ?? null);
+    const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -157,10 +157,9 @@ export default function PrivateLayout() {
 
     const hasPermission = useCallback((key: string) => {
         if (activeMembership?.role === 'owner') return true;
-        if (loadingPermissions) return false;
 
         return hasEffectivePermission(permissions, key);
-    }, [permissions, loadingPermissions, activeMembership?.role]);
+    }, [permissions, activeMembership?.role]);
 
     const can = useCallback((permissionCode: string | string[]) => {
         if (Array.isArray(permissionCode)) {
@@ -645,14 +644,6 @@ export default function PrivateLayout() {
         }
         if (storeId) {
             list.push({
-                table: 'store_role_permissions',
-                filter: `store_id=eq.${storeId}`,
-            });
-            list.push({
-                table: 'store_role_permission_templates',
-                filter: `store_id=eq.${storeId}`,
-            });
-            list.push({
                 table: 'stores',
                 filter: `id=eq.${storeId}`,
             });
@@ -660,21 +651,24 @@ export default function PrivateLayout() {
         return list;
     }, [userId, activeMembership?.member_id, storeId]);
 
-    const debouncedOnChanged = useMemo(() => {
-        let timeoutId: any = null;
+    const debouncedContextRefresh = useMemo(() => {
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
         return () => {
-            if (timeoutId) clearTimeout(timeoutId);
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+
             timeoutId = setTimeout(() => {
-                refreshPermissions();
                 window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
-            }, 400);
+            }, 500);
         };
-    }, [refreshPermissions]);
+    }, []);
 
     useRealtimeListener({
-        channelName: `layout_user_rt_${userId || 'pending'}_${storeId || 'none'}`,
+        channelName: `layout_context_rt_${userId || 'pending'}_${storeId || 'none'}`,
         tables: realtimeTables,
-        onChanged: debouncedOnChanged,
+        onChanged: debouncedContextRefresh,
         enabled: !!userId,
     });
 
@@ -1082,6 +1076,11 @@ export default function PrivateLayout() {
                         )}
 
                         {/* Navigation Menu */}
+                        {loadingPermissions && (
+                            <div className="px-4 py-1 text-[10px] text-gray-400">
+                                Atualizando permissões...
+                            </div>
+                        )}
                         <nav className="space-y-4">
                             {Object.entries(navigationItems).map(([section, items]) => {
                                 const visibleItems = items.filter((item) =>

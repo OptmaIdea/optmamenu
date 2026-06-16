@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { notifyPermissionsChanged } from '@/utils/permissionEvents';
 import type {
   StoreMemberForPermissionsRow,
   StoreMemberPermissionDetailRow,
@@ -294,9 +295,11 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         throw rpcError;
       }
 
+      notifyPermissionsChanged(currentStoreId, 'member_permissions_update');
+
       await fetchMemberPermissionDetail(params.memberId, { silent: true });
     },
-    [fetchMemberPermissionDetail]
+    [currentStoreId, fetchMemberPermissionDetail]
   );
 
   const updateRolePermission = useCallback(
@@ -327,6 +330,8 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
       if (rpcError) {
         throw rpcError;
       }
+
+      notifyPermissionsChanged(currentStoreId, 'role_permission_update');
 
       await fetchPermissionMatrix({ silent: true });
     },
@@ -360,6 +365,8 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
       if (rpcError) {
         throw rpcError;
       }
+
+      notifyPermissionsChanged(currentStoreId, 'role_permissions_bulk_update');
 
       await fetchPermissionMatrix({ silent: true });
     },

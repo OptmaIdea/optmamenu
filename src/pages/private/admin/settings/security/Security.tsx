@@ -20,6 +20,7 @@ import { resolveActiveMembership, getActiveStoreId } from '@/utils/activeStore';
 import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermissionsAdmin';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
+import { notifyPermissionsChanged } from '@/utils/permissionEvents';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -1623,6 +1624,7 @@ export default function Security() {
             return;
         }
         toast.success('Função personalizada salva com sucesso.');
+        notifyPermissionsChanged(currentStoreId, 'custom_role_update');
         await refreshCustomRoles();
     }
 
@@ -1681,6 +1683,7 @@ export default function Security() {
             return;
         }
         toast.success('Função personalizada criada com sucesso.');
+        notifyPermissionsChanged(currentStoreId, 'custom_role_update');
         setIsCreateCustomRoleOpen(false);
         setNewCustomRoleName('');
         setNewCustomRoleDescription('');

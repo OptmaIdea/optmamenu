@@ -1,10 +1,15 @@
-import { useCallback, useEffect, useMemo/* , useRef */, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     getEffectiveStorePermissions,
     getSensitiveActionRequirement,
     userHasStorePermission,
 } from '@/services/permissionService';
+import {
+    PERMISSIONS_CHANGED_EVENT,
+    PERMISSIONS_CHANGED_STORAGE_KEY,
+    type PermissionsChangedPayload,
+} from '@/utils/permissionEvents';
 import type {
     EffectiveStorePermission,
     SensitiveActionRequirementResult,
@@ -69,11 +74,38 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
 
             refreshTimer = setTimeout(() => {
                 void refresh();
-            }, 500);
+            }, 400);
         };
 
+        const handleLocalPermissionEvent = (event: Event) => {
+            const detail = (event as CustomEvent<PermissionsChangedPayload>).detail;
+
+            if (!detail?.storeId || detail.storeId === storeId) {
+                scheduleRefresh();
+            }
+        };
+
+        const handleStorageEvent = (event: StorageEvent) => {
+            if (event.key !== PERMISSIONS_CHANGED_STORAGE_KEY || !event.newValue) {
+                return;
+            }
+
+            try {
+                const payload = JSON.parse(event.newValue) as PermissionsChangedPayload;
+
+                if (!payload?.storeId || payload.storeId === storeId) {
+                    scheduleRefresh();
+                }
+            } catch {
+                // noop
+            }
+        };
+
+        window.addEventListener(PERMISSIONS_CHANGED_EVENT, handleLocalPermissionEvent);
+        window.addEventListener('storage', handleStorageEvent);
+
         const channel = supabase
-            .channel(`permissions:${storeId}`)
+            .channel(`effective-permissions:${storeId}`)
             .on(
                 'postgres_changes',
                 {
@@ -110,6 +142,9 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
             if (refreshTimer) {
                 clearTimeout(refreshTimer);
             }
+
+            window.removeEventListener(PERMISSIONS_CHANGED_EVENT, handleLocalPermissionEvent);
+            window.removeEventListener('storage', handleStorageEvent);
 
             void supabase.removeChannel(channel);
         };
