@@ -10,9 +10,13 @@ import type {
 
 type LoadingState = {
   matrix: boolean;
+  matrixRefreshing: boolean;
   sensitiveActions: boolean;
+  sensitiveActionsRefreshing: boolean;
   members: boolean;
+  membersRefreshing: boolean;
   memberDetail: boolean;
+  memberDetailRefreshing: boolean;
   saving: boolean;
 };
 
@@ -90,24 +94,38 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
   const [membersForPermissions, setMembersForPermissions] = useState<StoreMemberForPermissionsRow[]>([]);
   const [loading, setLoading] = useState<LoadingState>({
     matrix: true,
+    matrixRefreshing: false,
     sensitiveActions: true,
+    sensitiveActionsRefreshing: false,
     members: true,
+    membersRefreshing: false,
     memberDetail: false,
+    memberDetailRefreshing: false,
     saving: false,
   });
   const [error, setError] = useState<string | null>(null);
 
   const currentStoreId = useMemo(() => getActiveStoreId(), []);
 
-  const fetchPermissionMatrix = useCallback(async () => {
+  const fetchPermissionMatrix = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
     if (!currentStoreId) {
       setPermissionMatrix([]);
-      setLoading((prev) => ({ ...prev, matrix: false }));
+      setLoading((prev) => ({
+        ...prev,
+        matrix: false,
+        matrixRefreshing: false,
+      }));
       return;
     }
 
     setError(null);
-    setLoading((prev) => ({ ...prev, matrix: true }));
+    setLoading((prev) => ({
+      ...prev,
+      matrix: silent ? prev.matrix : true,
+      matrixRefreshing: silent,
+    }));
 
     const { data, error: rpcError } = await supabase.rpc('get_store_permission_matrix_v3', {
       p_store_id: currentStoreId,
@@ -115,25 +133,41 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
 
     if (rpcError) {
       setError(rpcError.message);
-      setPermissionMatrix([]);
+      if (!silent) {
+        setPermissionMatrix([]);
+      }
     } else {
       const rows = normalizePermissionMatrixRows(data);
       rows.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'pt-BR'));
       setPermissionMatrix(rows);
     }
 
-    setLoading((prev) => ({ ...prev, matrix: false }));
+    setLoading((prev) => ({
+      ...prev,
+      matrix: false,
+      matrixRefreshing: false,
+    }));
   }, [currentStoreId]);
 
-  const fetchSensitiveActions = useCallback(async () => {
+  const fetchSensitiveActions = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
     if (!currentStoreId) {
       setSensitiveActions([]);
-      setLoading((prev) => ({ ...prev, sensitiveActions: false }));
+      setLoading((prev) => ({
+        ...prev,
+        sensitiveActions: false,
+        sensitiveActionsRefreshing: false,
+      }));
       return;
     }
 
     setError(null);
-    setLoading((prev) => ({ ...prev, sensitiveActions: true }));
+    setLoading((prev) => ({
+      ...prev,
+      sensitiveActions: silent ? prev.sensitiveActions : true,
+      sensitiveActionsRefreshing: silent,
+    }));
 
     const { data, error: rpcError } = await supabase.rpc('get_store_sensitive_action_matrix', {
       p_store_id: currentStoreId,
@@ -141,57 +175,94 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
 
     if (rpcError) {
       setError(rpcError.message);
-      setSensitiveActions([]);
+      if (!silent) {
+        setSensitiveActions([]);
+      }
     } else {
       setSensitiveActions((data ?? []) as StoreSensitiveActionMatrixRow[]);
     }
 
-    setLoading((prev) => ({ ...prev, sensitiveActions: false }));
+    setLoading((prev) => ({
+      ...prev,
+      sensitiveActions: false,
+      sensitiveActionsRefreshing: false,
+    }));
   }, [currentStoreId]);
 
-  const fetchMembersForPermissions = useCallback(async () => {
+  const fetchMembersForPermissions = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = options?.silent ?? false;
+
     if (!currentStoreId) {
       setMembersForPermissions([]);
-      setLoading((prev) => ({ ...prev, members: false }));
+      setLoading((prev) => ({
+        ...prev,
+        members: false,
+        membersRefreshing: false,
+      }));
       return;
     }
 
     setError(null);
-    setLoading((prev) => ({ ...prev, members: true }));
+    setLoading((prev) => ({
+      ...prev,
+      members: silent ? prev.members : true,
+      membersRefreshing: silent,
+    }));
 
     const { data, error: rpcError } = await supabase.rpc('get_store_members_for_permissions', {
       p_store_id: currentStoreId,
     });
 
-    setLoading((prev) => ({ ...prev, members: false }));
+    setLoading((prev) => ({
+      ...prev,
+      members: false,
+      membersRefreshing: false,
+    }));
 
     if (rpcError) {
       setError(rpcError.message);
-      setMembersForPermissions([]);
+      if (!silent) {
+        setMembersForPermissions([]);
+      }
       return;
     }
 
     setMembersForPermissions((data ?? []) as StoreMemberForPermissionsRow[]);
   }, [currentStoreId]);
 
-  const fetchMemberPermissionDetail = useCallback(async (memberId: string) => {
+  const fetchMemberPermissionDetail = useCallback(async (
+    memberId: string,
+    options?: { silent?: boolean }
+  ) => {
+    const silent = options?.silent ?? false;
+
     if (!memberId) {
       setMemberPermissionDetail([]);
       return [];
     }
 
     setError(null);
-    setLoading((prev) => ({ ...prev, memberDetail: true }));
+    setLoading((prev) => ({
+      ...prev,
+      memberDetail: silent ? prev.memberDetail : true,
+      memberDetailRefreshing: silent,
+    }));
 
     const { data, error: rpcError } = await supabase.rpc('get_store_member_permission_detail', {
       p_member_id: memberId,
     });
 
-    setLoading((prev) => ({ ...prev, memberDetail: false }));
+    setLoading((prev) => ({
+      ...prev,
+      memberDetail: false,
+      memberDetailRefreshing: false,
+    }));
 
     if (rpcError) {
       setError(rpcError.message);
-      setMemberPermissionDetail([]);
+      if (!silent) {
+        setMemberPermissionDetail([]);
+      }
       throw rpcError;
     }
 
@@ -223,7 +294,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         throw rpcError;
       }
 
-      await fetchMemberPermissionDetail(params.memberId);
+      await fetchMemberPermissionDetail(params.memberId, { silent: true });
     },
     [fetchMemberPermissionDetail]
   );
@@ -257,7 +328,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         throw rpcError;
       }
 
-      await fetchPermissionMatrix();
+      await fetchPermissionMatrix({ silent: true });
     },
     [currentStoreId, fetchPermissionMatrix]
   );
@@ -290,7 +361,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         throw rpcError;
       }
 
-      await fetchPermissionMatrix();
+      await fetchPermissionMatrix({ silent: true });
     },
     [currentStoreId, fetchPermissionMatrix]
   );
@@ -332,7 +403,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         throw rpcError;
       }
 
-      await fetchSensitiveActions();
+      await fetchSensitiveActions({ silent: true });
     },
     [currentStoreId, fetchSensitiveActions]
   );
@@ -344,21 +415,33 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
       void fetchPermissionMatrix();
     } else {
       setPermissionMatrix([]);
-      setLoading((prev) => ({ ...prev, matrix: false }));
+      setLoading((prev) => ({
+        ...prev,
+        matrix: false,
+        matrixRefreshing: false,
+      }));
     }
 
     if (sensitiveActionsEnabled) {
       void fetchSensitiveActions();
     } else {
       setSensitiveActions([]);
-      setLoading((prev) => ({ ...prev, sensitiveActions: false }));
+      setLoading((prev) => ({
+        ...prev,
+        sensitiveActions: false,
+        sensitiveActionsRefreshing: false,
+      }));
     }
 
     if (membersEnabled) {
       void fetchMembersForPermissions();
     } else {
       setMembersForPermissions([]);
-      setLoading((prev) => ({ ...prev, members: false }));
+      setLoading((prev) => ({
+        ...prev,
+        members: false,
+        membersRefreshing: false,
+      }));
     }
   }, [
     enabled,
@@ -368,6 +451,87 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
     fetchPermissionMatrix,
     fetchSensitiveActions,
     fetchMembersForPermissions,
+  ]);
+
+  useEffect(() => {
+    if (!enabled || !currentStoreId) return;
+
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const scheduleAdminRefresh = () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+
+      refreshTimer = setTimeout(() => {
+        const tasks: Promise<void>[] = [];
+
+        if (matrixEnabled) {
+          tasks.push(fetchPermissionMatrix({ silent: true }));
+        }
+
+        if (membersEnabled) {
+          tasks.push(fetchMembersForPermissions({ silent: true }));
+        }
+
+        if (sensitiveActionsEnabled) {
+          tasks.push(fetchSensitiveActions({ silent: true }));
+        }
+
+        void Promise.all(tasks);
+      }, 500);
+    };
+
+    const channel = supabase
+      .channel(`security-admin:${currentStoreId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'store_role_permission_templates',
+          filter: `store_id=eq.${currentStoreId}`,
+        },
+        scheduleAdminRefresh
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'store_custom_roles',
+          filter: `store_id=eq.${currentStoreId}`,
+        },
+        scheduleAdminRefresh
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'store_members',
+          filter: `store_id=eq.${currentStoreId}`,
+        },
+        scheduleAdminRefresh
+      )
+      .subscribe();
+
+    return () => {
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
+      }
+
+      void supabase.removeChannel(channel);
+    };
+  }, [
+    enabled,
+    currentStoreId,
+    matrixEnabled,
+    membersEnabled,
+    sensitiveActionsEnabled,
+    fetchPermissionMatrix,
+    fetchMembersForPermissions,
+    fetchSensitiveActions,
   ]);
 
   return {

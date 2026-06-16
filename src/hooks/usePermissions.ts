@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import {
     getEffectiveStorePermissions,
     getSensitiveActionRequirement,
@@ -55,6 +56,64 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
     useEffect(() => {
         refresh();
     }, [refresh]);
+
+    useEffect(() => {
+        if (!storeId) return;
+
+        let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+        const scheduleRefresh = () => {
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+            }
+
+            refreshTimer = setTimeout(() => {
+                void refresh();
+            }, 500);
+        };
+
+        const channel = supabase
+            .channel(`permissions:${storeId}`)
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'store_role_permission_templates',
+                    filter: `store_id=eq.${storeId}`,
+                },
+                scheduleRefresh
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'store_custom_roles',
+                    filter: `store_id=eq.${storeId}`,
+                },
+                scheduleRefresh
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'store_members',
+                    filter: `store_id=eq.${storeId}`,
+                },
+                scheduleRefresh
+            )
+            .subscribe();
+
+        return () => {
+            if (refreshTimer) {
+                clearTimeout(refreshTimer);
+            }
+
+            void supabase.removeChannel(channel);
+        };
+    }, [storeId, refresh]);
 
     const allowedPermissions = useMemo(
         () =>
