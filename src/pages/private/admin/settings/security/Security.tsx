@@ -516,6 +516,13 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
         prefixes: ['settings.payment.'],
     },
     {
+        id: 'settings_messages',
+        macroGroup: 'settings',
+        label: 'Mensagens',
+        description: 'Configurações de mensagens, modelos, canais e preferências de comunicação.',
+        prefixes: ['messages.'],
+    },
+    {
         id: 'settings_legal',
         macroGroup: 'settings',
         label: 'Documentos e Termos',
@@ -608,7 +615,7 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
         macroGroup: 'operational',
         label: 'Comercial',
         description: 'Área comercial, pedidos, clientes, fidelidade e campanhas.',
-        prefixes: ['commercial.', 'orders.', 'customers.', 'loyalty.', 'marketing.', 'messages.'],
+        prefixes: ['commercial.', 'orders.', 'customers.', 'loyalty.', 'marketing.'],
     },
     {
         id: 'financial',
@@ -1722,7 +1729,6 @@ export default function Security() {
         // Raiz sempre precisa ser editável para quem gerencia a matriz.
         if (
             permissionCode === 'settings.view' ||
-            permissionCode === 'settings.manage' ||
             permissionCode === 'security.view' ||
             permissionCode === 'security.manage'
         ) {
@@ -1732,8 +1738,12 @@ export default function Security() {
         if (permissionCode.startsWith('settings.')) {
             const section = getPermissionSection(permissionCode);
 
-            const rootViewAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.view');
-            const rootManageAllowed = getRolePermissionAllowed(permissionMatrix, normalizedRole, 'settings.manage');
+            const rootViewAllowed = getRolePermissionAllowed(
+                permissionMatrix,
+                normalizedRole,
+                'settings.view'
+            );
+
             const sectionViewAllowed = getRolePermissionAllowed(
                 permissionMatrix,
                 normalizedRole,
@@ -1742,10 +1752,12 @@ export default function Security() {
 
             if (!rootViewAllowed) return false;
 
-            if (permissionCode.endsWith('.view')) return true;
+            if (permissionCode.endsWith('.view')) {
+                return true;
+            }
 
             if (permissionCode.endsWith('.manage')) {
-                return rootManageAllowed && sectionViewAllowed;
+                return sectionViewAllowed;
             }
         }
 
@@ -1766,6 +1778,30 @@ export default function Security() {
 
             if (permissionCode.endsWith('.manage')) {
                 return rootManageAllowed && sectionViewAllowed;
+            }
+        }
+
+        if (permissionCode.startsWith('messages.')) {
+            const rootSettingsViewAllowed = getRolePermissionAllowed(
+                permissionMatrix,
+                normalizedRole,
+                'settings.view'
+            );
+
+            const messagesViewAllowed = getRolePermissionAllowed(
+                permissionMatrix,
+                normalizedRole,
+                'messages.view'
+            );
+
+            if (!rootSettingsViewAllowed) return false;
+
+            if (permissionCode.endsWith('.view')) {
+                return true;
+            }
+
+            if (permissionCode.endsWith('.manage')) {
+                return messagesViewAllowed;
             }
         }
 
@@ -2521,7 +2557,6 @@ export default function Security() {
             permissionCode === 'security.view';
 
         const isRootManage =
-            permissionCode === 'settings.manage' ||
             permissionCode === 'security.manage';
 
         changes.push({
@@ -2556,12 +2591,15 @@ export default function Security() {
 
         // Ver geral bloqueado: desliga tudo do macrogrupo.
         if (isRootView && !nextAllowed) {
-            const prefix = permissionCode.startsWith('settings.')
-                ? 'settings.'
-                : 'security.';
+            const isSettingsRoot = permissionCode === 'settings.view';
 
             permissionMatrix
-                .filter((item) => item.permission_code.startsWith(prefix))
+                .filter((item) =>
+                    isSettingsRoot
+                        ? item.permission_code.startsWith('settings.') ||
+                          item.permission_code.startsWith('messages.')
+                        : item.permission_code.startsWith('security.')
+                )
                 .forEach((item) => {
                     changes.push({
                         permission_code: item.permission_code,
@@ -2572,13 +2610,16 @@ export default function Security() {
 
         // Ver geral permitido: liga todos os views daquele macrogrupo.
         if (isRootView && nextAllowed) {
-            const prefix = permissionCode.startsWith('settings.')
-                ? 'settings.'
-                : 'security.';
+            const isSettingsRoot = permissionCode === 'settings.view';
 
             permissionMatrix
                 .filter((item) =>
-                    item.permission_code.startsWith(prefix) &&
+                    (
+                        isSettingsRoot
+                            ? item.permission_code.startsWith('settings.') ||
+                              item.permission_code.startsWith('messages.')
+                            : item.permission_code.startsWith('security.')
+                    ) &&
                     (item.action_key === 'view' || item.action_key === 'access')
                 )
                 .forEach((item) => {
