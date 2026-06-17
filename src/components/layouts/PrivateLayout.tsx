@@ -161,6 +161,15 @@ export default function PrivateLayout() {
         return hasEffectivePermission(permissions, key);
     }, [permissions, activeMembership?.role]);
 
+    console.log('[SIDEBAR_PERMISSIONS_DEBUG]', {
+        storeId,
+        refreshingPermissions,
+        permissionsCount: permissions.length,
+        ordersView: hasEffectivePermission(permissions, 'orders.view'),
+        customersView: hasEffectivePermission(permissions, 'customers.view'),
+        settingsView: hasEffectivePermission(permissions, 'settings.view'),
+    });
+
     const can = useCallback((permissionCode: string | string[]) => {
         if (Array.isArray(permissionCode)) {
             return permissionCode.every((code) => hasPermission(code));

@@ -148,7 +148,13 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                     table: 'store_permission_versions',
                     filter: `store_id=eq.${storeId}`,
                 },
-                scheduleRefresh
+                (payload) => {
+                    console.log('[PERMISSIONS_VERSION_RT]', {
+                        storeId,
+                        payload,
+                    });
+                    scheduleRefresh();
+                }
             )
             .on(
                 'postgres_changes',
