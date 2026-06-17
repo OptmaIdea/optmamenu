@@ -1,0 +1,278 @@
+[
+    {
+        "tablename": "audit_logs",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "cashbook_entries",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "categories",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "customer_addresses",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "customer_benefit_rules",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "customer_consent_logs",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "customer_notifications",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "customer_otps",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "customer_segment_members",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "customer_segments",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "customers",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "fidelity_programs",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "fidelity_rewards",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "fidelity_tiers",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "fidelity_vouchers",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "inventory_balances",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "inventory_history_legacy",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "inventory_location_balances",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "inventory_movements",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "loyalty_point_rules",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "loyalty_transactions",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "loyalty_transactions_legacy",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "operational_timeline_events",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "order_items",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "orders",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "otp_codes",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "product_stock_location_rules",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "products",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "profiles",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "promotion_campaign_recipients",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "promotion_campaigns",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "promotions",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "purchase_document_items",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "purchase_document_location_applications",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "purchase_documents",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "purchase_quotation_items",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "purchase_quotations",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "security_permission_catalog",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "security_sensitive_action_catalog",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "stock_locations",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "stock_movements",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "stock_reservations",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "stock_transfer_items",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "stock_transfers",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "store_custom_roles",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_delivery_methods",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "store_hours",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_member_invites",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "store_member_occurrences",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_member_private_details",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_member_profile_change_requests",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_members",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_messages",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_payment_methods",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "store_permission_catalog",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_role_permission_templates",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_role_permission_templates_backup_910c",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_sales_channels",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_schedules_exceptions",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_security_logs",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_security_settings",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "store_sensitive_action_rules",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "store_settings",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "stores",
+        "realtime_enabled": "YES"
+    },
+    {
+        "tablename": "supplier_contacts",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "supplier_price_history",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "supplier_relationship_events",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "suppliers",
+        "realtime_enabled": "NO"
+    },
+    {
+        "tablename": "user_pins",
+        "realtime_enabled": "YES"
+    }
+]
