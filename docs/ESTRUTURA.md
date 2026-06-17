@@ -67,6 +67,7 @@
   - store/
   - types/
   - utils/
+    - permissionEvents.ts
     - sessionSecurity.ts
     - export/
       - csv.ts
@@ -92,6 +93,7 @@
 - docs/GUIA_MARKETING_MENSAGENS_ANIVERSARIANTES.md
 - docs/GUIA_MOVIMENTACAO_CATEGORIAS.md
 - docs/GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
+- docs/GUIA_SISTEMA_PERMISSOES_REALTIME.md
 - docs/GUIA_USUARIOS_CLIENTES_FIDELIDADE.md
 - docs/IMPLEMENTATION_PLAN.md
 - docs/INVENTORY_FUNCTIONS_ANALISYS.md
