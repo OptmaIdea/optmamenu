@@ -1928,13 +1928,13 @@ export function UserDetailModal({
                                                         }}
                                                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                                     >
-                                                        <option value="viewer">Visualizador</option>
-                                                        <option value="staff">Equipe</option>
-                                                        <option value="sales">Vendas</option>
-                                                        <option value="cashier">Caixa</option>
-                                                        <option value="stock_operator">Operador de estoque</option>
-                                                        <option value="manager">Gerente</option>
                                                         <option value="admin">Administrador</option>
+                                                        <option value="cashier">Caixa</option>
+                                                        <option value="staff">Equipe</option>
+                                                        <option value="manager">Gerente</option>
+                                                        <option value="stock_operator">Operador de estoque</option>
+                                                        <option value="sales">Vendas</option>
+                                                        <option value="viewer">Visualizador</option>
                                                     </select>
                                                 </label>
 

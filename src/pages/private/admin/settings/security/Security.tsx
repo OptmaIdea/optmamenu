@@ -1398,7 +1398,7 @@ export default function Security() {
     const currentStoreSlug = activeMembership?.store_slug ?? '';
     const currentRole = activeMembership?.role ?? null;
     const isStoreOwner = currentRole === 'owner';
-    const isOwner = isStoreOwner;
+    /* const isOwner = isStoreOwner; */
     const [roleFilter, setRoleFilter] = useState('all');
     const [selectedRole, setSelectedRole] = useState<RoleCode>('admin');
     const [selectedMacroGroup, setSelectedMacroGroup] = useState<'settings' | 'security' | 'operational'>('settings');

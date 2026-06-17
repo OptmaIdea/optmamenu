@@ -506,8 +506,6 @@ export default function PrivateLayout() {
                 setStoreId(selectedMembership.store_id);
                 setStoreSlug(selectedMembership.store_slug);
 
-                // FIX.5: profiles NÃO tem internal_alias   buscar apenas dados pessoais
-                // FIX.5: internal_alias vem de store_members via user_id + store_id (RLS safe)
                 const [{ data: profileRow }, { data: memberAliasRow }] = await Promise.all([
                     supabase
                         .from('profiles')
@@ -1164,9 +1162,8 @@ export default function PrivateLayout() {
                                                 </span>
                                                 <ChevronDown
                                                     size={14}
-                                                    className={`text-gray-400 transition-transform duration-200 ${
-                                                        openSections[section] ? 'rotate-180' : ''
-                                                    }`}
+                                                    className={`text-gray-400 transition-transform duration-200 ${openSections[section] ? 'rotate-180' : ''
+                                                        }`}
                                                 />
                                             </button>
                                         )}

@@ -145,6 +145,16 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                 {
                     event: '*',
                     schema: 'public',
+                    table: 'store_permission_versions',
+                    filter: `store_id=eq.${storeId}`,
+                },
+                scheduleRefresh
+            )
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
                     table: 'store_role_permission_templates',
                     filter: `store_id=eq.${storeId}`,
                 },

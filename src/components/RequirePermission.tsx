@@ -34,9 +34,9 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
     (targetPermission === 'users.view'
       ? hasEffectivePermission(permissions, 'users.view')
       : (isOwner ||
-          (Array.isArray(targetPermission)
-            ? hasAnyEffectivePermission(permissions, targetPermission)
-            : hasEffectivePermission(permissions, targetPermission))))
+        (Array.isArray(targetPermission)
+          ? hasAnyEffectivePermission(permissions, targetPermission)
+          : hasEffectivePermission(permissions, targetPermission))))
   );
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
           )}
         </p>
         <p className="mt-4 text-xs font-bold text-[#21A896]">
-          Redirecionando para o Painel em {countdown} segundo{countdown !== 1 ? 's' : ''}...
+          Redirecionando para Meus Dados em {countdown} segundo{countdown !== 1 ? 's' : ''}...
         </p>
         <div className="mt-8 flex gap-3">
           <button
@@ -105,7 +105,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
             Voltar
           </button>
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate('/admin/my-profile')}
             className="bg-[#21A896] hover:bg-[#1A867A] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition cursor-pointer"
           >
             Ir para o Painel
