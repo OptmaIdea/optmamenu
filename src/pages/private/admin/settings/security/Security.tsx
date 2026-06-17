@@ -64,7 +64,6 @@ function normalizeRoleCode(role: string) {
     const normalized = String(role || '').trim().toLowerCase();
 
     const map: Record<string, string> = {
-        proprietário: 'owner',
         proprietario: 'owner',
         administrador: 'admin',
         gerente: 'manager',
@@ -538,7 +537,7 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
         prefixes: ['settings.system.'],
     },
 
-    // SEGURANÇA
+    // SEGURAN!A
     {
         id: 'security_general',
         macroGroup: 'security',
@@ -2600,7 +2599,7 @@ export default function Security() {
                 .filter((item) =>
                     isSettingsRoot
                         ? item.permission_code.startsWith('settings.') ||
-                          item.permission_code.startsWith('messages.')
+                        item.permission_code.startsWith('messages.')
                         : item.permission_code.startsWith('security.')
                 )
                 .forEach((item) => {
@@ -2620,7 +2619,7 @@ export default function Security() {
                     (
                         isSettingsRoot
                             ? item.permission_code.startsWith('settings.') ||
-                              item.permission_code.startsWith('messages.')
+                            item.permission_code.startsWith('messages.')
                             : item.permission_code.startsWith('security.')
                     ) &&
                     (item.action_key === 'view' || item.action_key === 'access')
@@ -2877,12 +2876,15 @@ export default function Security() {
         toast.success('Permissões individuais salvas com sucesso.');
 
         const selectedId = selectedMember.member_id;
+        notifyPermissionsChanged(currentStoreId, 'member_permissions_update');
         await refreshAdmin();
         setSelectedMemberId(selectedId);
         await fetchMemberPermissionDetail(selectedId);
         await refreshPermissions();
     };
 
+    // [CORREÇÃO 3] Bloqueia tela apenas no carregamento inicial (loading/loadingPermissions).
+    // Refreshes silenciosos (refreshing) não chegam aqui — preservam o conteúdo visível.
     if (loading || loadingPermissions || loadingSecurityContext) {
         return (
             <div className="p-8 flex justify-center">
@@ -3120,7 +3122,7 @@ export default function Security() {
 
                                         <div className="space-y-2 text-sm">
                                             <InfoLine label="Store ID" value={currentStoreId || 'Não definido'} />
-                                            <InfoLine label="É proprietário?" value={isOwner ? 'Sim' : 'Não'} />
+                                            <InfoLine label="0 proprietário?" value={isOwner ? 'Sim' : 'Não'} />
                                             <InfoLine label="Perfil administrativo?" value={isAdminLike ? 'Sim' : 'Não'} />
                                             <InfoLine label="Global admin" value={securityContext?.is_global_admin ? 'Sim' : 'Não'} />
                                         </div>
@@ -3492,7 +3494,7 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* PERMISSÕES POR PAPEL */}
+                    {/* PERMISS"ES POR PAPEL */}
                     <div className={activeTab === 'roles' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div className="flex-1">
@@ -3569,369 +3571,369 @@ export default function Security() {
                                     </div>
                                 )}
                             /* Layout de 3 painéis Premium (Image 2 style) */
-                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                                {/* Painel 1: Grupos de Permissão (Col 4) */}
-                                <div className="lg:col-span-4 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h4 className="text-base font-bold text-gray-800 dark:text-white">
-                                            Grupos de Permissões
-                                        </h4>
-                                    </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                                    {/* Painel 1: Grupos de Permissão (Col 4) */}
+                                    <div className="lg:col-span-4 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-base font-bold text-gray-800 dark:text-white">
+                                                Grupos de Permissões
+                                            </h4>
+                                        </div>
 
-                                    {/* Busca interna do grupo */}
-                                    <div className="relative mb-4">
-                                        <input
-                                            type="text"
-                                            placeholder="Pesquisar permissões..."
-                                            value={permissionSearch}
-                                            onChange={(e) => setPermissionSearch(e.target.value)}
-                                            className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
-                                        />
-                                        <Search size={14} className="absolute left-3 top-3 text-gray-400" />
-                                        {permissionSearch && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setPermissionSearch('')}
-                                                className="absolute right-3 top-2.5 text-gray-400 hover:text-red-500 transition"
-                                            >
-                                                <X size={14} />
-                                            </button>
-                                        )}
-                                    </div>
+                                        {/* Busca interna do grupo */}
+                                        <div className="relative mb-4">
+                                            <input
+                                                type="text"
+                                                placeholder="Pesquisar permissões..."
+                                                value={permissionSearch}
+                                                onChange={(e) => setPermissionSearch(e.target.value)}
+                                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
+                                            />
+                                            <Search size={14} className="absolute left-3 top-3 text-gray-400" />
+                                            {permissionSearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPermissionSearch('')}
+                                                    className="absolute right-3 top-2.5 text-gray-400 hover:text-red-500 transition"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            )}
+                                        </div>
 
-                                    {/* Lista de Macro Grupos */}
-                                    <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
-                                        {ROLE_PERMISSION_TREE.map((macro) => {
-                                            const isMacroCollapsed = !expandedMacroGroups[macro.id];
+                                        {/* Lista de Macro Grupos */}
+                                        <div className="space-y-4 overflow-y-auto max-h-[450px] pr-1 scrollbar-thin">
+                                            {ROLE_PERMISSION_TREE.map((macro) => {
+                                                const isMacroCollapsed = !expandedMacroGroups[macro.id];
 
-                                            // Filtra os grupos baseado na busca
-                                            const filteredGroups = macro.groups.filter((g) => {
-                                                if (!permissionSearch.trim()) return true;
-                                                const search = permissionSearch.toLowerCase().trim();
+                                                // Filtra os grupos baseado na busca
+                                                const filteredGroups = macro.groups.filter((g) => {
+                                                    if (!permissionSearch.trim()) return true;
+                                                    const search = permissionSearch.toLowerCase().trim();
+                                                    return (
+                                                        g.label.toLowerCase().includes(search) ||
+                                                        g.permissions.some((p) => p.toLowerCase().includes(search))
+                                                    );
+                                                });
+
+                                                if (filteredGroups.length === 0) return null;
+
                                                 return (
-                                                    g.label.toLowerCase().includes(search) ||
-                                                    g.permissions.some((p) => p.toLowerCase().includes(search))
-                                                );
-                                            });
-
-                                            if (filteredGroups.length === 0) return null;
-
-                                            return (
-                                                <div key={macro.id} className="space-y-1">
-                                                    <div
-                                                        onClick={() =>
-                                                            setExpandedMacroGroups((prev) => ({
-                                                                ...prev,
-                                                                [macro.id]: !prev[macro.id],
-                                                            }))
-                                                        }
-                                                        className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300"
-                                                    >
-                                                        <div className="flex items-center gap-2">
-                                                            {macro.icon && <macro.icon size={14} />}
-                                                            <span>{macro.label}</span>
-                                                        </div>
-                                                        <span>
-                                                            {isMacroCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-                                                        </span>
-                                                    </div>
-
-                                                    {!isMacroCollapsed && (
-                                                        <div className="pl-2 space-y-1 mt-1">
-                                                            {filteredGroups.map((group) => {
-                                                                const isSelected = selectedGroupId === group.id;
-
-                                                                // Permissão de Visualização
-                                                                const hasView = group.accessPermission;
-                                                                const viewDisabled = hasView
-                                                                    ? !canToggleRolePermission(selectedRole, hasView)
-                                                                    : true;
-
-                                                                return (
-                                                                    <div
-                                                                        key={group.id}
-                                                                        onClick={() => {
-                                                                            setSelectedGroupId(group.id);
-                                                                            setSelectedMacroGroup(macro.id as any);
-                                                                        }}
-                                                                        className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${isSelected
-                                                                            ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
-                                                                            : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                                                                            }`}
-                                                                    >
-                                                                        <span className="text-xs font-bold text-gray-700 dark:text-gray-250 truncate pr-2">
-                                                                            {group.label}
-                                                                        </span>
-
-                                                                        <div className="flex items-center gap-2 shrink-0">
-                                                                            {hasView && (
-                                                                                <div className="flex items-center gap-1">
-                                                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold">Acessar</span>
-                                                                                    <Switch
-                                                                                        checked={isRoleAllowed(selectedRole, group.accessPermission)}
-                                                                                        onCheckedChange={(checked) =>
-                                                                                            handleToggleMenuAccess(group, checked)
-                                                                                        }
-                                                                                        disabled={viewDisabled}
-                                                                                    />
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-
-                                {/* Painel 2: Detalhes do Grupo Selecionado (Col 5) */}
-                                <div className="lg:col-span-5 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
-                                    {(() => {
-                                        const macroDef = ROLE_PERMISSION_TREE.find((m) => m.id === selectedMacroGroup);
-                                        const groupDef = macroDef?.groups.find((g) => g.id === selectedGroupId);
-
-                                        if (!groupDef) {
-                                            return (
-                                                <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
-                                                    <Grid3X3 size={32} className="mb-2 opacity-50" />
-                                                    <p className="text-xs">Selecione um grupo de permissões na coluna à esquerda.</p>
-                                                </div>
-                                            );
-                                        }
-
-                                        const selectedGroupAccessAllowed = isRoleAllowed(selectedRole, groupDef.accessPermission);
-
-                                        if (!selectedGroupAccessAllowed) {
-                                            return (
-                                                <div className="rounded-xl border border-dashed border-gray-250 dark:border-gray-700 p-6 text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center flex-1 text-center">
-                                                    <Lock size={32} className="mb-2 opacity-50 text-gray-400" />
-                                                    <p>Libere <strong>Acessar</strong> para configurar os itens deste menu.</p>
-                                                </div>
-                                            );
-                                        }
-
-                                        // Encontra todas as linhas da matriz que pertencem a este grupo selecionado (groupDef.id)
-                                        const groupRows = permissionMatrix.filter((row) =>
-                                            row.group_key === groupDef.id ||
-                                            (groupDef.permissions as readonly string[]).includes(row.permission_code)
-                                        );
-
-                                        // Encontra a linha de acesso padrão (action_key === 'access')
-                                        const accessRow = groupRows.find((row) => row.action_key === 'access');
-
-                                        // Filtra as linhas detalhadas baseado na busca (se aplicável), desconsiderando a de acesso
-                                        const searchFilteredRows = groupRows.filter((row) => {
-                                            if (row.action_key === 'access') return false; // Fica fixa no topo se presente
-                                            if (!permissionSearch.trim()) return true;
-                                            const search = permissionSearch.toLowerCase().trim();
-
-                                            const label = row.label || '';
-                                            const itemLabel = row.item_label || '';
-                                            const actionLabel = row.action_label || '';
-                                            const code = row.permission_code;
-
-                                            return (
-                                                code.toLowerCase().includes(search) ||
-                                                label.toLowerCase().includes(search) ||
-                                                itemLabel.toLowerCase().includes(search) ||
-                                                actionLabel.toLowerCase().includes(search)
-                                            );
-                                        });
-
-                                        const items = groupPermissionsByItem(searchFilteredRows);
-
-                                        return (
-                                            <>
-                                                <div className="border-b pb-3 mb-4">
-                                                    <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
-                                                        {macroDef?.label}
-                                                    </span>
-                                                    <h4 className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
-                                                        {groupDef.label}
-                                                    </h4>
-                                                </div>
-
-                                                <div className="space-y-4 overflow-y-auto max-h-[420px] pr-1 scrollbar-thin flex-1">
-                                                    {/* Item de acesso no topo se presente */}
-                                                    {accessRow && (() => {
-                                                        const code = accessRow.permission_code;
-                                                        const allowed = selectedRole === 'owner' ? true : Boolean(accessRow[`${selectedRole}_allowed` as keyof StorePermissionMatrixRow]);
-                                                        const canToggle = canToggleRolePermission(selectedRole, code);
-                                                        const disabled = !canToggle;
-
-                                                        return (
-                                                            <div className="flex items-center justify-between p-3 rounded-xl bg-green-50/50 dark:bg-green-950/10 border border-green-100/50 dark:border-green-900/20 mb-2">
-                                                                <div className="flex flex-col gap-0.5 min-w-0">
-                                                                    <span className={`text-xs font-bold ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-green-800 dark:text-green-300'}`}>
-                                                                        Acessar {groupDef.label}
-                                                                    </span>
-                                                                    <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate" title={code}>
-                                                                        {code}
-                                                                    </span>
-                                                                </div>
-
-                                                                <button
-                                                                    type="button"
-                                                                    disabled={disabled}
-                                                                    onClick={() => handleToggleRolePermissionCascade(code, !allowed, groupRows)}
-                                                                    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${allowed
-                                                                        ? 'bg-green-600'
-                                                                        : 'bg-gray-200 dark:bg-gray-700'
-                                                                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                                >
-                                                                    <span
-                                                                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${allowed ? 'translate-x-4' : 'translate-x-0'
-                                                                            }`}
-                                                                    />
-                                                                </button>
+                                                    <div key={macro.id} className="space-y-1">
+                                                        <div
+                                                            onClick={() =>
+                                                                setExpandedMacroGroups((prev) => ({
+                                                                    ...prev,
+                                                                    [macro.id]: !prev[macro.id],
+                                                                }))
+                                                            }
+                                                            className="flex items-center justify-between p-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 select-none text-xs font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300"
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                {macro.icon && <macro.icon size={14} />}
+                                                                <span>{macro.label}</span>
                                                             </div>
-                                                        );
-                                                    })()}
-
-                                                    {items.length === 0 && !accessRow ? (
-                                                        <p className="text-xs text-gray-400 text-center py-4">Nenhuma permissão corresponde à busca.</p>
-                                                    ) : (
-                                                        items.map((item) => {
-                                                            return (
-                                                                <div key={item.itemKey} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 space-y-2">
-                                                                    <h5 className="text-xs font-bold text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-800 pb-1">
-                                                                        {item.itemLabel}
-                                                                    </h5>
-                                                                    <div className="flex flex-wrap gap-2 pt-1">
-                                                                        {item.permissions.map((row) => {
-                                                                            const code = row.permission_code;
-                                                                            const columnKey = `${selectedRole}_allowed` as keyof StorePermissionMatrixRow;
-                                                                            const allowed = selectedRole === 'owner' ? true : Boolean(row[columnKey]);
-
-                                                                            const matchingViewPermissionCode = code.endsWith('.manage')
-                                                                                ? code.replace(/\.manage$/, '.view')
-                                                                                : null;
-
-                                                                            const matchingViewRow = matchingViewPermissionCode
-                                                                                ? permissionMatrix.find((permission) => permission.permission_code === matchingViewPermissionCode)
-                                                                                : null;
-
-                                                                            const matchingViewAllowed = matchingViewRow
-                                                                                ? selectedRole === 'owner'
-                                                                                    ? true
-                                                                                    : Boolean(matchingViewRow[columnKey])
-                                                                                : true;
-
-                                                                            const canToggle = canToggleRolePermission(selectedRole, code);
-                                                                            const isBaseDisabled = !canToggle;
-
-                                                                            const manageDisabled =
-                                                                                code.endsWith('.manage') &&
-                                                                                !matchingViewAllowed;
-
-                                                                            const disabled = isBaseDisabled || manageDisabled;
-                                                                            const actionLabelText = row.action_label || getPermissionActionLabel(row);
-
-                                                                            return (
-                                                                                <button
-                                                                                    key={code}
-                                                                                    type="button"
-                                                                                    disabled={disabled}
-                                                                                    onClick={() => handleToggleRolePermissionCascade(code, !allowed, groupRows)}
-                                                                                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${allowed
-                                                                                        ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
-                                                                                        : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
-                                                                                        } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
-                                                                                    title={code}
-                                                                                >
-                                                                                    {allowed ? (
-                                                                                        <Check size={12} className="text-green-600" />
-                                                                                    ) : (
-                                                                                        <X size={12} className="text-red-500" />
-                                                                                    )}
-                                                                                    <span>{actionLabelText}</span>
-                                                                                    {manageDisabled && !isBaseDisabled && (
-                                                                                        <span className="text-[10px] text-amber-500 dark:text-amber-400 italic ml-1">
-                                                                                            (Requer "Acessar")
-                                                                                        </span>
-                                                                                    )}
-                                                                                </button>
-                                                                            );
-                                                                        })}
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })
-                                                    )}
-                                                </div>
-                                            </>
-                                        );
-                                    })()}
-                                </div>
-
-                                {/* Painel 3: Papéis da Equipe (Col 3) */}
-                                <div className="lg:col-span-3 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-between min-h-[500px]">
-                                    <div className="space-y-4">
-                                        <h4 className="text-base font-bold text-gray-800 dark:text-white">
-                                            Papéis / Funções
-                                        </h4>
-
-                                        <div className="space-y-2">
-                                            {ROLE_OPTIONS.map((role) => {
-                                                const isSelected = selectedRole === role.code;
-
-                                                // Resolve um ícone simples para o papel
-                                                let RoleIcon = User;
-                                                if (role.code === 'owner') RoleIcon = Shield;
-                                                if (role.code === 'admin') RoleIcon = ShieldCheck;
-                                                if (role.code === 'viewer') RoleIcon = Eye;
-
-                                                return (
-                                                    <div
-                                                        key={role.code}
-                                                        onClick={() => {
-                                                            setSelectedRole(role.code);
-                                                            setRoleFilter(role.code);
-                                                        }}
-                                                        className={`flex items-center justify-between p-3 rounded-xl border transition cursor-pointer select-none ${isSelected
-                                                            ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
-                                                            : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
-                                                            }`}
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <RoleIcon size={16} className={isSelected ? 'text-green-600' : 'text-gray-400'} />
-                                                            <span className="text-xs font-bold">
-                                                                {role.label}
+                                                            <span>
+                                                                {isMacroCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
                                                             </span>
                                                         </div>
-                                                        <Save size={14} className="opacity-0 group-hover:opacity-100 text-gray-400" />
+
+                                                        {!isMacroCollapsed && (
+                                                            <div className="pl-2 space-y-1 mt-1">
+                                                                {filteredGroups.map((group) => {
+                                                                    const isSelected = selectedGroupId === group.id;
+
+                                                                    // Permissão de Visualização
+                                                                    const hasView = group.accessPermission;
+                                                                    const viewDisabled = hasView
+                                                                        ? !canToggleRolePermission(selectedRole, hasView)
+                                                                        : true;
+
+                                                                    return (
+                                                                        <div
+                                                                            key={group.id}
+                                                                            onClick={() => {
+                                                                                setSelectedGroupId(group.id);
+                                                                                setSelectedMacroGroup(macro.id as any);
+                                                                            }}
+                                                                            className={`flex items-center justify-between p-2 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                                                ? 'border-green-300 bg-green-50/50 dark:border-green-800 dark:bg-green-950/20'
+                                                                                : 'border-transparent hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                                                                                }`}
+                                                                        >
+                                                                            <span className="text-xs font-bold text-gray-700 dark:text-gray-250 truncate pr-2">
+                                                                                {group.label}
+                                                                            </span>
+
+                                                                            <div className="flex items-center gap-2 shrink-0">
+                                                                                {hasView && (
+                                                                                    <div className="flex items-center gap-1">
+                                                                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 font-semibold">Acessar</span>
+                                                                                        <Switch
+                                                                                            checked={isRoleAllowed(selectedRole, group.accessPermission)}
+                                                                                            onCheckedChange={(checked) =>
+                                                                                                handleToggleMenuAccess(group, checked)
+                                                                                            }
+                                                                                            disabled={viewDisabled}
+                                                                                        />
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 );
                                             })}
                                         </div>
                                     </div>
 
-                                    {/* Botão de Salvar Alterações visual */}
-                                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
-                                        <button
-                                            type="button"
-                                            disabled={adminLoading.saving}
-                                            onClick={async () => {
-                                                toast.success('Configurações de permissões salvas com sucesso!');
-                                                await refreshAdmin();
-                                            }}
-                                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {adminLoading.saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
-                                            {adminLoading.saving ? 'Salvando...' : 'Salvar Alterações'}
-                                        </button>
+                                    {/* Painel 2: Detalhes do Grupo Selecionado (Col 5) */}
+                                    <div className="lg:col-span-5 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
+                                        {(() => {
+                                            const macroDef = ROLE_PERMISSION_TREE.find((m) => m.id === selectedMacroGroup);
+                                            const groupDef = macroDef?.groups.find((g) => g.id === selectedGroupId);
+
+                                            if (!groupDef) {
+                                                return (
+                                                    <div className="flex flex-col items-center justify-center flex-1 text-center p-6 text-gray-400">
+                                                        <Grid3X3 size={32} className="mb-2 opacity-50" />
+                                                        <p className="text-xs">Selecione um grupo de permissões na coluna à esquerda.</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            const selectedGroupAccessAllowed = isRoleAllowed(selectedRole, groupDef.accessPermission);
+
+                                            if (!selectedGroupAccessAllowed) {
+                                                return (
+                                                    <div className="rounded-xl border border-dashed border-gray-250 dark:border-gray-700 p-6 text-sm text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center flex-1 text-center">
+                                                        <Lock size={32} className="mb-2 opacity-50 text-gray-400" />
+                                                        <p>Libere <strong>Acessar</strong> para configurar os itens deste menu.</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            // Encontra todas as linhas da matriz que pertencem a este grupo selecionado (groupDef.id)
+                                            const groupRows = permissionMatrix.filter((row) =>
+                                                row.group_key === groupDef.id ||
+                                                (groupDef.permissions as readonly string[]).includes(row.permission_code)
+                                            );
+
+                                            // Encontra a linha de acesso padrão (action_key === 'access')
+                                            const accessRow = groupRows.find((row) => row.action_key === 'access');
+
+                                            // Filtra as linhas detalhadas baseado na busca (se aplicável), desconsiderando a de acesso
+                                            const searchFilteredRows = groupRows.filter((row) => {
+                                                if (row.action_key === 'access') return false; // Fica fixa no topo se presente
+                                                if (!permissionSearch.trim()) return true;
+                                                const search = permissionSearch.toLowerCase().trim();
+
+                                                const label = row.label || '';
+                                                const itemLabel = row.item_label || '';
+                                                const actionLabel = row.action_label || '';
+                                                const code = row.permission_code;
+
+                                                return (
+                                                    code.toLowerCase().includes(search) ||
+                                                    label.toLowerCase().includes(search) ||
+                                                    itemLabel.toLowerCase().includes(search) ||
+                                                    actionLabel.toLowerCase().includes(search)
+                                                );
+                                            });
+
+                                            const items = groupPermissionsByItem(searchFilteredRows);
+
+                                            return (
+                                                <>
+                                                    <div className="border-b pb-3 mb-4">
+                                                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                                                            {macroDef?.label}
+                                                        </span>
+                                                        <h4 className="text-base font-bold text-gray-800 dark:text-white mt-0.5">
+                                                            {groupDef.label}
+                                                        </h4>
+                                                    </div>
+
+                                                    <div className="space-y-4 overflow-y-auto max-h-[420px] pr-1 scrollbar-thin flex-1">
+                                                        {/* Item de acesso no topo se presente */}
+                                                        {accessRow && (() => {
+                                                            const code = accessRow.permission_code;
+                                                            const allowed = selectedRole === 'owner' ? true : Boolean(accessRow[`${selectedRole}_allowed` as keyof StorePermissionMatrixRow]);
+                                                            const canToggle = canToggleRolePermission(selectedRole, code);
+                                                            const disabled = !canToggle;
+
+                                                            return (
+                                                                <div className="flex items-center justify-between p-3 rounded-xl bg-green-50/50 dark:bg-green-950/10 border border-green-100/50 dark:border-green-900/20 mb-2">
+                                                                    <div className="flex flex-col gap-0.5 min-w-0">
+                                                                        <span className={`text-xs font-bold ${disabled ? 'text-gray-400 dark:text-gray-500' : 'text-green-800 dark:text-green-300'}`}>
+                                                                            Acessar {groupDef.label}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate" title={code}>
+                                                                            {code}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        disabled={disabled}
+                                                                        onClick={() => handleToggleRolePermissionCascade(code, !allowed, groupRows)}
+                                                                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-205 ease-in-out focus:outline-none ${allowed
+                                                                            ? 'bg-green-600'
+                                                                            : 'bg-gray-200 dark:bg-gray-700'
+                                                                            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                                    >
+                                                                        <span
+                                                                            className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition duration-205 ease-in-out ${allowed ? 'translate-x-4' : 'translate-x-0'
+                                                                                }`}
+                                                                        />
+                                                                    </button>
+                                                                </div>
+                                                            );
+                                                        })()}
+
+                                                        {items.length === 0 && !accessRow ? (
+                                                            <p className="text-xs text-gray-400 text-center py-4">Nenhuma permissão corresponde à busca.</p>
+                                                        ) : (
+                                                            items.map((item) => {
+                                                                return (
+                                                                    <div key={item.itemKey} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-800 space-y-2">
+                                                                        <h5 className="text-xs font-bold text-gray-700 dark:text-gray-200 border-b border-gray-100 dark:border-gray-800 pb-1">
+                                                                            {item.itemLabel}
+                                                                        </h5>
+                                                                        <div className="flex flex-wrap gap-2 pt-1">
+                                                                            {item.permissions.map((row) => {
+                                                                                const code = row.permission_code;
+                                                                                const columnKey = `${selectedRole}_allowed` as keyof StorePermissionMatrixRow;
+                                                                                const allowed = selectedRole === 'owner' ? true : Boolean(row[columnKey]);
+
+                                                                                const matchingViewPermissionCode = code.endsWith('.manage')
+                                                                                    ? code.replace(/\.manage$/, '.view')
+                                                                                    : null;
+
+                                                                                const matchingViewRow = matchingViewPermissionCode
+                                                                                    ? permissionMatrix.find((permission) => permission.permission_code === matchingViewPermissionCode)
+                                                                                    : null;
+
+                                                                                const matchingViewAllowed = matchingViewRow
+                                                                                    ? selectedRole === 'owner'
+                                                                                        ? true
+                                                                                        : Boolean(matchingViewRow[columnKey])
+                                                                                    : true;
+
+                                                                                const canToggle = canToggleRolePermission(selectedRole, code);
+                                                                                const isBaseDisabled = !canToggle;
+
+                                                                                const manageDisabled =
+                                                                                    code.endsWith('.manage') &&
+                                                                                    !matchingViewAllowed;
+
+                                                                                const disabled = isBaseDisabled || manageDisabled;
+                                                                                const actionLabelText = row.action_label || getPermissionActionLabel(row);
+
+                                                                                return (
+                                                                                    <button
+                                                                                        key={code}
+                                                                                        type="button"
+                                                                                        disabled={disabled}
+                                                                                        onClick={() => handleToggleRolePermissionCascade(code, !allowed, groupRows)}
+                                                                                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition shadow-sm ${allowed
+                                                                                            ? 'border-green-250 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-900/50 dark:bg-green-950/20 dark:text-green-300'
+                                                                                            : 'border-gray-200 bg-white text-gray-400 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-850 dark:text-gray-500'
+                                                                                            } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                                                                                        title={code}
+                                                                                    >
+                                                                                        {allowed ? (
+                                                                                            <Check size={12} className="text-green-600" />
+                                                                                        ) : (
+                                                                                            <X size={12} className="text-red-500" />
+                                                                                        )}
+                                                                                        <span>{actionLabelText}</span>
+                                                                                        {manageDisabled && !isBaseDisabled && (
+                                                                                            <span className="text-[10px] text-amber-500 dark:text-amber-400 italic ml-1">
+                                                                                                (Requer "Acessar")
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </button>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })
+                                                        )}
+                                                    </div>
+                                                </>
+                                            );
+                                        })()}
+                                    </div>
+
+                                    {/* Painel 3: Papéis da Equipe (Col 3) */}
+                                    <div className="lg:col-span-3 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-between min-h-[500px]">
+                                        <div className="space-y-4">
+                                            <h4 className="text-base font-bold text-gray-800 dark:text-white">
+                                                Papéis / Funções
+                                            </h4>
+
+                                            <div className="space-y-2">
+                                                {ROLE_OPTIONS.map((role) => {
+                                                    const isSelected = selectedRole === role.code;
+
+                                                    // Resolve um ícone simples para o papel
+                                                    let RoleIcon = User;
+                                                    if (role.code === 'owner') RoleIcon = Shield;
+                                                    if (role.code === 'admin') RoleIcon = ShieldCheck;
+                                                    if (role.code === 'viewer') RoleIcon = Eye;
+
+                                                    return (
+                                                        <div
+                                                            key={role.code}
+                                                            onClick={() => {
+                                                                setSelectedRole(role.code);
+                                                                setRoleFilter(role.code);
+                                                            }}
+                                                            className={`flex items-center justify-between p-3 rounded-xl border transition cursor-pointer select-none ${isSelected
+                                                                ? 'border-green-600 bg-green-50/50 dark:bg-green-950/20 text-green-700 dark:text-green-300'
+                                                                : 'border-gray-100 dark:border-gray-750 hover:bg-gray-50 dark:hover:bg-gray-700/40 text-gray-700 dark:text-gray-300'
+                                                                }`}
+                                                        >
+                                                            <div className="flex items-center gap-3">
+                                                                <RoleIcon size={16} className={isSelected ? 'text-green-600' : 'text-gray-400'} />
+                                                                <span className="text-xs font-bold">
+                                                                    {role.label}
+                                                                </span>
+                                                            </div>
+                                                            <Save size={14} className="opacity-0 group-hover:opacity-100 text-gray-400" />
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+
+                                        {/* Botão de Salvar Alterações visual */}
+                                        <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
+                                            <button
+                                                type="button"
+                                                disabled={adminLoading.saving}
+                                                onClick={async () => {
+                                                    toast.success('Configurações de permissões salvas com sucesso!');
+                                                    await refreshAdmin();
+                                                }}
+                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {adminLoading.saving ? <Loader size={14} className="animate-spin" /> : <Save size={14} />}
+                                                {adminLoading.saving ? 'Salvando...' : 'Salvar Alterações'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
                             </>
                         )}
                     </div>
 
-                    {/* PERMISSÕES POR USUÁRIO */}
+                    {/* PERMISS"ES POR USUÁRIO */}
                     <div className={activeTab === 'user_permissions' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
@@ -4235,7 +4237,7 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* AÇÕES SENSÍVEIS */}
+                    {/* A!"ES SENSÍVEIS */}
                     <div className={activeTab === 'sensitive_actions' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
@@ -4778,7 +4780,7 @@ export default function Security() {
                                     <div className="mb-6">
                                         <div className="flex justify-between items-center mb-2">
                                             <label className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                                                ðŸ”  Máximo de tentativas por token
+                                                ðŸ⬝  Máximo de tentativas por token
                                             </label>
                                             <span className="text-sm font-mono bg-purple-100 dark:bg-purple-900/30 px-3 py-1 rounded-full text-purple-800 dark:text-purple-300">
                                                 {maxAttempts} {maxAttempts === 1 ? 'tentativa' : 'tentativas'}
@@ -4828,7 +4830,7 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* SESSÃO E INATIVIDADE */}
+                    {/* SESSÒO E INATIVIDADE */}
                     <div className={activeTab === 'session_inactive' ? 'block space-y-6 animate-fadeIn' : 'hidden'}>
                         <div className="bg-[#21A896]/5 dark:bg-[#21A896]/10 border border-[#21A896]/20 p-6 rounded-xl">
                             <div className="flex flex-col md:flex-row md:items-start gap-4">
@@ -4920,7 +4922,7 @@ export default function Security() {
                         </div>
                     </div>
 
-                    {/* FUNÇÕES PERSONALIZADAS */}
+                    {/* FUN!"ES PERSONALIZADAS */}
                     <div className={activeTab === 'custom_roles' ? 'block animate-fadeIn' : 'hidden'}>
                         <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                             <div className="flex-1">

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     getEffectiveStorePermissions,
@@ -17,7 +17,10 @@ import type {
 
 interface UsePermissionsResult {
     permissions: EffectiveStorePermission[];
+    // true apenas durante a carga inicial (tela em branco é esperada)
     loading: boolean;
+    // true durante refresh silencioso em background (UI permanece visível)
+    refreshing: boolean;
     error: string | null;
     refresh: () => Promise<void>;
     allowedPermissions: string[];
@@ -33,29 +36,60 @@ function getErrorMessage(error: unknown, fallback: string): string {
 
 export function usePermissions(storeId: string | null): UsePermissionsResult {
     const [permissions, setPermissions] = useState<EffectiveStorePermission[]>([]);
+    // loading: true apenas enquanto não há nenhuma permissão carregada (carga inicial)
     const [loading, setLoading] = useState(false);
+    // refreshing: true durante atualizações em background (não bloqueia a UI)
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    // Rastreia se já fez ao menos uma carga bem-sucedida para este storeId
+    const hasLoadedRef = useRef(false);
 
     const refresh = useCallback(async () => {
         if (!storeId) {
             setPermissions([]);
             setError(null);
+            hasLoadedRef.current = false;
             return;
         }
 
-        setLoading(true);
+        const isInitialLoad = !hasLoadedRef.current;
+
+        if (isInitialLoad) {
+            // Carga inicial: mostra loading bloqueante (sem dados anteriores para exibir)
+            setLoading(true);
+        } else {
+            // Refresh silencioso: indica atualização sem desmontar a UI
+            setRefreshing(true);
+        }
+
         setError(null);
 
         try {
             const result = await getEffectiveStorePermissions(storeId);
             setPermissions(result);
+            hasLoadedRef.current = true;
         } catch (err: unknown) {
             console.error('Erro no hook usePermissions:', err);
             setError(getErrorMessage(err, 'Erro ao carregar permissões'));
-            setPermissions([]);
+
+            if (isInitialLoad) {
+                // Carga inicial falhou: zera para não exibir dados inválidos
+                setPermissions([]);
+            }
+            // Refresh silencioso falhou: preserva as permissões anteriores
+            // para não bloquear o usuário por uma falha temporária de rede
         } finally {
-            setLoading(false);
+            if (isInitialLoad) {
+                setLoading(false);
+            } else {
+                setRefreshing(false);
+            }
         }
+    }, [storeId]);
+
+    // Quando storeId muda, reseta o flag de "já carregou" para forçar loading inicial
+    useEffect(() => {
+        hasLoadedRef.current = false;
     }, [storeId]);
 
     useEffect(() => {
@@ -136,6 +170,19 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                 },
                 scheduleRefresh
             )
+            // [CORREÇÃO 4] Escuta overrides individuais de permissão por membro.
+            // Sem essa inscrição, mudanças em store_member_permissions feitas pelo
+            // admin em outro dispositivo nunca chegavam ao usuário afetado.
+            .on(
+                'postgres_changes',
+                {
+                    event: '*',
+                    schema: 'public',
+                    table: 'store_member_permissions',
+                    filter: `store_id=eq.${storeId}`,
+                },
+                scheduleRefresh
+            )
             .subscribe();
 
         return () => {
@@ -202,6 +249,7 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
     return {
         permissions,
         loading,
+        refreshing,
         error,
         refresh,
         allowedPermissions,

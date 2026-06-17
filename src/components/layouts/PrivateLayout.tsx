@@ -139,7 +139,7 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
-    const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
+    const { permissions, loading: loadingPermissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -506,7 +506,7 @@ export default function PrivateLayout() {
                 setStoreId(selectedMembership.store_id);
                 setStoreSlug(selectedMembership.store_slug);
 
-                // FIX.5: profiles NÃO tem internal_alias — buscar apenas dados pessoais
+                // FIX.5: profiles NÃO tem internal_alias   buscar apenas dados pessoais
                 // FIX.5: internal_alias vem de store_members via user_id + store_id (RLS safe)
                 const [{ data: profileRow }, { data: memberAliasRow }] = await Promise.all([
                     supabase
@@ -536,7 +536,7 @@ export default function PrivateLayout() {
                     user.email;
 
                 // FIX.4: displayName = apelido para sidebar/header
-                // Ordem: RPC membership → store_members direto → email username → 'Usuário'
+                // Ordem: RPC membership  → store_members direto  → email username  → 'Usuário'
                 const resolvedAlias =
                     selectedMembership?.internal_alias ||
                     memberAliasRow?.internal_alias ||
@@ -544,7 +544,7 @@ export default function PrivateLayout() {
                     user.email?.split('@')[0] ||
                     'Usuário';
 
-                // avatar: member_avatar_url → avatar_url → fallbacks
+                // avatar: member_avatar_url  → avatar_url  → fallbacks
                 const resolvedAvatar =
                     selectedMembership?.member_avatar_url ||
                     selectedMembership?.avatar_url ||
@@ -651,6 +651,55 @@ export default function PrivateLayout() {
         return list;
     }, [userId, activeMembership?.member_id, storeId]);
 
+    // [CORREÇÃO 7] Refresh incremental: atualiza apenas alias, avatar e dados do membro
+    // sem re-executar initialize() completo (que reconstri toda a sesso e causa reload visual).
+    //  chamado quando store_members ou store_member_permissions mudam para o usurio atual.
+    // Mudanas estruturais (suspenso, troca de loja) ainda passam por optmamenu:security-context-refresh.
+    const refreshMemberData = useCallback(async () => {
+        if (!userId || !storeId) return;
+
+        try {
+            const { data: memberRow } = await supabase
+                .from('store_members')
+                .select(`
+                    internal_alias,
+                    member_avatar_url,
+                    member_email,
+                    member_phone,
+                    status,
+                    access_blocked,
+                    access_message
+                `)
+                .eq('user_id', userId)
+                .eq('store_id', storeId)
+                .maybeSingle();
+
+            if (!memberRow) return;
+
+            // Se o membro foi suspenso/bloqueado, a sim requer initialize() completo
+            if (memberRow.status === 'suspended' || memberRow.access_blocked === true) {
+                window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
+                return;
+            }
+
+            // Caso contrrio: atualiza apenas os campos de exibio
+            setUserData((prev) => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    alias: memberRow.internal_alias || prev.alias,
+                    avatar: memberRow.member_avatar_url || prev.avatar,
+                    email: memberRow.member_email || prev.email,
+                    phone: memberRow.member_phone || prev.phone,
+                };
+            });
+        } catch (err) {
+            console.error('[PrivateLayout] Erro no refreshMemberData:', err);
+        }
+    }, [userId, storeId]);
+
+    // Debounce unificado em 450ms (entre os 400ms do usePermissions e os 500ms anteriores),
+    // evitando dois re-renders consecutivos quando o mesmo evento chega em ambos.
     const debouncedContextRefresh = useMemo(() => {
         let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
@@ -660,10 +709,10 @@ export default function PrivateLayout() {
             }
 
             timeoutId = setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
-            }, 500);
+                void refreshMemberData();
+            }, 450);
         };
-    }, []);
+    }, [refreshMemberData]);
 
     useRealtimeListener({
         channelName: `layout_context_rt_${userId || 'pending'}_${storeId || 'none'}`,
@@ -677,7 +726,7 @@ export default function PrivateLayout() {
         setIsMobileOpen(false);
     }, [pathname]);
 
-    // 9.9K.3 — Guarda de primeiro acesso: redireciona para /admin/my-profile se onboarding pendente
+    // 9.9K.3   Guarda de primeiro acesso: redireciona para /admin/my-profile se onboarding pendente
     const allowedDuringOnboarding = [
         '/admin/my-profile',
         '/admin/my-history',
@@ -1076,9 +1125,12 @@ export default function PrivateLayout() {
                         )}
 
                         {/* Navigation Menu */}
-                        {loadingPermissions && (
+                        {/* [CORREÇÃO 3] Indicador discreto aparece apenas durante refresh
+                            silencioso (refreshingPermissions), nunca durante loading inicial,
+                            garantindo que a sidebar nunca pisca ou some durante atualizaes. */}
+                        {refreshingPermissions && (
                             <div className="px-4 py-1 text-[10px] text-gray-400">
-                                Atualizando permissões...
+                                Atualizando permisses...
                             </div>
                         )}
                         <nav className="space-y-4">
@@ -1113,7 +1165,7 @@ export default function PrivateLayout() {
                                                     {section === 'settings' && 'Configurações'}
                                                     {section === 'support' && 'Suporte'}
                                                 </span>
-                                                <span className="text-gray-400">{openSections[section] ? '−' : '+'}</span>
+                                                <span className="text-gray-400">{openSections[section] ? '→' : '+'}</span>
                                             </button>
                                         )}
                                         {(openSections[section] || isSidebarCollapsed) && visibleItems
@@ -1213,7 +1265,7 @@ export default function PrivateLayout() {
 
                     {/* Right Side: Quick actions */}
                     <div className="flex items-center gap-1.5 ml-auto">
-                        {/* User Identity Chip — apelido + avatar do usuário logado */}
+                        {/* User Identity Chip   apelido + avatar do usuário logado */}
                         {userData && (
                             <div
                                 className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 shrink-0 select-none cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"

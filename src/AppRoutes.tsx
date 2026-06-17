@@ -15,6 +15,8 @@ import { useState, useEffect } from 'react';
 function AdminLanding() {
   const activeStoreId = getActiveStoreId();
   const { securityContext, loading: securityLoading } = useSecurityContext();
+  // [CORREÇÃO 3] Desestrutura `loading` (carga inicial) — não `refreshing`.
+  // Isso evita que AdminLanding mostre spinner durante updates silenciosos de permissão.
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
 

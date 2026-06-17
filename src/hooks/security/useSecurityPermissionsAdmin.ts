@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { notifyPermissionsChanged } from '@/utils/permissionEvents';
@@ -25,7 +25,6 @@ function normalizeRoleCode(role: string) {
   const normalized = String(role || '').trim().toLowerCase();
 
   const map: Record<string, string> = {
-    proprietário: 'owner',
     proprietario: 'owner',
     administrador: 'admin',
     gerente: 'manager',
@@ -76,11 +75,11 @@ function normalizePermissionMatrixRows(data: unknown): StorePermissionMatrixRow[
 type UseSecurityPermissionsAdminOptions =
   | boolean
   | {
-      enabled?: boolean;
-      matrix?: boolean;
-      sensitiveActions?: boolean;
-      members?: boolean;
-    };
+    enabled?: boolean;
+    matrix?: boolean;
+    sensitiveActions?: boolean;
+    members?: boolean;
+  };
 
 export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdminOptions = true) {
   const enabled = typeof options === 'boolean' ? options : options.enabled ?? true;
@@ -410,6 +409,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         throw rpcError;
       }
 
+      notifyPermissionsChanged(currentStoreId, 'sensitive_action_update');
       await fetchSensitiveActions({ silent: true });
     },
     [currentStoreId, fetchSensitiveActions]

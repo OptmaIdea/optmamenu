@@ -16,6 +16,8 @@ type RequirePermissionProps = {
 export function RequirePermission({ permission, permissions: permissionsProp, children }: RequirePermissionProps) {
   const activeStoreId = getActiveStoreId();
   const { securityContext, loading: securityLoading } = useSecurityContext();
+  // [CORREÇÃO 3] Usa apenas `loading` (carga inicial), não `refreshing`.
+  // Assim refreshes silenciosos em background não desmontam a página com spinner.
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(5);
@@ -54,6 +56,9 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
     }
   }, [securityLoading, permissionsLoading, hasAccess, navigate]);
 
+  // Spinner apenas na carga inicial (loading=true, sem dados anteriores).
+  // Quando é apenas um refresh silencioso (refreshing=true), loading permanece
+  // false e o conteúdo atual fica visível — sem piscada.
   if (securityLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
