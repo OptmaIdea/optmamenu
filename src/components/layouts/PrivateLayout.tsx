@@ -139,7 +139,7 @@ export default function PrivateLayout() {
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
     const [storeId, setStoreId] = useState<string | null>(null);
-    const { permissions, loading: loadingPermissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
+    const { permissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -626,6 +626,7 @@ export default function PrivateLayout() {
 
     const realtimeTables = useMemo(() => {
         if (!userId) return [];
+
         const list = [
             {
                 table: 'store_members',
@@ -634,26 +635,22 @@ export default function PrivateLayout() {
             {
                 table: 'profiles',
                 filter: `id=eq.${userId}`,
-            }
+            },
         ];
-        if (activeMembership?.member_id) {
-            list.push({
-                table: 'store_member_permissions',
-                filter: `member_id=eq.${activeMembership.member_id}`,
-            });
-        }
+
         if (storeId) {
             list.push({
                 table: 'stores',
                 filter: `id=eq.${storeId}`,
             });
         }
+
         return list;
-    }, [userId, activeMembership?.member_id, storeId]);
+    }, [userId, storeId]);
 
     // [CORREÇÃO 7] Refresh incremental: atualiza apenas alias, avatar e dados do membro
     // sem re-executar initialize() completo (que reconstri toda a sesso e causa reload visual).
-    //  chamado quando store_members ou store_member_permissions mudam para o usurio atual.
+    //  chamado quando store_members.permissions ou store_members mudam para o usuário atual.
     // Mudanas estruturais (suspenso, troca de loja) ainda passam por optmamenu:security-context-refresh.
     const refreshMemberData = useCallback(async () => {
         if (!userId || !storeId) return;
@@ -1130,7 +1127,7 @@ export default function PrivateLayout() {
                             garantindo que a sidebar nunca pisca ou some durante atualizaes. */}
                         {refreshingPermissions && (
                             <div className="px-4 py-1 text-[10px] text-gray-400">
-                                Atualizando permisses...
+                                Atualizando permissões...
                             </div>
                         )}
                         <nav className="space-y-4">
@@ -1165,7 +1162,12 @@ export default function PrivateLayout() {
                                                     {section === 'settings' && 'Configurações'}
                                                     {section === 'support' && 'Suporte'}
                                                 </span>
-                                                <span className="text-gray-400">{openSections[section] ? '→' : '+'}</span>
+                                                <ChevronDown
+                                                    size={14}
+                                                    className={`text-gray-400 transition-transform duration-200 ${
+                                                        openSections[section] ? 'rotate-180' : ''
+                                                    }`}
+                                                />
                                             </button>
                                         )}
                                         {(openSections[section] || isSidebarCollapsed) && visibleItems

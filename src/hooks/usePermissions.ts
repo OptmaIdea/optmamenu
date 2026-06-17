@@ -170,19 +170,6 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                 },
                 scheduleRefresh
             )
-            // [CORREÇÃO 4] Escuta overrides individuais de permissão por membro.
-            // Sem essa inscrição, mudanças em store_member_permissions feitas pelo
-            // admin em outro dispositivo nunca chegavam ao usuário afetado.
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'store_member_permissions',
-                    filter: `store_id=eq.${storeId}`,
-                },
-                scheduleRefresh
-            )
             .subscribe();
 
         return () => {

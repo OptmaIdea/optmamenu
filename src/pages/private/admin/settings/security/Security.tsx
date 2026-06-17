@@ -1366,21 +1366,39 @@ export default function Security() {
         securityContext,
         loading: loadingSecurityContext,
         refresh: refreshSecurityContext,
-        isOwner,
         isAdminLike,
         hasPin,
     } = useSecurityContext();
 
-    const activeMembership = resolveActiveMembership(
+    const activeMembership = useMemo(() => {
+        const activeStoreId = getActiveStoreId();
+        const memberships = securityContext?.memberships ?? [];
+
+        if (activeStoreId) {
+            const membershipForActiveStore = memberships.find(
+                (membership) => membership.store_id === activeStoreId
+            );
+
+            if (membershipForActiveStore) {
+                return membershipForActiveStore;
+            }
+        }
+
+        return resolveActiveMembership(
+            securityContext?.memberships,
+            securityContext?.primary_membership
+        );
+    }, [
         securityContext?.memberships,
-        securityContext?.primary_membership
-    );
+        securityContext?.primary_membership,
+    ]);
 
     const currentStoreId = activeMembership?.store_id ?? getActiveStoreId();
     const currentStoreName = activeMembership?.store_name ?? 'Loja não selecionada';
     const currentStoreSlug = activeMembership?.store_slug ?? '';
     const currentRole = activeMembership?.role ?? null;
     const isStoreOwner = currentRole === 'owner';
+    const isOwner = isStoreOwner;
     const [roleFilter, setRoleFilter] = useState('all');
     const [selectedRole, setSelectedRole] = useState<RoleCode>('admin');
     const [selectedMacroGroup, setSelectedMacroGroup] = useState<'settings' | 'security' | 'operational'>('settings');
@@ -3121,8 +3139,8 @@ export default function Security() {
                                         </h4>
 
                                         <div className="space-y-2 text-sm">
-                                            <InfoLine label="Store ID" value={currentStoreId || 'Não definido'} />
-                                            <InfoLine label="0 proprietário?" value={isOwner ? 'Sim' : 'Não'} />
+                                            <InfoLine label="Store ID" value={currentStoreId ? currentStoreId.slice(0, 6) + '••••••••••••' : 'Não definido'} />
+                                            <InfoLine label="É proprietário?" value={isStoreOwner ? 'Sim' : 'Não'} />
                                             <InfoLine label="Perfil administrativo?" value={isAdminLike ? 'Sim' : 'Não'} />
                                             <InfoLine label="Global admin" value={securityContext?.is_global_admin ? 'Sim' : 'Não'} />
                                         </div>
@@ -3570,7 +3588,6 @@ export default function Security() {
                                         <span>Atualizando permissões em segundo plano...</span>
                                     </div>
                                 )}
-                            /* Layout de 3 painéis Premium (Image 2 style) */
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                                     {/* Painel 1: Grupos de Permissão (Col 4) */}
                                     <div className="lg:col-span-4 bg-white dark:bg-gray-800 p-5 rounded-2xl border border-gray-150 dark:border-gray-700 shadow-sm flex flex-col justify-start min-h-[500px]">
