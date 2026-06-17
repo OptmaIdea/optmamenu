@@ -186,7 +186,13 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                 },
                 scheduleRefresh
             )
-            .subscribe();
+            .subscribe((status, error) => {
+                console.log('[PERMISSIONS_RT_STATUS]', {
+                    storeId,
+                    status,
+                    error,
+                });
+            });
 
         return () => {
             if (refreshTimer) {
