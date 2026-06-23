@@ -41,8 +41,8 @@ export function useIdleSessionTimeout() {
     } | null>(null);
 
     const tabIdRef = useRef<string>(
-        typeof crypto !== 'undefined' && crypto.randomUUID 
-            ? crypto.randomUUID() 
+        typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
             : `${Date.now()}-${Math.random()}`
     );
 

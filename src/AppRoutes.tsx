@@ -31,7 +31,7 @@ function AdminLanding() {
     if (securityLoading || permissionsLoading || !activeStoreId) return;
 
     if (hasDashboardView) {
-      setRedirectPath('/admin/dashboard');
+      setRedirectPath('/admin');
     } else {
       const fetchDefaultPath = async () => {
         const { data, error } = await supabase.rpc('get_default_admin_landing_path_v3', {
