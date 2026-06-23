@@ -93,6 +93,7 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
 
     const [products, setProducts] = useState<ProductStockSettingsListItem[]>([]);
     const [selectedProductId, setSelectedProductId] = useState<string>('');
+    const [isListExpanded, setIsListExpanded] = useState(false);
     const [rules, setRules] = useState<ProductStockRule[]>([]);
     const [productName, setProductName] = useState('');
 
@@ -462,15 +463,27 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                         </div>
 
                         <div className="mt-4 max-h-160 space-y-2 overflow-y-auto pr-1">
-                            {products.map((product) => {
+                            {products.map((product, index) => {
                                 const isSelected = product.id === selectedProductId;
+                                const isFirstItem = index === 0;
+                                const isSecondItem = index === 1;
+                                const isSelectedFirst = products[0]?.id === selectedProductId;
+
+                                const shouldShowOnMobile =
+                                    isSelected ||
+                                    (isFirstItem && !isSelectedFirst) ||
+                                    (isSecondItem && isSelectedFirst);
+
+                                const visibilityClass = isListExpanded || shouldShowOnMobile
+                                    ? 'block'
+                                    : 'hidden xl:block';
 
                                 return (
                                     <button
                                         key={product.id}
                                         type="button"
                                         onClick={() => setSelectedProductId(product.id)}
-                                        className={`w-full rounded-2xl border p-3 text-left transition ${isSelected
+                                        className={`w-full rounded-2xl border p-3 text-left transition ${visibilityClass} ${isSelected
                                             ? 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950/30'
                                             : 'border-gray-100 bg-white hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800'
                                             }`}
@@ -497,6 +510,16 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                                     </button>
                                 );
                             })}
+
+                            {products.length > 2 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setIsListExpanded(!isListExpanded)}
+                                    className="w-full mt-2 py-2 px-4 text-xs font-bold text-[#21A896] hover:text-[#1a867a] bg-[#21A896]/10 hover:bg-[#21A896]/20 rounded-xl transition xl:hidden shrink-0 flex items-center justify-center gap-1.5"
+                                >
+                                    {isListExpanded ? 'Recolher lista de produtos' : `Ver mais ${products.length - 2} produtos`}
+                                </button>
+                            )}
 
                             {!loadingProducts && products.length === 0 && (
                                 <div className="rounded-2xl border border-dashed border-gray-200 p-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
