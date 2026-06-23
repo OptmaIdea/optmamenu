@@ -16,6 +16,8 @@
       - empty-state/
       - tooltip/
       - navigation/
+    - security/
+      - PermissionLocked.tsx
   - constants/
   - hooks/
     - useIdleSessionTimeout.ts

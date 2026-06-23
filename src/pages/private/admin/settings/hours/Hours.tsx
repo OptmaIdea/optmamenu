@@ -6,6 +6,7 @@ import type { StoreHour, StoreException } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { LockedHint, PermissionLocked } from '@/components/security/PermissionLocked';
 
 
 const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -186,7 +187,9 @@ export default function Hours() {
             icon={<Clock className="text-[#21A896]" size={28} />}
             flat
         >
+            <LockedHint show={!canManage} />
 
+            <PermissionLocked locked={!canManage}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* WEEKLY SCHEDULE */}
                 <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
@@ -517,6 +520,7 @@ export default function Hours() {
                     </div>
                 </div>
             </div>
+            </PermissionLocked>
 
             <div className="mt-8 bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-900/30 flex gap-3 text-sm text-blue-700 dark:text-blue-300">
                 <Info className="shrink-0" size={20} />

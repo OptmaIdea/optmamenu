@@ -14,6 +14,7 @@ import { TEMPLATE_PRIVACY_POLICY, TEMPLATE_TERMS_OF_USE, TEMPLATE_COOKIE_POLICY 
 import { getActiveStoreId, setActiveStoreId, resolveActiveMembership } from '@/utils/activeStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
+import { LockedHint, PermissionLocked, NO_WRITE_PERMISSION_MESSAGE } from '@/components/security/PermissionLocked';
 
 // Import sub-pages
 import CommercialSettingsPage from '@/pages/private/admin/commercial/settings/CommercialSettingsPage';
@@ -74,24 +75,6 @@ const settingsTabPermissions = {
 } as const;
 
 
-const NO_WRITE_PERMISSION_MESSAGE = 'Você não tem permissão para executar esta alteração.';
-
-function PermissionLockedWrapper({
-    locked,
-    children,
-}: {
-    locked: boolean;
-    children: React.ReactNode;
-}) {
-    return (
-        <div
-            title={locked ? NO_WRITE_PERMISSION_MESSAGE : undefined}
-            className={locked ? 'cursor-not-allowed' : undefined}
-        >
-            {children}
-        </div>
-    );
-}
 
 // Helper to get initials
 const getInitials = (name: string) => {
@@ -647,11 +630,7 @@ export default function StoreSettings() {
             {/* Tab Contents */}
             {activeTab === 'store' && (
                 <div className="space-y-6">
-                    {!canManageCurrentTab && (
-                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800 animate-fadeIn">
-                            Você pode visualizar estes dados, mas não possui permissão para alterá-los.
-                        </div>
-                      )}
+                    <LockedHint show={!canManageCurrentTab} />
 
                     {message && (
                         <div className={`p-4 rounded-xl flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300' : 'bg-green-50 border-green-100 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300'}`}>
@@ -740,7 +719,7 @@ export default function StoreSettings() {
                         </div>
                     </section>
 
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fadeIn">
                         {/* Sub-tabs Header */}
                         <div className="flex border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
@@ -810,54 +789,60 @@ export default function StoreSettings() {
                             </div>
                         )}
                         </form>
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {/* RENDER SUB-PAGES WITH withoutHeader=true */}
             {activeTab === 'commercial' && (
                 <div className="animate-fadeIn">
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <CommercialSettingsPage withoutHeader={true} disabled={!canManageCurrentTab} />
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'orders' && (
                 <div className="animate-fadeIn">
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <Config withoutHeader={true} disabled={!canManageCurrentTab} />
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'stock' && (
                 <div className="animate-fadeIn">
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <StockSettingsPage withoutHeader={true} disabled={!canManageCurrentTab} />
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'delivery' && (
                 <div className="animate-fadeIn">
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <Delivery withoutHeader={true} disabled={!canManageCurrentTab} />
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'payment' && (
                 <div className="animate-fadeIn">
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <PaymentMethodsPage withoutHeader={true} disabled={!canManageCurrentTab} />
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'messages' && (
                 <div className="animate-fadeIn">
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
                             <div className="flex items-center gap-3 mb-2">
                                 <MessageCircle className="text-[#21A896]" size={22} />
@@ -871,17 +856,13 @@ export default function StoreSettings() {
                                 a central de mensagens continua disponível no menu Comercial.
                             </p>
                         </div>
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'legal' && (
                 <div className="space-y-6 animate-fadeIn">
-                    {!canManageCurrentTab && (
-                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-                            Você pode visualizar estes dados, mas não possui permissão para alterá-los.
-                        </div>
-                    )}
+                    <LockedHint show={!canManageCurrentTab} />
 
                     {message && (
                         <div className={`p-4 rounded-xl flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700' : 'bg-green-50 border-green-100 text-green-700'}`}>
@@ -890,7 +871,7 @@ export default function StoreSettings() {
                         </div>
                     )}
 
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden p-6 md:p-8">
                         <LegalTab
                             store={store}
@@ -916,17 +897,13 @@ export default function StoreSettings() {
                             </div>
                         )}
                         </form>
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
 
             {activeTab === 'system' && (
                 <div className="space-y-6 animate-fadeIn">
-                    {!canManageCurrentTab && (
-                        <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-800">
-                            Você pode visualizar estes dados, mas não possui permissão para alterá-los.
-                        </div>
-                    )}
+                    <LockedHint show={!canManageCurrentTab} />
 
                     {message && (
                         <div className={`p-4 rounded-xl flex items-center gap-3 shadow-sm border ${message.includes('Erro') ? 'bg-red-50 border-red-100 text-red-700' : 'bg-green-50 border-green-100 text-green-700'}`}>
@@ -935,7 +912,7 @@ export default function StoreSettings() {
                         </div>
                     )}
 
-                    <PermissionLockedWrapper locked={!canManageCurrentTab}>
+                    <PermissionLocked locked={!canManageCurrentTab}>
                         <form onSubmit={handleSave} className="space-y-6">
                         <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
                             <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
@@ -979,7 +956,7 @@ export default function StoreSettings() {
                             </div>
                         )}
                         </form>
-                    </PermissionLockedWrapper>
+                    </PermissionLocked>
                 </div>
             )}
         </PageContainer>
