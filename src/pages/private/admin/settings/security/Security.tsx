@@ -573,9 +573,9 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
     {
         id: 'security_general',
         macroGroup: 'security',
-        label: 'Acesso geral',
-        description: 'Primeiro libere o acesso geral à área Senhas e Acesso. Depois escolha as abas e ações.',
-        prefixes: ['security.view', 'security.manage'],
+        label: 'Senhas e Acesso',
+        description: 'Controla o acesso geral ao módulo de Segurança. Sem esta permissão, nenhuma aba de segurança pode ser acessada.',
+        prefixes: ['security.view'],
     },
     {
         id: 'security_context',
@@ -1352,7 +1352,7 @@ function AccessDenied({ message }: { message: string }) {
         <PageContainer
             title="Acesso Restrito"
             subtitle="Verificação de privilégios de segurança"
-            category="Configurações"
+            category="Segurança"
             icon={<AlertCircle className="text-[#DC2626]" size={28} />}
             flat
         >
@@ -2499,23 +2499,30 @@ export default function Security() {
         const requestedTab =
             tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl)
                 ? tabFromUrl
-                : 'context';
+                : null;
 
-        const requestedTabAllowed = allowedTabs.some((tab) => tab.id === requestedTab);
+        const firstAllowedTab = allowedTabs[0];
 
-        if (!requestedTabAllowed) {
-            const firstAllowedTab = allowedTabs[0];
-
-            if (firstAllowedTab) {
-                setActiveTab(firstAllowedTab.id);
-            } else {
-                navigate('/admin/my-profile', { replace: true });
-            }
-
+        if (!firstAllowedTab) {
+            navigate('/admin/my-profile', { replace: true });
             return;
         }
 
-        if (activeTab !== requestedTab) {
+        if (!requestedTab) {
+            setActiveTabState(firstAllowedTab.id);
+            setSearchParams({ tab: firstAllowedTab.id }, { replace: true });
+            return;
+        }
+
+        const canOpenRequestedTab = allowedTabs.some((tab) => tab.id === requestedTab);
+
+        if (!canOpenRequestedTab) {
+            setActiveTabState(firstAllowedTab.id);
+            setSearchParams({ tab: firstAllowedTab.id }, { replace: true });
+            return;
+        }
+
+        if (requestedTab !== activeTab) {
             setActiveTabState(requestedTab);
         }
     }, [
@@ -2526,7 +2533,7 @@ export default function Security() {
         allowedTabs,
         activeTab,
         navigate,
-        setActiveTab,
+        setSearchParams,
     ]);
 
     const filteredLogs = useMemo(() => {
@@ -2962,7 +2969,7 @@ export default function Security() {
         <PageContainer
             title="Senhas e Acesso"
             subtitle="Gerencie as configurações de segurança, PIN, senhas master e permissões da equipe."
-            category="Configurações"
+            category="Segurança"
             icon={<Shield className="text-[#21A896]" size={28} />}
             flat
         >

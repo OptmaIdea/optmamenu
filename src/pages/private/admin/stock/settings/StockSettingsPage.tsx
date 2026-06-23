@@ -403,28 +403,8 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
         );
     }
 
-    return (
-        <PageContainer
-            title="Configurações de estoque"
-            subtitle="Configure mínimo/máximo global por produto e distribua os limites entre os locais da loja, como estoque principal e loja física."
-            category="Produtos"
-            icon={<SlidersHorizontal size={28} className="text-[#21A896]" />}
-            action={
-                !disabled && (
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={saving || !selectedProductId || loadingRules}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                        Salvar regras
-                    </button>
-                )
-            }
-            withoutHeader={withoutHeader}
-            flat
-        >
+    const content = (
+        <>
             {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
                     {error}
@@ -444,8 +424,8 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                 </div>
             )}
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                <aside className="lg:col-span-4">
+            <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+                <aside className="min-w-0 xl:col-span-4">
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center gap-2">
                             <PackageSearch size={18} className="text-blue-600" />
@@ -527,7 +507,7 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                     </div>
                 </aside>
 
-                <main className="space-y-6 lg:col-span-8">
+                <main className="min-w-0 space-y-6 xl:col-span-8">
                     <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                             <div>
@@ -543,12 +523,12 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                                 </p>
                             </div>
 
-                            <div className="flex flex-wrap gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                                 <button
                                     type="button"
                                     onClick={distributeEqually}
                                     disabled={!rules.length || disabled}
-                                    className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
                                 >
                                     Dividir igualmente
                                 </button>
@@ -557,7 +537,7 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                                     type="button"
                                     onClick={recalculateByPercent}
                                     disabled={!rules.length || disabled}
-                                    className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 sm:w-auto"
                                 >
                                     Recalcular por %
                                 </button>
@@ -677,7 +657,7 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                                             </label>
                                         </div>
 
-                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-4">
+                                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                             <div>
                                                 <label className="text-xs font-bold text-gray-600 dark:text-gray-300">
                                                     Mín %
@@ -806,6 +786,35 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                     )}
                 </main>
             </div>
+        </>
+    );
+
+    if (withoutHeader) {
+        return content;
+    }
+
+    return (
+        <PageContainer
+            title="Configurações de estoque"
+            subtitle="Configure mínimo/máximo global por produto e distribua os limites entre os locais da loja, como estoque principal e loja física."
+            category="Produtos"
+            icon={<SlidersHorizontal size={28} className="text-[#21A896]" />}
+            action={
+                !disabled && (
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving || !selectedProductId || loadingRules}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+                        Salvar regras
+                    </button>
+                )
+            }
+            flat
+        >
+            {content}
         </PageContainer>
     );
 }
