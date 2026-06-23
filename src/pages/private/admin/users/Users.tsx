@@ -51,31 +51,31 @@ function formatChangeValue(value: unknown): string {
 }
 
 function formatAdditionalInfoChange(change: any): {
-  title: string;
-  oldText: string;
-  newText: string;
-  oldSensitive: string;
-  newSensitive: string;
+    title: string;
+    oldText: string;
+    newText: string;
+    oldSensitive: string;
+    newSensitive: string;
 } {
-  const itemId = change?.item_id;
+    const itemId = change?.item_id;
 
-  const oldArray = Array.isArray(change?.old) ? change.old : [];
-  const newArray = Array.isArray(change?.new) ? change.new : [];
+    const oldArray = Array.isArray(change?.old) ? change.old : [];
+    const newArray = Array.isArray(change?.new) ? change.new : [];
 
-  const oldItem = oldArray.find((item: any) => item?.id === itemId);
-  const newItem = newArray.find((item: any) => item?.id === itemId);
+    const oldItem = oldArray.find((item: any) => item?.id === itemId);
+    const newItem = newArray.find((item: any) => item?.id === itemId);
 
-  return {
-    title:
-      change?.item_label ||
-      newItem?.title ||
-      oldItem?.title ||
-      'Informação adicional',
-    oldText: oldItem?.text || 'Não informado',
-    newText: newItem?.text || 'Não informado',
-    oldSensitive: oldItem?.sensitive ? 'Sim' : 'Não',
-    newSensitive: newItem?.sensitive ? 'Sim' : 'Não',
-  };
+    return {
+        title:
+            change?.item_label ||
+            newItem?.title ||
+            oldItem?.title ||
+            'Informação adicional',
+        oldText: oldItem?.text || 'Não informado',
+        newText: newItem?.text || 'Não informado',
+        oldSensitive: oldItem?.sensitive ? 'Sim' : 'Não',
+        newSensitive: newItem?.sensitive ? 'Sim' : 'Não',
+    };
 }
 
 function formatRoleLabel(role: string): string {
@@ -154,7 +154,7 @@ export default function Users() {
 
     const [profileRequests, setProfileRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingProfileRequests, setLoadingProfileRequests] = useState(false);
-    
+
     // Filtros, busca e ordenação das solicitações cadastrais de colaboradores
     const [profileRequestSearch, setProfileRequestSearch] = useState('');
     const [profileRequestStatusFilter, setProfileRequestStatusFilter] = useState<'all' | ProfileChangeRequestStatus>('all');
@@ -182,12 +182,12 @@ export default function Users() {
 
     function getRequestTitle(request: ProfileChangeRequest): string {
         const baseTitle = PROFILE_REQUEST_TYPE_LABELS[request.request_type] ?? request.request_type;
-        
+
         if (request.request_type === 'additional_info_remove') {
             const itemTitle = request.requested_changes?.title || 'Informação adicional';
             return `Remoção de informação adicional (${itemTitle})`;
         }
-        
+
         if (request.request_type === 'additional_info_update') {
             let itemTitle = 'Informação adicional';
             const changes = request.requested_changes ?? {};
@@ -198,7 +198,7 @@ export default function Users() {
             }
             return `Alteração de informação adicional (${itemTitle})`;
         }
-        
+
         return baseTitle;
     }
 
@@ -516,6 +516,21 @@ export default function Users() {
 
             await fetchUsers();
             await refreshSessionSummary();
+
+            const shouldClearCustomRole =
+                clearOverrides ||
+                (user.custom_role_base_role && user.custom_role_base_role !== newRole);
+
+            setSelectedUser((prev: UserAdmin | null) => {
+                if (!prev || prev.id !== user.id) return prev;
+
+                return {
+                    ...prev,
+                    role: newRole as UserRole,
+                    custom_role_id: shouldClearCustomRole ? null : prev.custom_role_id,
+                    custom_role_name: shouldClearCustomRole ? null : prev.custom_role_name,
+                };
+            });
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Não foi possível alterar a função.';
             toast.error(message);
@@ -892,7 +907,7 @@ export default function Users() {
                                         </button>
                                     )}
                                 </div>
-                                
+
                                 {/* Seletor de Status */}
                                 <div className="w-full sm:w-48">
                                     <select
@@ -1286,9 +1301,9 @@ export default function Users() {
                                     setRoleChangeConfirmation((current) =>
                                         current
                                             ? {
-                                                  ...current,
-                                                  clearOverrides: event.target.checked,
-                                              }
+                                                ...current,
+                                                clearOverrides: event.target.checked,
+                                            }
                                             : current
                                     )
                                 }
@@ -1369,9 +1384,9 @@ export default function Users() {
                                     setCustomRoleConfirmation((current) =>
                                         current
                                             ? {
-                                                  ...current,
-                                                  clearOverrides: event.target.checked,
-                                              }
+                                                ...current,
+                                                clearOverrides: event.target.checked,
+                                            }
                                             : current
                                     )
                                 }
@@ -1516,13 +1531,12 @@ export default function Users() {
                                         }));
                                     }
                                 }}
-                                className={`rounded-lg px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                                    reviewModal.decision === 'approve'
+                                className={`rounded-lg px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${reviewModal.decision === 'approve'
                                         ? 'bg-emerald-600 hover:bg-emerald-700'
                                         : reviewModal.decision === 'reject'
                                             ? 'bg-red-600 hover:bg-red-700'
                                             : 'bg-gray-600 hover:bg-gray-700'
-                                }`}
+                                    }`}
                             >
                                 {reviewModal.saving ? 'Salvando...' : 'Confirmar'}
                             </button>

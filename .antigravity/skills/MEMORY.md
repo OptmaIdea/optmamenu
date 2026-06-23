@@ -453,4 +453,4 @@ Adicionar `sm.internal_alias` na CTE e no `jsonb_build_object` da função
 
 ---
 
-*Última atualização: 2026-06-04 | Adicionada seção de identidade do usuário (profiles vs store_members).*
+*Última atualização: 2026-06-17 | Ajuste no handleConfirmRoleChange (Users.tsx) para atualizar selectedUser.*

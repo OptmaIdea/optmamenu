@@ -34,3 +34,22 @@ export function notifyPermissionsChanged(
         // noop
     }
 }
+
+export function dispatchPermissionsChangedLocal(
+    storeId?: string | null,
+    source = 'unknown'
+) {
+    const payload: PermissionsChangedPayload = {
+        storeId,
+        source,
+        timestamp: Date.now(),
+    };
+
+    if (typeof window === 'undefined') return;
+
+    window.dispatchEvent(
+        new CustomEvent<PermissionsChangedPayload>(PERMISSIONS_CHANGED_EVENT, {
+            detail: payload,
+        })
+    );
+}

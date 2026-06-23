@@ -8,6 +8,7 @@ import {
 import {
     PERMISSIONS_CHANGED_EVENT,
     PERMISSIONS_CHANGED_STORAGE_KEY,
+    dispatchPermissionsChangedLocal,
     type PermissionsChangedPayload,
 } from '@/utils/permissionEvents';
 import type {
@@ -43,6 +44,8 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
     const [error, setError] = useState<string | null>(null);
     // Rastreia se já fez ao menos uma carga bem-sucedida para este storeId
     const hasLoadedRef = useRef(false);
+    // ID único por instância para evitar conflito de canais Supabase
+    const channelIdRef = useRef(Math.random().toString(36).slice(2));
 
     const refresh = useCallback(async () => {
         if (!storeId) {
@@ -139,7 +142,7 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
         window.addEventListener('storage', handleStorageEvent);
 
         const channel = supabase
-            .channel(`effective-permissions:${storeId}`)
+            .channel(`effective-permissions:${storeId}:${channelIdRef.current}`)
             .on(
                 'postgres_changes',
                 {
@@ -148,50 +151,19 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                     table: 'store_permission_versions',
                     filter: `store_id=eq.${storeId}`,
                 },
-                (payload) => {
-                    console.log('[PERMISSIONS_VERSION_RT]', {
-                        storeId,
-                        payload,
-                    });
+                () => {
+                    dispatchPermissionsChangedLocal(storeId, 'permission_version_realtime');
                     scheduleRefresh();
                 }
             )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'store_role_permission_templates',
-                    filter: `store_id=eq.${storeId}`,
-                },
-                scheduleRefresh
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'store_custom_roles',
-                    filter: `store_id=eq.${storeId}`,
-                },
-                scheduleRefresh
-            )
-            .on(
-                'postgres_changes',
-                {
-                    event: '*',
-                    schema: 'public',
-                    table: 'store_members',
-                    filter: `store_id=eq.${storeId}`,
-                },
-                scheduleRefresh
-            )
             .subscribe((status, error) => {
-                console.log('[PERMISSIONS_RT_STATUS]', {
-                    storeId,
-                    status,
-                    error,
-                });
+                if (status === 'CHANNEL_ERROR' || error) {
+                    console.warn('[PERMISSIONS_RT_STATUS]', {
+                        storeId,
+                        status,
+                        error,
+                    });
+                }
             });
 
         return () => {

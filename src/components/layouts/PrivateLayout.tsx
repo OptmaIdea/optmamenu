@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState, useMemo, useLayoutEffect, useCallback } from 'react';
+import { useEffect, useState, useMemo, useLayoutEffect, useCallback, useRef } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -14,6 +14,10 @@ import { hasEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import { useIdleSessionTimeout } from '@/hooks/useIdleSessionTimeout';
+import {
+    PERMISSIONS_CHANGED_EVENT,
+    type PermissionsChangedPayload,
+} from '@/utils/permissionEvents';
 import {
     clearActiveStoreId,
     getActiveStoreId,
@@ -68,6 +72,7 @@ type MenuItem = {
     label: string;
     permission?: string;
     permissions?: string[];
+    anyPermissions?: string[];
     queryString?: string;
     alwaysVisible?: boolean;
 };
@@ -85,6 +90,7 @@ type LayoutMembership = {
     is_primary_owner?: boolean;
     custom_role_name?: string | null;
     custom_role_base_role?: string | null;
+    custom_role_id?: string | null;
     access_blocked?: boolean | null;
     access_message?: string | null;
     profile_avatar_url?: string | null;
@@ -95,6 +101,17 @@ type LayoutMembership = {
     onboarding_required?: boolean | null;
     onboarding_completed_at?: string | null;
 };
+
+const SECURITY_TAB_VIEW_PERMISSIONS = [
+    'security.context.view',
+    'security.logs.view',
+    'security.roles.view',
+    'security.custom_roles.view',
+    'security.user_permissions.view',
+    'security.sensitive_actions.view',
+    'security.pin_token.view',
+    'security.sessions.view',
+];
 
 function formatLayoutRole(role: string): string {
     const labels: Record<string, string> = {
@@ -145,6 +162,7 @@ export default function PrivateLayout() {
     const [loadingStore, setLoadingStore] = useState(true);
     const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
+    const layoutRealtimeChannelIdRef = useRef(Math.random().toString(36).slice(2));
 
     const isOnboardingPending =
         activeMembership?.status === 'active' &&
@@ -161,14 +179,14 @@ export default function PrivateLayout() {
         return hasEffectivePermission(permissions, key);
     }, [permissions, activeMembership?.role]);
 
-    console.log('[SIDEBAR_PERMISSIONS_DEBUG]', {
+    useEffect(() => {
+    }, [
         storeId,
         refreshingPermissions,
-        permissionsCount: permissions.length,
-        ordersView: hasEffectivePermission(permissions, 'orders.view'),
-        customersView: hasEffectivePermission(permissions, 'customers.view'),
-        settingsView: hasEffectivePermission(permissions, 'settings.view'),
-    });
+        activeMembership?.role,
+        activeMembership?.custom_role_name,
+        permissions,
+    ]);
 
     const can = useCallback((permissionCode: string | string[]) => {
         if (Array.isArray(permissionCode)) {
@@ -176,6 +194,15 @@ export default function PrivateLayout() {
         }
 
         return hasPermission(permissionCode);
+    }, [hasPermission]);
+
+    const canShowSecurityMenu = useCallback(() => {
+        if (!hasPermission('settings.view')) return false;
+        if (!hasPermission('security.view')) return false;
+
+        return SECURITY_TAB_VIEW_PERMISSIONS.some((permission) =>
+            hasPermission(permission)
+        );
     }, [hasPermission]);
 
     const SECTION_ACCESS_PERMISSIONS: Record<string, string | null> = {
@@ -206,9 +233,15 @@ export default function PrivateLayout() {
             return false;
         }
 
-        if (item.path === '/admin/settings') {
-            if (item.alwaysVisible) return true;
+        if (item.alwaysVisible) {
+            return true;
+        }
 
+        if (item.path === '/admin/security') {
+            return canShowSecurityMenu();
+        }
+
+        if (item.path === '/admin/settings') {
             if (item.permissions?.length) {
                 return can(item.permissions);
             }
@@ -224,34 +257,20 @@ export default function PrivateLayout() {
             return hasPermission('settings.view') && hasPermission(viewKey);
         }
 
-        if (item.path === '/admin/security') {
-            if (item.alwaysVisible) return true;
-
-            if (item.permissions?.length) {
-                return can(item.permissions);
-            }
-
-            if (item.permission) {
-                return can(item.permission);
-            }
-
-            return hasPermission('security.view');
+        if (item.permissions?.length && !can(item.permissions)) {
+            return false;
         }
 
-        if (item.alwaysVisible) {
-            return true;
-        }
-
-        if (item.permissions?.length) {
-            return can(item.permissions);
+        if (item.anyPermissions?.length) {
+            return item.anyPermissions.some((permission) => hasPermission(permission));
         }
 
         if (item.permission) {
-            return can(item.permission);
+            return hasPermission(item.permission);
         }
 
         return true;
-    }, [isOnboardingPending, isOwner, hasPermission, can]);
+    }, [isOnboardingPending, isOwner, hasPermission, can, canShowSecurityMenu]);
 
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -310,7 +329,7 @@ export default function PrivateLayout() {
                 label: 'Entregas',
                 permissions: ['settings.view', 'settings.delivery.view']
             },
-            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.view' },
+            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=commercial',
@@ -368,7 +387,7 @@ export default function PrivateLayout() {
                 label: 'Pedido Online',
                 permissions: ['settings.view', 'settings.orders.view']
             },
-            { path: '/admin/hours', icon: Clock, label: 'Horários', permissions: ['settings.view', 'settings.store.view'] },
+            { path: '/admin/hours', icon: Clock, label: 'Horários', permissions: ['settings.view', 'settings.hours.view'] },
             {
                 path: '/admin/settings',
                 queryString: 'tab=messages',
@@ -387,7 +406,6 @@ export default function PrivateLayout() {
                 path: '/admin/security',
                 icon: Shield,
                 label: 'Senhas e Acesso',
-                permissions: ['settings.view', 'security.view']
             },
         ],
         support: [
@@ -666,13 +684,18 @@ export default function PrivateLayout() {
             const { data: memberRow } = await supabase
                 .from('store_members')
                 .select(`
+                    role,
+                    status,
+                    custom_role_id,
                     internal_alias,
                     member_avatar_url,
                     member_email,
                     member_phone,
-                    status,
-                    access_blocked,
-                    access_message
+                    sensitive_actions,
+                    store_custom_roles (
+                        name,
+                        base_role
+                    )
                 `)
                 .eq('user_id', userId)
                 .eq('store_id', storeId)
@@ -680,13 +703,27 @@ export default function PrivateLayout() {
 
             if (!memberRow) return;
 
-            // Se o membro foi suspenso/bloqueado, a sim requer initialize() completo
-            if (memberRow.status === 'suspended' || memberRow.access_blocked === true) {
+            // Extrai dados da função personalizada com segurança contra array/objeto
+            const customRoleRaw = memberRow.store_custom_roles;
+            const customRole = (
+                Array.isArray(customRoleRaw) ? customRoleRaw[0] : customRoleRaw
+            ) as { name: string; base_role: string } | null;
+
+            // Se o membro foi suspenso, ou se papel/permissões mudaram, requer refresh do contexto completo
+            const hasSecurityChanged =
+                memberRow.status === 'suspended' ||
+                memberRow.role !== activeMembership?.role ||
+                memberRow.custom_role_id !== activeMembership?.custom_role_id ||
+                customRole?.name !== activeMembership?.custom_role_name ||
+                customRole?.base_role !== activeMembership?.custom_role_base_role ||
+                JSON.stringify(memberRow.sensitive_actions) !== JSON.stringify((activeMembership as any)?.sensitive_actions);
+
+            if (hasSecurityChanged) {
                 window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
                 return;
             }
 
-            // Caso contrrio: atualiza apenas os campos de exibio
+            // Caso contrário: atualiza apenas os campos de exibição
             setUserData((prev) => {
                 if (!prev) return prev;
                 return {
@@ -697,10 +734,20 @@ export default function PrivateLayout() {
                     phone: memberRow.member_phone || prev.phone,
                 };
             });
+
+            setActiveMembership((prev) => {
+                if (!prev) return prev;
+                return {
+                    ...prev,
+                    internal_alias: memberRow.internal_alias || prev.internal_alias,
+                    member_avatar_url: memberRow.member_avatar_url || prev.member_avatar_url,
+                    avatar_url: memberRow.member_avatar_url || prev.avatar_url,
+                };
+            });
         } catch (err) {
             console.error('[PrivateLayout] Erro no refreshMemberData:', err);
         }
-    }, [userId, storeId]);
+    }, [userId, storeId, activeMembership]);
 
     // Debounce unificado em 450ms (entre os 400ms do usePermissions e os 500ms anteriores),
     // evitando dois re-renders consecutivos quando o mesmo evento chega em ambos.
@@ -719,11 +766,45 @@ export default function PrivateLayout() {
     }, [refreshMemberData]);
 
     useRealtimeListener({
-        channelName: `layout_context_rt_${userId || 'pending'}_${storeId || 'none'}`,
+        channelName: `layout_context_rt_${userId || 'pending'}_${storeId || 'none'}_${layoutRealtimeChannelIdRef.current}`,
         tables: realtimeTables,
         onChanged: debouncedContextRefresh,
         enabled: !!userId,
     });
+
+    useEffect(() => {
+        if (!storeId) return;
+
+        let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+        const scheduleMemberRefresh = () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+
+            timeoutId = setTimeout(() => {
+                void refreshMemberData();
+            }, 450);
+        };
+
+        const handlePermissionsChanged = (event: Event) => {
+            const detail = (event as CustomEvent<PermissionsChangedPayload>).detail;
+
+            if (!detail?.storeId || detail.storeId === storeId) {
+                scheduleMemberRefresh();
+            }
+        };
+
+        window.addEventListener(PERMISSIONS_CHANGED_EVENT, handlePermissionsChanged);
+
+        return () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+
+            window.removeEventListener(PERMISSIONS_CHANGED_EVENT, handlePermissionsChanged);
+        };
+    }, [storeId, refreshMemberData]);
 
     // Close mobile menu on route change
     useLayoutEffect(() => {

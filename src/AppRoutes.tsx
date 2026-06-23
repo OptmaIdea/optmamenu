@@ -194,7 +194,7 @@ export default function AppRoutes() {
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/delivery" element={<Navigate to="/admin/settings?tab=delivery" replace />} />
-            <Route path="/admin/commercial-dashboard" element={<RequirePermission permission="commercial.view"><CommercialDashboardPage /></RequirePermission>} />
+            <Route path="/admin/commercial-dashboard" element={<RequirePermission permission="commercial.dashboard.view"><CommercialDashboardPage /></RequirePermission>} />
             <Route path="/admin/commercial-settings" element={<Navigate to="/admin/settings?tab=commercial" replace />} />
             <Route path="/admin/customers" element={<RequirePermission permission="customers.view"><Customers /></RequirePermission>} />
             <Route path="/admin/loyalty" element={<RequirePermission permission="loyalty.view"><LoyaltyConfig /></RequirePermission>} />
@@ -290,7 +290,7 @@ export default function AppRoutes() {
                 </RequireActiveStoreMember>
               }
             />
-            <Route path="/admin/hours" element={<RequirePermission permission="settings.store.view"><Hours /></RequirePermission>} />
+            <Route path="/admin/hours" element={<RequirePermission permissions={['settings.view', 'settings.hours.view']}><Hours /></RequirePermission>} />
             <Route path="/admin/messages" element={<RequirePermission permission="messages.view"><MessageSettings /></RequirePermission>} />
             <Route
               path="/admin/security"

@@ -4,11 +4,16 @@ import { Clock, Save, Plus, Trash2, Calendar, AlertCircle, Loader, Info } from '
 import { toast } from 'sonner';
 import type { StoreHour, StoreException } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
+import { usePermissions } from '@/hooks/usePermissions';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 
 
 const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
 export default function Hours() {
+    const { storeId: currentStoreId } = useCurrentStore();
+    const { hasPermission } = usePermissions(currentStoreId);
+    const canManage = hasPermission('settings.hours.manage');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [storeId, setStoreId] = useState<string | null>(null);
@@ -189,14 +194,16 @@ export default function Hours() {
                         <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
                             <Calendar className="text-blue-500" size={24} /> Grade Semanal
                         </h2>
-                        <button
-                            onClick={handleSaveHours}
-                            disabled={saving}
-                            className="bg-[#21A896] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50"
-                        >
-                            {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
-                            Salvar
-                        </button>
+                        {canManage && (
+                            <button
+                                onClick={handleSaveHours}
+                                disabled={saving}
+                                className="bg-[#21A896] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50"
+                            >
+                                {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
+                                Salvar
+                            </button>
+                        )}
                     </div>
 
                     <div className="space-y-4">
@@ -211,23 +218,25 @@ export default function Hours() {
                                             <input
                                                 type="time"
                                                 value={day.open_time}
+                                                disabled={!canManage}
                                                 onChange={(e) => {
                                                     const newHours = [...hours];
                                                     newHours[index].open_time = e.target.value;
                                                     setHours(newHours);
                                                 }}
-                                                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-900 dark:text-gray-100"
+                                                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                                             />
                                             <span className="text-gray-400">-</span>
                                             <input
                                                 type="time"
                                                 value={day.close_time}
+                                                disabled={!canManage}
                                                 onChange={(e) => {
                                                     const newHours = [...hours];
                                                     newHours[index].close_time = e.target.value;
                                                     setHours(newHours);
                                                 }}
-                                                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-900 dark:text-gray-100"
+                                                className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm outline-none focus:ring-2 focus:ring-blue-400 text-gray-900 dark:text-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                                             />
                                         </>
                                     ) : (
@@ -238,12 +247,13 @@ export default function Hours() {
                                     <input
                                         type="checkbox"
                                         checked={!day.is_closed}
+                                        disabled={!canManage}
                                         onChange={(e) => {
                                             const newHours = [...hours];
                                             newHours[index].is_closed = !e.target.checked;
                                             setHours(newHours);
                                         }}
-                                        className="accent-[#21A896] w-5 h-5"
+                                        className="accent-[#21A896] w-5 h-5 disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
                                     <span className="text-xs font-bold text-gray-500">Aberto</span>
                                 </label>
@@ -259,69 +269,71 @@ export default function Hours() {
                     </h2>
 
                     {/* Add New Form */}
-                    <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-200 dark:border-gray-600 mb-6">
-                        <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">Adicionar Nova Data</h3>
-                        <div className="space-y-3">
-                            <div className="flex gap-3">
-                                <div className="flex-1">
-                                    <label className="text-xs text-gray-500 mb-1 block">Data</label>
-                                    <input
-                                        type="date"
-                                        value={newException.exception_date}
-                                        onChange={(e) => setNewException({ ...newException, exception_date: e.target.value })}
-                                        className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
-                                    />
-                                </div>
-                                <div className="flex-1">
-                                    <label className="text-xs text-gray-500 mb-1 block">Motivo</label>
-                                    <input
-                                        type="text"
-                                        placeholder="Ex: Natal"
-                                        value={newException.reason || ''}
-                                        onChange={(e) => setNewException({ ...newException, reason: e.target.value })}
-                                        className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={newException.is_closed}
-                                        onChange={(e) => setNewException({ ...newException, is_closed: e.target.checked })}
-                                        className="accent-red-500 w-5 h-5"
-                                    />
-                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Loja Fechada?</span>
-                                </label>
-
-                                {!newException.is_closed && (
-                                    <div className="flex gap-2">
+                    {canManage && (
+                        <div className="bg-gray-50 dark:bg-gray-700/30 p-4 rounded-xl border border-gray-200 dark:border-gray-600 mb-6">
+                            <h3 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">Adicionar Nova Data</h3>
+                            <div className="space-y-3">
+                                <div className="flex gap-3">
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-500 mb-1 block">Data</label>
                                         <input
-                                            type="time"
-                                            value={newException.open_time || '09:00'}
-                                            onChange={(e) => setNewException({ ...newException, open_time: e.target.value })}
-                                            className="p-1.5 rounded-lg border text-sm w-24 text-gray-900 dark:text-gray-100"
-                                        />
-                                        <input
-                                            type="time"
-                                            value={newException.close_time || '18:00'}
-                                            onChange={(e) => setNewException({ ...newException, close_time: e.target.value })}
-                                            className="p-1.5 rounded-lg border text-sm w-24 text-gray-900 dark:text-gray-100"
+                                            type="date"
+                                            value={newException.exception_date}
+                                            onChange={(e) => setNewException({ ...newException, exception_date: e.target.value })}
+                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
                                         />
                                     </div>
-                                )}
+                                    <div className="flex-1">
+                                        <label className="text-xs text-gray-500 mb-1 block">Motivo</label>
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: Natal"
+                                            value={newException.reason || ''}
+                                            onChange={(e) => setNewException({ ...newException, reason: e.target.value })}
+                                            className="w-full p-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+                                        />
+                                    </div>
+                                </div>
 
-                                <button
-                                    onClick={handleAddException}
-                                    disabled={!newException.exception_date}
-                                    className="ml-auto bg-[#21A896] text-white p-2 rounded-lg hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] disabled:opacity-50"
-                                >
-                                    <Plus size={20} />
-                                </button>
+                                <div className="flex items-center gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={newException.is_closed}
+                                            onChange={(e) => setNewException({ ...newException, is_closed: e.target.checked })}
+                                            className="accent-red-500 w-5 h-5"
+                                        />
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">Loja Fechada?</span>
+                                    </label>
+
+                                    {!newException.is_closed && (
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="time"
+                                                value={newException.open_time || '09:00'}
+                                                onChange={(e) => setNewException({ ...newException, open_time: e.target.value })}
+                                                className="p-1.5 rounded-lg border text-sm w-24 text-gray-900 dark:text-gray-100"
+                                            />
+                                            <input
+                                                type="time"
+                                                value={newException.close_time || '18:00'}
+                                                onChange={(e) => setNewException({ ...newException, close_time: e.target.value })}
+                                                className="p-1.5 rounded-lg border text-sm w-24 text-gray-900 dark:text-gray-100"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <button
+                                        onClick={handleAddException}
+                                        disabled={!newException.exception_date}
+                                        className="ml-auto bg-[#21A896] text-white p-2 rounded-lg hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] disabled:opacity-50"
+                                    >
+                                        <Plus size={20} />
+                                    </button>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* List */}
                     <div className="space-y-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
@@ -345,12 +357,14 @@ export default function Hours() {
                                     </div>
                                     <p className="text-xs text-gray-400">{ex.reason || 'Sem motivo'}</p>
                                 </div>
-                                <button
-                                    onClick={() => handleDeleteException(ex.id!)}
-                                    className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition"
-                                >
-                                    <Trash2 size={18} />
-                                </button>
+                                {canManage && (
+                                    <button
+                                        onClick={() => handleDeleteException(ex.id!)}
+                                        className="text-red-400 hover:text-red-600 p-2 hover:bg-red-50 rounded-lg transition"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                )}
                             </div>
                         ))}
                     </div>
@@ -364,22 +378,24 @@ export default function Hours() {
                             <AlertCircle className="text-purple-500" size={24} /> Regras de Funcionamento
                         </h2>
 
-                        <button
-                            onClick={async () => {
-                                if (!storeId) return;
-                                if (!window.confirm('URGENTE: Isso cancelará TODOS os pedidos com status "pendente" (reservados). Use isso ao fechar a loja para liberar cronômetros. Confirmar?')) return;
+                        {canManage && (
+                            <button
+                                onClick={async () => {
+                                    if (!storeId) return;
+                                    if (!window.confirm('URGENTE: Isso cancelará TODOS os pedidos com status "pendente" (reservados). Use isso ao fechar a loja para liberar cronômetros. Confirmar?')) return;
 
-                                const { error } = await supabase.rpc('cancel_all_pending_orders', { p_store_id: storeId });
-                                if (error) {
-                                    toast.error('Erro ao cancelar pedidos: ' + error.message);
-                                } else {
-                                    toast.success('Todos os pedidos pendentes foram cancelados.');
-                                }
-                            }}
-                            className="text-xs font-bold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-800 px-3 py-2 rounded-lg transition flex items-center gap-2"
-                        >
-                            <Trash2 size={14} /> Fechar Loja & Cancelar Pendentes
-                        </button>
+                                    const { error } = await supabase.rpc('cancel_all_pending_orders', { p_store_id: storeId });
+                                    if (error) {
+                                        toast.error('Erro ao cancelar pedidos: ' + error.message);
+                                    } else {
+                                        toast.success('Todos os pedidos pendentes foram cancelados.');
+                                    }
+                                }}
+                                className="text-xs font-bold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 dark:border-red-800 px-3 py-2 rounded-lg transition flex items-center gap-2"
+                            >
+                                <Trash2 size={14} /> Fechar Loja & Cancelar Pendentes
+                            </button>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -399,7 +415,8 @@ export default function Hours() {
                                         min="0"
                                         max="60"
                                         step="5"
-                                        className="w-full accent-[#21A896]"
+                                        disabled={!canManage}
+                                        className="w-full accent-[#21A896] disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.pre_opening_minutes || 0}
                                         onChange={e => setStoreConfig({ ...storeConfig, pre_opening_minutes: parseInt(e.target.value) })}
                                     />
@@ -416,7 +433,8 @@ export default function Hours() {
                                         min="0"
                                         max="60"
                                         step="5"
-                                        className="w-full accent-red-500"
+                                        disabled={!canManage}
+                                        className="w-full accent-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.closing_buffer_minutes || 0}
                                         onChange={e => setStoreConfig({ ...storeConfig, closing_buffer_minutes: parseInt(e.target.value) })}
                                     />
@@ -440,7 +458,8 @@ export default function Hours() {
                                         type="range"
                                         min="1"
                                         max="30"
-                                        className="w-full accent-[#21A896]"
+                                        disabled={!canManage}
+                                        className="w-full accent-[#21A896] disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.tolerance_minutes || 5}
                                         onChange={e => setStoreConfig({ ...storeConfig, tolerance_minutes: parseInt(e.target.value) })}
                                     />
@@ -456,7 +475,8 @@ export default function Hours() {
                                         type="range"
                                         min="1"
                                         max="15"
-                                        className="w-full accent-[#21A896]"
+                                        disabled={!canManage}
+                                        className="w-full accent-[#21A896] disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.extension_minutes || 3}
                                         onChange={e => setStoreConfig({ ...storeConfig, extension_minutes: parseInt(e.target.value) })}
                                     />
@@ -472,7 +492,8 @@ export default function Hours() {
                                         type="range"
                                         min="5"
                                         max="60"
-                                        className="w-full accent-orange-500"
+                                        disabled={!canManage}
+                                        className="w-full accent-orange-500 disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.pre_order_minutes || 20}
                                         onChange={e => setStoreConfig({ ...storeConfig, pre_order_minutes: parseInt(e.target.value) })}
                                     />
@@ -483,14 +504,16 @@ export default function Hours() {
                     </div>
 
                     <div className="flex justify-end mt-6 border-t border-gray-100 dark:border-gray-700 pt-4">
-                        <button
-                            onClick={handleSaveHours}
-                            disabled={saving}
-                            className="bg-[#21A896] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50 shadow-lg shadow-[#21A896]/20 dark:shadow-none"
-                        >
-                            {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
-                            Salvar Alterações
-                        </button>
+                        {canManage && (
+                            <button
+                                onClick={handleSaveHours}
+                                disabled={saving}
+                                className="bg-[#21A896] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50 shadow-lg shadow-[#21A896]/20 dark:shadow-none"
+                            >
+                                {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
+                                Salvar Alterações
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
