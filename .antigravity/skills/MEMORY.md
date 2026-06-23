@@ -1,6 +1,6 @@
 # 🧠 MEMORY — Contexto Geral do Projeto OptmaMenu
 
-> **Leia este arquivo primeiro.** Ele contém o contexto essencial do projeto e as regras obrigatórias que governam toda comunicação e desenvolvimento. Todas as outras skills em `.antigravity/skills/` complementam este arquivo.
+> **Leia este arquivo primeiro.** Ele contém o contexto essencial do projeto e as regras obrigatórias que governam comunicação, documentação e desenvolvimento. Todas as outras skills em `.antigravity/skills/` complementam este arquivo.
 
 ---
 
@@ -8,22 +8,19 @@
 
 > ⚠️ **REGRA INVIOLÁVEL:** Todo texto destinado ao usuário deve ser em **Português (Brasil) — pt-BR**.
 
-As seguintes regras de comunicação são **obrigatórias e não negociáveis** (extraídas de `ptbr_communication.md`):
-
-1. **Idioma de Comunicação**: Todas as conversas, explicações, respostas, perguntas e interações de interface com o usuário devem ocorrer estritamente em **Português (Brasil)** (pt-BR).
-2. **Documentação Interna e de Planejamento**: Todos os documentos gerados pelo agente destinados ao usuário devem ser redigidos em pt-BR. Isso inclui:
-   - `implementation_plan.md` (Planos de Implementação)
-   - `walkthrough.md` (Resumos de mudanças)
-   - Qualquer outro arquivo de documentação no workspace
-3. **Tom de Voz**: A comunicação deve ser **profissional, clara, objetiva e amigável**.
-
+1. Todas as conversas, explicações, respostas, perguntas e interações de interface com o usuário devem ocorrer estritamente em **Português (Brasil)**.
+2. Documentos internos destinados ao usuário também devem ser em pt-BR.
+3. O tom deve ser profissional, claro, objetivo e amigável.
 
 ---
 
 ## 📋 Regras Obrigatórias de Desenvolvimento e Documentação
 
-1. **Atualização da Estrutura**: A cada alteração na estrutura física do projeto (adição, remoção ou movimentação de arquivos/diretórios), o arquivo [docs/ESTRUTURA.md](file:///d:/optmamenu/docs/ESTRUTURA.md) deve ser atualizado obrigatoriamente para refletir o estado atual do repositório.
-2. **Criação de SQL/Banco de Dados**: Não crie arquivos de migração SQL (`.sql`), não crie novas tabelas, views, triggers ou funções, e não tente aplicar alterações de banco de dados no Supabase de forma autônoma, **a menos que o usuário solicite isso explicitamente**.
+1. **Atualização da Estrutura:** a cada alteração na estrutura física do projeto, atualizar `docs/ESTRUTURA.md`.
+2. **Banco de Dados:** não criar migrations SQL, tabelas, views, triggers ou funções sem solicitação explícita do usuário.
+3. **Documentação:** ao concluir uma frente funcional, atualizar os documentos relevantes em `docs/` e, quando houver memória nova importante, atualizar este arquivo.
+4. **RPCs:** RPCs novas ou alteradas devem ser documentadas em `docs/RPCS_AND_VIEWS.md`.
+5. **Advisors Supabase:** problemas de Advisors devem ser tratados em rodada própria, sem misturar hardening de linter com fechamento funcional de UX.
 
 ---
 
@@ -31,317 +28,266 @@ As seguintes regras de comunicação são **obrigatórias e não negociáveis** 
 
 | Atributo | Valor |
 |---|---|
-| **Nome do Projeto** | OptmaMenu |
-| **Ecossistema** | Optma (OptmaMenu + OptmaIdea) |
-| **Tipo** | SaaS — Painel administrativo para estabelecimentos (restaurantes, lanchonetes, etc.) |
-| **Idioma do Produto** | Português (Brasil) |
-| **Repositório** | `d:\optmamenu` |
+| Nome do Projeto | OptmaMenu |
+| Ecossistema | Optma (OptmaMenu + OptmaIdea) |
+| Tipo | SaaS — painel administrativo para estabelecimentos alimentícios |
+| Idioma do Produto | Português (Brasil) |
+| Repositório local | `d:\optmamenu` |
 
-**Descrição**: O OptmaMenu é uma plataforma SaaS completa que oferece cardápio digital, gestão de pedidos, controle de estoque, financeiro, clientes/fidelidade, marketing e configurações para estabelecimentos alimentícios.
+O OptmaMenu oferece cardápio digital, gestão de pedidos, controle de estoque, compras, transferências, fornecedores, clientes, fidelidade, marketing, financeiro e configurações.
 
 ---
 
 ## ⚙️ Stack Tecnológica
 
-| Camada | Tecnologia | Versão |
-|---|---|---|
-| **Framework UI** | React | 19.x |
-| **Linguagem** | TypeScript | ~5.8 |
-| **Build Tool** | Vite | 7.x |
-| **Estilização** | Tailwind CSS | v4 |
-| **Roteamento** | React Router DOM | v7 |
-| **Backend / DB** | Supabase (PostgreSQL) | SDK v2 |
-| **Estado Global** | Zustand | v5 |
-| **Formulários** | React Hook Form + Zod | — |
-| **Animações** | Framer Motion | v12 |
-| **Ícones** | Lucide React | v0.563+ |
-| **Drag and Drop** | @dnd-kit | v6+ |
-| **Toasts** | Sonner | v2 |
-| **PWA** | vite-plugin-pwa | v1 |
-| **Testes** | Vitest + Testing Library | — |
-| **Formatação** | Prettier + ESLint | — |
+| Camada | Tecnologia |
+|---|---|
+| UI | React 19 + TypeScript |
+| Build | Vite |
+| Estilização | Tailwind CSS v4 |
+| Rotas | React Router DOM v7 |
+| Backend | Supabase / PostgreSQL |
+| Estado | Zustand |
+| Formulários | React Hook Form + Zod |
+| Ícones | Lucide React |
+| Toasts | Sonner |
 
-### Comandos Principais
+Comandos principais:
+
 ```bash
-npm run dev          # Servidor de desenvolvimento (Vite HMR)
-npm run build        # Build de produção (tsc + vite build)
-npm run lint         # Verificar código com ESLint
-npm run format       # Formatar com Prettier
-npm run test         # Executar testes com Vitest
-npm run convert:webp # Converter imagens para WebP
+npm run dev
+npm run build
+npm run lint
+npm run format
+npm run test
+npm run convert:webp
 ```
 
 ---
 
-## 🗂️ Estrutura de Diretórios
+## 🗂️ Estrutura principal
 
+```txt
+src/
+├── App.tsx / AppRoutes.tsx
+├── components/
+│   ├── common/
+│   ├── layouts/
+│   ├── security/
+│   │   └── PermissionLocked.tsx
+│   ├── users/
+│   └── invites/
+├── hooks/
+│   ├── usePermissions.ts
+│   ├── useRealtimeListener.ts
+│   ├── useRefreshFrame.ts
+│   └── security/
+├── pages/
+│   ├── store/
+│   └── private/admin/
+│       ├── dashboard/
+│       ├── commercial/
+│       ├── customers/
+│       ├── financial/
+│       ├── products/
+│       ├── suppliers/
+│       ├── users/
+│       ├── settings/
+│       └── support/
+├── services/
+├── store/
+├── types/
+└── utils/
+    └── permissionEvents.ts
 ```
-d:\optmamenu\
-├── .antigravity/skills/      # ← Skills e memória do agente de IA
-│   ├── MEMORY.md             # Este arquivo — contexto geral
-│   ├── design_system.md      # Identidade visual completa (paleta, tipografia, ícones)
-│   ├── page_layout_standard.md   # Padrão de layout das páginas admin
-│   ├── page_container_header_standard.md # Padrão de cabeçalhos (Flat vs Card)
-│   ├── refresh_frame_standard.md # Padrão do hook useRefreshFrame
-│   └── ptbr_communication.md     # Regras de idioma pt-BR
-│
-├── src/
-│   ├── App.tsx / AppRoutes.tsx   # Entrypoint e configuração de rotas
-│   ├── main.tsx                  # Bootstrap da aplicação
-│   ├── index.css                 # Estilos globais e design tokens
-│   │
-│   ├── components/               # Componentes reutilizáveis
-│   │   ├── common/               # PageContainer, botões, inputs, modais...
-│   │   ├── layouts/              # PublicLayout, PrivateLayout, StoreLayout
-│   │   ├── admin/                # Componentes específicos do painel admin
-│   │   ├── mobile/               # Componentes mobile
-│   │   ├── users/                # Componentes de usuários
-│   │   └── invites/              # Componentes de convites
-│   │
-│   ├── pages/
-│   │   ├── initial/              # Landing, Login, SignUp, Terms, PrivacyPolicy
-│   │   ├── store/                # Catalog (cardápio público), Checkout
-│   │   ├── CreateStore.tsx       # Onboarding de novo estabelecimento
-│   │   └── private/admin/        # Painel administrativo (área logada)
-│   │       ├── dashboard/        # Dashboard, Atividades, Alertas, Relatórios
-│   │       ├── commercial/       # Pedidos, Canais de Venda, Pagamentos, Mensagens...
-│   │       ├── customers/        # Clientes, formulários, lifecycle
-│   │       ├── financial/        # Caixa (CashbookPage)
-│   │       ├── products/         # Produtos, Categorias, Estoque, Transferências...
-│   │       ├── suppliers/        # Fornecedores
-│   │       ├── delivery/         # Delivery
-│   │       ├── loyalty/          # Fidelidade avançada
-│   │       ├── marketing/        # Centro de Marketing
-│   │       ├── users/            # Usuários do sistema
-│   │       ├── settings/         # Configurações (Loja, Perfil, Horários, Segurança...)
-│   │       └── support/          # FAQ, Documentação, Legal
-│   │
-│   ├── services/                 # Camada de acesso a dados (Supabase)
-│   │   ├── stockService.ts       # Estoque e movimentações
-│   │   ├── customerService.ts    # Gestão de clientes
-│   │   ├── cashbookService.ts    # Livro caixa
-│   │   ├── securityService.ts    # Segurança e sessões
-│   │   └── ...outros services
-│   │
-│   ├── store/                    # Estado global (Zustand)
-│   │   ├── useAuthStore.ts       # Autenticação do usuário
-│   │   ├── useUsersStore.ts      # Usuários e membros da loja
-│   │   ├── useCartStore.ts       # Carrinho (área pública)
-│   │   └── useCustomerAuth.ts    # Auth do cliente final
-│   │
-│   ├── hooks/                    # Hooks customizados
-│   │   ├── useRefreshFrame.ts    # Hook do botão "Atualizar" (ver skill específica)
-│   │   ├── usePermissions.ts     # Sistema de permissões
-│   │   ├── useStoreMemberDetails.ts
-│   │   └── ...outros hooks
-│   │
-│   ├── types/                    # Tipos TypeScript
-│   │   ├── index.ts              # Tipos principais (Product, Category, Customer...)
-│   │   ├── admin.ts              # Tipos do painel admin
-│   │   ├── security.ts           # Tipos de segurança
-│   │   └── ...outros tipos
-│   │
-│   └── utils/                    # Utilitários e helpers
-│
-├── supabase/                     # Migrations e configuração do Supabase
-├── scripts/                      # Scripts auxiliares (convert-to-webp, serve-local)
-├── docs/                         # Documentação adicional
-├── public/                       # Assets públicos estáticos
-└── schema_export.sql             # Exportação do schema do banco de dados
-```
+
+Documentação principal em `docs/`.
 
 ---
 
-## 🗺️ Mapa de Rotas
+## 🗺️ Mapa funcional atual
 
-| Rota | Componente | Área |
-|---|---|---|
-| `/` | Landing | Pública |
-| `/login` | Login | Pública |
-| `/signup` | SignUp | Pública |
-| `/terms` | Terms | Pública |
-| `/politica-privacidade` | PrivacyPolicy | Pública |
-| `/s/:storeSlug` | Catalog | Loja Pública |
-| `/cardapio/:storeSlug` | Catalog | Loja Pública |
-| `/q/:storeSlug/:tableCode` | Catalog (mesa) | Loja Pública |
-| `/checkout` | Checkout | Loja Pública |
-| `/onboarding/create-store` | CreateStore | Onboarding |
-| `/admin` | Dashboard | Admin |
-| `/admin/activity` | Atividades | Admin |
-| `/admin/alerts` | Alertas | Admin |
-| `/admin/reports` | Relatórios | Admin |
-| `/admin/orders` | Pedidos | Admin — Comercial |
-| `/admin/customers` | Clientes | Admin — Comercial |
-| `/admin/loyalty` | Fidelidade | Admin — Comercial |
-| `/admin/commercial-dashboard` | Dashboard Comercial | Admin — Comercial |
-| `/admin/sales-channels` | Canais de Venda | Admin — Comercial |
-| `/admin/payment-methods` | Métodos de Pagamento | Admin — Comercial |
-| `/admin/delivery` | Delivery | Admin — Comercial |
-| `/admin/marketing` | Marketing | Admin — Comercial |
-| `/admin/cashbook` | Caixa | Admin — Financeiro |
-| `/admin/products` | Produtos | Admin — Produtos |
-| `/admin/categories` | Categorias | Admin — Produtos |
-| `/admin/inventory` | Estoque por Local | Admin — Produtos |
-| `/admin/transfers` | Transferências | Admin — Produtos |
-| `/admin/suppliers` | Fornecedores | Admin — Produtos |
-| `/admin/stock-movements` | Movimentações | Admin — Produtos |
-| `/admin/users` | Usuários | Admin — Configurações |
-| `/admin/settings` | Configurações da Loja | Admin — Configurações |
-| `/admin/my-profile` | Perfil | Admin — Configurações |
-| `/admin/hours` | Horários | Admin — Configurações |
-| `/admin/security` | Segurança | Admin — Configurações |
-| `/admin/config` | Aparência | Admin — Configurações |
-| `/admin/faq` | FAQ | Admin — Suporte |
-| `/admin/docs` | Documentação | Admin — Suporte |
-| `/admin/legal` | Legal | Admin — Suporte |
+| Área | Rotas principais |
+|---|---|
+| Pessoal | `/admin/my-profile`, `/admin/my-history` |
+| Dashboard | `/admin`, `/admin/activity`, `/admin/alerts`, `/admin/reports` |
+| Comercial | `/admin/orders`, `/admin/customers`, `/admin/commercial-dashboard`, `/admin/sales-channels`, `/admin/messages-admin`, `/admin/marketing`, `/admin/loyalty` |
+| Financeiro | `/admin/cashbook` |
+| Produtos | `/admin/products`, `/admin/categories`, `/admin/inventory`, `/admin/transfers`, `/admin/suppliers`, `/admin/stock/movements` |
+| Usuários e equipe | `/admin/users` |
+| Configurações | `/admin/settings` com abas internas |
+| Segurança | `/admin/security` com abas internas |
+| Suporte | `/admin/faq`, `/admin/docs`, `/admin/legal` |
 
 ---
 
-## 🎨 Design System (Resumo — ver `design_system.md` para detalhes completos)
+## 🎨 Design System — Resumo
 
-### Fonte
+Fonte:
+
 ```css
 font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
 ```
-- **Windows**: Candara (fonte oficial da marca)
-- **Fallback**: Plus Jakarta Sans (Google Fonts)
 
-### Paleta de Cores Principais
+Cores principais:
+
 | Cor | Uso | HEX |
 |---|---|---|
-| **Verde-água (Brand)** | Status ativo, sucesso, item selecionado | `#21A896` |
-| **Verde-água Escuro** | Hovers, estados ativos | `#1A867A` |
-| **Laranja (Primary CTA)** | Botões principais, ações primárias | `#F26541` |
-| **Mostarda** | Atenção, alertas intermediários | `#FBA93C` |
-| **Roxo Premium** | Totalizadores, cards de faturamento | `#7B2D8E` |
-| **Vermelho** | Erros críticos, exclusões (uso exclusivo!) | `#DC2626` |
-| **Off-white** | Background claro | `#F8F6F2` |
-| **Cinza Quente** | Texto secundário | `#6B6258` |
-| **Texto Principal** | Conteúdo principal | `#2D2A26` |
+| Verde-água | Status ativo/sucesso/seleção | `#21A896` |
+| Laranja | Ações primárias | `#F26541` |
+| Mostarda | Atenção | `#FBA93C` |
+| Roxo | Premium/indicadores especiais | `#7B2D8E` |
+| Vermelho | Erro/exclusão crítica | `#DC2626` |
+| Off-white | Background claro | `#F8F6F2` |
 
-> ⚠️ **NUNCA** use azul clássico (`#3B82F6`), verde puro ou amarelo comum. O vermelho é **exclusivo** para erros/exclusões críticas.
-
-### Ícones (Lucide React — Regra de Ouro)
-Um ícone = um conceito. Não reutilize o mesmo ícone para ações diferentes.
-
-| Seção | Ícone |
-|---|---|
-| Dashboard | `LayoutDashboard` |
-| Comercial / Vendas | `Store` |
-| Produtos / Estoque | `Package` |
-| Financeiro | `DollarSign` |
-| Configurações | `Settings` |
-| Suporte / Ajuda | `LifeBuoy` |
-| Pedidos | `ShoppingCart` |
-| Clientes | `Users` |
-| Fidelidade | `Star` |
-| Canais de Venda | `Smartphone` |
-| Métodos de Pagamento | `CreditCard` |
-| Categorias | `Folders` |
-| Estoque por Local | `Warehouse` |
-| Transferências | `ArrowLeftRight` |
-| Fornecedores | `Building2` |
-| Movimentações | `Activity` |
+> Não usar azul clássico como cor principal. Vermelho é exclusivo para erro, exclusão ou criticidade.
 
 ---
 
 ## 🏗️ Padrões de Desenvolvimento
 
-### 1. Estrutura de uma Página Admin
-Toda página do painel administrativo deve seguir este padrão:
+### Página admin
+
+Toda página do painel deve usar `PageContainer` e `useRefreshFrame` quando tiver dados recarregáveis.
 
 ```tsx
 import { useCallback } from 'react';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import PageContainer from '@/components/common/PageContainer';
-import { IconName } from 'lucide-react';
 
 export default function MinhaPage() {
   const handleRefresh = useCallback(async () => {
-    // Recarregar dados do Supabase
-  }, [/* dependências */]);
+    // recarregar dados
+  }, []);
 
-  useRefreshFrame(handleRefresh); // Conecta ao botão "Atualizar" global
+  useRefreshFrame(handleRefresh);
 
   return (
     <PageContainer
-      title="Título da Página"
-      subtitle="Breve descrição do objetivo da tela"
-      category="GRUPO DO MENU"   // Ex: "CONFIGURAÇÕES", "FINANCEIRO"
-      icon={<IconName size={28} className="text-[#21A896]" />}
-      flat  // Use flat para listagens; omita para formulários de destaque
+      title="Título"
+      subtitle="Descrição breve"
+      category="GRUPO"
+      flat
     >
-      {/* Conteúdo */}
+      {/* conteúdo */}
     </PageContainer>
   );
 }
 ```
 
-### 2. Hook `useRefreshFrame` (obrigatório em toda página admin)
-- Importar de `@/hooks/useRefreshFrame`
-- Registrar a função de recarga envolve em `useCallback`
-- Conecta ao botão **Atualizar** da barra de acesso rápido do `PrivateLayout`
-- Evento customizado: `optmamenu.refresh`
+### Realtime
 
-### 3. Hook `useRealtimeListener` (obrigatório em telas sensíveis)
-- Importar de `@/hooks/useRealtimeListener`
-- Usa **Supabase Realtime** (`postgres_changes`) via WebSocket para escutar mudanças no banco
-- **Requisito do Banco**: Para que o listener funcione, a replicação (realtime) da tabela correspondente **deve estar ativada** no Painel do Supabase (Database -> Replication -> habilitar para a tabela, ex: `orders`, `store_members`).
-- **Não usar `setInterval`** como substituto para busca de dados — apenas para timers de UI
-- Sempre filtrar por `store_id` e usar `enabled: !!storeId` (para tabelas vinculadas a lojas)
-- Deve coexistir com `useRefreshFrame` na mesma página
-- Telas obrigatórias: Pedidos (`/admin/orders`), Usuários (`/admin/users`), Dashboard, Estoque, Movimentações, Atividades, Alertas, Caixa
-- **Robustez de Autenticação**: O cliente Supabase (`supabase.ts`) possui um interceptador que desloga o usuário (`signOut`) imediatamente se a sessão for revogada/invalidada no backend (evitando o estado 'zumbi' na UI).
-- Ver `realtime_listener_standard.md` para o código completo do hook e exemplos
+- Usar `useRealtimeListener` em telas sensíveis.
+- Não substituir realtime por `setInterval`.
+- Filtrar por `store_id` quando aplicável.
+- Para permissões, usar o fluxo central em `store_permission_versions` via `usePermissions`.
 
-### 3. Portal de Ações Rápidas
-Botões de ação globais da página (ex: "+ Novo Produto") devem ser injetados via React Portal no elemento `#quick-access-actions-portal`:
+### Portal de ações rápidas
 
-```tsx
-import { createPortal } from 'react-dom';
+Botões globais da página podem usar o portal `#quick-access-actions-portal`.
 
-// Dentro do componente:
-{mounted && document.getElementById('quick-access-actions-portal') && createPortal(
-  <button className="...">+ Nova Ação</button>,
-  document.getElementById('quick-access-actions-portal')!
-)}
-```
+---
 
-### 4. Variantes do `PageContainer`
-| Prop | Quando usar |
+## 🔐 Autenticação, usuários e permissões
+
+- Autenticação: Supabase Auth + Zustand (`useAuthStore`).
+- Membros: `store_members`.
+- Dados globais: `profiles`.
+- Rotas `/admin/*`: protegidas por `ProtectedRoute` e permissões específicas.
+
+### Separação `profiles` x `store_members`
+
+| Tabela | Responsabilidade |
 |---|---|
-| `flat` | Listagens, dashboards, configurações (recomendado para a maioria) |
-| *(sem flat)* | Formulários de destaque, páginas isoladas |
-| `category` | Sempre informar — corresponde ao grupo do menu lateral |
-| `withoutHeader={true}` | Quando o cabeçalho superior já exibe a informação |
+| `profiles` | Nome, CPF, data de nascimento, dados globais, avatar global |
+| `store_members` | Vínculo com loja, papel, status, apelido, contatos, avatar do vínculo, permissões, ações sensíveis |
 
-### 5. Padrão de Acesso a Dados
-- Toda comunicação com o banco de dados passa pela camada `src/services/`
-- Backend: **Supabase** (PostgreSQL)
-- Autenticação: Zustand (`useAuthStore`) + ProtectedRoute
-- Dados do usuário logado e da loja: via `useUsersStore` e `useStoreMemberDetails`
-
-### 6. Imagens
-- Formato obrigatório: **WebP** (usar `npm run convert:webp`)
-- Assets em: `public/assets/` e `src/assets/`
-- Logo da marca: `/assets/OptmaMenuLogo.webp`
+Nunca buscar `internal_alias` em `profiles`; o apelido por loja fica em `store_members`.
 
 ---
 
-## 🔐 Autenticação e Permissões
+## 🔐 Sistema de permissões — Estado consolidado 9.13
 
-- **Autenticação**: Supabase Auth + Zustand (`useAuthStore`)
-- **Membros**: Tabela `store_members` com campo `role`
-- **Permissões granulares**: Hook `usePermissions` + `permissionService.ts`
-- **Segurança**: Hook `useSecurityContext` + `securityService.ts`
-- **Rotas protegidas**: Componente `<ProtectedRoute />` envolve todo `/admin/*`
+Documentos principais:
 
-### Roles disponíveis (formatados via `formatLayoutRole`)
-Verificar em `src/types/admin.ts` para a lista completa de roles.
+- `docs/FASE_9_13_PERMISSOES_SEGURANCA.md`
+- `docs/GUIA_SISTEMA_PERMISSOES_REALTIME.md`
+- `docs/PERMISSOES_USUARIOS.md`
+- `docs/RPCS_AND_VIEWS.md`
+
+### Hierarquia final
+
+1. Permissão individual em `store_members.permissions`.
+2. Função personalizada em `store_custom_roles.permissions`.
+3. Papel base em `store_role_permission_templates`.
+4. Fallback seguro `false`.
+5. `owner` ignora checagens comuns e tem acesso integral.
+
+> O modelo ativo **não usa** `store_member_permissions`; overrides individuais ficam em `store_members.permissions`.
+
+### Realtime de permissões
+
+- Tabela central: `store_permission_versions`.
+- Hook: `src/hooks/usePermissions.ts`.
+- Escuta direta somente `store_permission_versions`.
+- Listeners diretos de `store_role_permission_templates`, `store_custom_roles` e `store_members` foram removidos do fluxo principal para evitar duplicidade, logs excessivos e `CHANNEL_ERROR`.
+
+### `view=false`
+
+- Oculta menu/aba.
+- Protege rota.
+- Acesso direto pela URL redireciona corretamente.
+- Fallback seguro: `/admin/my-profile`.
+
+### `manage=false`
+
+- Tela em modo leitura.
+- Inputs/selects/switches desabilitados.
+- Botões de ação ocultos.
+- Sem toast desnecessário.
+- Sem erro de console.
+- Usar `PermissionLocked` e `LockedHint` quando aplicável.
+
+Arquivo:
+
+- `src/components/security/PermissionLocked.tsx`
+
+### Segurança
+
+- Grupo separado no sidebar: **SEGURANÇA**.
+- Rota: `/admin/security`.
+- `security.view` é porteira absoluta.
+- Sem `security.view`, nenhuma aba `security.*.view` abre.
+- `/admin/security` normaliza para a primeira aba permitida quando a raiz está liberada.
+
+### Configurações — Opção B
+
+- Grupo sidebar: **CONFIGURAÇÕES**.
+- Item único: **Configurações da Loja**.
+- Rota: `/admin/settings`.
+- Abas internas:
+  - Dados da Loja — `settings.store.view/manage`
+  - Comercial — `settings.commercial.view/manage`
+  - Pedido Online — `settings.orders.view/manage`
+  - Horários — `settings.hours.view/manage`
+  - Estoque — `settings.stock.view/manage`
+  - Entrega — `settings.delivery.view/manage`
+  - Pagamento — `settings.payment.view/manage`
+  - Mensagens — `messages.view/manage`
+  - Documentos e Termos — `settings.legal.view/manage`
+  - Sistema — `settings.system.view/manage`
+
+### Permissões novas/refinadas
+
+- `commercial.dashboard.view`
+- `commercial.sales_channels.view`
+- `commercial.sales_channels.manage`
+- `settings.hours.view`
+- `settings.hours.manage`
 
 ---
 
-## 📦 Estado Global (Zustand Stores)
+## 📦 Estado Global
 
 | Store | Arquivo | Responsabilidade |
 |---|---|---|
@@ -352,105 +298,61 @@ Verificar em `src/types/admin.ts` para a lista completa de roles.
 
 ---
 
-## 🌐 Layouts Disponíveis
+## 🌐 Layouts
 
 | Layout | Arquivo | Usado em |
 |---|---|---|
-| `PublicLayout` | `components/layouts/PublicLayout` | `/`, `/login`, `/signup`, `/terms`, `/politica-privacidade` |
-| `PrivateLayout` | `components/layouts/PrivateLayout` | Todas as rotas `/admin/*` |
-| `StoreLayout` | `components/layouts/StoreLayout` | `/s/:storeSlug`, `/cardapio/:storeSlug`, etc. |
+| `PublicLayout` | `components/layouts/PublicLayout` | Rotas públicas |
+| `PrivateLayout` | `components/layouts/PrivateLayout` | Rotas `/admin/*` |
+| `StoreLayout` | `components/layouts/StoreLayout` | Loja pública |
 
-### Estrutura do PrivateLayout
-- **Sidebar** (73px topo fixo): Logo + botão colapso → menu accordion + perfil + seletor de loja
-- **Header** (73px fixo): ícone de rota + cronômetro de sessão + ações rápidas (loja, mensagens, alertas, tema, logout)
-- **Barra de Acesso Rápido**: links irmãos + portal de ações + botão Atualizar
-- **Área de Conteúdo**: onde as páginas são renderizadas
+### PrivateLayout
+
+- Sidebar com menus condicionados por permissão.
+- Header com ações rápidas.
+- Botão global Atualizar via `useRefreshFrame`.
+- Atualização suave de permissões via `usePermissions`.
 
 ---
 
 ## 🧩 Módulos do Sistema
 
-| Módulo | Rotas | Descrição |
-|---|---|---|
-| **Dashboard** | `/admin`, `/admin/activity`, `/admin/alerts`, `/admin/reports` | Visão geral, atividades, alertas e relatórios |
-| **Comercial** | `/admin/orders`, `/admin/commercial-dashboard`, etc. | Pedidos, canais de venda, pagamentos, mensagens |
-| **Clientes** | `/admin/customers/*` | CRM, lifecycle, formulários |
-| **Fidelidade** | `/admin/loyalty`, `/admin/loyalty/advanced` | Programa de pontos e tiers |
-| **Marketing** | `/admin/marketing` | Centro de marketing e campanhas |
-| **Financeiro** | `/admin/cashbook` | Caixa/livro de registros financeiros |
-| **Produtos** | `/admin/products`, `/admin/categories` | Cardápio e categorias |
-| **Estoque** | `/admin/inventory`, `/admin/transfers`, `/admin/stock-movements` | Controle de estoque por local, transferências, movimentações |
-| **Compras** | `/admin/cashbook/purchases`, `/admin/stock/purchase-documents` | Ledger de compras, documentos, cotações |
-| **Fornecedores** | `/admin/suppliers` | Gestão de fornecedores e lifecycle |
-| **Delivery** | `/admin/delivery` | Configuração de entrega |
-| **Usuários** | `/admin/users` | Membros e permissões do painel |
-| **Configurações** | `/admin/settings`, `/admin/my-profile`, `/admin/hours`, `/admin/security`, `/admin/config` | Loja, perfil, horários, segurança, aparência |
-| **Suporte** | `/admin/faq`, `/admin/docs`, `/admin/legal` | FAQ, documentação, termos legais |
+| Módulo | Descrição |
+|---|---|
+| Dashboard | Visão geral, atividades, alertas e relatórios |
+| Comercial | Pedidos, canais de venda, clientes, fidelidade, mensagens e marketing |
+| Financeiro | Livro diário/caixa |
+| Produtos | Cardápio, categorias, estoque, transferências, compras e fornecedores |
+| Usuários e Equipe | Membros, papéis, histórico e dados do vínculo |
+| Configurações | Configurações da loja centralizadas em abas |
+| Segurança | Senhas e Acesso, permissões e ações sensíveis |
+| Suporte | FAQ, documentação e legal |
 
 ---
 
-## 📚 Skills Relacionadas
-
-Consulte os arquivos abaixo para diretrizes específicas antes de desenvolver:
+## 📚 Skills relacionadas
 
 | Skill | Arquivo | Quando consultar |
 |---|---|---|
-| **Identidade Visual Completa** | `design_system.md` | Sempre que criar/editar UI |
-| **Layout de Páginas Admin** | `page_layout_standard.md` | Ao criar páginas do painel |
-| **Cabeçalhos (Flat vs Card)** | `page_container_header_standard.md` | Ao usar o `PageContainer` |
-| **Hook de Refresh** | `refresh_frame_standard.md` | Ao criar páginas com recarregamento de dados |
-| **Listener Realtime** | `realtime_listener_standard.md` | Ao criar/editar telas sensíveis (pedidos, estoque, dashboard...) |
-| **Comunicação pt-BR** | `ptbr_communication.md` | Sempre |
+| Identidade visual | `design_system.md` | Sempre que criar/editar UI |
+| Layout admin | `page_layout_standard.md` | Ao criar páginas do painel |
+| Cabeçalhos | `page_container_header_standard.md` | Ao usar `PageContainer` |
+| Refresh | `refresh_frame_standard.md` | Ao criar telas com botão Atualizar |
+| Realtime | `realtime_listener_standard.md` | Ao criar/editar telas sensíveis |
+| Comunicação pt-BR | `ptbr_communication.md` | Sempre |
 
 ---
 
-## 👤 Identidade do Usuário Logado (Sidebar/Header)
+## Pendências estratégicas atuais
 
-> ⚠️ **REGRA CRÍTICA**: `profiles` NÃO tem `internal_alias`. Nunca buscar alias em `profiles`.
-
-### Separação de responsabilidades
-
-| Tabela | Dados |
-|---|---|
-| `profiles` | Nome, telefone, CPF, endereço, redes sociais, `avatar_url` |
-| `store_members` | `internal_alias` (apelido por loja), `job_title`, `department` |
-
-### Como salvar (tela Meus Dados)
-```ts
-// 1. Dados pessoais → profiles:
-await updateCurrentUserProfile({ name, phone, ... });  // sem internalAlias
-
-// 2. Apelido → store_members:
-await updateMyStoreMemberAlias({ storeId: getActiveStoreId(), internalAlias });
-```
-
-### Como buscar o apelido na sidebar
-```ts
-const { data: memberRow } = await supabase
-    .from('store_members')
-    .select('internal_alias, avatar_url')
-    .eq('user_id', user.id)
-    .eq('store_id', selectedMembership.store_id)
-    .maybeSingle();
-
-const displayName =
-    selectedMembership?.internal_alias ||  // RPC retorna se FIX.3 aplicado
-    memberRow?.internal_alias ||           // query direta (RLS safe via user_id)
-    profileRow?.name ||                   // nome completo
-    user.email?.split('@')[0] || 'Usuário';
-
-const fullName =
-    profileRow?.name ||
-    selectedMembership?.profile_name ||
-    user.email;
-```
-
-> 📄 Detalhes completos: `docs/9.9H-arquitetura-identidade-usuario.md`
-
-### Pendente no Supabase (FIX.3)
-Adicionar `sm.internal_alias` na CTE e no `jsonb_build_object` da função
-`get_current_user_security_context_v2` para eliminar a query extra no layout.
+1. `9.13.1G — Histórico pessoal e auditoria de alterações`.
+2. Registrar alteração de função/papel no Meu Histórico do usuário afetado.
+3. Registrar andamento de solicitações cadastrais no Meu Histórico.
+4. Implementar Configurações reais de Mensagens.
+5. Implementar Pedido Online: slug, layout básico e regras.
+6. Rodada dedicada de hardening dos Advisors/RLS.
+7. Futura área de superusuário/global admin.
 
 ---
 
-*Última atualização: 2026-06-17 | Ajuste no handleConfirmRoleChange (Users.tsx) para atualizar selectedUser.*
+*Última atualização: 2026-06-23 | Fechamento técnico da frente 9.13.1E/9.13.1F — permissões, realtime, Segurança, Configurações e padrão manage=false.*
