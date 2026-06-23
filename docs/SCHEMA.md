@@ -1287,9 +1287,6 @@ Linha do tempo operacional amigável para telas e processos. Não substitui audi
 
 ## Table `store_members`
 
-> Permissões individuais são armazenadas em `store_members.permissions`.
-> Não existe tabela `store_member_permissions` no schema atual.
-
 ### Columns
 
 | Name | Type | Constraints |
@@ -1615,4 +1612,16 @@ Linha do tempo operacional amigável para telas e processos. Não substitui audi
 | `created_at` | `timestamptz` |  Nullable |
 | `updated_at` | `timestamptz` |  Nullable |
 | `backup_created_at` | `timestamptz` |  Nullable |
+
+## Table `store_permission_versions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `store_id` | `uuid` | Primary |
+| `version` | `int8` |  |
+| `reason` | `text` |  Nullable |
+| `changed_by` | `uuid` |  Nullable |
+| `changed_at` | `timestamptz` |  |
 
