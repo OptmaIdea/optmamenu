@@ -187,7 +187,12 @@ A Fase 9 refinou permissões ligadas a:
 - informações adicionais sensíveis;
 - solicitações cadastrais;
 - papéis personalizados;
-- ações sensíveis.
+- ações sensíveis;
+- permissões por papel;
+- permissões individuais;
+- configurações;
+- segurança;
+- realtime de permissões.
 
 Regra geral:
 
@@ -195,6 +200,44 @@ Regra geral:
 - admin depende de permissões;
 - manager, visualizador, estoquista e demais papéis não acessam Usuários por padrão;
 - todos acessam Meus Dados e Meu Histórico.
+
+### Hierarquia final de permissões
+
+1. Permissão individual em `store_members.permissions`.
+2. Função personalizada em `store_custom_roles.permissions`.
+3. Papel base em `store_role_permission_templates`.
+4. Fallback seguro `false`.
+5. Owner tem acesso integral.
+
+> Importante: o modelo atual usa JSONB em `store_members.permissions` para overrides individuais. A tabela `store_member_permissions` não faz parte do modelo ativo.
+
+### Realtime consolidado
+
+A sincronização em tempo real usa `store_permission_versions` como canal central.
+
+O hook `usePermissions` escuta apenas `store_permission_versions`, evitando listeners duplicados em tabelas de templates, funções e membros.
+
+### `view=false` e `manage=false`
+
+- `view=false`: oculta menu/aba/rota e bloqueia acesso direto.
+- `view=true` + `manage=false`: abre em modo leitura, com inputs desabilitados e ações ocultas.
+
+O componente padrão criado para isso é:
+
+- `src/components/security/PermissionLocked.tsx`
+
+### Configurações e Segurança
+
+Configurações e Segurança foram separadas no sidebar.
+
+- **Configurações** contém apenas “Configurações da Loja”, com abas internas.
+- **Segurança** contém “Senhas e Acesso”.
+
+`security.view` é porteira absoluta do módulo Segurança.
+
+`settings.view` é porteira do conjunto Configurações da Loja.
+
+Documentação detalhada: `docs/FASE_9_13_PERMISSOES_SEGURANCA.md`.
 
 ---
 
@@ -305,6 +348,19 @@ O histórico deve registrar:
 - antes/depois;
 - dados de login/logout quando implementados.
 
+### Pendência validada para próxima etapa
+
+A alteração de função/papel já reflete em tempo real no sistema, mas ainda deve aparecer no Meu Histórico do usuário afetado com:
+
+- função anterior;
+- nova função;
+- responsável pela alteração;
+- motivo;
+- data/hora;
+- loja.
+
+O andamento de solicitações cadastrais também deve aparecer no Meu Histórico do solicitante.
+
 ---
 
 ## Hardening Supabase / Advisors
@@ -318,29 +374,40 @@ Foi feita uma rodada de segurança:
 - tabela legacy bloqueada;
 - funções públicas mantidas apenas quando necessárias para loja pública, pedido público ou OTP.
 
-Ainda restam WARNs esperados para:
+O arquivo `docs/ADVISORS.md` foi revisado no fechamento da etapa 9.13.
 
-- funções públicas necessárias à loja pública;
-- RPCs autenticadas reais do painel/admin.
+Pontos atuais de atenção:
 
-Esses WARNs ficam para hardening por módulo antes da publicação/testes reais.
+- `store_permission_catalog` aparece com RLS desabilitado;
+- tabela backup `store_role_permission_templates_backup_910c` aparece com RLS desabilitado;
+- há WARNs de funções `SECURITY DEFINER` executáveis por `anon`.
+
+Esses pontos ficam para hardening por módulo antes da publicação/testes reais.
 
 ---
 
-## Estado ao final da Fase 9.9
+## Estado ao final da Fase 9.13
 
-A área de usuários está funcional e pronta para fechamento final na etapa 9.9P.
+Concluído tecnicamente:
 
-A próxima etapa imediata é:
+- permissões por papel;
+- funções personalizadas;
+- permissões por usuário;
+- realtime de permissões;
+- padrão `view/manage`;
+- separação Configurações x Segurança;
+- fallback seguro para `/admin/my-profile`;
+- Configurações da Loja centralizadas em abas;
+- console limpo;
+- build validado pelo usuário.
 
-**9.9P — Fechamento final da área de Usuários**
+Próxima etapa recomendada:
+
+**9.13.1G — Histórico pessoal e auditoria de alterações**
 
 Objetivo:
 
-- revisar fluxo completo;
-- validar permissões;
-- validar usuário multilojas;
-- validar Meus Dados;
-- validar Meu Histórico;
-- validar solicitações cadastrais;
-- corrigir apenas ajustes finos, sem abrir nova frente grande.
+- registrar alteração de função no Meu Histórico;
+- registrar solicitações cadastrais no Meu Histórico;
+- revisar eventos de auditoria sensíveis;
+- manter permissões e dados sensíveis protegidos.
