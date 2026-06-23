@@ -1168,9 +1168,9 @@ export const ROLE_PERMISSION_TREE = [
         groups: [
             {
                 id: 'security_general',
-                label: 'Geral',
+                label: 'Senhas e Acesso',
                 accessPermission: 'security.view',
-                permissions: ['security.view', 'security.manage'],
+                permissions: ['security.view'],
             },
             {
                 id: 'security_context',
@@ -2486,7 +2486,17 @@ export default function Security() {
         { id: 'session_inactive', label: 'Sessão e inatividade', icon: Clock, canAccess: canViewSecurityTab('session_inactive') },
     ], [canViewSecurityTab]);
 
-    const allowedTabs = useMemo(() => tabs.filter((tab) => tab.canAccess), [tabs]);
+    const allowedTabs = useMemo(() => {
+        if (loadingSecurityContext || loadingPermissions) return [];
+        if (!canAccessSecurityRoot) return [];
+
+        return tabs.filter((tab) => tab.canAccess);
+    }, [
+        tabs,
+        loadingSecurityContext,
+        loadingPermissions,
+        canAccessSecurityRoot,
+    ]);
 
     useEffect(() => {
         if (loadingSecurityContext || loadingPermissions) return;

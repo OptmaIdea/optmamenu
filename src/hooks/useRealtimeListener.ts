@@ -65,11 +65,7 @@ export function useRealtimeListener({
       }
     }
 
-    channel.subscribe((status) => {
-      if (status === 'CHANNEL_ERROR') {
-        console.warn(`[Realtime] Erro no canal "${channelName}". Reconectando...`);
-      }
-    });
+    channel.subscribe();
 
     return () => {
       supabase.removeChannel(channel);

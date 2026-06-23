@@ -156,15 +156,7 @@ export function usePermissions(storeId: string | null): UsePermissionsResult {
                     scheduleRefresh();
                 }
             )
-            .subscribe((status, error) => {
-                if (status === 'CHANNEL_ERROR' || error) {
-                    console.warn('[PERMISSIONS_RT_STATUS]', {
-                        storeId,
-                        status,
-                        error,
-                    });
-                }
-            });
+            .subscribe();
 
         return () => {
             if (refreshTimer) {

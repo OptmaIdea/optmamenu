@@ -188,6 +188,15 @@ export default function PrivateLayout() {
         return hasEffectivePermission(permissions, key);
     }, [permissions, activeMembership?.role]);
 
+    const hasRootPermission = useCallback((key: string) => {
+        if (activeMembership?.role === 'owner') return true;
+
+        return permissions.some((permission) =>
+            permission.permission_code === key &&
+            permission.allowed === true
+        );
+    }, [permissions, activeMembership?.role]);
+
     useEffect(() => {
     }, [
         storeId,
@@ -206,12 +215,12 @@ export default function PrivateLayout() {
     }, [hasPermission]);
 
     const canShowSecurityMenu = useCallback(() => {
-        if (!hasPermission('security.view')) return false;
+        if (!hasRootPermission('security.view')) return false;
 
         return SECURITY_TAB_VIEW_PERMISSIONS.some((permission) =>
             hasPermission(permission)
         );
-    }, [hasPermission]);
+    }, [hasRootPermission, hasPermission]);
 
     const canShowSettingsMenu = useCallback(() => {
         if (!hasPermission('settings.view')) return false;
@@ -245,6 +254,14 @@ export default function PrivateLayout() {
 
         if (isOwner) return true;
 
+        if (section === 'security' && !hasRootPermission('security.view')) {
+            return false;
+        }
+
+        if (item.path === '/admin/security') {
+            return canShowSecurityMenu();
+        }
+
         const sectionAccessPermission = SECTION_ACCESS_PERMISSIONS[section];
         if (sectionAccessPermission && !hasPermission(sectionAccessPermission)) {
             return false;
@@ -252,10 +269,6 @@ export default function PrivateLayout() {
 
         if (item.alwaysVisible) {
             return true;
-        }
-
-        if (item.path === '/admin/security') {
-            return canShowSecurityMenu();
         }
 
         if (item.path === '/admin/settings') {
@@ -287,7 +300,7 @@ export default function PrivateLayout() {
         }
 
         return true;
-    }, [isOnboardingPending, isOwner, hasPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
+    }, [isOnboardingPending, isOwner, hasPermission, hasRootPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
 
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');

@@ -118,7 +118,6 @@ export async function validateSessionSecurity(signOutFn: () => Promise<void>): P
         } else {
             // Nenhuma outra aba está ativa. Foi um início frio total (navegador fechado).
             // Forçamos o logout para invalidar a persistência do localStorage
-            console.warn('[Session Security] Início frio sem abas logadas ativas. Forçando deslogar.');
             await logDisconnectedEvent('Sessão encerrada devido ao fechamento do navegador ou todas as abas.');
             clearSessionSecurity();
             await signOutFn();
