@@ -1,87 +1,299 @@
 # Guia do Sistema de Permissões em Tempo Real (Realtime & Smooth UX)
 
-Este documento descreve a arquitetura, o fluxo de sincronização em tempo real (Realtime) e a experiência de usuário sem interrupções (Smooth UX) para o sistema de permissões do **OptmaMenu**. Ele serve tanto como documentação de referência quanto como guia de instruções (prompt-style) para o desenvolvimento e manutenção do ecossistema.
+Este documento descreve a arquitetura atual do sistema de permissões do **OptmaMenu**, incluindo resolução de permissões, sincronização em tempo real e experiência de usuário sem recarregamentos bruscos.
 
 ---
 
-## 🎯 Objetivo e Necessidades de UX
+## 1. Objetivo
 
-Quando um administrador ou proprietário altera as permissões de um membro da equipe na tela de Segurança (`/admin/security`):
-1. **Sincronização em Tempo Real**: O usuário afetado deve ter suas permissões recalculadas e atualizadas no navegador imediatamente, sem necessidade de atualizar a página manualmente (F5).
-2. **Experiência de Usuário Suave (Smooth UX)**:
-   - **Sem piscadas (no flicker)**: O menu lateral e as rotas não devem piscar, sumir ou recarregar de forma abrupta durante a atualização.
-   - **Estado Anterior Preservado**: Durante o refresh silencioso em segundo plano, as permissões antigas do usuário devem ser mantidas ativas até que a resposta com as novas permissões seja totalmente processada.
-   - **Carregamento Sutil**: No máximo, a sidebar exibe um indicador sutil e discreto (*"Atualizando permissões..."*), mantendo a integridade da navegação.
+Quando um proprietário ou administrador altera permissões em `/admin/security`, o usuário afetado deve receber as mudanças sem atualizar manualmente a página.
 
----
+Requisitos validados:
 
-## 🗄️ Estrutura de Tabelas do Banco de Dados (Supabase/PostgreSQL)
-
-O sistema de controle de acesso do backend do Supabase é estruturado sobre as seguintes tabelas:
-
-1. **`stores`**: Armazena as informações das lojas (estabelecimentos).
-2. **`store_members`**: Vínculo entre os perfis (`profiles`/`auth.users`) e as lojas, contendo o papel principal do usuário (`role`, ex: `manager`, `cashier`) e referenciando funções personalizadas, se aplicável.
-3. **`store_role_permission_templates`**: Modelos de permissões básicas e associadas a cada papel em nível de sistema ou nível de loja.
-4. **`store_custom_roles`**: Funções (papéis) personalizadas criadas especificamente por uma loja, contendo um JSONB de herança (`permissions`) e papel base (`base_role`).
-5. **`store_member_permissions`**: Sobrescritas (overrides) de permissões em nível individual para um membro específico da loja (permite conceder ou negar chaves específicas independentemente do papel).
+1. **Realtime funcional** entre owner/admin e usuários afetados.
+2. **Sidebar atualizada sem reload**.
+3. **Rotas protegidas recalculadas** após alteração.
+4. **Transição suave**, sem flicker relevante.
+5. **Console limpo**, sem logs residuais e sem `CHANNEL_ERROR` recorrente.
 
 ---
 
-## ⚙️ Os Três Modelos de Configuração de Permissões
+## 2. Tabelas principais
 
-A resolução final do vetor de permissões de um usuário segue uma hierarquia de prioridades bem definida:
+### `store_members`
 
-### 1. Permissões por Papel (Role-based / Built-in Templates)
-* **Como funciona**: Chaves de permissão padrão associadas a um dos 8 papéis nativos do sistema (`owner`, `admin`, `manager`, `stock_operator`, `cashier`, `sales`, `staff`, `viewer`).
-* **Resolução**: Se o usuário não tiver funções personalizadas ou sobrescritas individuais, ele herda a matriz padrão do seu papel ativo na tabela `store_role_permission_templates`.
-* **Exceção**: O papel de Proprietário (`owner`) ignora qualquer checagem e possui acesso total irrestrito automaticamente.
+Vínculo entre usuário e loja.
 
-### 2. Funções Personalizadas (Custom Roles)
-* **Como funciona**: Permite que a loja crie um papel sob medida (ex: "Gerente de Turno"), herdando um papel base nativo, mas estendendo ou restringindo permissões específicas.
-* **Resolução**: Ao carregar, o sistema resolve o papel base e aplica as chaves customizadas parametrizadas em `store_custom_roles` para o perfil selecionado.
+Campos relevantes:
 
-### 3. Permissões por Usuário (Individual Overrides)
-* **Como funciona**: Ajustes granulares aplicados diretamente sobre a conta de um membro da equipe (tabela `store_member_permissions`).
-* **Resolução**: Sobrescreve tanto as permissões por papel quanto as funções personalizadas. Se o registro for `allowed = true`, concede; se `allowed = false`, revoga expressamente.
+- `role`
+- `status`
+- `custom_role_id`
+- `permissions jsonb`
+- `sensitive_actions jsonb`
+- dados de vínculo, apelido, avatar e contato.
+
+As permissões individuais ficam em `store_members.permissions`.
+
+> Importante: o modelo atual **não usa** a tabela `store_member_permissions`.
+
+### `store_role_permission_templates`
+
+Templates por papel base e loja.
+
+Exemplo:
+
+- `store_id`
+- `role`
+- `permission_code`
+- `allowed`
+
+### `store_custom_roles`
+
+Funções personalizadas por loja.
+
+Campos relevantes:
+
+- `base_role`
+- `permissions jsonb`
+- `active`
+
+### `store_permission_versions`
+
+Tabela central de versionamento/realtime.
+
+Campos relevantes:
+
+- `store_id`
+- `version`
+- `reason`
+- `changed_by`
+- `changed_at`
+
+Esta é a única tabela escutada diretamente pelo hook `usePermissions` via Supabase Realtime.
 
 ---
 
-## 🔄 Fluxo de Sincronização em Tempo Real (Realtime)
+## 3. Resolução de permissões
 
-A sincronização entre o administrador (quem altera) e o operador (quem é alterado) ocorre através de três vias redundantes e complementares:
+A hierarquia final é:
+
+1. Permissão individual em `store_members.permissions`.
+2. Função personalizada em `store_custom_roles.permissions`.
+3. Template do papel base em `store_role_permission_templates`.
+4. Fallback seguro `false`.
+5. `owner` tem acesso integral e ignora checagens comuns.
+
+---
+
+## 4. Fluxo de sincronização
 
 ```mermaid
 graph TD
-    A[Administrador altera permissões] -->|update_store_custom_role ou update_store_member_permissions| B(notifyPermissionsChanged)
-    B -->|1. CustomEvent| C[Mesma Aba / Janela]
-    B -->|2. LocalStorage Event| D[Outras Abas do mesmo navegador]
-    A -->|3. PostgreSQL Replication| E[Supabase Realtime Channel]
-    E -->|WebSocket| F[usePermissions no navegador do usuário afetado]
-    C -->|Debounce 400ms| G[refresh() de permissões silencioso]
-    D -->|Debounce 400ms| G
-    F -->|Debounce 400ms| G
+    A[Owner/Admin altera permissão] --> B[RPC ou update autorizado]
+    B --> C[store_permission_versions é atualizado]
+    C --> D[Supabase Realtime em usePermissions]
+    D --> E[refresh silencioso das permissões]
+    E --> F[PrivateLayout recalcula sidebar]
+    E --> G[RequirePermission recalcula rotas]
+    E --> H[Telas exibem/ocultam ações]
 ```
-
-1. **Mesma Aba (CustomEvent)**: O evento `'optmamenu:permissions-changed'` é disparado globalmente via `window.dispatchEvent` para que hooks locais atualizem imediatamente.
-2. **Outra Aba no mesmo navegador (StorageEvent)**: O evento grava uma chave temporária com timestamp em `localStorage`. Outras abas escutam a alteração através do evento `'storage'` e agendam o refresh.
-3. **Outro navegador/dispositivo (Supabase Realtime)**: O hook `usePermissions` abre um canal WebSocket escutando alterações RLS-safe nas tabelas `store_role_permission_templates`, `store_custom_roles` e `store_members` para a loja ativa.
 
 ---
 
-## 📂 Arquivos Envolvidos e Suas Funções
+## 5. Decisão final de Realtime
 
-### 1. [`src/utils/permissionEvents.ts`](file:///d:/optmamenu/src/utils/permissionEvents.ts)
-* **Função**: Helper utilitário que centraliza a criação e emissão dos payloads de eventos de mudança de permissões para a janela local e para o `localStorage` (cross-tab).
+O hook `usePermissions` deve escutar somente:
 
-### 2. [`src/hooks/usePermissions.ts`](file:///d:/optmamenu/src/hooks/usePermissions.ts)
-* **Função**: Carrega o vetor de permissões efetivas do usuário ativo. Escuta canais realtime do Supabase, `CustomEvent` local e `StorageEvent` para agendar um recarregamento debulhado (debounce 400ms) sem ativar telas de carregamento bloqueantes.
+```txt
+store_permission_versions
+```
 
-### 3. [`src/components/layouts/PrivateLayout.tsx`](file:///d:/optmamenu/src/components/layouts/PrivateLayout.tsx)
-* **Função**: Renderiza o menu lateral de navegação condicionado às permissões do usuário.
-* **Detalhe Crítico de UX**: A função `hasPermission` **não** bloqueia ou retorna `false` quando `loadingPermissions` está ativo. Isso evita a remontagem de componentes do sidebar e a perda visual das opções do usuário durante a sincronização em tempo real. Exibe apenas a string *"Atualizando permissões..."* na barra lateral de forma discreta.
+Foram removidos do fluxo principal os listeners diretos em:
 
-### 4. [`src/hooks/security/useSecurityPermissionsAdmin.ts`](file:///d:/optmamenu/src/hooks/security/useSecurityPermissionsAdmin.ts)
-* **Função**: Hook administrativo para salvar templates de papéis, permissões em lote e individuais. Invoca `notifyPermissionsChanged` após a execução bem-sucedida das RPCs de escrita.
+- `store_role_permission_templates`
+- `store_custom_roles`
+- `store_members`
 
-### 5. [`src/pages/private/admin/settings/security/Security.tsx`](file:///d:/optmamenu/src/pages/private/admin/settings/security/Security.tsx)
-* **Função**: Tela administrativa de Segurança e Permissões. Dispara `notifyPermissionsChanged` ao criar, editar ou inativar funções personalizadas (`custom_role_update`).
+Motivo:
+
+- evitar eventos duplicados;
+- evitar `CHANNEL_ERROR`;
+- evitar “mismatch between server and client bindings for postgres changes”;
+- reduzir ruído de logs;
+- centralizar o refresh em um canal único.
+
+---
+
+## 6. Eventos locais
+
+Além do Realtime, o frontend usa eventos locais para atualização imediata:
+
+- `CustomEvent` na mesma aba;
+- `StorageEvent` entre abas do mesmo navegador;
+- Realtime para outro navegador/dispositivo.
+
+O utilitário central é:
+
+- `src/utils/permissionEvents.ts`
+
+---
+
+## 7. Arquivos principais
+
+### `src/hooks/usePermissions.ts`
+
+Responsável por:
+
+- buscar permissões efetivas;
+- manter estado anterior durante refresh silencioso;
+- escutar `store_permission_versions`;
+- agendar refresh com debounce;
+- não gerar logs normais em console.
+
+### `src/components/layouts/PrivateLayout.tsx`
+
+Responsável por:
+
+- montar o menu lateral;
+- ocultar menus conforme permissões;
+- atualizar sidebar em tempo real;
+- atualizar papel/função personalizada após alteração;
+- separar Configurações e Segurança.
+
+### `src/components/RequirePermission.tsx`
+
+Responsável por proteger rotas.
+
+Regra atual:
+
+- array de permissões é tratado como **AND**, não OR;
+- se rota for negada, fallback seguro é `/admin/my-profile`.
+
+### `src/hooks/security/useSecurityPermissionsAdmin.ts`
+
+Hook administrativo para:
+
+- carregar matriz;
+- carregar funções personalizadas;
+- carregar permissões por usuário;
+- salvar alterações;
+- disparar eventos/refresh após sucesso.
+
+### `src/pages/private/admin/settings/security/Security.tsx`
+
+Tela de Segurança e permissões.
+
+Responsável por:
+
+- contexto de acesso;
+- histórico de atividades;
+- permissões por papel;
+- funções personalizadas;
+- permissões por usuário;
+- ações sensíveis;
+- PIN/token;
+- sessões e inatividade.
+
+### `src/components/security/PermissionLocked.tsx`
+
+Componente criado para padronizar `manage=false`.
+
+Exporta:
+
+- `NO_WRITE_PERMISSION_MESSAGE`
+- `PermissionLocked`
+- `LockedHint`
+
+---
+
+## 8. Regras finais de menu e rota
+
+### `view=false`
+
+- esconde menu;
+- esconde aba;
+- protege rota;
+- acesso direto vai para fallback seguro.
+
+### `manage=false`
+
+- mantém visualização;
+- desabilita inputs/selects/switches;
+- oculta botões de ação;
+- evita toast desnecessário;
+- evita erro de console;
+- mostra tooltip/título de permissão negada para alteração.
+
+---
+
+## 9. Segurança
+
+`security.view` é porteira absoluta.
+
+Sem `security.view`:
+
+- o menu Segurança some;
+- nenhuma aba de Segurança abre;
+- `/admin/security` e `/admin/security?tab=*` redirecionam para `/admin/my-profile`.
+
+Com `security.view=true`:
+
+- o menu só aparece se ao menos uma aba `security.*.view` estiver liberada;
+- `/admin/security` redireciona para a primeira aba permitida;
+- aba não permitida redireciona para a primeira aba permitida.
+
+---
+
+## 10. Configurações — Opção B
+
+Configurações foram centralizadas em:
+
+```txt
+/admin/settings
+```
+
+O menu lateral mostra apenas:
+
+```txt
+Configurações > Configurações da Loja
+```
+
+As configurações específicas vivem como abas:
+
+- `store`
+- `commercial`
+- `orders`
+- `hours`
+- `stock`
+- `delivery`
+- `payment`
+- `messages`
+- `legal`
+- `system`
+
+`/admin/hours` é rota legada e redireciona para:
+
+```txt
+/admin/settings?tab=hours
+```
+
+---
+
+## 11. Permissões adicionadas/refinadas
+
+- `commercial.dashboard.view`
+- `commercial.sales_channels.view`
+- `commercial.sales_channels.manage`
+- `settings.hours.view`
+- `settings.hours.manage`
+
+---
+
+## 12. Pontos pendentes
+
+- Registrar alteração de função/papel no Meu Histórico do usuário afetado.
+- Registrar andamento de solicitações cadastrais no Meu Histórico.
+- Implementar configurações reais da aba Mensagens.
+- Revisar Advisors/RLS em etapa própria de hardening.
+- Documentar RPCs restantes de estoque, pedidos públicos, OTP e loja pública.
