@@ -314,7 +314,7 @@ export default function PrivateLayout() {
         ],
         commercial: [
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
-            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda', permission: 'commercial.view' },
+            { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda', permission: 'commercial.sales_channels.view' },
             {
                 path: '/admin/settings',
                 queryString: 'tab=payment',

@@ -190,7 +190,7 @@ export default function AppRoutes() {
                 </RequirePermission>
               }
             />
-            <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.view"><SalesChannelsPage /></RequirePermission>} />
+            <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.sales_channels.view"><SalesChannelsPage /></RequirePermission>} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/delivery" element={<Navigate to="/admin/settings?tab=delivery" replace />} />

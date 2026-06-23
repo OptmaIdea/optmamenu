@@ -232,9 +232,34 @@ const ACTION_LABELS: Record<string, string> = {
     role_permission_updated: 'Permissão por papel alterada',
 };
 
+const SECURITY_ACTION_LABELS: Record<string, string> = {
+    store_role_permissions_bulk_updated: 'Permissões por papel atualizadas',
+    store_role_permission_updated: 'Permissão por papel atualizada',
+    member_permissions_updated: 'Permissões do usuário atualizadas',
+    custom_role_created: 'Função personalizada criada',
+    custom_role_updated: 'Função personalizada atualizada',
+    custom_role_deactivated: 'Função personalizada desativada',
+};
+
+function formatSecurityDetail(detail?: string | null) {
+    if (!detail) return '';
+
+    return detail
+        .replace('Acesso bloqueado para', 'Acesso bloqueado:')
+        .replace('Acesso liberado para', 'Acesso liberado:')
+        .replace('dashboard.view', 'Dashboard')
+        .replace('dashboard.activity.view', 'Atividades recentes')
+        .replace('dashboard.alerts.view', 'Alertas')
+        .replace('commercial.dashboard.view', 'Dashboard comercial')
+        .replace('settings.hours.view', 'Horários')
+        .replace('security.view', 'Senhas e Acesso')
+        .replace('security.logs.view', 'Histórico de atividades')
+        .replace('security.context.view', 'Contexto de acesso');
+}
+
 function getActionLabel(action: string | null | undefined): string {
     if (!action) return 'Ação desconhecida';
-    return ACTION_LABELS[action] ?? formatSecurityLogAction(action);
+    return ACTION_LABELS[action] ?? SECURITY_ACTION_LABELS[action] ?? formatSecurityLogAction(action);
 }
 
 function getDisplayAction(item: { action?: string | null; display_action?: string | null }) {
@@ -3488,7 +3513,7 @@ export default function Security() {
 
                                                         {formatSecurityLogDetails(log) && (
                                                             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                                                {formatSecurityLogDetails(log)}
+                                                                {formatSecurityDetail(formatSecurityLogDetails(log))}
                                                             </p>
                                                         )}
                                                     </div>

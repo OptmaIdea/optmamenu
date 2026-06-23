@@ -21,6 +21,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(5);
+  const fallbackPath = '/admin/my-profile';
 
   const activeMembership = securityContext?.memberships?.find(
     (m) => m.store_id === activeStoreId && m.status === 'active'
@@ -42,7 +43,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
   useEffect(() => {
     if (!securityLoading && !permissionsLoading && !hasAccess) {
       const timer = setTimeout(() => {
-        navigate('/admin');
+        navigate(fallbackPath, { replace: true });
       }, 5000);
 
       const interval = setInterval(() => {
@@ -108,7 +109,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
             onClick={() => navigate('/admin/my-profile')}
             className="bg-[#21A896] hover:bg-[#1A867A] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition cursor-pointer"
           >
-            Ir para o Painel
+            Ir para Meus Dados
           </button>
         </div>
       </div>
