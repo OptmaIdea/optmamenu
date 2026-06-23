@@ -1556,14 +1556,6 @@ export default function Security() {
         members: isUserPermissionsTabActive && canViewUserPermissionsTab,
     });
 
-    useEffect(() => {
-        const hoursPermissions = permissionMatrix.filter((permission) =>
-            permission.permission_code?.startsWith('settings.hours.')
-        );
-
-        console.log('[HOURS_MATRIX_DEBUG]', hoursPermissions);
-    }, [permissionMatrix]);
-
     const isRoleAllowed = useCallback((role: string, permissionCode: string) => {
         return getRolePermissionAllowed(permissionMatrix, role, permissionCode);
     }, [permissionMatrix]);
