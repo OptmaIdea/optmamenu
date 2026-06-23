@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission, hasAnyEffectivePermission } from '@/utils/permissions';
+import { hasEffectivePermission, hasAllEffectivePermissions } from '@/utils/permissions';
 import { getActiveStoreId } from '@/utils/activeStore';
 import PageContainer from '@/components/common/PageContainer';
 import { ShieldAlert, AlertTriangle } from 'lucide-react';
@@ -36,7 +36,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
       ? hasEffectivePermission(permissions, 'users.view')
       : (isOwner ||
         (Array.isArray(targetPermission)
-          ? hasAnyEffectivePermission(permissions, targetPermission)
+          ? hasAllEffectivePermissions(permissions, targetPermission)
           : hasEffectivePermission(permissions, targetPermission))))
   );
 

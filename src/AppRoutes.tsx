@@ -8,15 +8,12 @@ import CreateStore from '@/pages/CreateStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getActiveStoreId } from '@/utils/activeStore';
-import { supabase } from '@/lib/supabase';
 import { hasEffectivePermission } from '@/utils/permissions';
 import { useState, useEffect } from 'react';
 
 function AdminLanding() {
   const activeStoreId = getActiveStoreId();
   const { securityContext, loading: securityLoading } = useSecurityContext();
-  // [CORREÇÃO 3] Desestrutura `loading` (carga inicial) — não `refreshing`.
-  // Isso evita que AdminLanding mostre spinner durante updates silenciosos de permissão.
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
@@ -33,17 +30,7 @@ function AdminLanding() {
     if (hasDashboardView) {
       setRedirectPath('/admin');
     } else {
-      const fetchDefaultPath = async () => {
-        const { data, error } = await supabase.rpc('get_default_admin_landing_path_v3', {
-          p_store_id: activeStoreId,
-        });
-        if (!error && data) {
-          setRedirectPath(data);
-        } else {
-          setRedirectPath('/admin/my-profile');
-        }
-      };
-      void fetchDefaultPath();
+      setRedirectPath('/admin/my-profile');
     }
   }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView]);
 

@@ -520,6 +520,13 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
         prefixes: ['settings.orders.'],
     },
     {
+        id: 'settings_hours',
+        macroGroup: 'settings',
+        label: 'Horários',
+        description: 'Configuração dos horários de funcionamento da loja.',
+        prefixes: ['settings.hours.'],
+    },
+    {
         id: 'settings_stock',
         macroGroup: 'settings',
         label: 'Estoque',
