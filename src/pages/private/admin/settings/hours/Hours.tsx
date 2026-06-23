@@ -11,7 +11,7 @@ import { LockedHint, PermissionLocked } from '@/components/security/PermissionLo
 
 const DAYS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 
-export default function Hours() {
+export default function Hours({ withoutHeader = false }: { withoutHeader?: boolean }) {
     const { storeId: currentStoreId } = useCurrentStore();
     const { hasPermission } = usePermissions(currentStoreId);
     const canManage = hasPermission('settings.hours.manage');
@@ -179,14 +179,8 @@ export default function Hours() {
 
     if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-[#21A896]" /></div>;
 
-    return (
-        <PageContainer
-            title="Horários de Funcionamento"
-            subtitle="Configure sua grade semanal e dias especiais (feriados)."
-            category="Configurações"
-            icon={<Clock className="text-[#21A896]" size={28} />}
-            flat
-        >
+    const content = (
+        <>
             <LockedHint show={!canManage} />
 
             <PermissionLocked locked={!canManage}>
@@ -528,6 +522,22 @@ export default function Hours() {
                     <strong>Como funciona:</strong> O sistema verifica primeiro se há uma "Exceção" (Feriado) para a data de hoje. Se houver, usa o horário da exceção. Se não houver, usa o horário da "Grade Semanal".
                 </p>
             </div>
+        </>
+    );
+
+    if (withoutHeader) {
+        return content;
+    }
+
+    return (
+        <PageContainer
+            title="Horários de Funcionamento"
+            subtitle="Configure sua grade semanal e dias especiais (feriados)."
+            category="Configurações"
+            icon={<Clock className="text-[#21A896]" size={28} />}
+            flat
+        >
+            {content}
         </PageContainer>
     );
 }

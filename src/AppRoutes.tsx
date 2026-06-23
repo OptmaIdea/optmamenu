@@ -120,7 +120,6 @@ const FAQ = lazy(() => import('@/pages/private/admin/support/FAQ'));
 const Settings = lazy(() => import('@/pages/private/admin/settings/storeSettings/StoreSettings'));
 const Profile = lazy(() => import('@/pages/private/admin/settings/profile/Profile'));
 const MyHistory = lazy(() => import('@/pages/private/admin/settings/myHistory/MyHistory'));
-const Hours = lazy(() => import('@/pages/private/admin/settings/hours/Hours'));
 const MessageSettings = lazy(() => import('@/pages/private/admin/settings/messages/MessageSettings'));
 const Security = lazy(() => import('@/pages/private/admin/settings/security/Security'));
 const Documentation = lazy(() => import('@/pages/private/admin/support/Documentation'));
@@ -277,7 +276,7 @@ export default function AppRoutes() {
                 </RequireActiveStoreMember>
               }
             />
-            <Route path="/admin/hours" element={<RequirePermission permissions={['settings.view', 'settings.hours.view']}><Hours /></RequirePermission>} />
+            <Route path="/admin/hours" element={<Navigate to="/admin/settings?tab=hours" replace />} />
             <Route path="/admin/messages" element={<RequirePermission permission="messages.view"><MessageSettings /></RequirePermission>} />
             <Route
               path="/admin/security"

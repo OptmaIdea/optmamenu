@@ -42,11 +42,8 @@ import {
     Heart,
     History,
     SlidersHorizontal,
-    MessageCircle,
     UserCircle,
-    Smartphone,
     Clock,
-    CreditCard,
     BookOpen,
     MessageSquare,
     Truck,
@@ -56,7 +53,6 @@ import {
     WalletCards,
     Sparkles,
     FileStack,
-    Settings,
     Megaphone,
     Store as StoreIcon,
     Power,
@@ -336,28 +332,7 @@ export default function PrivateLayout() {
         commercial: [
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda', permission: 'commercial.sales_channels.view' },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=payment',
-                icon: WalletCards,
-                label: 'Pagamentos',
-                permissions: ['settings.view', 'settings.payment.view']
-            },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=delivery',
-                icon: Truck,
-                label: 'Entregas',
-                permissions: ['settings.view', 'settings.delivery.view']
-            },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=commercial',
-                icon: Settings,
-                label: 'Configurações comerciais',
-                permissions: ['settings.view', 'settings.commercial.view']
-            },
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
             { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
@@ -377,13 +352,6 @@ export default function PrivateLayout() {
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'purchases.view' },
             { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=stock',
-                icon: SlidersHorizontal,
-                label: 'Configurações de Estoque',
-                permissions: ['settings.view', 'settings.stock.view']
-            },
         ],
         team: [
             {
@@ -398,28 +366,6 @@ export default function PrivateLayout() {
                 path: '/admin/settings',
                 icon: Building,
                 label: 'Configurações da Loja',
-            },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=orders',
-                icon: Smartphone,
-                label: 'Pedido Online',
-                permissions: ['settings.view', 'settings.orders.view']
-            },
-            { path: '/admin/hours', icon: Clock, label: 'Horários', permissions: ['settings.view', 'settings.hours.view'] },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=messages',
-                icon: MessageCircle,
-                label: 'Mensagens',
-                permissions: ['settings.view', 'messages.view'],
-            },
-            {
-                path: '/admin/settings',
-                queryString: 'tab=payment',
-                icon: CreditCard,
-                label: 'Pagamento',
-                permissions: ['settings.view', 'settings.payment.view']
             },
         ],
         security: [

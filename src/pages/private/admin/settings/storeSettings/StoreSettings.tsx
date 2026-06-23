@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone, MessageCircle } from 'lucide-react';
+import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone, MessageCircle, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import bcrypt from 'bcryptjs';
@@ -22,11 +22,13 @@ import Config from '@/pages/private/admin/settings/appearance/Appearance';
 import StockSettingsPage from '@/pages/private/admin/stock/settings/StockSettingsPage';
 import Delivery from '@/pages/private/admin/delivery/Delivery';
 import PaymentMethodsPage from '@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage';
+import Hours from '@/pages/private/admin/settings/hours/Hours';
 
 const SETTINGS_TABS = [
   { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
   { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
   { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
+  { id: 'hours', label: 'Horários', icon: Clock, permissionView: 'settings.hours.view', permissionManage: 'settings.hours.manage' },
   { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
   { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
   { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
@@ -47,6 +49,10 @@ const settingsTabPermissions = {
     orders: {
         view: ['settings.orders.view'],
         manage: ['settings.orders.manage'],
+    },
+    hours: {
+        view: ['settings.hours.view'],
+        manage: ['settings.hours.manage'],
     },
     stock: {
         view: ['settings.stock.view'],
@@ -808,6 +814,15 @@ export default function StoreSettings() {
                     <LockedHint show={!canManageCurrentTab} />
                     <PermissionLocked locked={!canManageCurrentTab}>
                         <Config withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLocked>
+                </div>
+            )}
+
+            {activeTab === 'hours' && (
+                <div className="animate-fadeIn">
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
+                        <Hours withoutHeader={true} />
                     </PermissionLocked>
                 </div>
             )}
