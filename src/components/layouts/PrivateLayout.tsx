@@ -113,6 +113,19 @@ const SECURITY_TAB_VIEW_PERMISSIONS = [
     'security.sessions.view',
 ];
 
+const SETTINGS_TAB_VIEW_PERMISSIONS = [
+    'settings.store.view',
+    'settings.commercial.view',
+    'settings.orders.view',
+    'settings.hours.view',
+    'settings.stock.view',
+    'settings.delivery.view',
+    'settings.payment.view',
+    'messages.view',
+    'settings.legal.view',
+    'settings.system.view',
+];
+
 function formatLayoutRole(role: string): string {
     const labels: Record<string, string> = {
         owner: 'Proprietário',
@@ -197,10 +210,17 @@ export default function PrivateLayout() {
     }, [hasPermission]);
 
     const canShowSecurityMenu = useCallback(() => {
-        if (!hasPermission('settings.view')) return false;
         if (!hasPermission('security.view')) return false;
 
         return SECURITY_TAB_VIEW_PERMISSIONS.some((permission) =>
+            hasPermission(permission)
+        );
+    }, [hasPermission]);
+
+    const canShowSettingsMenu = useCallback(() => {
+        if (!hasPermission('settings.view')) return false;
+
+        return SETTINGS_TAB_VIEW_PERMISSIONS.some((permission) =>
             hasPermission(permission)
         );
     }, [hasPermission]);
@@ -210,6 +230,7 @@ export default function PrivateLayout() {
         commercial: 'commercial.view',
         financial: 'financial.view',
         products: 'products.view',
+        security: 'security.view',
         settings: 'settings.view',
         support: 'support.view',
     };
@@ -249,7 +270,7 @@ export default function PrivateLayout() {
             const tabParam = item.queryString?.split('tab=')[1];
 
             if (!tabParam) {
-                return hasPermission('settings.view');
+                return canShowSettingsMenu();
             }
 
             const viewKey = `settings.${tabParam}.view`;
@@ -270,7 +291,7 @@ export default function PrivateLayout() {
         }
 
         return true;
-    }, [isOnboardingPending, isOwner, hasPermission, can, canShowSecurityMenu]);
+    }, [isOnboardingPending, isOwner, hasPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
 
     const [isNewSession] = useState(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -375,10 +396,8 @@ export default function PrivateLayout() {
         settings: [
             {
                 path: '/admin/settings',
-                queryString: 'tab=store',
                 icon: Building,
-                label: 'Dados da Loja',
-                permissions: ['settings.view', 'settings.store.view']
+                label: 'Configurações da Loja',
             },
             {
                 path: '/admin/settings',
@@ -402,6 +421,8 @@ export default function PrivateLayout() {
                 label: 'Pagamento',
                 permissions: ['settings.view', 'settings.payment.view']
             },
+        ],
+        security: [
             {
                 path: '/admin/security',
                 icon: Shield,
@@ -424,6 +445,7 @@ export default function PrivateLayout() {
         products: false,
         team: false,
         settings: false,
+        security: false,
         support: false,
     };
     const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
@@ -1031,6 +1053,7 @@ export default function PrivateLayout() {
                 products: false,
                 team: false,
                 settings: false,
+                security: false,
                 support: false,
             };
             if (isOpening) {
@@ -1248,6 +1271,7 @@ export default function PrivateLayout() {
                                                     {section === 'products' && 'Produtos'}
                                                     {section === 'team' && 'Usuários e Equipe'}
                                                     {section === 'settings' && 'Configurações'}
+                                                    {section === 'security' && 'Segurança'}
                                                     {section === 'support' && 'Suporte'}
                                                 </span>
                                                 <ChevronDown
