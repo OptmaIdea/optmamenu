@@ -16,15 +16,28 @@
       - empty-state/
       - tooltip/
       - navigation/
+    - layouts/
+      - PrivateLayout.tsx
+      - PublicLayout.tsx
+      - StoreLayout.tsx
     - security/
       - PermissionLocked.tsx
   - constants/
   - hooks/
     - useIdleSessionTimeout.ts
+    - usePermissions.ts
+    - useRealtimeListener.ts
+    - useRefreshFrame.ts
+    - security/
+      - useSecurityPermissionsAdmin.ts
   - lib/
   - pages/
     - private/
       - admin/
+        - dashboard/
+        - commercial/
+        - customers/
+        - financial/
         - products/
           - Products.tsx
           - Suppliers.tsx
@@ -65,11 +78,13 @@
           - messages/
           - security/
           - appearance/
+        - support/
   - services/
   - store/
   - types/
   - utils/
     - permissionEvents.ts
+    - permissions.ts
     - sessionSecurity.ts
     - export/
       - csv.ts
@@ -87,6 +102,7 @@
 - docs/FASE_7_FORNECEDOR_360.md
 - docs/FASE_8_COMERCIAL.md
 - docs/FASE_9_USUARIOS_GOVERNANCA.md
+- docs/FASE_9_13_PERMISSOES_SEGURANCA.md
 - docs/APENDICE_REFINAMENTOS_FUTUROS.md
 - docs/GUIA_CENTRAL_MARKETING.md
 - docs/GUIA_CLIENTES_FIDELIDADE.md
@@ -101,8 +117,10 @@
 - docs/INVENTORY_FUNCTIONS_ANALISYS.md
 - docs/MANUAL_FORNECEDORES.md
 - docs/MANUAL_USUARIO.md
+- docs/MENU-NAVIGATION.md
 - docs/MULTISTOCK_FRONTEND.md
 - docs/OPERATIONS_PLAYBOOK.md
+- docs/PERMISSOES_USUARIOS.md
 - docs/PLANO_DE_NEGOCIOS.md
 - docs/PLANO_DE_NEGOCIOS_ATUALIZACAO_2026_02.md
 - docs/RAIO_X_TECNICO_2026_03.md
@@ -111,6 +129,16 @@
 - docs/RLS_AND_SECURITY.md
 - docs/ROADMAP_REFINAMENTOS_POS_FASE_8.md
 - docs/RPCS_AND_VIEWS.md
+- docs/SCHEMA.md
 - docs/SCHEMA_TABELAS_SUPABASE_SQL.MD
 - docs/SQL_EXTRAS_EM_SUPABASE_COM_EXITO.md
-- docs/OPERATIONS_PLAYBOOK.md
+- docs/ADVISORS.md
+- docs/realtime_backend.json
+
+## Skills / memória do agente
+- .antigravity/skills/MEMORY.md
+- .antigravity/skills/design_system.md
+- .antigravity/skills/page_layout_standard.md
+- .antigravity/skills/page_container_header_standard.md
+- .antigravity/skills/refresh_frame_standard.md
+- .antigravity/skills/ptbr_communication.md
