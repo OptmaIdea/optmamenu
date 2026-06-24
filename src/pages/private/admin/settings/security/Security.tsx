@@ -795,25 +795,14 @@ export function getGroupedRolePermissions(permissionMatrix: PermissionMatrixItem
                     }),
                 }))
                 .sort((a, b) => {
-                    if (macroGroup === 'security') {
-                        if (a.definition.id === 'security_general') return -1;
-                        if (b.definition.id === 'security_general') return 1;
-                        return String(a.definition.label).localeCompare(
-                            String(b.definition.label),
-                            'pt-BR',
-                            { sensitivity: 'base', numeric: true }
-                        );
-                    }
-                    if (macroGroup === 'operational') {
-                        return String(a.definition.label).localeCompare(
-                            String(b.definition.label),
-                            'pt-BR',
-                            { sensitivity: 'base', numeric: true }
-                        );
-                    }
-                    const aIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === a.definition.id);
-                    const bIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === b.definition.id);
-                    return aIndex - bIndex;
+                    if (a.definition.id === 'settings_general' || a.definition.id === 'security_general') return -1;
+                    if (b.definition.id === 'settings_general' || b.definition.id === 'security_general') return 1;
+
+                    return String(a.definition.label).localeCompare(
+                        String(b.definition.label),
+                        'pt-BR',
+                        { sensitivity: 'base', numeric: true }
+                    );
                 });
 
             return {

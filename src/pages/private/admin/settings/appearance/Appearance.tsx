@@ -331,6 +331,19 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             )}
 
             {/* Tabs Navigation */}
+            {!disabled && (
+                <div className="flex justify-end mb-6 animate-fadeIn">
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="bg-[#21A896] hover:bg-[#1a867a] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
+                    >
+                        {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
+                        <span>Salvar Aparência da Loja</span>
+                    </button>
+                </div>
+            )}
             <div className="flex gap-2 mb-8 overflow-x-auto pb-2">
                 <button
                     onClick={() => setActiveTab('visual')}
