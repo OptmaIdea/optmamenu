@@ -1103,10 +1103,10 @@ export const ROLE_PERMISSION_TREE = [
                 permissions: ['settings.view', 'settings.manage'],
             },
             {
-                id: 'settings_store',
-                label: 'Dados da Loja',
-                accessPermission: 'settings.store.view',
-                permissions: ['settings.store.view', 'settings.store.manage'],
+                id: 'settings_appearance',
+                label: 'Aparência da Loja',
+                accessPermission: 'settings.appearance.view',
+                permissions: ['settings.appearance.view', 'settings.appearance.manage'],
             },
             {
                 id: 'settings_commercial',
@@ -1115,22 +1115,16 @@ export const ROLE_PERMISSION_TREE = [
                 permissions: ['settings.commercial.view', 'settings.commercial.manage'],
             },
             {
-                id: 'settings_orders',
-                label: 'Pedido Online',
-                accessPermission: 'settings.orders.view',
-                permissions: ['settings.orders.view', 'settings.orders.manage'],
+                id: 'settings_store',
+                label: 'Dados da Loja',
+                accessPermission: 'settings.store.view',
+                permissions: ['settings.store.view', 'settings.store.manage'],
             },
             {
-                id: 'settings_hours',
-                label: 'Horários',
-                accessPermission: 'settings.hours.view',
-                permissions: ['settings.hours.view', 'settings.hours.manage'],
-            },
-            {
-                id: 'settings_stock',
-                label: 'Estoque',
-                accessPermission: 'settings.stock.view',
-                permissions: ['settings.stock.view', 'settings.stock.manage'],
+                id: 'settings_legal',
+                label: 'Documentos e Termos',
+                accessPermission: 'settings.legal.view',
+                permissions: ['settings.legal.view', 'settings.legal.manage'],
             },
             {
                 id: 'settings_delivery',
@@ -1139,16 +1133,28 @@ export const ROLE_PERMISSION_TREE = [
                 permissions: ['settings.delivery.view', 'settings.delivery.manage'],
             },
             {
+                id: 'settings_stock',
+                label: 'Estoque',
+                accessPermission: 'settings.stock.view',
+                permissions: ['settings.stock.view', 'settings.stock.manage'],
+            },
+            {
+                id: 'settings_hours',
+                label: 'Horários',
+                accessPermission: 'settings.hours.view',
+                permissions: ['settings.hours.view', 'settings.hours.manage'],
+            },
+            {
                 id: 'settings_payment',
                 label: 'Pagamento',
                 accessPermission: 'settings.payment.view',
                 permissions: ['settings.payment.view', 'settings.payment.manage'],
             },
             {
-                id: 'settings_legal',
-                label: 'Documentos e Termos',
-                accessPermission: 'settings.legal.view',
-                permissions: ['settings.legal.view', 'settings.legal.manage'],
+                id: 'settings_orders',
+                label: 'Pedido Online',
+                accessPermission: 'settings.orders.view',
+                permissions: ['settings.orders.view', 'settings.orders.manage'],
             },
             {
                 id: 'settings_system',
@@ -1171,10 +1177,22 @@ export const ROLE_PERMISSION_TREE = [
                 permissions: ['security.view'],
             },
             {
+                id: 'security_sensitive_actions',
+                label: 'Ações sensíveis',
+                accessPermission: 'security.sensitive_actions.view',
+                permissions: ['security.sensitive_actions.view', 'security.sensitive_actions.manage'],
+            },
+            {
                 id: 'security_context',
                 label: 'Contexto de acesso',
                 accessPermission: 'security.context.view',
                 permissions: ['security.context.view', 'security.context.manage'],
+            },
+            {
+                id: 'security_custom_roles',
+                label: 'Funções personalizadas',
+                accessPermission: 'security.custom_roles.view',
+                permissions: ['security.custom_roles.view', 'security.custom_roles.manage'],
             },
             {
                 id: 'security_logs',
@@ -1189,22 +1207,10 @@ export const ROLE_PERMISSION_TREE = [
                 permissions: ['security.roles.view', 'security.roles.manage'],
             },
             {
-                id: 'security_custom_roles',
-                label: 'Funções personalizadas',
-                accessPermission: 'security.custom_roles.view',
-                permissions: ['security.custom_roles.view', 'security.custom_roles.manage'],
-            },
-            {
                 id: 'security_user_permissions',
                 label: 'Permissões por usuário',
                 accessPermission: 'security.user_permissions.view',
                 permissions: ['security.user_permissions.view', 'security.user_permissions.manage'],
-            },
-            {
-                id: 'security_sensitive_actions',
-                label: 'Ações sensíveis',
-                accessPermission: 'security.sensitive_actions.view',
-                permissions: ['security.sensitive_actions.view', 'security.sensitive_actions.manage'],
             },
             {
                 id: 'security_pin_token',
@@ -1227,18 +1233,6 @@ export const ROLE_PERMISSION_TREE = [
         icon: Grid3X3,
         groups: [
             {
-                id: 'dashboard',
-                label: 'Dashboard',
-                accessPermission: 'dashboard.view',
-                permissions: [
-                    'dashboard.view',
-                    'dashboard.activity.view',
-                    'dashboard.alerts.view',
-                    'reports.view',
-                    // 'reports.export',
-                ],
-            },
-            {
                 id: 'commercial',
                 label: 'Comercial',
                 accessPermission: 'commercial.view',
@@ -1255,6 +1249,18 @@ export const ROLE_PERMISSION_TREE = [
                     'marketing.manage',
                     'messages.view',
                     'messages.manage',
+                ],
+            },
+            {
+                id: 'dashboard',
+                label: 'Dashboard',
+                accessPermission: 'dashboard.view',
+                permissions: [
+                    'dashboard.view',
+                    'dashboard.activity.view',
+                    'dashboard.alerts.view',
+                    'reports.view',
+                    // 'reports.export',
                 ],
             },
             {
@@ -1294,6 +1300,15 @@ export const ROLE_PERMISSION_TREE = [
                 ],
             },
             {
+                id: 'support',
+                label: 'Suporte',
+                accessPermission: 'support.view',
+                permissions: [
+                    'support.view',
+                    'support.manage',
+                ],
+            },
+            {
                 id: 'users_team',
                 label: 'Usuários e Equipe',
                 accessPermission: 'users.view',
@@ -1310,15 +1325,6 @@ export const ROLE_PERMISSION_TREE = [
                     'users.profile_requests.view',
                     'users.profile_requests.review',
                     'users.profile_requests.manage',
-                ],
-            },
-            {
-                id: 'support',
-                label: 'Suporte',
-                accessPermission: 'support.view',
-                permissions: [
-                    'support.view',
-                    'support.manage',
                 ],
             },
             /*             {

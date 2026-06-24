@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { getActiveStoreId } from '@/utils/activeStore';
 import {
     Save,
     Loader,
@@ -137,51 +138,54 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         try {
             setLoading(true);
 
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            const activeStoreId = getActiveStoreId();
 
-            // ✅ 1) Primeiro pega a loja do usuário
-            const { data: storeData, error: storeError } = await supabase.rpc('get_user_store_by_id', {
-                p_user_id: user.id
+            if (!activeStoreId) {
+                setMessage({ type: 'error', text: 'Nenhuma loja ativa selecionada.' });
+                toast.error('Nenhuma loja ativa selecionada.');
+                return;
+            }
+
+            const { data, error } = await supabase.rpc('get_store_settings_center', {
+                p_store_id: activeStoreId,
             });
-            if (storeError) throw storeError;
 
-            const userStore = Array.isArray(storeData) ? storeData[0] : storeData;
-            if (!userStore?.id) return;
-
-            // ✅ 2) Agora sim busca config/admin usando STORE_ID
-            const { data, error } = await supabase.rpc('get_store_config_admin', {
-                p_store_id: userStore.id
-            });
             if (error) throw error;
 
             const store = Array.isArray(data) ? data[0] : data;
 
-            if (store) {
-                setStoreId(store.id);
-                setStoreSlug(store.slug);
-
-                if (store.config) {
-                    setConfig(prev => ({
-                        ...prev,
-                        ...store.config,
-                        social_links: {
-                            ...prev.social_links,
-                            ...(store.config.social_links || {})
-                        }
-                    }));
-                }
+            if (!store?.id) {
+                setMessage({ type: 'error', text: 'Loja ativa não encontrada.' });
+                toast.error('Loja ativa não encontrada.');
+                return;
             }
+
+            setStoreId(store.id);
+            setStoreSlug(store.slug);
+
+            setConfig(prev => ({
+                ...prev,
+                ...(store.config || {}),
+                social_links: {
+                    ...prev.social_links,
+                    ...(store.config?.social_links || {}),
+                },
+            }));
         } catch (error) {
             console.error('Error fetching config:', error);
             setMessage({ type: 'error', text: 'Erro ao carregar configurações.' });
+            toast.error('Erro ao carregar Aparência da Loja.');
         } finally {
             setLoading(false);
         }
     };
 
     const handleSave = async () => {
-        if (!storeId) return;
+        if (!storeId) {
+            toast.error('Loja ativa não encontrada. Atualize a página e tente novamente.');
+            setMessage({ type: 'error', text: 'Loja ativa não encontrada.' });
+            return;
+        }
 
         if (disabled) {
             toast.error('Você não tem permissão para executar esta alteração.');
