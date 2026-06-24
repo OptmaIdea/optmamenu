@@ -141,37 +141,48 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             const activeStoreId = getActiveStoreId();
 
             if (!activeStoreId) {
-                setMessage({ type: 'error', text: 'Nenhuma loja ativa selecionada.' });
-                toast.error('Nenhuma loja ativa selecionada.');
-                return;
-            }
-
-            const { data, error } = await supabase.rpc('get_store_settings_center', {
-                p_store_id: activeStoreId,
-            });
-
-            if (error) throw error;
-
-            const store = Array.isArray(data) ? data[0] : data;
-
-            if (!store?.id) {
                 setMessage({ type: 'error', text: 'Loja ativa não encontrada.' });
                 toast.error('Loja ativa não encontrada.');
                 return;
             }
 
-            setStoreId(store.id);
-            setStoreSlug(store.slug);
+            const { data: configData, error: configError } = await supabase.rpc(
+                'get_store_config_admin',
+                {
+                    p_store_id: activeStoreId,
+                }
+            );
+
+            if (configError) throw configError;
+
+            const configRow = Array.isArray(configData) ? configData[0] : configData;
+
+            const { data: storeData, error: storeError } = await supabase
+                .from('stores')
+                .select('id, slug')
+                .eq('id', activeStoreId)
+                .maybeSingle();
+
+            if (storeError) throw storeError;
+
+            if (!storeData?.id) {
+                setMessage({ type: 'error', text: 'Loja ativa não encontrada.' });
+                toast.error('Loja ativa não encontrada.');
+                return;
+            }
+
+            setStoreId(storeData.id);
+            setStoreSlug(storeData.slug);
 
             setConfig(prev => ({
                 ...prev,
-                ...(store.config || {}),
+                ...(configRow?.config || {}),
                 social_links: {
                     ...prev.social_links,
-                    ...(store.config?.social_links || {}),
+                    ...(configRow?.config?.social_links || {}),
                 },
             }));
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error fetching config:', error);
             setMessage({ type: 'error', text: 'Erro ao carregar configurações.' });
             toast.error('Erro ao carregar Aparência da Loja.');
