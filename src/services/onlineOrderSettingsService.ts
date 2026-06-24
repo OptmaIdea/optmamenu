@@ -82,6 +82,14 @@ export interface UpdateOnlineOrderSettingsInput {
     order_settings: OnlineOrderSettingsPayload;
 }
 
+export interface OnlineOrderSettingsUpdateResult {
+    ok: boolean;
+    error?: string;
+    message?: string;
+    commercial?: unknown;
+    orders?: unknown;
+}
+
 export const DEFAULT_ONLINE_ORDER_SETTINGS: Required<Pick<OnlineOrderSettingsPayload,
     'allow_delivery' |
     'allow_pickup' |
@@ -171,7 +179,7 @@ export const OnlineOrderSettingsService = {
         return (data || []) as OnlineDeliveryMethodOption[];
     },
 
-    async update(input: UpdateOnlineOrderSettingsInput) {
+    async update(input: UpdateOnlineOrderSettingsInput): Promise<OnlineOrderSettingsUpdateResult> {
         const { data: commercialData, error: commercialError } = await supabase.rpc('update_store_commercial_settings', {
             p_store_id: input.store_id,
             p_public_store_enabled: input.public_store_enabled,
@@ -188,11 +196,7 @@ export const OnlineOrderSettingsService = {
 
         if (commercialError) throw commercialError;
 
-        const commercialResult = commercialData as {
-            ok?: boolean;
-            error?: string;
-            message?: string;
-        } | null;
+        const commercialResult = commercialData as OnlineOrderSettingsUpdateResult | null;
 
         if (commercialResult && commercialResult.ok === false) {
             return commercialResult;
