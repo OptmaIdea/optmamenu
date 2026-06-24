@@ -13,6 +13,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 8 Comercial concluída e documentada
 - Fase 9 — Usuários, permissões, governança e segurança em fechamento avançado
 - Fase 9.13 — Permissões, Segurança, Realtime e padrão `manage=false` concluída tecnicamente
+- Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
 - Documentação consolidada em andamento
 
 ## Documentos principais
@@ -25,6 +26,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_8_COMERCIAL.md](./FASE_8_COMERCIAL.md)
 - [FASE_9_USUARIOS_GOVERNANCA.md](./FASE_9_USUARIOS_GOVERNANCA.md)
 - [FASE_9_13_PERMISSOES_SEGURANCA.md](./FASE_9_13_PERMISSOES_SEGURANCA.md)
+- [FASE_9_13_1G_HISTORICO_PESSOAL.md](./FASE_9_13_1G_HISTORICO_PESSOAL.md)
 - [GUIA_SISTEMA_PERMISSOES_REALTIME.md](./GUIA_SISTEMA_PERMISSOES_REALTIME.md)
 - [PERMISSOES_USUARIOS.md](./PERMISSOES_USUARIOS.md)
 - [APENDICE_REFINAMENTOS_FUTUROS.md](./APENDICE_REFINAMENTOS_FUTUROS.md)
@@ -73,6 +75,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 ### Produto / dono
 
 - FASE_9_13_PERMISSOES_SEGURANCA.md
+- FASE_9_13_1G_HISTORICO_PESSOAL.md
 - GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
 - OPERATIONS_PLAYBOOK.md
 
@@ -82,6 +85,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - ESTRUTURA.md
 - GUIA_SISTEMA_PERMISSOES_REALTIME.md
 - FASE_9_13_PERMISSOES_SEGURANCA.md
+- FASE_9_13_1G_HISTORICO_PESSOAL.md
 
 ### Dev backend / Supabase
 
@@ -90,6 +94,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - RLS_AND_SECURITY.md
 - ADVISORS.md
 - GUIA_SISTEMA_PERMISSOES_REALTIME.md
+- FASE_9_13_1G_HISTORICO_PESSOAL.md
 
 ### Operação / compras
 
@@ -102,6 +107,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_7_FORNECEDOR_360.md
 - FASE_9_USUARIOS_GOVERNANCA.md
 - FASE_9_13_PERMISSOES_SEGURANCA.md
+- FASE_9_13_1G_HISTORICO_PESSOAL.md
 - RPCS_AND_VIEWS.md
 - DATA_DICTIONARY.md
 
@@ -113,4 +119,6 @@ A Fase 9 está documentada em `FASE_9_USUARIOS_GOVERNANCA.md`, com foco em usuá
 
 A frente `9.13` de permissões e segurança foi consolidada em `FASE_9_13_PERMISSOES_SEGURANCA.md`, com realtime, regras de `view/manage`, separação entre Configurações e Segurança e documentação de RPCs em `RPCS_AND_VIEWS.md`.
 
-A próxima frente recomendada é `9.13.1G — Histórico pessoal e auditoria de alterações`, antes de abrir novas configurações funcionais como Pedido Online, Mensagens ou hardening completo dos Advisors.
+A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESSOAL.md`, fechando o Meu Histórico como histórico pessoal de sessão, segurança, vínculo/função, solicitações cadastrais e ocorrências visíveis do colaborador.
+
+A próxima frente recomendada é retomar as configurações funcionais pendentes, começando por Pedido Online, Mensagens ou Configurações comerciais/estoque, mantendo o hardening completo dos Advisors para rodada própria.
