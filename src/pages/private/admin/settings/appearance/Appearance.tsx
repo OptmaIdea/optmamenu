@@ -200,9 +200,11 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
 
             if (error) throw error;
             setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
+            toast.success('Aparência da Loja salva com sucesso.');
         } catch (error: any) {
             console.error('Error saving config:', error);
             setMessage({ type: 'error', text: 'Erro ao salvar: ' + error.message });
+            toast.error('Erro ao salvar Aparência da Loja.');
         } finally {
             setSaving(false);
         }

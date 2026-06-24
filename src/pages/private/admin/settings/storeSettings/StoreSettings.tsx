@@ -29,7 +29,7 @@ const SETTINGS_TABS = [
   { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
   { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
   { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
-  { id: 'appearance', label: 'Aparência da Loja', icon: Palette, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
+  { id: 'appearance', label: 'Aparência da Loja', icon: Palette, permissionView: 'settings.appearance.view', permissionManage: 'settings.appearance.manage' },
   { id: 'hours', label: 'Horários', icon: Clock, permissionView: 'settings.hours.view', permissionManage: 'settings.hours.manage' },
   { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
   { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
@@ -53,8 +53,8 @@ const settingsTabPermissions = {
         manage: ['settings.orders.manage'],
     },
     appearance: {
-        view: ['settings.commercial.view'],
-        manage: ['settings.commercial.manage'],
+        view: ['settings.appearance.view'],
+        manage: ['settings.appearance.manage'],
     },
     hours: {
         view: ['settings.hours.view'],

@@ -778,26 +778,13 @@ export function getGroupedRolePermissions(permissionMatrix: PermissionMatrixItem
                 .map((group) => ({
                     ...group,
                     permissions: group.permissions.sort((a, b) => {
-                        const aIsView = a.permission_code.endsWith('.view');
-                        const bIsView = b.permission_code.endsWith('.view');
-                        const aIsManage = a.permission_code.endsWith('.manage');
-                        const bIsManage = b.permission_code.endsWith('.manage');
+                        const aLabel = String(a.label ?? a.permission_code);
+                        const bLabel = String(b.label ?? b.permission_code);
 
-                        if (a.permission_code.endsWith('.view') && b.permission_code.endsWith('.manage')) {
-                            return -1;
-                        }
-
-                        if (a.permission_code.endsWith('.manage') && b.permission_code.endsWith('.view')) {
-                            return 1;
-                        }
-
-                        if (aIsView !== bIsView) return aIsView ? -1 : 1;
-                        if (aIsManage !== bIsManage) return aIsManage ? -1 : 1;
-
-                        return String(a.label ?? a.permission_code).localeCompare(
-                            String(b.label ?? b.permission_code),
-                            'pt-BR'
-                        );
+                        return aLabel.localeCompare(bLabel, 'pt-BR', {
+                            sensitivity: 'base',
+                            numeric: true,
+                        });
                     }),
                 }))
                 .sort((a, b) => {

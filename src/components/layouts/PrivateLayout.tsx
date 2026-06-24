@@ -120,6 +120,8 @@ const SETTINGS_TAB_VIEW_PERMISSIONS = [
     'messages.view',
     'settings.legal.view',
     'settings.system.view',
+    'settings.appearance.view',
+    'settings.appearance.manage',
 ];
 
 function formatLayoutRole(role: string): string {
