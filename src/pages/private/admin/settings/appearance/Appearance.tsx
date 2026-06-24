@@ -181,7 +181,9 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     };
 
     const handleSave = async () => {
-        if (!storeId) {
+        const resolvedStoreId = storeId || getActiveStoreId();
+
+        if (!resolvedStoreId) {
             toast.error('Loja ativa não encontrada. Atualize a página e tente novamente.');
             setMessage({ type: 'error', text: 'Loja ativa não encontrada.' });
             return;
@@ -200,7 +202,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             const { error } = await supabase
                 .from('stores')
                 .update({ config })
-                .eq('id', storeId);
+                .eq('id', resolvedStoreId);
 
             if (error) throw error;
             setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
