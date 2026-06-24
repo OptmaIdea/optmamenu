@@ -109,12 +109,39 @@ const ACTION_LABELS: Record<string, string> = {
   role_permission_updated: 'Permissão por papel alterada',
 };
 
+function getNestedMetadata(details: Record<string, unknown>) {
+  const metadata = details.metadata;
+
+  if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    return metadata as Record<string, unknown>;
+  }
+
+  return {};
+}
+
+function getDetailText(details: Record<string, unknown>, key: string) {
+  const value = details[key];
+
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  return String(value);
+}
+
+function formatBooleanText(value: unknown) {
+  if (value === true || value === 'true') return 'Sim';
+  if (value === false || value === 'false') return 'Não';
+  return null;
+}
+
 function formatMyHistoryDetails(log: {
   action?: string | null;
   details?: Record<string, unknown> | null;
 }) {
   const action = log.action ?? '';
   const details = log.details ?? {};
+  const metadata = getNestedMetadata(details);
 
   if (action === 'session_store_selected') {
     const storeName = details.store_name;
@@ -143,7 +170,124 @@ function formatMyHistoryDetails(log: {
     ].filter(Boolean).join(' • ');
   }
 
-  return 'Registro de atividade do usuário.';
+  if (
+    action === 'role_change' ||
+    action === 'store_member_role_changed' ||
+    action === 'store_custom_role_assigned' ||
+    action === 'store_custom_role_removed'
+  ) {
+    let description = getDetailText(details, 'description');
+    if (description) {
+      description = description.split(/\.?\s*Motivo:/i)[0].trim();
+    }
+
+    const oldRole = metadata.old_role ?? details.old_role;
+    const newRole = metadata.new_role ?? details.new_role;
+
+    const oldCustomRole =
+      metadata.old_custom_role_name ??
+      details.old_custom_role_name;
+
+    const newCustomRole =
+      metadata.new_custom_role_name ??
+      details.new_custom_role_name;
+
+    const newBaseRole =
+      metadata.new_base_role ??
+      details.new_base_role;
+
+    const actorName =
+      metadata.actor_name ??
+      details.actor_name ??
+      details.user_name;
+
+    const actorEmail =
+      metadata.actor_email ??
+      details.actor_email ??
+      details.user_email;
+
+    const reason =
+      metadata.reason ??
+      details.reason;
+
+    const customRoleCleared =
+      formatBooleanText(metadata.custom_role_cleared ?? details.custom_role_cleared);
+
+    const clearIndividualOverrides =
+      formatBooleanText(
+        metadata.clear_individual_overrides ??
+        details.clear_individual_overrides
+      );
+
+    const parts = [
+      oldRole && newRole
+        ? `Função anterior: ${translateRole(String(oldRole))}`
+        : null,
+
+      oldRole && newRole
+        ? `Nova função: ${translateRole(String(newRole))}`
+        : null,
+
+      newCustomRole
+        ? `Função personalizada: ${String(newCustomRole)}`
+        : null,
+
+      newBaseRole
+        ? `Base da função: ${translateRole(String(newBaseRole))}`
+        : null,
+
+      oldCustomRole
+        ? `Função personalizada anterior: ${String(oldCustomRole)}`
+        : null,
+
+      customRoleCleared === 'Sim'
+        ? 'Função personalizada removida automaticamente.'
+        : null,
+
+      clearIndividualOverrides
+        ? `Permissões individuais limpas: ${clearIndividualOverrides}`
+        : null,
+
+      actorName || actorEmail
+        ? `Responsável: ${String(actorName || actorEmail)}`
+        : null,
+
+      reason
+        ? `Motivo: ${String(reason)}`
+        : null,
+    ];
+
+    return parts.filter(Boolean).join('\n');
+  }
+
+  if (action.startsWith('profile_request_')) {
+    const requestType = getDetailText(details, 'request_type');
+    const status = getDetailText(details, 'status');
+    const reason = getDetailText(details, 'reason');
+    const adminNotes = getDetailText(details, 'admin_notes');
+    const memberFeedback = getDetailText(details, 'member_feedback');
+
+    return [
+      requestType ? `Tipo: ${requestType}` : null,
+      status ? `Status: ${status}` : null,
+      reason ? `Motivo: ${reason}` : null,
+      adminNotes ? `Observação do responsável: ${adminNotes}` : null,
+      memberFeedback ? `Resposta do usuário: ${memberFeedback}` : null,
+    ].filter(Boolean).join('\n');
+  }
+
+  const description = getDetailText(details, 'description');
+  const title = getDetailText(details, 'title');
+  const reason = getDetailText(details, 'reason');
+  const note = getDetailText(details, 'note');
+
+  return (
+    description ||
+    reason ||
+    note ||
+    title ||
+    'Registro de atividade do usuário.'
+  );
 }
 
 function formatDateTimeBR(value: string | Date) {
