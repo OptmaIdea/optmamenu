@@ -168,6 +168,7 @@ export default function PrivateLayout() {
     const { permissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
+    const [isPublicStoreEnabled, setIsPublicStoreEnabled] = useState(false);
     const [loadingStore, setLoadingStore] = useState(true);
     const [activeMembership, setActiveMembership] = useState<LayoutMembership | null>(null);
     const [userId, setUserId] = useState<string | null>(null);
@@ -205,6 +206,35 @@ export default function PrivateLayout() {
         activeMembership?.custom_role_name,
         permissions,
     ]);
+
+    useEffect(() => {
+        const handlePublicStoreSettingsChanged = (event: Event) => {
+            const customEvent = event as CustomEvent<{
+                public_store_enabled?: boolean;
+                slug?: string;
+            }>;
+
+            if (typeof customEvent.detail?.public_store_enabled === 'boolean') {
+                setIsPublicStoreEnabled(customEvent.detail.public_store_enabled);
+            }
+
+            if (customEvent.detail?.slug) {
+                setStoreSlug(customEvent.detail.slug);
+            }
+        };
+
+        window.addEventListener(
+            'optmamenu:public-store-settings-changed',
+            handlePublicStoreSettingsChanged
+        );
+
+        return () => {
+            window.removeEventListener(
+                'optmamenu:public-store-settings-changed',
+                handlePublicStoreSettingsChanged
+            );
+        };
+    }, []);
 
     const can = useCallback((permissionCode: string | string[]) => {
         if (Array.isArray(permissionCode)) {
@@ -482,6 +512,7 @@ export default function PrivateLayout() {
                 if (!selectedMembership) {
                     setStoreId(null);
                     setStoreSlug(null);
+                    setIsPublicStoreEnabled(false);
                     setActiveMembership(null);
                     const nameNoMembership =
                         securityContext.profile?.name ||
@@ -513,6 +544,14 @@ export default function PrivateLayout() {
 
                 setStoreId(selectedMembership.store_id);
                 setStoreSlug(selectedMembership.store_slug);
+
+                const { data: publicStoreRow } = await supabase
+                    .from('stores')
+                    .select('public_store_enabled')
+                    .eq('id', selectedMembership.store_id)
+                    .maybeSingle();
+
+                setIsPublicStoreEnabled(Boolean(publicStoreRow?.public_store_enabled));
 
                 const [{ data: profileRow }, { data: memberAliasRow }] = await Promise.all([
                     supabase
@@ -1368,15 +1407,26 @@ export default function PrivateLayout() {
 
                         {/* Store Slug Icon (Casinha para slug) - cor brand green #21A896 */}
                         {storeSlug && (
-                            <a
-                                href={`/s/${storeSlug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                title={`Acessar loja: /s/${storeSlug}`}
-                                className="p-2 rounded-lg text-[#21A896] hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
-                            >
-                                <StoreIcon size={19} className="text-[#21A896]" />
-                            </a>
+                            isPublicStoreEnabled ? (
+                                <a
+                                    href={`/s/${storeSlug}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title={`Acessar loja: /s/${storeSlug}`}
+                                    className="p-2 rounded-lg text-[#21A896] hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                                >
+                                    <StoreIcon size={19} className="text-[#21A896]" />
+                                </a>
+                            ) : (
+                                <button
+                                    type="button"
+                                    disabled
+                                    title="Loja pública desativada"
+                                    className="p-2 rounded-lg text-gray-300 dark:text-gray-600 cursor-not-allowed shrink-0"
+                                >
+                                    <StoreIcon size={19} />
+                                </button>
+                            )
                         )}
 
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />

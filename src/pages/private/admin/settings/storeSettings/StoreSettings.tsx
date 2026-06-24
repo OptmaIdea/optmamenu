@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone, MessageCircle, Clock } from 'lucide-react';
+import { Save, Loader, AlertCircle, CheckCircle, User, Phone, Mail, Building, MapPin, Contact, FileText, UserCircle, SlidersHorizontal, Settings, Truck, WalletCards, Smartphone, MessageCircle, Clock, Palette } from 'lucide-react';
 import { toast } from 'sonner';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import bcrypt from 'bcryptjs';
@@ -18,7 +18,8 @@ import { LockedHint, PermissionLocked, NO_WRITE_PERMISSION_MESSAGE } from '@/com
 
 // Import sub-pages
 import CommercialSettingsPage from '@/pages/private/admin/commercial/settings/CommercialSettingsPage';
-import Config from '@/pages/private/admin/settings/appearance/Appearance';
+import AppearanceSettingsPage from '@/pages/private/admin/settings/appearance/Appearance';
+import OnlineOrderSettingsPage from '@/pages/private/admin/settings/onlineOrders/OnlineOrderSettingsPage';
 import StockSettingsPage from '@/pages/private/admin/stock/settings/StockSettingsPage';
 import Delivery from '@/pages/private/admin/delivery/Delivery';
 import PaymentMethodsPage from '@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage';
@@ -28,6 +29,7 @@ const SETTINGS_TABS = [
   { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
   { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
   { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
+  { id: 'appearance', label: 'Aparência da Loja', icon: Palette, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
   { id: 'hours', label: 'Horários', icon: Clock, permissionView: 'settings.hours.view', permissionManage: 'settings.hours.manage' },
   { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
   { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
@@ -49,6 +51,10 @@ const settingsTabPermissions = {
     orders: {
         view: ['settings.orders.view'],
         manage: ['settings.orders.manage'],
+    },
+    appearance: {
+        view: ['settings.commercial.view'],
+        manage: ['settings.commercial.manage'],
     },
     hours: {
         view: ['settings.hours.view'],
@@ -813,7 +819,16 @@ export default function StoreSettings() {
                 <div className="animate-fadeIn">
                     <LockedHint show={!canManageCurrentTab} />
                     <PermissionLocked locked={!canManageCurrentTab}>
-                        <Config withoutHeader={true} disabled={!canManageCurrentTab} />
+                        <OnlineOrderSettingsPage withoutHeader={true} disabled={!canManageCurrentTab} />
+                    </PermissionLocked>
+                </div>
+            )}
+
+            {activeTab === 'appearance' && (
+                <div className="animate-fadeIn">
+                    <LockedHint show={!canManageCurrentTab} />
+                    <PermissionLocked locked={!canManageCurrentTab}>
+                        <AppearanceSettingsPage withoutHeader={true} disabled={!canManageCurrentTab} />
                     </PermissionLocked>
                 </div>
             )}

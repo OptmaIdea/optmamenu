@@ -135,6 +135,12 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
 
             setMessage('Configurações do Pedido Online salvas com sucesso.');
             toast.success('Pedido Online salvo com sucesso.');
+            window.dispatchEvent(new CustomEvent('optmamenu:public-store-settings-changed', {
+                detail: {
+                    public_store_enabled: publicStoreEnabled,
+                    slug,
+                },
+            }));
             await loadData();
         } catch (err: any) {
             console.error('Erro ao salvar Pedido Online:', err);
