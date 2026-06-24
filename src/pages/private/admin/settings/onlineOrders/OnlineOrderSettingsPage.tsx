@@ -127,15 +127,20 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             });
 
             if (!result.ok) {
-                setError(result.message || result.error || 'Não foi possível salvar as configurações.');
+                const errorMessage = result.message || result.error || 'Não foi possível salvar as configurações.';
+                setError(errorMessage);
+                toast.error(errorMessage);
                 return;
             }
 
             setMessage('Configurações do Pedido Online salvas com sucesso.');
+            toast.success('Pedido Online salvo com sucesso.');
             await loadData();
         } catch (err: any) {
             console.error('Erro ao salvar Pedido Online:', err);
-            setError(err?.message || 'Erro ao salvar configurações do Pedido Online.');
+            const errorMessage = err?.message || 'Erro ao salvar configurações do Pedido Online.';
+            setError(errorMessage);
+            toast.error(errorMessage);
         } finally {
             setSaving(false);
         }
@@ -154,6 +159,18 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
         );
     }
 
+    const headerAction = publicUrl && !disabled ? (
+        publicStoreEnabled ? (
+            <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 shadow-sm">
+                <ExternalLink size={16} /> Abrir loja
+            </a>
+        ) : (
+            <span className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-bold text-gray-400 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-500" title="Ative a loja pública para abrir o link.">
+                <ExternalLink size={16} /> Loja desativada
+            </span>
+        )
+    ) : undefined;
+
     return (
         <PageContainer
             title="Pedido Online"
@@ -161,11 +178,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             category="Configurações"
             icon={<Smartphone size={28} className="text-[#21A896]" />}
             onRefresh={loadData}
-            action={!disabled && publicUrl ? (
-                <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 shadow-sm">
-                    <ExternalLink size={16} /> Abrir loja
-                </a>
-            ) : undefined}
+            action={headerAction}
             withoutHeader={withoutHeader}
             flat
         >
@@ -221,7 +234,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                 </div>
 
                 <aside className="space-y-4">
-                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"><div className="flex items-center gap-2 font-black"><ShieldCheck size={18} />Sem SQL novo</div><p className="mt-2">Usa stores, store_settings.order_settings e métodos de entrega já existentes.</p></div>
+                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"><div className="flex items-center gap-2 font-black"><ShieldCheck size={18} />Configuração integrada</div><p className="mt-2">Usa as regras comerciais, métodos de entrega e loja pública já cadastrados.</p></div>
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"><p className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Loja atual</p><p className="mt-1 text-lg font-black text-gray-900 dark:text-white">{store?.name || 'Loja'}</p><p className="mt-1 text-sm text-gray-500">/{slug || 'slug'}</p></div>
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"><div className="flex items-center gap-2 text-sm font-black text-gray-900 dark:text-white"><ShoppingBag size={18} className="text-emerald-600" />Métodos públicos</div><p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{publicMethods.length} método(s) público(s) ativo(s).</p></div>
                     {!disabled && <button type="button" onClick={handleSave} disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}Salvar Pedido Online</button>}
