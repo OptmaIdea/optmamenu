@@ -1106,7 +1106,10 @@ export const ROLE_PERMISSION_TREE = [
                 id: 'settings_appearance',
                 label: 'Aparência da Loja',
                 accessPermission: 'settings.appearance.view',
-                permissions: ['settings.appearance.view'],
+                permissions: [
+                    'settings.appearance.view',
+                    'settings.appearance.manage',
+                ],
             },
             {
                 id: 'settings_commercial',
