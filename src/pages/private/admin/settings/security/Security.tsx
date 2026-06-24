@@ -520,6 +520,13 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
         prefixes: ['settings.orders.'],
     },
     {
+        id: 'settings_appearance',
+        macroGroup: 'settings',
+        label: 'Aparência da Loja',
+        description: 'Cores, logo, banner, textos institucionais, contatos públicos e redes sociais da loja pública.',
+        prefixes: ['settings.appearance.'],
+    },
+    {
         id: 'settings_hours',
         macroGroup: 'settings',
         label: 'Horários',
@@ -788,9 +795,24 @@ export function getGroupedRolePermissions(permissionMatrix: PermissionMatrixItem
                     }),
                 }))
                 .sort((a, b) => {
+                    if (macroGroup === 'security') {
+                        if (a.definition.id === 'security_general') return -1;
+                        if (b.definition.id === 'security_general') return 1;
+                        return String(a.definition.label).localeCompare(
+                            String(b.definition.label),
+                            'pt-BR',
+                            { sensitivity: 'base', numeric: true }
+                        );
+                    }
+                    if (macroGroup === 'operational') {
+                        return String(a.definition.label).localeCompare(
+                            String(b.definition.label),
+                            'pt-BR',
+                            { sensitivity: 'base', numeric: true }
+                        );
+                    }
                     const aIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === a.definition.id);
                     const bIndex = PERMISSION_GROUP_DEFINITIONS.findIndex((item) => item.id === b.definition.id);
-
                     return aIndex - bIndex;
                 });
 
