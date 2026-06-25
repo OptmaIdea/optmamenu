@@ -36,7 +36,7 @@ const SETTINGS_TABS = [
     { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
     { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
     { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
-    { id: 'messages', label: 'Mensagens', icon: MessageCircle, permissionView: 'messages.view', permissionManage: 'messages.manage' },
+    { id: 'messages', label: 'Mensagens', icon: MessageCircle, permissionView: 'settings.messages.view', permissionManage: 'settings.messages.manage' },
     { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
     { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
 ] as const;
@@ -75,8 +75,8 @@ const settingsTabPermissions = {
         manage: ['settings.payment.manage'],
     },
     messages: {
-        view: ['messages.view'],
-        manage: ['messages.manage'],
+        view: ['settings.messages.view'],
+        manage: ['settings.messages.manage'],
     },
     legal: {
         view: ['settings.legal.view'],
