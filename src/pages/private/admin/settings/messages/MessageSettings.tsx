@@ -25,7 +25,7 @@ interface MessageSettingsProps {
 }
 
 type StoreMessageSettings = {
-    id: string;
+    id?: string | null;
     name?: string | null;
     sms_gateway_token?: string | null;
     config?: Record<string, any> | null;
@@ -392,8 +392,13 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
             if (!data) throw new Error('Configurações da loja não encontradas.');
 
             const loadedStore = Array.isArray(data) ? data[0] : data;
-            setStore(loadedStore as StoreMessageSettings);
-            setForm(normalizeMessageSettings(loadedStore as StoreMessageSettings));
+            const normalizedStore = {
+                ...(loadedStore as StoreMessageSettings),
+                id: (loadedStore as StoreMessageSettings)?.id ?? resolvedStoreId,
+            };
+
+            setStore(normalizedStore);
+            setForm(normalizeMessageSettings(normalizedStore));
         } catch (error) {
             console.error('Error fetching message settings:', error);
             toast.error('Erro ao carregar configurações de mensagens.');
@@ -437,8 +442,10 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
             return;
         }
 
-        if (!store?.id) {
-            toast.error('Loja não encontrada.');
+        const targetStoreId = store?.id ?? activeStoreId;
+
+        if (!targetStoreId) {
+            toast.error('Loja ativa não encontrada. Recarregue a página e tente novamente.');
             return;
         }
 
@@ -460,7 +467,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
             };
 
             const nextConfig = {
-                ...(store.config ?? {}),
+                ...(store?.config ?? {}),
                 message_settings: nextMessageSettings,
                 custom_consent_text: form.customer_message_consent_text,
             };
@@ -471,13 +478,16 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                     sms_gateway_token: form.use_sms_gateway ? form.sms_gateway_token : '',
                     config: nextConfig,
                 })
-                .eq('id', store.id)
+                .eq('id', targetStoreId)
                 .select('id, name, sms_gateway_token, config')
                 .single();
 
             if (error) throw error;
 
-            const updatedStore = data as StoreMessageSettings;
+            const updatedStore = {
+                ...(data as StoreMessageSettings),
+                id: (data as StoreMessageSettings)?.id ?? targetStoreId,
+            };
             setStore(updatedStore);
             setForm(normalizeMessageSettings(updatedStore));
             toast.success('Configurações de mensagens salvas com sucesso!');
