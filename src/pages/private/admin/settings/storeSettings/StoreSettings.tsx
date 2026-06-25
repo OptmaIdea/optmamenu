@@ -25,18 +25,20 @@ import Delivery from '@/pages/private/admin/delivery/Delivery';
 import PaymentMethodsPage from '@/pages/private/admin/commercial/paymentMethods/PaymentMethodsPage';
 import Hours from '@/pages/private/admin/settings/hours/Hours';
 
+import MessageSettings from '@/pages/private/admin/settings/messages/MessageSettings';
+
 const SETTINGS_TABS = [
-  { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
-  { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
-  { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
-  { id: 'appearance', label: 'Aparência da Loja', icon: Palette, permissionView: 'settings.appearance.view', permissionManage: 'settings.appearance.manage' },
-  { id: 'hours', label: 'Horários', icon: Clock, permissionView: 'settings.hours.view', permissionManage: 'settings.hours.manage' },
-  { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
-  { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
-  { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
-  { id: 'messages', label: 'Mensagens', icon: MessageCircle, permissionView: 'messages.view', permissionManage: 'messages.manage' },
-  { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
-  { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
+    { id: 'store', label: 'Dados da Loja', icon: Building, permissionView: 'settings.store.view', permissionManage: 'settings.store.manage' },
+    { id: 'commercial', label: 'Comercial', icon: Settings, permissionView: 'settings.commercial.view', permissionManage: 'settings.commercial.manage' },
+    { id: 'orders', label: 'Pedido Online', icon: Smartphone, permissionView: 'settings.orders.view', permissionManage: 'settings.orders.manage' },
+    { id: 'appearance', label: 'Aparência da Loja', icon: Palette, permissionView: 'settings.appearance.view', permissionManage: 'settings.appearance.manage' },
+    { id: 'hours', label: 'Horários', icon: Clock, permissionView: 'settings.hours.view', permissionManage: 'settings.hours.manage' },
+    { id: 'stock', label: 'Estoque', icon: SlidersHorizontal, permissionView: 'settings.stock.view', permissionManage: 'settings.stock.manage' },
+    { id: 'delivery', label: 'Entrega', icon: Truck, permissionView: 'settings.delivery.view', permissionManage: 'settings.delivery.manage' },
+    { id: 'payment', label: 'Pagamento', icon: WalletCards, permissionView: 'settings.payment.view', permissionManage: 'settings.payment.manage' },
+    { id: 'messages', label: 'Mensagens', icon: MessageCircle, permissionView: 'messages.view', permissionManage: 'messages.manage' },
+    { id: 'legal', label: 'Documentos e Termos', icon: FileText, permissionView: 'settings.legal.view', permissionManage: 'settings.legal.manage' },
+    { id: 'system', label: 'Sistema', icon: UserCircle, permissionView: 'settings.system.view', permissionManage: 'settings.system.manage' },
 ] as const;
 
 const settingsTabPermissions = {
@@ -733,73 +735,73 @@ export default function StoreSettings() {
 
                     <PermissionLocked locked={!canManageCurrentTab}>
                         <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fadeIn">
-                        {/* Sub-tabs Header */}
-                        <div className="flex border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
-                            <button
-                                type="button"
-                                onClick={() => setActiveStoreSubTab('corporate')}
-                                className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 ${activeStoreSubTab === 'corporate'
-                                    ? 'border-green-600 text-green-600 bg-green-50/50 dark:bg-green-900/10'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'}`}
-                            >
-                                <Building size={18} /> Dados Corporativos
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActiveStoreSubTab('address')}
-                                className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 ${activeStoreSubTab === 'address'
-                                    ? 'border-green-600 text-green-600 bg-green-50/50 dark:bg-green-900/10'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'}`}
-                            >
-                                <MapPin size={18} /> Endereço
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setActiveStoreSubTab('contacts')}
-                                className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 ${activeStoreSubTab === 'contacts'
-                                    ? 'border-green-600 text-green-600 bg-green-50/50 dark:bg-green-900/10'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'}`}
-                            >
-                                <Contact size={18} /> Contatos
-                            </button>
-                        </div>
-
-                        {/* Tab Content */}
-                        <div className="p-6 md:p-8">
-                            {activeStoreSubTab === 'corporate' && (
-                                <CorporateTab store={store} setStore={setStore} disabled={!canManageCurrentTab} />
-                            )}
-                            {activeStoreSubTab === 'address' && (
-                                <AddressTab
-                                    store={store}
-                                    setStore={setStore}
-                                    states={states}
-                                    cities={cities}
-                                    loadingCities={loadingCities}
-                                    searchingCep={searchingCep}
-                                    handleZipLookup={handleZipLookup}
-                                    disabled={!canManageCurrentTab}
-                                />
-                            )}
-                            {activeStoreSubTab === 'contacts' && (
-                                <ContactsTab store={store} setStore={setStore} disabled={!canManageCurrentTab} />
-                            )}
-                        </div>
-
-                        {/* Save Button Area */}
-                        {canManageCurrentTab && (
-                            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end p-6 md:p-8">
+                            {/* Sub-tabs Header */}
+                            <div className="flex border-b border-gray-100 dark:border-gray-700 overflow-x-auto">
                                 <button
-                                    type="submit"
-                                    disabled={saving || !store.consents.terms_accepted || !store.consents.no_illicit_accepted}
-                                    className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title={!store.consents.terms_accepted ? "Aceite os termos para salvar" : ""}
+                                    type="button"
+                                    onClick={() => setActiveStoreSubTab('corporate')}
+                                    className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 ${activeStoreSubTab === 'corporate'
+                                        ? 'border-green-600 text-green-600 bg-green-50/50 dark:bg-green-900/10'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'}`}
                                 >
-                                    <Save size={24} />
-                                    {saving ? 'Salvando...' : 'Salvar Alterações'}
+                                    <Building size={18} /> Dados Corporativos
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveStoreSubTab('address')}
+                                    className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 ${activeStoreSubTab === 'address'
+                                        ? 'border-green-600 text-green-600 bg-green-50/50 dark:bg-green-900/10'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'}`}
+                                >
+                                    <MapPin size={18} /> Endereço
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setActiveStoreSubTab('contacts')}
+                                    className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 ${activeStoreSubTab === 'contacts'
+                                        ? 'border-green-600 text-green-600 bg-green-50/50 dark:bg-green-900/10'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-750'}`}
+                                >
+                                    <Contact size={18} /> Contatos
                                 </button>
                             </div>
-                        )}
+
+                            {/* Tab Content */}
+                            <div className="p-6 md:p-8">
+                                {activeStoreSubTab === 'corporate' && (
+                                    <CorporateTab store={store} setStore={setStore} disabled={!canManageCurrentTab} />
+                                )}
+                                {activeStoreSubTab === 'address' && (
+                                    <AddressTab
+                                        store={store}
+                                        setStore={setStore}
+                                        states={states}
+                                        cities={cities}
+                                        loadingCities={loadingCities}
+                                        searchingCep={searchingCep}
+                                        handleZipLookup={handleZipLookup}
+                                        disabled={!canManageCurrentTab}
+                                    />
+                                )}
+                                {activeStoreSubTab === 'contacts' && (
+                                    <ContactsTab store={store} setStore={setStore} disabled={!canManageCurrentTab} />
+                                )}
+                            </div>
+
+                            {/* Save Button Area */}
+                            {canManageCurrentTab && (
+                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end p-6 md:p-8">
+                                    <button
+                                        type="submit"
+                                        disabled={saving || !store.consents.terms_accepted || !store.consents.no_illicit_accepted}
+                                        className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={!store.consents.terms_accepted ? "Aceite os termos para salvar" : ""}
+                                    >
+                                        <Save size={24} />
+                                        {saving ? 'Salvando...' : 'Salvar Alterações'}
+                                    </button>
+                                </div>
+                            )}
                         </form>
                     </PermissionLocked>
                 </div>
@@ -873,19 +875,7 @@ export default function StoreSettings() {
                 <div className="animate-fadeIn">
                     <LockedHint show={!canManageCurrentTab} />
                     <PermissionLocked locked={!canManageCurrentTab}>
-                        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-6">
-                            <div className="flex items-center gap-3 mb-2">
-                                <MessageCircle className="text-[#21A896]" size={22} />
-                                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                                    Configurações de Mensagens
-                                </h3>
-                            </div>
-
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                As configurações de mensagens serão organizadas nesta área. Por enquanto,
-                                a central de mensagens continua disponível no menu Comercial.
-                            </p>
-                        </div>
+                        <MessageSettings withoutHeader={true} disabled={!canManageCurrentTab} />
                     </PermissionLocked>
                 </div>
             )}
@@ -903,29 +893,29 @@ export default function StoreSettings() {
 
                     <PermissionLocked locked={!canManageCurrentTab}>
                         <form onSubmit={handleSave} noValidate className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden p-6 md:p-8">
-                        <LegalTab
-                            store={store}
-                            setStore={setStore}
-                            templatePrivacyPolicy={TEMPLATE_PRIVACY_POLICY}
-                            templateTermsOfUse={TEMPLATE_TERMS_OF_USE}
-                            templateCookiePolicy={TEMPLATE_COOKIE_POLICY}
-                            disabled={!canManageCurrentTab}
-                        />
+                            <LegalTab
+                                store={store}
+                                setStore={setStore}
+                                templatePrivacyPolicy={TEMPLATE_PRIVACY_POLICY}
+                                templateTermsOfUse={TEMPLATE_TERMS_OF_USE}
+                                templateCookiePolicy={TEMPLATE_COOKIE_POLICY}
+                                disabled={!canManageCurrentTab}
+                            />
 
-                        {/* Save Button Area */}
-                        {canManageCurrentTab && (
-                            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                                <button
-                                    type="submit"
-                                    disabled={saving || !store.consents.terms_accepted || !store.consents.no_illicit_accepted}
-                                    className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title={!store.consents.terms_accepted ? "Aceite os termos para salvar" : ""}
-                                >
-                                    <Save size={24} />
-                                    {saving ? 'Salvando...' : 'Salvar Termos'}
-                                </button>
-                            </div>
-                        )}
+                            {/* Save Button Area */}
+                            {canManageCurrentTab && (
+                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={saving || !store.consents.terms_accepted || !store.consents.no_illicit_accepted}
+                                        className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title={!store.consents.terms_accepted ? "Aceite os termos para salvar" : ""}
+                                    >
+                                        <Save size={24} />
+                                        {saving ? 'Salvando...' : 'Salvar Termos'}
+                                    </button>
+                                </div>
+                            )}
                         </form>
                     </PermissionLocked>
                 </div>
@@ -944,47 +934,47 @@ export default function StoreSettings() {
 
                     <PermissionLocked locked={!canManageCurrentTab}>
                         <form onSubmit={handleSave} className="space-y-6">
-                        <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-                            <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                                <UserCircle className="text-[#21A896]" size={20} /> Configurações de Sistema
-                            </h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Token do Gateway de SMS</label>
-                                    <input
-                                        type="text"
-                                        value={store.sms_gateway_token || ''}
-                                        onChange={(e) => setStore({ ...store, sms_gateway_token: e.target.value })}
-                                        placeholder="Insira o token do gateway de SMS"
-                                        className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-brand-green outline-none transition disabled:opacity-60"
-                                        disabled={!canManageCurrentTab}
-                                    />
+                            <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+                                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
+                                    <UserCircle className="text-[#21A896]" size={20} /> Configurações de Sistema
+                                </h2>
+                                <div className="space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Token do Gateway de SMS</label>
+                                        <input
+                                            type="text"
+                                            value={store.sms_gateway_token || ''}
+                                            onChange={(e) => setStore({ ...store, sms_gateway_token: e.target.value })}
+                                            placeholder="Insira o token do gateway de SMS"
+                                            className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-brand-green outline-none transition disabled:opacity-60"
+                                            disabled={!canManageCurrentTab}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nova Senha de Estoque (PIN)</label>
+                                        <input
+                                            type="password"
+                                            value={stockPassword}
+                                            onChange={(e) => setStockPassword(e.target.value)}
+                                            placeholder="Deixe em branco para manter a atual"
+                                            className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-brand-green outline-none transition disabled:opacity-60"
+                                            disabled={!canManageCurrentTab}
+                                        />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Nova Senha de Estoque (PIN)</label>
-                                    <input
-                                        type="password"
-                                        value={stockPassword}
-                                        onChange={(e) => setStockPassword(e.target.value)}
-                                        placeholder="Deixe em branco para manter a atual"
-                                        className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-brand-green outline-none transition disabled:opacity-60"
-                                        disabled={!canManageCurrentTab}
-                                    />
+                            </section>
+                            {canManageCurrentTab && (
+                                <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
+                                    <button
+                                        type="submit"
+                                        disabled={saving}
+                                        className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition"
+                                    >
+                                        <Save size={24} />
+                                        {saving ? 'Salvando...' : 'Salvar Alterações de Sistema'}
+                                    </button>
                                 </div>
-                            </div>
-                        </section>
-                        {canManageCurrentTab && (
-                            <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                                <button
-                                    type="submit"
-                                    disabled={saving}
-                                    className="flex items-center gap-3 bg-brand-green text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-90 shadow-md hover:shadow-lg transition"
-                                >
-                                    <Save size={24} />
-                                    {saving ? 'Salvando...' : 'Salvar Alterações de Sistema'}
-                                </button>
-                            </div>
-                        )}
+                            )}
                         </form>
                     </PermissionLocked>
                 </div>
