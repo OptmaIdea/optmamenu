@@ -1,11 +1,13 @@
 # Permissões de Usuários — Referência Atual
 
-Este documento registra o estado atual do sistema de permissões do OptmaMenu após a consolidação da frente 9.13.
+Este documento registra o estado atual do sistema de permissões do OptmaMenu após a consolidação da frente 9.13 e complementos funcionais 9.13.1G/9.13.1H.
 
 Documentos relacionados:
 
 - `docs/FASE_9_USUARIOS_GOVERNANCA.md`
 - `docs/FASE_9_13_PERMISSOES_SEGURANCA.md`
+- `docs/FASE_9_13_1G_HISTORICO_PESSOAL.md`
+- `docs/FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`
 - `docs/GUIA_SISTEMA_PERMISSOES_REALTIME.md`
 - `docs/RPCS_AND_VIEWS.md`
 
@@ -166,6 +168,16 @@ Todos os usuários autenticados devem acessar:
 - `/admin/my-profile`
 - `/admin/my-history`
 
+### Histórico pessoal e solicitações cadastrais
+
+Concluído funcionalmente na frente `9.13.1G`:
+
+- alteração de papel/função aparece no Meu Histórico do usuário afetado;
+- função anterior, nova função, responsável e motivo são exibidos de forma amigável quando disponíveis;
+- atribuição/remoção de função personalizada também é registrada como evento pessoal;
+- solicitações cadastrais do próprio usuário aparecem no Meu Histórico e em Meus Dados;
+- dados sensíveis seguem protegidos conforme permissões e fluxo de revisão.
+
 ---
 
 ## 9. Segurança
@@ -209,6 +221,8 @@ A estratégia final é a **Opção B**: um único item no sidebar e abas interna
 | `settings.commercial.manage` | Gerenciar Configurações Comerciais |
 | `settings.orders.view` | Ver Pedido Online |
 | `settings.orders.manage` | Gerenciar Pedido Online |
+| `settings.appearance.view` | Ver Aparência da Loja |
+| `settings.appearance.manage` | Gerenciar Aparência da Loja |
 | `settings.hours.view` | Ver Horários |
 | `settings.hours.manage` | Gerenciar Horários |
 | `settings.stock.view` | Ver Configurações de Estoque |
@@ -224,6 +238,11 @@ A estratégia final é a **Opção B**: um único item no sidebar e abas interna
 | `settings.system.view` | Ver Sistema |
 | `settings.system.manage` | Gerenciar Sistema |
 
+### Estado das abas recentes
+
+- Pedido Online foi concluído funcionalmente na frente `9.13.1H`.
+- Aparência da Loja foi separada em aba própria e concluída funcionalmente na frente `9.13.1H`.
+
 ---
 
 ## 11. Permissões novas/refinadas na 9.13
@@ -233,6 +252,8 @@ A estratégia final é a **Opção B**: um único item no sidebar e abas interna
 - `commercial.sales_channels.manage`
 - `settings.hours.view`
 - `settings.hours.manage`
+- `settings.appearance.view`
+- `settings.appearance.manage`
 
 ---
 
@@ -250,8 +271,16 @@ O frontend não deve manter listeners diretos duplicados nas tabelas de template
 
 ## 13. Pendências
 
-- Histórico pessoal de alteração de função.
-- Histórico pessoal de solicitações cadastrais.
+Pendências funcionais/documentais remanescentes:
+
 - Configurações reais de Mensagens.
-- Pedido Online como configuração funcional completa.
 - Hardening final dos Advisors/RLS.
+- Documentação fina de RPCs conforme validação localizada no banco/snapshot Supabase.
+- Fluxo futuro de migração ao inativar função personalizada com usuários vinculados.
+
+Itens já concluídos e removidos da lista de pendências:
+
+- Histórico pessoal de alteração de função — fechado na `9.13.1G`.
+- Histórico pessoal de solicitações cadastrais — fechado na `9.13.1G`.
+- Pedido Online como configuração funcional completa — fechado na `9.13.1H`.
+- Aparência da Loja — fechado na `9.13.1H`.
