@@ -14,7 +14,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9 — Usuários, permissões, governança e segurança em fechamento avançado
 - Fase 9.13 — Permissões, Segurança, Realtime e padrão `manage=false` concluída tecnicamente
 - Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
-- Fase 9.13.1H — Pedido Online em Configurações em execução, etapa inicial de frontend implementada sem SQL novo
+- Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
 - Documentação consolidada em andamento
 
 ## Documentos principais
@@ -69,6 +69,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Segurança e ações sensíveis
 - Configurações da Loja
 - Pedido Online em Configurações
+- Aparência da Loja
 - Meus Dados
 - Meu Histórico
 - Solicitações cadastrais
@@ -128,6 +129,6 @@ A frente `9.13` de permissões e segurança foi consolidada em `FASE_9_13_PERMIS
 
 A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESSOAL.md`, fechando o Meu Histórico como histórico pessoal de sessão, segurança, vínculo/função, solicitações cadastrais e ocorrências visíveis do colaborador.
 
-A frente `9.13.1H` iniciou a organização real da aba Pedido Online em Configurações, usando estruturas existentes do Supabase e sem SQL novo na etapa inicial.
+A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`, fechando Pedido Online e Aparência da Loja em Configurações com permissões dedicadas, persistência validada e snapshot Supabase atualizado.
 
-A próxima frente recomendada é testar Pedido Online em Configurações, validar persistência em `store_settings.order_settings` e depois decidir se a loja pública precisa consumir novas chaves de configuração.
+A próxima frente recomendada é continuar Configurações da Loja pelos módulos funcionais pendentes, começando por Mensagens, Entrega/Regras avançadas ou refinamento futuro de Aparência da Loja.

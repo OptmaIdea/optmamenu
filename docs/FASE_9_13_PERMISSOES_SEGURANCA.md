@@ -4,6 +4,11 @@
 
 **Concluída tecnicamente até 9.13.1F.**
 
+Complementos posteriores já fechados funcionalmente:
+
+- **9.13.1G — Histórico pessoal e auditoria de alterações**: concluída funcionalmente em `docs/FASE_9_13_1G_HISTORICO_PESSOAL.md`.
+- **9.13.1H — Pedido Online e Aparência em Configurações**: concluída funcionalmente em `docs/FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`.
+
 Este documento registra o fechamento da frente de permissões e segurança trabalhada após a consolidação da área de usuários. Ele complementa:
 
 - `docs/FASE_9_USUARIOS_GOVERNANCA.md`
@@ -254,6 +259,7 @@ O menu lateral não mostra mais cada configuração como item solto.
 - Dados da Loja — `settings.store.view/manage`
 - Comercial — `settings.commercial.view/manage`
 - Pedido Online — `settings.orders.view/manage`
+- Aparência da Loja — `settings.appearance.view/manage`
 - Horários — `settings.hours.view/manage`
 - Estoque — `settings.stock.view/manage`
 - Entrega — `settings.delivery.view/manage`
@@ -307,6 +313,8 @@ Quando uma rota protegida é negada, o fallback também deve ser:
 
 - `settings.hours.view`
 - `settings.hours.manage`
+- `settings.appearance.view`
+- `settings.appearance.manage`
 
 ### Segurança
 
@@ -315,7 +323,7 @@ Quando uma rota protegida é negada, o fallback também deve ser:
 
 ---
 
-## 13. Histórico de atividades
+## 13. Histórico de atividades e Meu Histórico
 
 O histórico de atividades da área Segurança foi ajustado para exibir mensagens mais amigáveis, por exemplo:
 
@@ -323,19 +331,23 @@ O histórico de atividades da área Segurança foi ajustado para exibir mensagen
 - “Acesso bloqueado: Senhas e Acesso”
 - “Acesso liberado: Contexto de acesso”
 
-### Pendência futura
+### Estado após 9.13.1G
 
-O **Meu Histórico** pessoal ainda deve registrar:
+A pendência de **Meu Histórico** pessoal foi fechada funcionalmente na frente `9.13.1G`, registrada em `docs/FASE_9_13_1G_HISTORICO_PESSOAL.md`.
 
-- alteração de função/papel;
-- função anterior;
-- nova função;
+O histórico pessoal passou a cobrir:
+
+- alteração de função/papel do usuário afetado;
+- função anterior e nova função;
+- função personalizada atribuída/removida;
 - responsável;
 - motivo;
 - loja;
-- data/hora.
+- data/hora;
+- andamento de solicitações cadastrais do próprio usuário;
+- ocorrências visíveis ao colaborador.
 
-Também deve registrar o andamento de solicitações cadastrais.
+Observação de auditoria: o snapshot `docs/supabase_audit/schema_public_current.sql` contém o schema público atual, mas por ser um arquivo grande a conferência automatizada do corpo de cada RPC pode exigir validação manual localizada no SQL ou no Supabase SQL Editor.
 
 ---
 
@@ -355,13 +367,17 @@ Decisão: tratar Advisors em rodada própria de hardening, após fechamento func
 
 ## 15. Pendências para próxima conversa/fase
 
-1. Histórico pessoal de alteração de função.
-2. Histórico pessoal de solicitações cadastrais.
-3. Configurações reais da aba Mensagens.
-4. Pedido Online: slug, layout público básico e regras de pedido.
-5. Revisão final de Advisors/RLS.
-6. Documentação fina de RPCs conforme validação no banco.
-7. Futura área de superusuário/global admin.
+1. Configurações reais da aba Mensagens.
+2. Revisão final de Advisors/RLS.
+3. Documentação fina de RPCs conforme validação localizada no banco/snapshot Supabase.
+4. Futura área de superusuário/global admin.
+5. Fluxo futuro de migração ao inativar função personalizada com usuários vinculados.
+
+Itens removidos da lista de pendências por já terem sido concluídos funcionalmente:
+
+- Histórico pessoal de alteração de função — fechado na 9.13.1G.
+- Histórico pessoal de solicitações cadastrais — fechado na 9.13.1G.
+- Pedido Online como configuração funcional completa — fechado na 9.13.1H.
 
 ---
 
