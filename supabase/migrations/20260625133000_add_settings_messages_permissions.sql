@@ -12,6 +12,7 @@ BEGIN;
 
 CREATE TEMP TABLE _settings_messages_permissions (
     permission_key text PRIMARY KEY,
+    category text,
     module text,
     action text,
     label text,
@@ -34,6 +35,7 @@ CREATE TEMP TABLE _settings_messages_permissions (
 
 INSERT INTO _settings_messages_permissions (
     permission_key,
+    category,
     module,
     action,
     label,
@@ -57,6 +59,7 @@ VALUES
     (
         'settings.messages.view',
         'settings',
+        'settings',
         'view',
         'Ver Mensagens e Atendimento',
         'Permite visualizar as configurações de mensagens operacionais e atendimento da loja.',
@@ -77,6 +80,7 @@ VALUES
     ),
     (
         'settings.messages.manage',
+        'settings',
         'settings',
         'manage',
         'Gerenciar Mensagens e Atendimento',
@@ -110,6 +114,7 @@ BEGIN
     FOR r IN SELECT * FROM _settings_messages_permissions LOOP
         payload := jsonb_build_object(
             'permission_key', r.permission_key,
+            'category', r.category,
             'module', r.module,
             'action', r.action,
             'label', r.label,
@@ -134,15 +139,15 @@ BEGIN
 
         SELECT
             string_agg(format('%I', a.attname), ', ' ORDER BY a.attnum),
-            string_agg(format('($1 ->> %L)::%s', a.attname, format_type(a.atttypid, a.atttypmod)), ', ' ORDER BY a.attnum),
-            string_agg(format('%I = EXCLUDED.%I', a.attname, a.attname), ', ' ORDER BY a.attnum)
-        INTO insert_columns, insert_values, update_sets
+            string_agg(format('($1 ->> %L)::%s', a.attname, format_type(a.atttypid, a.atttypmod)), ', ' ORDER BY a.attnum)
+        INTO insert_columns, insert_values
         FROM pg_attribute a
         WHERE a.attrelid = 'public.store_permission_catalog'::regclass
           AND a.attnum > 0
           AND NOT a.attisdropped
           AND a.attname IN (
               'permission_key',
+              'category',
               'module',
               'action',
               'label',
@@ -173,6 +178,7 @@ BEGIN
           AND a.attnum > 0
           AND NOT a.attisdropped
           AND a.attname IN (
+              'category',
               'module',
               'action',
               'label',
