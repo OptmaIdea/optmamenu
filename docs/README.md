@@ -2,7 +2,7 @@
 
 ## Visão geral
 
-O OptmaMenu é uma plataforma administrativa e operacional para gestão de catálogo, estoque, compras, transferências, fornecedores, fidelidade e operação comercial.
+O OptmaMenu é uma plataforma administrativa e operacional para gestão de catálogo, estoque, compras, transferências, fornecedores, fidelidade, mensagens, atendimento, engajamento e operação comercial.
 
 ## Estado atual do projeto
 
@@ -16,12 +16,16 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
 - Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
 - Fase 9.13.1I — Mensagens em Configurações iniciada
+- Guia institucional OptmaIdea/OptmaMenu criado
+- Roadmap de mensagens, engajamento e atendente virtual criado
 - Documentação consolidada em andamento
 
 ## Documentos principais
 
 - [ARCHITECTURE.md](./ARCHITECTURE.md)
 - [ESTRUTURA.md](./ESTRUTURA.md)
+- [GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md](./GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md)
+- [ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md](./ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md)
 - [FASE_5_CONSOLIDACAO_OPERACIONAL.md](./FASE_5_CONSOLIDACAO_OPERACIONAL.md)
 - [FASE_6_5I_TIMELINE_OPERACIONAL.md](./FASE_6_5I_TIMELINE_OPERACIONAL.md)
 - [FASE_7_FORNECEDOR_360.md](./FASE_7_FORNECEDOR_360.md)
@@ -73,6 +77,8 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Pedido Online em Configurações
 - Aparência da Loja
 - Mensagens em Configurações
+- Painel de Engajamento futuro
+- Atendente virtual futuro
 - Meus Dados
 - Meu Histórico
 - Solicitações cadastrais
@@ -81,6 +87,8 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 
 ### Produto / dono
 
+- GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md
+- ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
@@ -97,6 +105,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
 ### Dev backend / Supabase
 
@@ -108,6 +117,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
 ### Operação / compras
 
@@ -123,6 +133,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - RPCS_AND_VIEWS.md
 - DATA_DICTIONARY.md
 
@@ -139,5 +150,9 @@ A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESS
 A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`, fechando Pedido Online e Aparência da Loja em Configurações com permissões dedicadas, persistência validada e snapshot Supabase atualizado.
 
 A frente `9.13.1I` foi iniciada em `FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md`, com saneamento da tela de Configurações de Mensagens, persistência em `stores.config`/`stores.sms_gateway_token` e proteção interna por `messages.manage`.
+
+O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
+
+O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
 A próxima ação recomendada é concluir a integração da aba interna `/admin/settings?tab=messages`, validar build local e então fechar funcionalmente Mensagens em Configurações.
