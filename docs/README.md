@@ -15,7 +15,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9.13 — Permissões, Segurança, Realtime e padrão `manage=false` concluída tecnicamente
 - Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
 - Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
-- Fase 9.13.1I — Mensagens em Configurações iniciada
+- Fase 9.13.1I — Configurações de Mensagens e Atendimento em execução
 - Guia institucional OptmaIdea/OptmaMenu criado
 - Roadmap de mensagens, engajamento e atendente virtual criado
 - Documentação consolidada em andamento
@@ -34,6 +34,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_9_13_PERMISSOES_SEGURANCA.md](./FASE_9_13_PERMISSOES_SEGURANCA.md)
 - [FASE_9_13_1G_HISTORICO_PESSOAL.md](./FASE_9_13_1G_HISTORICO_PESSOAL.md)
 - [FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md](./FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md)
+- [FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md](./FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md)
 - [FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md](./FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md)
 - [GUIA_SISTEMA_PERMISSOES_REALTIME.md](./GUIA_SISTEMA_PERMISSOES_REALTIME.md)
 - [PERMISSOES_USUARIOS.md](./PERMISSOES_USUARIOS.md)
@@ -76,7 +77,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Configurações da Loja
 - Pedido Online em Configurações
 - Aparência da Loja
-- Mensagens em Configurações
+- Mensagens e Atendimento em Configurações
 - Painel de Engajamento futuro
 - Atendente virtual futuro
 - Meus Dados
@@ -92,6 +93,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
 - OPERATIONS_PLAYBOOK.md
@@ -104,6 +106,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
@@ -116,6 +119,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - GUIA_SISTEMA_PERMISSOES_REALTIME.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
@@ -132,6 +136,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - RPCS_AND_VIEWS.md
@@ -149,10 +154,10 @@ A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESS
 
 A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`, fechando Pedido Online e Aparência da Loja em Configurações com permissões dedicadas, persistência validada e snapshot Supabase atualizado.
 
-A frente `9.13.1I` foi iniciada em `FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md`, com saneamento da tela de Configurações de Mensagens, persistência em `stores.config`/`stores.sms_gateway_token` e proteção interna por `messages.manage`.
+A frente `9.13.1I` está em execução em `FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`, com evolução da tela de Mensagens e Atendimento, persistência em `stores.config.message_settings`, boas práticas de atendimento, avisos LGPD/WhatsApp e separação entre mensagens operacionais e marketing.
 
 O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
 
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
-A próxima ação recomendada é concluir a integração da aba interna `/admin/settings?tab=messages`, validar build local e então fechar funcionalmente Mensagens em Configurações.
+A próxima ação recomendada é concluir a integração da aba interna `/admin/settings?tab=messages`, validar build local e então fechar funcionalmente Mensagens e Atendimento em Configurações.
