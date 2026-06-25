@@ -15,6 +15,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9.13 — Permissões, Segurança, Realtime e padrão `manage=false` concluída tecnicamente
 - Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
 - Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
+- Fase 9.13.1I — Mensagens em Configurações iniciada
 - Documentação consolidada em andamento
 
 ## Documentos principais
@@ -29,6 +30,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_9_13_PERMISSOES_SEGURANCA.md](./FASE_9_13_PERMISSOES_SEGURANCA.md)
 - [FASE_9_13_1G_HISTORICO_PESSOAL.md](./FASE_9_13_1G_HISTORICO_PESSOAL.md)
 - [FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md](./FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md)
+- [FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md](./FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md)
 - [GUIA_SISTEMA_PERMISSOES_REALTIME.md](./GUIA_SISTEMA_PERMISSOES_REALTIME.md)
 - [PERMISSOES_USUARIOS.md](./PERMISSOES_USUARIOS.md)
 - [APENDICE_REFINAMENTOS_FUTUROS.md](./APENDICE_REFINAMENTOS_FUTUROS.md)
@@ -70,6 +72,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Configurações da Loja
 - Pedido Online em Configurações
 - Aparência da Loja
+- Mensagens em Configurações
 - Meus Dados
 - Meu Histórico
 - Solicitações cadastrais
@@ -81,6 +84,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
 - OPERATIONS_PLAYBOOK.md
 
@@ -92,6 +96,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 
 ### Dev backend / Supabase
 
@@ -102,6 +107,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - GUIA_SISTEMA_PERMISSOES_REALTIME.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 
 ### Operação / compras
 
@@ -116,6 +122,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
+- FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - RPCS_AND_VIEWS.md
 - DATA_DICTIONARY.md
 
@@ -131,4 +138,6 @@ A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESS
 
 A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`, fechando Pedido Online e Aparência da Loja em Configurações com permissões dedicadas, persistência validada e snapshot Supabase atualizado.
 
-A próxima frente recomendada é continuar Configurações da Loja pelos módulos funcionais pendentes, começando por Mensagens, Entrega/Regras avançadas ou refinamento futuro de Aparência da Loja.
+A frente `9.13.1I` foi iniciada em `FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md`, com saneamento da tela de Configurações de Mensagens, persistência em `stores.config`/`stores.sms_gateway_token` e proteção interna por `messages.manage`.
+
+A próxima ação recomendada é concluir a integração da aba interna `/admin/settings?tab=messages`, validar build local e então fechar funcionalmente Mensagens em Configurações.
