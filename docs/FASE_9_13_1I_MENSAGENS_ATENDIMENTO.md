@@ -188,7 +188,7 @@ A prévia substitui variáveis por dados fictícios para facilitar a revisão pe
 
 ## Persistência
 
-Nesta etapa não foram criadas tabelas, migrations ou RPCs novas.
+Nesta etapa não foram criadas tabelas ou RPCs novas.
 
 A persistência atual usa:
 
@@ -240,37 +240,44 @@ Direção futura preferida, caso o backend seja ajustado:
 
 ## Permissões
 
-A implementação atual mantém compatibilidade com:
+### Permissões dedicadas
 
-- `messages.view` para visualizar;
-- `messages.manage` para editar.
+A frente recebeu migration própria para permissões dedicadas:
 
-A tela também já reconhece a futura permissão:
+- `supabase/migrations/20260625133000_add_settings_messages_permissions.sql`
 
-- `settings.messages.manage`.
+A migration cria/atualiza no catálogo correto:
 
-Recomendação de evolução da etapa:
+- `settings.messages.view`
+- `settings.messages.manage`
 
-- criar `settings.messages.view`;
-- criar `settings.messages.manage`;
-- manter `messages.view/manage` para Central de Mensagens, envio manual e marketing;
-- separar claramente **configurar textos oficiais** de **enviar mensagens para clientes**.
+E popula `store_role_permission_templates` por loja/papel.
 
-Essa criação exige SQL/backfill no catálogo correto e só deve ocorrer com aprovação explícita.
-
-Quando criada, a permissão deve entrar no catálogo correto de permissões da loja, com templates por papel e `touch_store_permission_version` após alteração.
-
-Sugestão de templates:
+### Padrão inicial de papéis
 
 | Papel | `settings.messages.view` | `settings.messages.manage` |
 |---|---:|---:|
 | owner | true | true |
 | admin | true | true |
-| manager | true | true/opcional |
-| sales | true/opcional | false |
-| cashier | false/opcional | false |
+| manager | true | true |
+| sales | true | false |
+| viewer | true | false |
+| cashier | false | false |
+| stock_operator | false | false |
 | staff | false | false |
-| viewer | false/opcional | false |
+
+A migration também atualiza `store_permission_versions` para acionar o refresh realtime de permissões.
+
+### Compatibilidade temporária
+
+A tela `MessageSettings.tsx` ainda reconhece temporariamente:
+
+- `messages.manage`
+
+Isso mantém compatibilidade com ambientes que ainda não aplicaram a migration. Após validação completa da migration e do frontend, a aba de Configurações deve usar prioritariamente:
+
+- `settings.messages.view`
+- `settings.messages.manage`
 
 ---
 
@@ -324,23 +331,24 @@ Para fechar funcionalmente a 9.13.1I:
 - console limpo;
 - tela acessível pela rota direta `/admin/messages`;
 - aba interna `/admin/settings?tab=messages` integrada ao componente real;
-- `view=false` oculta aba/rota;
-- `manage=false` exibe leitura, campos desabilitados e ações ocultas;
-- owner/admin autorizado edita e salva;
+- `settings.messages.view=false` oculta aba/rota;
+- `settings.messages.view=true` + `settings.messages.manage=false` exibe leitura, campos desabilitados e ações ocultas;
+- owner/admin/manager autorizado edita e salva;
 - JSONB preserva outras chaves de `stores.config`;
 - prévia renderiza variáveis;
 - restaurar padrão funciona;
-- documentação atualizada;
-- sem SQL/migration sem confirmação explícita.
+- permissões aparecem no grupo Configurações da matriz;
+- snapshot Supabase atualizado após aplicar a migration.
 
 ---
 
 ## Pendências atuais
 
-- Integrar o componente real na aba `/admin/settings?tab=messages`, substituindo o placeholder atual de `StoreSettings.tsx`.
+- Aplicar a migration `20260625133000_add_settings_messages_permissions.sql` no Supabase.
+- Ajustar `StoreSettings.tsx` para a aba `messages` usar `settings.messages.view/manage` no lugar de `messages.view/manage`.
 - Validar build local.
-- Avaliar criação de `settings.messages.view/manage` em rodada SQL própria.
-- Atualizar snapshot Supabase se permissões/RPCs forem alteradas.
+- Validar matriz em `/admin/security?tab=roles`.
+- Atualizar snapshot Supabase após aplicar a migration.
 
 ---
 
