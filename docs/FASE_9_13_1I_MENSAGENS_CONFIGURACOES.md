@@ -1,41 +1,40 @@
-# Fase 9.13.1I — Mensagens em Configurações
+# Fase 9.13.1I — Configurações de Mensagens e Atendimento
 
 ## Status
 
 **Em execução.**
 
-Esta frente iniciou a transformação da área **Mensagens** de Configurações da Loja em uma tela funcional, reutilizando estruturas já existentes e sem criar novas tabelas, migrations ou RPCs.
+Documento principal da frente:
+
+- `docs/FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`
+
+Este arquivo permanece como registro de compatibilidade do início da etapa e aponta para o documento principal atualizado.
 
 ---
 
-## Objetivo
+## Resumo da frente
 
-Organizar as configurações de mensagens da loja para padronizar:
+A frente 9.13.1I transforma a área **Configurações da Loja → Mensagens** em uma tela de governança de comunicação operacional e atendimento, com foco em pequenos lojistas.
 
-- texto de consentimento exibido ao cliente;
-- mensagens padrão para WhatsApp/SMS;
-- assinatura das mensagens;
-- texto de confirmação de pedido;
-- texto de pedido pronto para retirada;
-- texto de atualização de entrega;
-- mensagem de aniversariantes;
-- ativação do OptmaSMSGate;
-- token do gateway de SMS.
+A etapa respeita a identidade construída para o OptmaMenu:
 
-A frente mantém a decisão de produto já registrada: a central de mensagens segue manual por enquanto. Status como enviado, entregue e lido dependem de integração oficial futura ou marcação manual.
+- simplicidade para o lojista;
+- atendimento acolhedor;
+- comunicação responsável;
+- segurança de dados;
+- separação entre mensagens operacionais e marketing;
+- cuidado com WhatsApp, LGPD e reputação da loja.
 
 ---
 
-## Estruturas usadas
+## Decisões consolidadas
 
-A implementação atual usa estruturas já existentes:
-
-- `stores.config` para textos e flags de mensagens;
-- `stores.sms_gateway_token` para token do OptmaSMSGate;
-- `get_store_settings_center` para carregar a loja ativa;
-- update controlado em `stores` para persistir as configurações.
-
-Não foram criadas novas migrations nesta etapa.
+- Mensagens operacionais entram nesta etapa.
+- Promoções, campanhas e disparos em massa ficam para a Central de Marketing.
+- Mascote/personagem fica para módulo futuro de Identidade de Comunicação.
+- O WhatsApp permanece como canal principal, mas o envio automático depende de integração oficial futura.
+- Status entregue/lido não deve ser prometido sem API oficial ou marcação manual.
+- Não criar SQL, migrations, tabelas ou RPCs sem confirmação explícita.
 
 ---
 
@@ -43,66 +42,66 @@ Não foram criadas novas migrations nesta etapa.
 
 - `src/pages/private/admin/settings/messages/MessageSettings.tsx`
 
-A tela antiga foi reaproveitada e saneada para:
+A tela foi evoluída para conter:
 
-- usar loja ativa via `getActiveStoreId`/contexto de segurança;
-- deixar de depender da RPC antiga `update_store_message_settings_admin`;
-- respeitar `messages.manage` internamente;
-- funcionar em modo leitura quando o usuário tem `messages.view` sem `messages.manage`;
-- ocultar o botão de salvar quando não há permissão de edição;
-- preservar textos existentes em `stores.config`;
-- salvar apenas as chaves de mensagens sem sobrescrever o restante de `stores.config`.
-
----
-
-## Campos persistidos em `stores.config`
-
-- `custom_consent_text`
-- `use_sms_gateway`
-- `default_whatsapp_message`
-- `order_confirmation_message`
-- `order_ready_message`
-- `delivery_update_message`
-- `birthday_message_template`
-- `manual_message_signature`
-
-Campo persistido diretamente em `stores`:
-
-- `sms_gateway_token`
+- cards de orientação e risco;
+- texto de consentimento;
+- grupos de mensagens;
+- editor com textarea;
+- contador de caracteres;
+- variáveis clicáveis;
+- prévia com dados fictícios;
+- classificação de risco;
+- botões de restauração de padrão;
+- persistência em `stores.config.message_settings`;
+- compatibilidade com `stores.config.custom_consent_text`;
+- token SMS em `stores.sms_gateway_token`;
+- comportamento de leitura quando o usuário não tem permissão de edição.
 
 ---
 
-## Permissões
+## Persistência atual
 
-A tela usa:
+Sem migrations novas.
 
-- `messages.view` para visualização;
-- `messages.manage` para edição.
+Usa:
 
-O comportamento esperado segue o padrão consolidado da 9.13:
-
-- `view=false`: rota/tela inacessível;
-- `view=true` + `manage=false`: leitura, campos desabilitados e botão de salvar oculto;
-- `manage=true`: edição e salvamento liberados.
+- `stores.config.message_settings` para mensagens e consentimento;
+- `stores.config.custom_consent_text` para compatibilidade com fluxos já existentes;
+- `stores.sms_gateway_token` para OptmaSMSGate.
 
 ---
 
-## Estado atual da integração
+## Permissões atuais e futuras
 
-Concluído nesta etapa:
+Compatibilidade atual:
 
-- tela funcional `/admin/messages` saneada;
-- carregamento pela loja ativa;
-- persistência de consentimento/textos/token;
-- proteção interna por `messages.manage`;
-- mensagem clara de leitura quando o usuário não pode editar.
+- `messages.view`
+- `messages.manage`
 
-Pendente para fechamento completo da aba dentro de Configurações:
+A tela já reconhece a permissão futura:
 
-- substituir o placeholder de `/admin/settings?tab=messages` pelo componente `MessageSettings` com `withoutHeader=true` e `disabled={!canManageCurrentTab}`;
-- validar build local;
-- validar fluxo visual para `messages.view=true/manage=false` dentro de Configurações;
-- atualizar `docs/README.md` e `docs/PERMISSOES_USUARIOS.md` quando a aba interna estiver concluída funcionalmente.
+- `settings.messages.manage`
+
+Recomendação futura:
+
+- criar `settings.messages.view`;
+- criar `settings.messages.manage`;
+- manter `messages.view/manage` para Central de Mensagens, envio manual e marketing.
+
+Essa criação depende de SQL/backfill aprovado em rodada própria.
+
+---
+
+## Pendências para fechamento funcional
+
+- Integrar o componente real na aba `/admin/settings?tab=messages`, substituindo o placeholder atual de `StoreSettings.tsx`.
+- Validar `npm run build` local.
+- Validar console limpo.
+- Validar owner/editável.
+- Validar usuário com `view=true/manage=false` em leitura.
+- Validar usuário sem view sem acesso à aba.
+- Avaliar criação de `settings.messages.view/manage` em rodada SQL separada.
 
 ---
 
