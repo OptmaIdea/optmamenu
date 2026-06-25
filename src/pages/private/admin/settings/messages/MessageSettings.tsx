@@ -382,6 +382,27 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                 setActiveStoreId(resolvedStoreId);
             }
 
+            const { data: storeRow, error: storeRowError } = await supabase
+                .from('stores')
+                .select('id, name, sms_gateway_token, config')
+                .eq('id', resolvedStoreId)
+                .maybeSingle();
+
+            if (storeRowError) {
+                console.warn('Falha ao carregar mensagens direto de stores; tentando fallback RPC:', storeRowError);
+            }
+
+            if (storeRow) {
+                const normalizedStore = {
+                    ...(storeRow as StoreMessageSettings),
+                    id: (storeRow as StoreMessageSettings)?.id ?? resolvedStoreId,
+                };
+
+                setStore(normalizedStore);
+                setForm(normalizeMessageSettings(normalizedStore));
+                return;
+            }
+
             const { data, error } = await supabase
                 .rpc('get_store_settings_center', {
                     p_store_id: resolvedStoreId,
