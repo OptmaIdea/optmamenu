@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
 import { getActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface MessageSettingsProps {
     withoutHeader?: boolean;
@@ -106,6 +107,23 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
         return getActiveStoreId() ?? securityContext?.primary_membership?.store_id ?? null;
     }, [securityContext?.primary_membership?.store_id]);
 
+    const { allowedPermissions, loading: loadingPermissions } = usePermissions(activeStoreId);
+
+    const activeMembership = useMemo(() => {
+        const memberships = securityContext?.memberships ?? [];
+
+        if (activeStoreId) {
+            const membership = memberships.find((item) => item.store_id === activeStoreId);
+            if (membership) return membership;
+        }
+
+        return securityContext?.primary_membership ?? null;
+    }, [activeStoreId, securityContext?.memberships, securityContext?.primary_membership]);
+
+    const isOwner = activeMembership?.role === 'owner';
+    const canManageMessages = isOwner || allowedPermissions.includes('messages.manage');
+    const effectiveDisabled = disabled || !canManageMessages;
+
     useEffect(() => {
         if (loadingSecurityContext) return;
         fetchStore();
@@ -153,7 +171,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
     };
 
     const handleSave = async () => {
-        if (disabled) {
+        if (effectiveDisabled) {
             toast.error('Você não tem permissão para executar esta alteração.');
             return;
         }
@@ -201,7 +219,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
         }
     };
 
-    if (loading) {
+    if (loading || loadingPermissions) {
         return (
             <div className="p-10 flex justify-center">
                 <Loader className="animate-spin text-brand-green" />
@@ -215,6 +233,12 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
     const content = (
         <div className="space-y-6">
+            {effectiveDisabled && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                    Você pode visualizar estas configurações, mas não tem permissão para alterá-las.
+                </div>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <div className="lg:col-span-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-5">
                     <div className="flex items-start gap-3">
@@ -250,7 +274,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                     className="w-full p-4 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none h-32 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition resize-none text-base disabled:opacity-60 disabled:cursor-not-allowed"
                     value={form.custom_consent_text}
                     onChange={(e) => updateField('custom_consent_text', e.target.value)}
-                    disabled={disabled}
+                    disabled={effectiveDisabled}
                     placeholder="Ex: Concordo em receber mensagens automáticas via WhatsApp/SMS sobre o andamento do meu pedido."
                 />
             </section>
@@ -264,31 +288,31 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                     <MessageTextarea
                         label="Mensagem manual padrão"
                         value={form.default_whatsapp_message}
-                        disabled={disabled}
+                        disabled={effectiveDisabled}
                         onChange={(value) => updateField('default_whatsapp_message', value)}
                     />
                     <MessageTextarea
                         label="Confirmação de pedido"
                         value={form.order_confirmation_message}
-                        disabled={disabled}
+                        disabled={effectiveDisabled}
                         onChange={(value) => updateField('order_confirmation_message', value)}
                     />
                     <MessageTextarea
                         label="Pedido pronto para retirada"
                         value={form.order_ready_message}
-                        disabled={disabled}
+                        disabled={effectiveDisabled}
                         onChange={(value) => updateField('order_ready_message', value)}
                     />
                     <MessageTextarea
                         label="Atualização de entrega"
                         value={form.delivery_update_message}
-                        disabled={disabled}
+                        disabled={effectiveDisabled}
                         onChange={(value) => updateField('delivery_update_message', value)}
                     />
                     <MessageTextarea
                         label="Aniversariantes"
                         value={form.birthday_message_template}
-                        disabled={disabled}
+                        disabled={effectiveDisabled}
                         onChange={(value) => updateField('birthday_message_template', value)}
                     />
                     <div>
@@ -299,7 +323,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                             type="text"
                             className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
                             value={form.manual_message_signature}
-                            disabled={disabled}
+                            disabled={effectiveDisabled}
                             onChange={(e) => updateField('manual_message_signature', e.target.value)}
                             placeholder="Ex: Equipe Gelinhares"
                         />
@@ -316,12 +340,12 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                         <Smartphone className="text-orange-500" size={22} /> Integração OptmaSMSGate
                     </h2>
 
-                    <label className={`flex items-center gap-3 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600'} transition`}>
+                    <label className={`flex items-center gap-3 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg ${effectiveDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600'} transition`}>
                         <input
                             type="checkbox"
                             checked={form.use_sms_gateway}
                             onChange={(e) => updateField('use_sms_gateway', e.target.checked)}
-                            disabled={disabled}
+                            disabled={effectiveDisabled}
                             className="accent-brand-green w-5 h-5"
                         />
                         <span className="text-sm font-bold text-gray-700 dark:text-gray-200">
@@ -341,7 +365,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                                 className="w-full p-3 border border-orange-200 dark:border-orange-800 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition font-mono text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={form.sms_gateway_token}
                                 onChange={(e) => updateField('sms_gateway_token', e.target.value)}
-                                disabled={disabled}
+                                disabled={effectiveDisabled}
                                 placeholder="Cole seu token aqui"
                             />
                             <p className="text-xs text-orange-600 mt-2">
@@ -372,7 +396,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                 )}
             </section>
 
-            {!disabled && (
+            {!effectiveDisabled && (
                 <div className="flex justify-end">
                     <button
                         onClick={handleSave}
