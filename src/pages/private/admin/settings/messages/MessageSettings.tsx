@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
-    Save,
+    AlertTriangle,
+    CheckCircle,
+    Info,
     Loader,
     MessageCircle,
-    CheckCircle,
-    Smartphone,
     MessageSquareText,
-    Info,
+    RotateCcw,
+    Save,
     ShieldCheck,
+    Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -28,72 +30,291 @@ type StoreMessageSettings = {
     config?: Record<string, any> | null;
 };
 
+type MessageRiskLevel = 'low' | 'medium' | 'high';
+
+type MessageTemplateKey =
+    | 'whatsapp_initial_message'
+    | 'manual_service_message'
+    | 'order_received'
+    | 'order_accepted'
+    | 'order_preparing'
+    | 'order_out_for_delivery'
+    | 'order_ready_for_pickup'
+    | 'order_cancelled'
+    | 'payment_instructions'
+    | 'pickup_instructions'
+    | 'delivery_instructions'
+    | 'post_purchase_thanks'
+    | 'review_request'
+    | 'loyalty_points';
+
+type MessageTemplate = {
+    key: MessageTemplateKey;
+    group: 'Atendimento' | 'Pedido' | 'Instruções' | 'Relacionamento';
+    label: string;
+    description: string;
+    risk: MessageRiskLevel;
+    maxLength: number;
+    defaultValue: string;
+    marketingWarning?: boolean;
+};
+
+type MessageSettingsData = {
+    version: number;
+    consent: {
+        customer_message_consent_text: string;
+    };
+    operational: Record<MessageTemplateKey, string>;
+    sms: {
+        use_sms_gateway: boolean;
+    };
+    metadata?: Record<string, unknown>;
+};
+
 type MessageSettingsForm = {
-    custom_consent_text: string;
-    use_sms_gateway: boolean;
+    customer_message_consent_text: string;
     sms_gateway_token: string;
-    default_whatsapp_message: string;
-    order_confirmation_message: string;
-    order_ready_message: string;
-    delivery_update_message: string;
-    birthday_message_template: string;
-    manual_message_signature: string;
+    use_sms_gateway: boolean;
+    templates: Record<MessageTemplateKey, string>;
 };
 
-const DEFAULT_MESSAGE_SETTINGS: MessageSettingsForm = {
-    custom_consent_text:
-        'Concordo em receber mensagens pelo WhatsApp/SMS sobre o andamento do meu pedido e comunicações da loja.',
-    use_sms_gateway: false,
-    sms_gateway_token: '',
-    default_whatsapp_message:
-        'Olá! Tudo bem? Estamos entrando em contato pela loja para falar sobre seu pedido.',
-    order_confirmation_message:
-        'Olá, {cliente}! Recebemos seu pedido {pedido}. Em breve confirmaremos o preparo.',
-    order_ready_message:
-        'Olá, {cliente}! Seu pedido {pedido} está pronto para retirada.',
-    delivery_update_message:
-        'Olá, {cliente}! Seu pedido {pedido} saiu para entrega.',
-    birthday_message_template:
-        'Feliz aniversário, {cliente}! A equipe da loja deseja um dia especial para você. 🎉',
-    manual_message_signature: 'Equipe da loja',
+const VARIABLES = [
+    '{cliente_nome}',
+    '{loja_nome}',
+    '{pedido_codigo}',
+    '{valor_total}',
+    '{tempo_estimado}',
+    '{endereco}',
+    '{link_pedido}',
+    '{forma_pagamento}',
+    '{tipo_entrega}',
+];
+
+const PREVIEW_VALUES: Record<string, string> = {
+    '{cliente_nome}': 'Maria',
+    '{loja_nome}': 'Gelinhares',
+    '{pedido_codigo}': 'PED-1024',
+    '{valor_total}': 'R$ 32,00',
+    '{tempo_estimado}': '30 minutos',
+    '{endereco}': 'Rua das Flores, 123',
+    '{link_pedido}': 'https://optmamenu.app/pedido/PED-1024',
+    '{forma_pagamento}': 'Pix',
+    '{tipo_entrega}': 'entrega',
 };
 
-function normalizeMessageSettings(store?: StoreMessageSettings | null): MessageSettingsForm {
+const MESSAGE_TEMPLATES: MessageTemplate[] = [
+    {
+        key: 'whatsapp_initial_message',
+        group: 'Atendimento',
+        label: 'Mensagem inicial do WhatsApp',
+        description: 'Texto usado para iniciar a conversa manual com o cliente pelo WhatsApp.',
+        risk: 'low',
+        maxLength: 220,
+        defaultValue: 'Olá! Quero finalizar meu pedido com a {loja_nome}.',
+    },
+    {
+        key: 'manual_service_message',
+        group: 'Atendimento',
+        label: 'Mensagem padrão de atendimento',
+        description: 'Texto-base para atendimento manual, dúvidas ou retorno ao cliente.',
+        risk: 'low',
+        maxLength: 280,
+        defaultValue: 'Olá, {cliente_nome}! Tudo bem? Estamos entrando em contato pela {loja_nome} para falar sobre seu atendimento.',
+    },
+    {
+        key: 'order_received',
+        group: 'Pedido',
+        label: 'Pedido recebido',
+        description: 'Mensagem para informar que o pedido chegou para análise da loja.',
+        risk: 'low',
+        maxLength: 240,
+        defaultValue: 'Olá, {cliente_nome}! Recebemos seu pedido {pedido_codigo}. Em breve a {loja_nome} confirmará o preparo.',
+    },
+    {
+        key: 'order_accepted',
+        group: 'Pedido',
+        label: 'Pedido aceito',
+        description: 'Mensagem para confirmar que a loja aceitou o pedido.',
+        risk: 'medium',
+        maxLength: 240,
+        defaultValue: 'Seu pedido {pedido_codigo} foi aceito pela {loja_nome}. Tempo estimado: {tempo_estimado}.',
+    },
+    {
+        key: 'order_preparing',
+        group: 'Pedido',
+        label: 'Pedido em preparo',
+        description: 'Mensagem para informar que o pedido entrou em preparo.',
+        risk: 'low',
+        maxLength: 220,
+        defaultValue: 'Olá, {cliente_nome}! Seu pedido {pedido_codigo} está em preparo.',
+    },
+    {
+        key: 'order_out_for_delivery',
+        group: 'Pedido',
+        label: 'Saiu para entrega',
+        description: 'Mensagem para avisar que o pedido foi enviado para entrega.',
+        risk: 'medium',
+        maxLength: 260,
+        defaultValue: 'Olá, {cliente_nome}! Seu pedido {pedido_codigo} saiu para entrega no endereço informado.',
+    },
+    {
+        key: 'order_ready_for_pickup',
+        group: 'Pedido',
+        label: 'Pronto para retirada',
+        description: 'Mensagem para avisar que o pedido pode ser retirado.',
+        risk: 'low',
+        maxLength: 240,
+        defaultValue: 'Olá, {cliente_nome}! Seu pedido {pedido_codigo} está pronto para retirada na {loja_nome}.',
+    },
+    {
+        key: 'order_cancelled',
+        group: 'Pedido',
+        label: 'Pedido cancelado',
+        description: 'Mensagem sensível. Deve ser clara, respeitosa e sem tom de culpa.',
+        risk: 'high',
+        maxLength: 260,
+        defaultValue: 'Olá, {cliente_nome}. Seu pedido {pedido_codigo} foi cancelado. Em caso de dúvida, fale com a loja pelo WhatsApp.',
+    },
+    {
+        key: 'payment_instructions',
+        group: 'Instruções',
+        label: 'Instruções de pagamento',
+        description: 'Orientação padrão sobre pagamento. Evite prometer aprovação automática.',
+        risk: 'medium',
+        maxLength: 320,
+        defaultValue: 'Para confirmar seu pedido, siga as instruções de pagamento enviadas pela {loja_nome}. Após o pagamento, envie o comprovante se solicitado.',
+    },
+    {
+        key: 'pickup_instructions',
+        group: 'Instruções',
+        label: 'Instruções de retirada',
+        description: 'Orientação para clientes que escolhem retirada no balcão.',
+        risk: 'low',
+        maxLength: 300,
+        defaultValue: 'A retirada é feita no balcão da {loja_nome}. Aguarde a confirmação de que o pedido está pronto antes de buscar.',
+    },
+    {
+        key: 'delivery_instructions',
+        group: 'Instruções',
+        label: 'Instruções de entrega',
+        description: 'Orientação para entrega, endereço e prazo.',
+        risk: 'medium',
+        maxLength: 320,
+        defaultValue: 'Confira se o endereço está correto: {endereco}. A loja confirmará o prazo antes da entrega.',
+    },
+    {
+        key: 'post_purchase_thanks',
+        group: 'Relacionamento',
+        label: 'Agradecimento pós-compra',
+        description: 'Mensagem leve de agradecimento após a compra.',
+        risk: 'low',
+        maxLength: 220,
+        defaultValue: 'Obrigado pela compra, {cliente_nome}! A {loja_nome} agradece a preferência.',
+    },
+    {
+        key: 'review_request',
+        group: 'Relacionamento',
+        label: 'Pedido de avaliação',
+        description: 'Use com moderação. Avaliações repetidas podem incomodar o cliente.',
+        risk: 'medium',
+        maxLength: 260,
+        marketingWarning: true,
+        defaultValue: 'Se puder, avalie sua experiência com a {loja_nome}. Sua opinião ajuda nosso atendimento a melhorar.',
+    },
+    {
+        key: 'loyalty_points',
+        group: 'Relacionamento',
+        label: 'Fidelidade e pontos',
+        description: 'Mensagem informativa sobre pontos/benefícios, sem virar campanha promocional.',
+        risk: 'medium',
+        maxLength: 260,
+        marketingWarning: true,
+        defaultValue: 'Você acumulou pontos nessa compra. Consulte seus benefícios com a {loja_nome}.',
+    },
+];
+
+const DEFAULT_TEMPLATES = MESSAGE_TEMPLATES.reduce((acc, template) => {
+    acc[template.key] = template.defaultValue;
+    return acc;
+}, {} as Record<MessageTemplateKey, string>);
+
+const DEFAULT_MESSAGE_SETTINGS: MessageSettingsData = {
+    version: 1,
+    consent: {
+        customer_message_consent_text:
+            'Concordo em receber mensagens da loja sobre meu pedido, atendimento e informações necessárias para a compra.',
+    },
+    operational: DEFAULT_TEMPLATES,
+    sms: {
+        use_sms_gateway: false,
+    },
+};
+
+function mergeTemplates(settings?: Partial<Record<MessageTemplateKey, string>> | null): Record<MessageTemplateKey, string> {
+    return {
+        ...DEFAULT_TEMPLATES,
+        ...(settings ?? {}),
+    };
+}
+
+function getMessageSettingsFromStore(store?: StoreMessageSettings | null): MessageSettingsData {
     const config = store?.config ?? {};
+    const nestedSettings = config.message_settings as Partial<MessageSettingsData> | undefined;
 
     return {
         ...DEFAULT_MESSAGE_SETTINGS,
-        custom_consent_text:
-            typeof config.custom_consent_text === 'string'
-                ? config.custom_consent_text
-                : DEFAULT_MESSAGE_SETTINGS.custom_consent_text,
-        use_sms_gateway: config.use_sms_gateway === true,
-        sms_gateway_token: store?.sms_gateway_token ?? '',
-        default_whatsapp_message:
-            typeof config.default_whatsapp_message === 'string'
-                ? config.default_whatsapp_message
-                : DEFAULT_MESSAGE_SETTINGS.default_whatsapp_message,
-        order_confirmation_message:
-            typeof config.order_confirmation_message === 'string'
-                ? config.order_confirmation_message
-                : DEFAULT_MESSAGE_SETTINGS.order_confirmation_message,
-        order_ready_message:
-            typeof config.order_ready_message === 'string'
-                ? config.order_ready_message
-                : DEFAULT_MESSAGE_SETTINGS.order_ready_message,
-        delivery_update_message:
-            typeof config.delivery_update_message === 'string'
-                ? config.delivery_update_message
-                : DEFAULT_MESSAGE_SETTINGS.delivery_update_message,
-        birthday_message_template:
-            typeof config.birthday_message_template === 'string'
-                ? config.birthday_message_template
-                : DEFAULT_MESSAGE_SETTINGS.birthday_message_template,
-        manual_message_signature:
-            typeof config.manual_message_signature === 'string'
-                ? config.manual_message_signature
-                : DEFAULT_MESSAGE_SETTINGS.manual_message_signature,
+        ...(nestedSettings ?? {}),
+        consent: {
+            ...DEFAULT_MESSAGE_SETTINGS.consent,
+            ...(nestedSettings?.consent ?? {}),
+            customer_message_consent_text:
+                nestedSettings?.consent?.customer_message_consent_text ??
+                config.custom_consent_text ??
+                DEFAULT_MESSAGE_SETTINGS.consent.customer_message_consent_text,
+        },
+        operational: mergeTemplates({
+            ...(nestedSettings?.operational ?? {}),
+            ...(config.default_whatsapp_message ? { manual_service_message: config.default_whatsapp_message } : {}),
+            ...(config.order_confirmation_message ? { order_received: config.order_confirmation_message } : {}),
+            ...(config.order_ready_message ? { order_ready_for_pickup: config.order_ready_message } : {}),
+            ...(config.delivery_update_message ? { order_out_for_delivery: config.delivery_update_message } : {}),
+            ...(config.birthday_message_template ? { loyalty_points: config.birthday_message_template } : {}),
+        }),
+        sms: {
+            ...DEFAULT_MESSAGE_SETTINGS.sms,
+            ...(nestedSettings?.sms ?? {}),
+            use_sms_gateway: nestedSettings?.sms?.use_sms_gateway ?? config.use_sms_gateway === true,
+        },
     };
+}
+
+function normalizeMessageSettings(store?: StoreMessageSettings | null): MessageSettingsForm {
+    const settings = getMessageSettingsFromStore(store);
+
+    return {
+        customer_message_consent_text: settings.consent.customer_message_consent_text,
+        use_sms_gateway: settings.sms.use_sms_gateway === true,
+        sms_gateway_token: store?.sms_gateway_token ?? '',
+        templates: mergeTemplates(settings.operational),
+    };
+}
+
+function renderPreview(value: string): string {
+    return VARIABLES.reduce((message, variable) => {
+        return message.replaceAll(variable, PREVIEW_VALUES[variable] ?? variable);
+    }, value || '');
+}
+
+function getRiskLabel(risk: MessageRiskLevel): string {
+    if (risk === 'high') return 'Risco alto';
+    if (risk === 'medium') return 'Atenção';
+    return 'Operacional';
+}
+
+function getRiskClasses(risk: MessageRiskLevel): string {
+    if (risk === 'high') return 'bg-red-50 text-red-700 border-red-100 dark:bg-red-900/20 dark:text-red-200 dark:border-red-900/40';
+    if (risk === 'medium') return 'bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-900/40';
+    return 'bg-green-50 text-green-700 border-green-100 dark:bg-green-900/20 dark:text-green-200 dark:border-green-900/40';
 }
 
 export default function MessageSettings({ withoutHeader = false, disabled = false }: MessageSettingsProps) {
@@ -101,7 +322,9 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [store, setStore] = useState<StoreMessageSettings | null>(null);
-    const [form, setForm] = useState<MessageSettingsForm>(DEFAULT_MESSAGE_SETTINGS);
+    const [form, setForm] = useState<MessageSettingsForm>(() => normalizeMessageSettings(null));
+    const [activeGroup, setActiveGroup] = useState<MessageTemplate['group']>('Atendimento');
+    const [activeTemplateKey, setActiveTemplateKey] = useState<MessageTemplateKey>('whatsapp_initial_message');
 
     const activeStoreId = useMemo(() => {
         return getActiveStoreId() ?? securityContext?.primary_membership?.store_id ?? null;
@@ -121,8 +344,20 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
     }, [activeStoreId, securityContext?.memberships, securityContext?.primary_membership]);
 
     const isOwner = activeMembership?.role === 'owner';
-    const canManageMessages = isOwner || allowedPermissions.includes('messages.manage');
+    const canManageMessages = isOwner || allowedPermissions.includes('settings.messages.manage') || allowedPermissions.includes('messages.manage');
     const effectiveDisabled = disabled || !canManageMessages;
+
+    const groupedTemplates = useMemo(() => {
+        return MESSAGE_TEMPLATES.reduce((acc, template) => {
+            if (!acc[template.group]) acc[template.group] = [];
+            acc[template.group].push(template);
+            return acc;
+        }, {} as Record<MessageTemplate['group'], MessageTemplate[]>);
+    }, []);
+
+    const activeTemplate = MESSAGE_TEMPLATES.find((template) => template.key === activeTemplateKey) ?? MESSAGE_TEMPLATES[0];
+    const activeMessage = form.templates[activeTemplate.key] ?? '';
+    const activePreview = renderPreview(activeMessage);
 
     useEffect(() => {
         if (loadingSecurityContext) return;
@@ -166,8 +401,33 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
         }
     };
 
-    const updateField = <K extends keyof MessageSettingsForm>(field: K, value: MessageSettingsForm[K]) => {
-        setForm((prev) => ({ ...prev, [field]: value }));
+    const updateTemplate = (key: MessageTemplateKey, value: string) => {
+        setForm((prev) => ({
+            ...prev,
+            templates: {
+                ...prev.templates,
+                [key]: value,
+            },
+        }));
+    };
+
+    const appendVariable = (variable: string) => {
+        if (effectiveDisabled) return;
+        updateTemplate(activeTemplate.key, `${activeMessage}${activeMessage.endsWith(' ') || !activeMessage ? '' : ' '}${variable}`);
+    };
+
+    const restoreTemplateDefault = () => {
+        if (effectiveDisabled) return;
+        updateTemplate(activeTemplate.key, activeTemplate.defaultValue);
+    };
+
+    const restoreAllDefaults = () => {
+        if (effectiveDisabled) return;
+        setForm((prev) => ({
+            ...prev,
+            customer_message_consent_text: DEFAULT_MESSAGE_SETTINGS.consent.customer_message_consent_text,
+            templates: { ...DEFAULT_TEMPLATES },
+        }));
     };
 
     const handleSave = async () => {
@@ -183,16 +443,25 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
         setSaving(true);
         try {
+            const nextMessageSettings: MessageSettingsData = {
+                version: 1,
+                consent: {
+                    customer_message_consent_text: form.customer_message_consent_text,
+                },
+                operational: mergeTemplates(form.templates),
+                sms: {
+                    use_sms_gateway: form.use_sms_gateway,
+                },
+                metadata: {
+                    updated_at: new Date().toISOString(),
+                    source: 'settings.messages',
+                },
+            };
+
             const nextConfig = {
                 ...(store.config ?? {}),
-                custom_consent_text: form.custom_consent_text,
-                use_sms_gateway: form.use_sms_gateway,
-                default_whatsapp_message: form.default_whatsapp_message,
-                order_confirmation_message: form.order_confirmation_message,
-                order_ready_message: form.order_ready_message,
-                delivery_update_message: form.delivery_update_message,
-                birthday_message_template: form.birthday_message_template,
-                manual_message_signature: form.manual_message_signature,
+                message_settings: nextMessageSettings,
+                custom_consent_text: form.customer_message_consent_text,
             };
 
             const { data, error } = await supabase
@@ -240,111 +509,205 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 bg-blue-50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-5">
-                    <div className="flex items-start gap-3">
-                        <Info className="text-blue-500 mt-0.5" size={20} />
-                        <div>
-                            <h3 className="font-bold text-blue-900 dark:text-blue-200">Central manual por enquanto</h3>
-                            <p className="text-sm text-blue-800 dark:text-blue-300 mt-1">
-                                Estas configurações padronizam textos e consentimento. O envio automático, confirmação de entrega/lido e status reais dependem de integração oficial futura ou marcação manual.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="bg-green-50 dark:bg-green-900/10 border border-green-100 dark:border-green-900/30 rounded-2xl p-5">
-                    <div className="flex items-start gap-3">
-                        <ShieldCheck className="text-brand-green mt-0.5" size={20} />
-                        <div>
-                            <h3 className="font-bold text-green-900 dark:text-green-200">LGPD e consentimento</h3>
-                            <p className="text-sm text-green-800 dark:text-green-300 mt-1">
-                                Mantenha mensagens objetivas e alinhadas ao consentimento aceito pelo cliente.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <InfoCard
+                    icon={<Info className="text-blue-500 mt-0.5" size={20} />}
+                    className="lg:col-span-1 bg-blue-50 border-blue-100 text-blue-900 dark:bg-blue-900/10 dark:border-blue-900/30 dark:text-blue-200"
+                    title="Atendimento claro e humano"
+                    description="Use mensagens curtas, respeitosas e alinhadas ao pedido do cliente. O objetivo é ajudar, não pressionar."
+                />
+                <InfoCard
+                    icon={<ShieldCheck className="text-brand-green mt-0.5" size={20} />}
+                    className="lg:col-span-1 bg-green-50 border-green-100 text-green-900 dark:bg-green-900/10 dark:border-green-900/30 dark:text-green-200"
+                    title="LGPD e consentimento"
+                    description="Promoções e relacionamento devem respeitar consentimento. O lojista é responsável pelo conteúdo e finalidade da mensagem."
+                />
+                <InfoCard
+                    icon={<AlertTriangle className="text-amber-500 mt-0.5" size={20} />}
+                    className="lg:col-span-1 bg-amber-50 border-amber-100 text-amber-900 dark:bg-amber-900/10 dark:border-amber-900/30 dark:text-amber-200"
+                    title="WhatsApp manual"
+                    description="O OptmaMenu prepara textos e pode apoiar o atendimento. Envio automático e status entregue/lido dependem de integração oficial futura."
+                />
             </div>
 
             <section className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-                    <CheckCircle className="text-blue-500" size={22} /> Texto de Consentimento
+                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                    <CheckCircle className="text-blue-500" size={22} /> Texto de consentimento
                 </h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                    Texto exibido ao cliente para explicar o uso de mensagens no atendimento e acompanhamento do pedido.
+                </p>
 
                 <textarea
-                    className="w-full p-4 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none h-32 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition resize-none text-base disabled:opacity-60 disabled:cursor-not-allowed"
-                    value={form.custom_consent_text}
-                    onChange={(e) => updateField('custom_consent_text', e.target.value)}
+                    className="w-full p-4 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none h-28 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition resize-none text-base disabled:opacity-60 disabled:cursor-not-allowed"
+                    value={form.customer_message_consent_text}
+                    onChange={(e) => setForm((prev) => ({ ...prev, customer_message_consent_text: e.target.value }))}
                     disabled={effectiveDisabled}
-                    placeholder="Ex: Concordo em receber mensagens automáticas via WhatsApp/SMS sobre o andamento do meu pedido."
+                    maxLength={320}
                 />
+                <div className="flex justify-end mt-1 text-xs font-bold text-gray-400">
+                    {form.customer_message_consent_text.length}/320
+                </div>
             </section>
 
-            <section className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
-                <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-5 flex items-center gap-2">
-                    <MessageSquareText className="text-brand-green" size={22} /> Textos padrão
-                </h2>
+            <section className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="p-6 border-b border-gray-100 dark:border-gray-700">
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                        <MessageSquareText className="text-brand-green" size={22} /> Modelos de mensagens
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Separe mensagens operacionais de marketing. Promoções e campanhas ficam na Central de Marketing.
+                    </p>
+                </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <MessageTextarea
-                        label="Mensagem manual padrão"
-                        value={form.default_whatsapp_message}
-                        disabled={effectiveDisabled}
-                        onChange={(value) => updateField('default_whatsapp_message', value)}
-                    />
-                    <MessageTextarea
-                        label="Confirmação de pedido"
-                        value={form.order_confirmation_message}
-                        disabled={effectiveDisabled}
-                        onChange={(value) => updateField('order_confirmation_message', value)}
-                    />
-                    <MessageTextarea
-                        label="Pedido pronto para retirada"
-                        value={form.order_ready_message}
-                        disabled={effectiveDisabled}
-                        onChange={(value) => updateField('order_ready_message', value)}
-                    />
-                    <MessageTextarea
-                        label="Atualização de entrega"
-                        value={form.delivery_update_message}
-                        disabled={effectiveDisabled}
-                        onChange={(value) => updateField('delivery_update_message', value)}
-                    />
-                    <MessageTextarea
-                        label="Aniversariantes"
-                        value={form.birthday_message_template}
-                        disabled={effectiveDisabled}
-                        onChange={(value) => updateField('birthday_message_template', value)}
-                    />
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                            Assinatura das mensagens
-                        </label>
-                        <input
-                            type="text"
-                            className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white disabled:opacity-60 disabled:cursor-not-allowed"
-                            value={form.manual_message_signature}
-                            disabled={effectiveDisabled}
-                            onChange={(e) => updateField('manual_message_signature', e.target.value)}
-                            placeholder="Ex: Equipe Gelinhares"
-                        />
-                        <p className="text-xs text-gray-400 mt-2">
-                            Variáveis aceitas nos textos: {'{cliente}'} e {'{pedido}'}.
-                        </p>
-                    </div>
+                <div className="grid grid-cols-1 lg:grid-cols-[260px,1fr,360px] min-h-[520px]">
+                    <aside className="border-b lg:border-b-0 lg:border-r border-gray-100 dark:border-gray-700 p-4 bg-gray-50/60 dark:bg-gray-900/30">
+                        <div className="flex flex-wrap lg:flex-col gap-2">
+                            {(Object.keys(groupedTemplates) as MessageTemplate['group'][]).map((group) => (
+                                <button
+                                    key={group}
+                                    type="button"
+                                    onClick={() => {
+                                        setActiveGroup(group);
+                                        setActiveTemplateKey(groupedTemplates[group][0].key);
+                                    }}
+                                    className={`px-4 py-3 rounded-xl text-left text-sm font-bold transition ${activeGroup === group
+                                        ? 'bg-brand-green text-white shadow-sm'
+                                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                    }`}
+                                >
+                                    {group}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-5 space-y-2">
+                            {groupedTemplates[activeGroup].map((template) => (
+                                <button
+                                    key={template.key}
+                                    type="button"
+                                    onClick={() => setActiveTemplateKey(template.key)}
+                                    className={`w-full px-3 py-2 rounded-lg text-left text-xs font-bold transition ${activeTemplateKey === template.key
+                                        ? 'bg-white dark:bg-gray-800 text-brand-green border border-brand-green/30 shadow-sm'
+                                        : 'text-gray-500 hover:bg-white dark:hover:bg-gray-800 border border-transparent'
+                                    }`}
+                                >
+                                    {template.label}
+                                </button>
+                            ))}
+                        </div>
+                    </aside>
+
+                    <main className="p-6 space-y-5">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-black text-gray-900 dark:text-white">{activeTemplate.label}</h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{activeTemplate.description}</p>
+                            </div>
+                            <span className={`inline-flex items-center self-start rounded-full border px-3 py-1 text-xs font-black ${getRiskClasses(activeTemplate.risk)}`}>
+                                {getRiskLabel(activeTemplate.risk)}
+                            </span>
+                        </div>
+
+                        {activeTemplate.marketingWarning && (
+                            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+                                Use esta mensagem com cuidado. Avaliações, fidelidade e relacionamento não devem virar envio repetitivo ou promocional sem consentimento.
+                            </div>
+                        )}
+
+                        <div>
+                            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                Texto da mensagem
+                            </label>
+                            <textarea
+                                className="w-full p-4 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none h-44 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition resize-none text-base disabled:opacity-60 disabled:cursor-not-allowed"
+                                value={activeMessage}
+                                onChange={(e) => updateTemplate(activeTemplate.key, e.target.value)}
+                                disabled={effectiveDisabled}
+                                maxLength={activeTemplate.maxLength}
+                            />
+                            <div className="flex justify-between mt-1 text-xs font-bold text-gray-400">
+                                <span>Evite caixa alta, excesso de emojis e promessas difíceis de cumprir.</span>
+                                <span>{activeMessage.length}/{activeTemplate.maxLength}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Variáveis disponíveis</p>
+                            <div className="flex flex-wrap gap-2">
+                                {VARIABLES.map((variable) => (
+                                    <button
+                                        key={variable}
+                                        type="button"
+                                        onClick={() => appendVariable(variable)}
+                                        disabled={effectiveDisabled}
+                                        className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-bold text-gray-600 dark:text-gray-200 hover:bg-brand-green hover:text-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {variable}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {!effectiveDisabled && (
+                            <div className="flex flex-wrap gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={restoreTemplateDefault}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-bold text-gray-600 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                                >
+                                    <RotateCcw size={16} /> Restaurar este padrão
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={restoreAllDefaults}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-sm font-bold text-amber-700 hover:bg-amber-100 transition dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200"
+                                >
+                                    <RotateCcw size={16} /> Restaurar todos os padrões
+                                </button>
+                            </div>
+                        )}
+                    </main>
+
+                    <aside className="border-t lg:border-t-0 lg:border-l border-gray-100 dark:border-gray-700 p-6 bg-gray-50/60 dark:bg-gray-900/30">
+                        <h3 className="text-sm font-black text-gray-800 dark:text-white uppercase tracking-wide mb-3">
+                            Prévia com dados de exemplo
+                        </h3>
+                        <div className="rounded-3xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-5 shadow-sm">
+                            <div className="flex items-center gap-2 mb-4 text-brand-green font-black text-sm">
+                                <MessageCircle size={18} /> WhatsApp / Atendimento
+                            </div>
+                            <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700 dark:text-gray-200">
+                                {activePreview || 'Digite uma mensagem para visualizar a prévia.'}
+                            </p>
+                        </div>
+
+                        <div className="mt-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-xs text-gray-500 dark:text-gray-400 space-y-2">
+                            <p className="font-bold text-gray-700 dark:text-gray-200">Checklist rápido</p>
+                            <p>• A mensagem está clara?</p>
+                            <p>• O cliente espera receber esse aviso?</p>
+                            <p>• O texto evita promessa exagerada?</p>
+                            <p>• Não há dados sensíveis desnecessários?</p>
+                        </div>
+                    </aside>
                 </div>
             </section>
 
             <section className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-700">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                        <Smartphone className="text-orange-500" size={22} /> Integração OptmaSMSGate
-                    </h2>
+                    <div>
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
+                            <Smartphone className="text-orange-500" size={22} /> Integração OptmaSMSGate
+                        </h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                            Recurso opcional para SMS. WhatsApp oficial e automações avançadas ficam para integração futura.
+                        </p>
+                    </div>
 
                     <label className={`flex items-center gap-3 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg ${effectiveDisabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600'} transition`}>
                         <input
                             type="checkbox"
                             checked={form.use_sms_gateway}
-                            onChange={(e) => updateField('use_sms_gateway', e.target.checked)}
+                            onChange={(e) => setForm((prev) => ({ ...prev, use_sms_gateway: e.target.checked }))}
                             disabled={effectiveDisabled}
                             className="accent-brand-green w-5 h-5"
                         />
@@ -364,7 +727,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                                 type="text"
                                 className="w-full p-3 border border-orange-200 dark:border-orange-800 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition font-mono text-sm disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={form.sms_gateway_token}
-                                onChange={(e) => updateField('sms_gateway_token', e.target.value)}
+                                onChange={(e) => setForm((prev) => ({ ...prev, sms_gateway_token: e.target.value }))}
                                 disabled={effectiveDisabled}
                                 placeholder="Cole seu token aqui"
                             />
@@ -415,8 +778,8 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 
     return (
         <PageContainer
-            title="Configurações de Mensagens"
-            subtitle="Padronize consentimento, textos de WhatsApp/SMS e integração OptmaSMSGate."
+            title="Mensagens e Atendimento"
+            subtitle="Configure textos operacionais, atendimento via WhatsApp, retirada, entrega e relacionamento responsável."
             category="Configurações"
             icon={<MessageCircle className="text-[#21A896]" size={28} />}
             flat
@@ -426,25 +789,23 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
     );
 }
 
-interface MessageTextareaProps {
-    label: string;
-    value: string;
-    disabled: boolean;
-    onChange: (value: string) => void;
+interface InfoCardProps {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+    className: string;
 }
 
-function MessageTextarea({ label, value, disabled, onChange }: MessageTextareaProps) {
+function InfoCard({ icon, title, description, className }: InfoCardProps) {
     return (
-        <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-                {label}
-            </label>
-            <textarea
-                className="w-full p-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-brand-green outline-none h-28 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white transition resize-none text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-                value={value}
-                disabled={disabled}
-                onChange={(e) => onChange(e.target.value)}
-            />
+        <div className={`rounded-2xl border p-5 ${className}`}>
+            <div className="flex items-start gap-3">
+                {icon}
+                <div>
+                    <h3 className="font-bold">{title}</h3>
+                    <p className="text-sm mt-1 opacity-90">{description}</p>
+                </div>
+            </div>
         </div>
     );
 }
