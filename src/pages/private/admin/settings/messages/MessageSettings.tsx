@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import {
     AlertTriangle,
@@ -790,7 +791,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
 }
 
 interface InfoCardProps {
-    icon: React.ReactNode;
+    icon: ReactNode;
     title: string;
     description: string;
     className: string;
