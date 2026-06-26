@@ -559,7 +559,7 @@ export const PERMISSION_GROUP_DEFINITIONS: PermissionGroupDefinition[] = [
         macroGroup: 'settings',
         label: 'Mensagens',
         description: 'Configurações de mensagens, modelos, canais e preferências de comunicação.',
-        prefixes: ['messages.'],
+        prefixes: ['settings.messages.'],
     },
     {
         id: 'settings_legal',
@@ -1146,6 +1146,15 @@ export const ROLE_PERMISSION_TREE = [
                 label: 'Horários',
                 accessPermission: 'settings.hours.view',
                 permissions: ['settings.hours.view', 'settings.hours.manage'],
+            },
+            {
+                id: 'settings_messages',
+                label: 'Mensagens',
+                accessPermission: 'settings.messages.view',
+                permissions: [
+                    'settings.messages.view',
+                    'settings.messages.manage',
+                ],
             },
             {
                 id: 'settings_payment',
