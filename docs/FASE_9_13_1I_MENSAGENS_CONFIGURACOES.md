@@ -2,7 +2,7 @@
 
 ## Status
 
-**Em execução.**
+**Concluída funcionalmente.**
 
 Documento principal da frente:
 
@@ -14,7 +14,7 @@ Este arquivo permanece como registro de compatibilidade do início da etapa e ap
 
 ## Resumo da frente
 
-A frente 9.13.1I transforma a área **Configurações da Loja → Mensagens** em uma tela de governança de comunicação operacional e atendimento, com foco em pequenos lojistas.
+A frente 9.13.1I transformou a área **Configurações da Loja → Mensagens** em uma tela de governança de comunicação operacional e atendimento, com foco em pequenos lojistas.
 
 A etapa respeita a identidade construída para o OptmaMenu:
 
@@ -34,7 +34,8 @@ A etapa respeita a identidade construída para o OptmaMenu:
 - Mascote/personagem fica para módulo futuro de Identidade de Comunicação.
 - O WhatsApp permanece como canal principal, mas o envio automático depende de integração oficial futura.
 - Status entregue/lido não deve ser prometido sem API oficial ou marcação manual.
-- Não criar SQL, migrations, tabelas ou RPCs sem confirmação explícita.
+- A área de Configurações usa permissões próprias `settings.messages.view/manage`.
+- Permissões antigas `messages.view/manage` ficam reservadas para Central de Mensagens/Marketing, se necessário em módulo futuro.
 
 ---
 
@@ -56,13 +57,14 @@ A tela foi evoluída para conter:
 - persistência em `stores.config.message_settings`;
 - compatibilidade com `stores.config.custom_consent_text`;
 - token SMS em `stores.sms_gateway_token`;
-- comportamento de leitura quando o usuário não tem permissão de edição.
+- comportamento de leitura quando o usuário não tem permissão de edição;
+- leitura direta de `stores.config` para garantir persistência após reload.
 
 ---
 
 ## Persistência atual
 
-Sem migrations novas.
+Sem tabelas ou RPCs novas para mensagens.
 
 Usa:
 
@@ -72,36 +74,50 @@ Usa:
 
 ---
 
-## Permissões atuais e futuras
+## Permissões finais
 
-Compatibilidade atual:
+Foram criadas permissões dedicadas em migration própria:
 
-- `messages.view`
-- `messages.manage`
-
-A tela já reconhece a permissão futura:
-
+- `settings.messages.view`
 - `settings.messages.manage`
 
-Recomendação futura:
+Migration:
 
-- criar `settings.messages.view`;
-- criar `settings.messages.manage`;
-- manter `messages.view/manage` para Central de Mensagens, envio manual e marketing.
+- `supabase/migrations/20260625133000_add_settings_messages_permissions.sql`
 
-Essa criação depende de SQL/backfill aprovado em rodada própria.
+A entrega também exigiu ajuste no frontend de Segurança:
+
+- `PERMISSION_GROUP_DEFINITIONS` com prefixo `settings.messages.`;
+- `ROLE_PERMISSION_TREE` com item `settings_messages`;
+- ordenação visual manual no grupo Configurações.
+
+O aprendizado foi consolidado em:
+
+- `docs/CHECKLIST_NOVAS_PERMISSOES.md`
 
 ---
 
-## Pendências para fechamento funcional
+## Validações realizadas
 
-- Integrar o componente real na aba `/admin/settings?tab=messages`, substituindo o placeholder atual de `StoreSettings.tsx`.
-- Validar `npm run build` local.
-- Validar console limpo.
-- Validar owner/editável.
-- Validar usuário com `view=true/manage=false` em leitura.
-- Validar usuário sem view sem acesso à aba.
-- Avaliar criação de `settings.messages.view/manage` em rodada SQL separada.
+- Build local sem erros.
+- Console limpo.
+- Persistência em `stores.config.message_settings` validada após reload.
+- Aba `/admin/settings?tab=messages` integrada ao componente real.
+- Owner/admin/manager validados para edição.
+- Permissão Mensagens exibida na matriz de Segurança.
+- `MessageSettings.tsx` usando `settings.messages.manage` como padrão final.
+
+---
+
+## Pendências fora da frente
+
+As pendências abaixo pertencem a uma próxima rodada de Segurança/Funções personalizadas:
+
+- revisar realtime/listener para refletir alterações de permissões entre usuários sem reload em todos os fluxos;
+- revisar exibição de nome de colaborador quando cai para e-mail;
+- revisar atribuição/revogação de permissões em funções personalizadas;
+- validar herança de papel base e overrides de `store_custom_roles.permissions`;
+- garantir versionamento em `store_permission_versions` quando funções personalizadas forem alteradas.
 
 ---
 
