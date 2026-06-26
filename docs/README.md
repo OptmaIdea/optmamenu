@@ -36,6 +36,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md](./FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md)
 - [FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md](./FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md)
 - [FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md](./FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md)
+- [CHECKLIST_NOVAS_PERMISSOES.md](./CHECKLIST_NOVAS_PERMISSOES.md)
 - [GUIA_SISTEMA_PERMISSOES_REALTIME.md](./GUIA_SISTEMA_PERMISSOES_REALTIME.md)
 - [PERMISSOES_USUARIOS.md](./PERMISSOES_USUARIOS.md)
 - [APENDICE_REFINAMENTOS_FUTUROS.md](./APENDICE_REFINAMENTOS_FUTUROS.md)
@@ -95,6 +96,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- CHECKLIST_NOVAS_PERMISSOES.md
 - GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
 - OPERATIONS_PLAYBOOK.md
 
@@ -108,6 +110,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
 ### Dev backend / Supabase
@@ -117,6 +120,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - RLS_AND_SECURITY.md
 - ADVISORS.md
 - GUIA_SISTEMA_PERMISSOES_REALTIME.md
+- CHECKLIST_NOVAS_PERMISSOES.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
@@ -138,6 +142,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - RPCS_AND_VIEWS.md
 - DATA_DICTIONARY.md
@@ -155,6 +160,8 @@ A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESS
 A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`, fechando Pedido Online e Aparência da Loja em Configurações com permissões dedicadas, persistência validada e snapshot Supabase atualizado.
 
 A frente `9.13.1I` está em execução em `FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`, com evolução da tela de Mensagens e Atendimento, persistência em `stores.config.message_settings`, boas práticas de atendimento, avisos LGPD/WhatsApp e separação entre mensagens operacionais e marketing.
+
+O checklist `CHECKLIST_NOVAS_PERMISSOES.md` consolida a regra operacional: toda nova permissão deve ser criada no catálogo/templates, versionada via `store_permission_versions` e também registrada em `ROLE_PERMISSION_TREE` e nos agrupamentos visuais correspondentes.
 
 O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
 
