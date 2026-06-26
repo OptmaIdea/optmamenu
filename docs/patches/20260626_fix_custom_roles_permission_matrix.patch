@@ -1,16 +1,18 @@
 diff --git a/src/pages/private/admin/settings/security/Security.tsx b/src/pages/private/admin/settings/security/Security.tsx
 --- a/src/pages/private/admin/settings/security/Security.tsx
 +++ b/src/pages/private/admin/settings/security/Security.tsx
-@@
-     const canViewRolesTab = canViewSecurityTab('roles');
-     const canViewSensitiveActionsTab = canViewSecurityTab('sensitive_actions');
+@@ -1549,10 +1549,11 @@
      const canViewUserPermissionsTab = canViewSecurityTab('user_permissions');
  
      const isRolesTabActive = activeTab === 'roles';
 +    const isCustomRolesTabActive = activeTab === 'custom_roles';
      const isSensitiveActionsTabActive = activeTab === 'sensitive_actions';
      const isUserPermissionsTabActive = activeTab === 'user_permissions';
-@@
+ 
+     const {
+         permissionMatrix,
+         sensitiveActions: sensitiveActionsMatrix,
+@@ -1566,9 +1567,12 @@
      } = useSecurityPermissionsAdmin({
          enabled:
              (isRolesTabActive && canViewRolesTab) ||
