@@ -15,7 +15,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9.13 — Permissões, Segurança, Realtime e padrão `manage=false` concluída tecnicamente
 - Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
 - Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
-- Fase 9.13.1I — Configurações de Mensagens e Atendimento em execução
+- Fase 9.13.1I — Configurações de Mensagens e Atendimento concluídas funcionalmente
 - Guia institucional OptmaIdea/OptmaMenu criado
 - Roadmap de mensagens, engajamento e atendente virtual criado
 - Documentação consolidada em andamento
@@ -159,7 +159,7 @@ A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESS
 
 A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`, fechando Pedido Online e Aparência da Loja em Configurações com permissões dedicadas, persistência validada e snapshot Supabase atualizado.
 
-A frente `9.13.1I` está em execução em `FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`, com evolução da tela de Mensagens e Atendimento, persistência em `stores.config.message_settings`, boas práticas de atendimento, avisos LGPD/WhatsApp e separação entre mensagens operacionais e marketing.
+A frente `9.13.1I` foi concluída funcionalmente em `FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`, fechando Mensagens e Atendimento em Configurações com persistência em `stores.config.message_settings`, permissões dedicadas `settings.messages.view/manage`, boas práticas de atendimento, avisos LGPD/WhatsApp e separação entre mensagens operacionais e marketing.
 
 O checklist `CHECKLIST_NOVAS_PERMISSOES.md` consolida a regra operacional: toda nova permissão deve ser criada no catálogo/templates, versionada via `store_permission_versions` e também registrada em `ROLE_PERMISSION_TREE` e nos agrupamentos visuais correspondentes.
 
@@ -167,4 +167,4 @@ O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missã
 
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
-A próxima ação recomendada é concluir a integração da aba interna `/admin/settings?tab=messages`, validar build local e então fechar funcionalmente Mensagens e Atendimento em Configurações.
+A próxima ação recomendada é abrir a rodada de ajustes finos de Segurança/Funções personalizadas: realtime entre usuários, nomes de colaboradores na lista e persistência/reflexo de permissões em funções personalizadas.
