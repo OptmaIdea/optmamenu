@@ -16,6 +16,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9.13.1G — Histórico pessoal e auditoria de alterações concluída funcionalmente
 - Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
 - Fase 9.13.1I — Configurações de Mensagens e Atendimento concluídas funcionalmente
+- Fase 9.13.1J — Ajustes finos de permissões personalizadas e realtime em diagnóstico técnico
 - Guia institucional OptmaIdea/OptmaMenu criado
 - Roadmap de mensagens, engajamento e atendente virtual criado
 - Documentação consolidada em andamento
@@ -36,6 +37,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md](./FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md)
 - [FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md](./FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md)
 - [FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md](./FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md)
+- [FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md](./FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md)
 - [CHECKLIST_NOVAS_PERMISSOES.md](./CHECKLIST_NOVAS_PERMISSOES.md)
 - [GUIA_SISTEMA_PERMISSOES_REALTIME.md](./GUIA_SISTEMA_PERMISSOES_REALTIME.md)
 - [PERMISSOES_USUARIOS.md](./PERMISSOES_USUARIOS.md)
@@ -96,6 +98,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
 - CHECKLIST_NOVAS_PERMISSOES.md
 - GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
 - OPERATIONS_PLAYBOOK.md
@@ -110,6 +113,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
 - CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
@@ -125,6 +129,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
 ### Operação / compras
@@ -142,6 +147,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
+- FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
 - CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - RPCS_AND_VIEWS.md
@@ -161,10 +167,12 @@ A frente `9.13.1H` foi concluída funcionalmente em `FASE_9_13_1H_PEDIDO_ONLINE_
 
 A frente `9.13.1I` foi concluída funcionalmente em `FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`, fechando Mensagens e Atendimento em Configurações com persistência em `stores.config.message_settings`, permissões dedicadas `settings.messages.view/manage`, boas práticas de atendimento, avisos LGPD/WhatsApp e separação entre mensagens operacionais e marketing.
 
+A frente `9.13.1J` está aberta em `FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md`, com diagnóstico de realtime entre usuários, nomes de colaboradores na lista e persistência/reflexo de permissões em funções personalizadas.
+
 O checklist `CHECKLIST_NOVAS_PERMISSOES.md` consolida a regra operacional: toda nova permissão deve ser criada no catálogo/templates, versionada via `store_permission_versions` e também registrada em `ROLE_PERMISSION_TREE` e nos agrupamentos visuais correspondentes.
 
 O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
 
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
-A próxima ação recomendada é abrir a rodada de ajustes finos de Segurança/Funções personalizadas: realtime entre usuários, nomes de colaboradores na lista e persistência/reflexo de permissões em funções personalizadas.
+A próxima ação recomendada é validar o corpo real das RPCs de funções personalizadas no snapshot/Supabase antes de qualquer SQL corretivo.
