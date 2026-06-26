@@ -2,7 +2,7 @@
 
 ## Status
 
-**Em diagnóstico técnico.**
+**Diagnóstico técnico com causa principal identificada.**
 
 Esta frente nasce após o fechamento funcional da 9.13.1I, durante os testes de Mensagens e Atendimento em Configurações.
 
@@ -41,7 +41,7 @@ Isso confirma o padrão consolidado da 9.13:
 - o usuário afetado não deve depender de listener direto em `store_members`;
 - toda alteração relevante deve atualizar `store_permission_versions`.
 
-Consequência: se uma alteração feita pelo owner/admin não refletir no outro usuário, a primeira suspeita é o fluxo não estar tocando `store_permission_versions`.
+O diagnóstico SQL mostrou que existe atualização recente em `store_permission_versions` com reason `store_custom_roles:UPDATE`, então há versionamento acontecendo em alterações de `store_custom_roles`, provavelmente por trigger ou fluxo indireto.
 
 ---
 
@@ -82,19 +82,75 @@ Arquivos principais:
 - `src/pages/private/admin/settings/security/Security.tsx`;
 - `src/types/security.ts`.
 
-A documentação atual de RPCs já diz que:
+Durante os testes, foi observado que a função personalizada `Subgerente Nível I`, com base `Gerente`, não refletiu alteração de permissões como esperado.
 
-- `create_store_custom_role` deve atualizar `store_permission_versions`;
-- `update_store_custom_role` deve atualizar `store_permission_versions`;
-- `assign_store_custom_role_to_member` deve atualizar `store_permission_versions`.
+O diagnóstico SQL confirmou:
 
-Durante os testes, foi observado que a função personalizada `Subgerente Nível I`, com base `Gerente`, não refletiu alteração de permissões como esperado. Isso exige verificar:
+- `update_store_custom_role` grava `store_custom_roles.permissions` com o JSONB recebido em `p_permissions`;
+- a função `Subgerente Nível I` possui overrides salvos em `store_custom_roles.permissions`, incluindo permissões novas como `settings.messages.view=true` e `settings.messages.manage=true`;
+- existe versionamento recente em `store_permission_versions` para `store_custom_roles:UPDATE`;
+- a causa principal está em `get_effective_store_permissions`.
 
-- se `update_store_custom_role` realmente grava `permissions`;
-- se a tela envia `p_permissions` com os overrides corretos;
-- se a RPC toca `store_permission_versions`;
-- se o cálculo efetivo de permissões considera `custom_role.permissions` acima do papel base;
-- se permissões individuais ainda prevalecem sobre função personalizada.
+---
+
+## Causa principal identificada
+
+A RPC atual:
+
+- `get_effective_store_permissions(p_store_id uuid)`
+
+considera apenas:
+
+1. owner;
+2. `store_members.permissions` com `all=true`;
+3. `store_members.permissions[permission_code]` como override individual;
+4. `store_role_permission_templates` do papel base;
+5. fallback negado.
+
+Ela **não consulta `store_members.custom_role_id`** e **não aplica `store_custom_roles.permissions`**.
+
+Consequência:
+
+- a tela de Funções personalizadas salva corretamente os overrides no JSONB da função;
+- `store_permission_versions` é atualizado;
+- o usuário afetado recarrega as permissões;
+- mas o cálculo efetivo ignora os overrides da função personalizada e cai no template do papel base.
+
+Este é o motivo de `Subgerente Nível I`, base `Gerente`, não refletir alterações próprias da função personalizada.
+
+---
+
+## Ordem correta de precedência esperada
+
+A correção de `get_effective_store_permissions` deve aplicar a seguinte ordem:
+
+1. `owner` sempre permitido;
+2. override individual `store_members.permissions['all'] = true`;
+3. override individual `store_members.permissions[permission_code]`;
+4. override da função personalizada `store_custom_roles.permissions[permission_code]`, quando `custom_role_id` estiver ativo;
+5. template do papel base em `store_role_permission_templates`;
+6. fallback negado.
+
+A origem (`source`) deve refletir a camada aplicada:
+
+- `owner`;
+- `member_override_all`;
+- `member_override`;
+- `custom_role_override`;
+- template do papel base;
+- `default_denied`.
+
+---
+
+## Observação sobre `assign_store_custom_role_to_member`
+
+A RPC `assign_store_custom_role_to_member` atualiza:
+
+- `store_members.role = custom_role.base_role`;
+- `store_members.custom_role_id = p_custom_role_id`;
+- preserva ou limpa overrides individuais conforme parâmetro.
+
+Esse comportamento está alinhado com o modelo de herança, desde que `get_effective_store_permissions` considere `custom_role_id` e aplique `store_custom_roles.permissions` acima do papel base.
 
 ---
 
@@ -160,15 +216,17 @@ Ordem desejada de exibição:
 
 ## Próximos passos técnicos
 
-1. Conferir o corpo real das RPCs de funções personalizadas no snapshot Supabase ou no SQL Editor.
-2. Validar se `update_store_custom_role` grava `permissions` e toca `store_permission_versions`.
-3. Validar se `getEffectiveStorePermissions` aplica ordem correta:
-   - permissões individuais;
+1. Criar migration específica para corrigir `get_effective_store_permissions`, mediante autorização explícita.
+2. Preservar assinatura e retorno da RPC para não quebrar frontend.
+3. Adicionar leitura de `store_members.custom_role_id` e `store_custom_roles.permissions`.
+4. Aplicar precedência correta:
+   - owner;
+   - override individual;
    - função personalizada;
    - papel base;
    - fallback.
-4. Ajustar fallback visual de nome em Permissões por usuário.
-5. Padronizar refresh administrativo com `store_permission_versions`, sem quebrar a tela de Segurança.
+5. Testar com usuário vinculado a `Subgerente Nível I`.
+6. Em seguida, diagnosticar `get_store_members_for_permissions` para corrigir fallback de nome/e-mail.
 
 ---
 
