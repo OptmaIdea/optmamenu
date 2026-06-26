@@ -2,7 +2,7 @@
 
 ## Status
 
-**Diagnóstico técnico com causa principal identificada.**
+**Correção de função personalizada enviada em migration.**
 
 Esta frente nasce após o fechamento funcional da 9.13.1I, durante os testes de Mensagens e Atendimento em Configurações.
 
@@ -120,9 +120,33 @@ Este é o motivo de `Subgerente Nível I`, base `Gerente`, não refletir altera�
 
 ---
 
-## Ordem correta de precedência esperada
+## Migration enviada
 
-A correção de `get_effective_store_permissions` deve aplicar a seguinte ordem:
+Arquivo:
+
+- `supabase/migrations/20260626190000_fix_effective_permissions_custom_roles.sql`
+
+Escopo:
+
+- substitui `get_effective_store_permissions(p_store_id uuid)` preservando assinatura e retorno;
+- adiciona `LEFT JOIN store_custom_roles` pela função personalizada ativa do membro;
+- lê `store_custom_roles.permissions`;
+- aplica a precedência correta;
+- atualiza `store_permission_versions` para forçar refresh dos usuários conectados.
+
+Não altera:
+
+- tabelas;
+- RLS;
+- Advisors;
+- políticas;
+- retorno do frontend.
+
+---
+
+## Ordem correta de precedência aplicada
+
+A correção de `get_effective_store_permissions` aplica a seguinte ordem:
 
 1. `owner` sempre permitido;
 2. override individual `store_members.permissions['all'] = true`;
@@ -131,7 +155,7 @@ A correção de `get_effective_store_permissions` deve aplicar a seguinte ordem:
 5. template do papel base em `store_role_permission_templates`;
 6. fallback negado.
 
-A origem (`source`) deve refletir a camada aplicada:
+A origem (`source`) reflete a camada aplicada:
 
 - `owner`;
 - `member_override_all`;
@@ -204,6 +228,19 @@ Ordem desejada de exibição:
 
 ---
 
+## Validação após aplicar migration
+
+Testar com um membro vinculado a `Subgerente Nível I`:
+
+1. garantir que a função personalizada tenha uma permissão diferente do papel base;
+2. fazer login com o usuário vinculado;
+3. alterar a permissão da função personalizada em outro navegador/sessão;
+4. confirmar se o usuário afetado recebe refresh sem reload;
+5. confirmar se `source` aparece como `custom_role_override` quando consultado pela RPC;
+6. confirmar que override individual continua prevalecendo sobre a função personalizada.
+
+---
+
 ## Fora do escopo desta rodada
 
 - Advisors/RLS globais;
@@ -216,22 +253,21 @@ Ordem desejada de exibição:
 
 ## Próximos passos técnicos
 
-1. Criar migration específica para corrigir `get_effective_store_permissions`, mediante autorização explícita.
-2. Preservar assinatura e retorno da RPC para não quebrar frontend.
-3. Adicionar leitura de `store_members.custom_role_id` e `store_custom_roles.permissions`.
-4. Aplicar precedência correta:
-   - owner;
-   - override individual;
-   - função personalizada;
-   - papel base;
-   - fallback.
-5. Testar com usuário vinculado a `Subgerente Nível I`.
-6. Em seguida, diagnosticar `get_store_members_for_permissions` para corrigir fallback de nome/e-mail.
+1. Aplicar a migration `20260626190000_fix_effective_permissions_custom_roles.sql`.
+2. Rodar `supabase db dump --linked --schema public --file docs/supabase_audit/schema_public_current.sql`.
+3. Testar `Subgerente Nível I`.
+4. Em seguida, diagnosticar `get_store_members_for_permissions` para corrigir fallback de nome/e-mail.
 
 ---
 
 ## Observação operacional
 
-Não criar migration/RPC nova sem confirmação explícita.
+A partir desta frente, o usuário autorizou o envio direto de migrations quando forem correções pequenas e claramente dentro da frente em andamento, desde que:
 
-Se for necessário corrigir SQL de RPC, a proposta deve ser apresentada separadamente, com escopo fechado e sem misturar com Advisors.
+- a causa já esteja demonstrada por diagnóstico;
+- a migration seja focada;
+- não envolva Advisors/RLS/hardening global;
+- não crie tabelas novas nem mude estrutura crítica sem aviso;
+- a resposta informe claramente o arquivo criado e o que ele altera.
+
+Para mudanças estruturais, políticas RLS, funções sensíveis amplas ou novos módulos, continuar solicitando confirmação explícita antes de criar migration.
