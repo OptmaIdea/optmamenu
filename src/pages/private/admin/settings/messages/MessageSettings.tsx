@@ -345,7 +345,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
     }, [activeStoreId, securityContext?.memberships, securityContext?.primary_membership]);
 
     const isOwner = activeMembership?.role === 'owner';
-    const canManageMessages = isOwner || allowedPermissions.includes('settings.messages.manage') || allowedPermissions.includes('messages.manage');
+    const canManageMessages = isOwner || allowedPermissions.includes('settings.messages.manage');
     const effectiveDisabled = disabled || !canManageMessages;
 
     const groupedTemplates = useMemo(() => {
@@ -605,7 +605,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                                     className={`px-4 py-3 rounded-xl text-left text-sm font-bold transition ${activeGroup === group
                                         ? 'bg-brand-green text-white shadow-sm'
                                         : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700'
-                                    }`}
+                                        }`}
                                 >
                                     {group}
                                 </button>
@@ -621,7 +621,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                                     className={`w-full px-3 py-2 rounded-lg text-left text-xs font-bold transition ${activeTemplateKey === template.key
                                         ? 'bg-white dark:bg-gray-800 text-brand-green border border-brand-green/30 shadow-sm'
                                         : 'text-gray-500 hover:bg-white dark:hover:bg-gray-800 border border-transparent'
-                                    }`}
+                                        }`}
                                 >
                                     {template.label}
                                 </button>
