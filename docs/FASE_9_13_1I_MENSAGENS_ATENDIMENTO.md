@@ -2,7 +2,7 @@
 
 ## Status
 
-**Em execução.**
+**Concluída funcionalmente.**
 
 Esta etapa transforma a aba **Configurações da Loja → Mensagens** em uma área de governança de comunicação operacional e atendimento. O foco é ajudar o pequeno lojista a se comunicar melhor com clientes, com clareza, acolhimento, responsabilidade e segurança.
 
@@ -84,7 +84,7 @@ Essas mensagens ficam para a **Central de Marketing** ou módulo futuro, com reg
 
 ## Boas práticas de comunicação
 
-A interface deve incentivar o lojista a:
+A interface incentiva o lojista a:
 
 - escrever mensagens curtas;
 - usar tom respeitoso e humano;
@@ -109,11 +109,11 @@ No estado atual do produto:
 - status como entregue/lido dependem de API oficial ou marcação manual;
 - automações oficiais de WhatsApp ficam para integração futura.
 
-A interface não deve prometer automação, entrega garantida ou leitura automática.
+A interface não promete automação, entrega garantida ou leitura automática.
 
 ---
 
-## Escopo inicial implementado
+## Escopo implementado
 
 Arquivo principal:
 
@@ -134,7 +134,12 @@ A tela foi evoluída para conter:
 - botão restaurar todos os padrões;
 - botão salvar;
 - modo leitura quando não há permissão de edição;
-- persistência em JSONB.
+- persistência em JSONB;
+- carregamento direto de `stores.config` para garantir persistência após reload.
+
+Também foi integrada à aba interna:
+
+- `/admin/settings?tab=messages`
 
 ---
 
@@ -188,7 +193,7 @@ A prévia substitui variáveis por dados fictícios para facilitar a revisão pe
 
 ## Persistência
 
-Nesta etapa não foram criadas tabelas ou RPCs novas.
+Nesta etapa não foram criadas tabelas ou RPCs novas para mensagens.
 
 A persistência atual usa:
 
@@ -268,16 +273,28 @@ E popula `store_role_permission_templates` por loja/papel.
 
 A migration também atualiza `store_permission_versions` para acionar o refresh realtime de permissões.
 
-### Compatibilidade temporária
+### Frontend de permissões
 
-A tela `MessageSettings.tsx` ainda reconhece temporariamente:
+Para a permissão aparecer corretamente na matriz, foram necessários estes pontos:
 
-- `messages.manage`
+- catálogo correto em `store_permission_catalog`;
+- templates em `store_role_permission_templates`;
+- versionamento em `store_permission_versions`;
+- prefixo correto em `PERMISSION_GROUP_DEFINITIONS`;
+- inclusão explícita em `ROLE_PERMISSION_TREE`;
+- ordenação visual revisada manualmente.
 
-Isso mantém compatibilidade com ambientes que ainda não aplicaram a migration. Após validação completa da migration e do frontend, a aba de Configurações deve usar prioritariamente:
+O aprendizado foi consolidado em:
 
-- `settings.messages.view`
+- `docs/CHECKLIST_NOVAS_PERMISSOES.md`
+
+### Compatibilidade removida
+
+Após validação da migration e da matriz, `MessageSettings.tsx` passou a usar somente:
+
 - `settings.messages.manage`
+
+A compatibilidade temporária com `messages.manage` foi removida. O padrão antigo `messages.view/manage` fica reservado para Central de Mensagens/Marketing, se necessário em módulo futuro.
 
 ---
 
@@ -323,37 +340,46 @@ Riscos do mascote:
 
 ---
 
-## Critérios de aceite
+## Validação funcional
 
-Para fechar funcionalmente a 9.13.1I:
+Critérios validados na frente:
 
 - build limpo;
 - console limpo;
-- tela acessível pela rota direta `/admin/messages`;
 - aba interna `/admin/settings?tab=messages` integrada ao componente real;
-- `settings.messages.view=false` oculta aba/rota;
-- `settings.messages.view=true` + `settings.messages.manage=false` exibe leitura, campos desabilitados e ações ocultas;
 - owner/admin/manager autorizado edita e salva;
 - JSONB preserva outras chaves de `stores.config`;
+- persistência após reload validada;
 - prévia renderiza variáveis;
 - restaurar padrão funciona;
 - permissões aparecem no grupo Configurações da matriz;
-- snapshot Supabase atualizado após aplicar a migration.
+- `ROLE_PERMISSION_TREE` atualizado para Mensagens;
+- `settings.messages.view/manage` usado como padrão final.
 
 ---
 
-## Pendências atuais
+## Pendências fora desta frente
 
-- Aplicar a migration `20260625133000_add_settings_messages_permissions.sql` no Supabase.
-- Ajustar `StoreSettings.tsx` para a aba `messages` usar `settings.messages.view/manage` no lugar de `messages.view/manage`.
-- Validar build local.
-- Validar matriz em `/admin/security?tab=roles`.
-- Atualizar snapshot Supabase após aplicar a migration.
+As pendências abaixo foram identificadas durante os testes, mas pertencem a uma próxima rodada de Segurança/Funções personalizadas:
+
+- revisar realtime/listener para refletir alterações de permissões entre usuários sem reload em todos os fluxos;
+- revisar exibição de nome de colaborador quando cai para e-mail, exemplo Henrique/Rick em Permissões por usuário;
+- revisar atribuição/revogação de permissões em funções personalizadas, especialmente quando a função personalizada herda de um papel base;
+- validar salvamento e aplicação de overrides em `store_custom_roles.permissions`;
+- validar se alterações em funções personalizadas atualizam `store_permission_versions` e disparam refresh nos usuários afetados.
 
 ---
 
 ## Decisão de produto
 
-A 9.13.1I deve reforçar o diferencial do OptmaMenu:
+A 9.13.1I reforça o diferencial do OptmaMenu:
 
 > ajudar o pequeno lojista a entrar no mundo digital com atendimento acolhedor, claro, responsável e acessível, sem transformar comunicação em spam.
+
+---
+
+## Resultado
+
+A frente 9.13.1I fica encerrada como:
+
+**Configurações de Mensagens e Atendimento concluídas funcionalmente, com persistência validada, permissões dedicadas, integração na matriz de permissões e documentação do checklist para novas permissões.**
