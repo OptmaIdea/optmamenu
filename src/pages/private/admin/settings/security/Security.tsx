@@ -1548,6 +1548,7 @@ export default function Security() {
     const canViewUserPermissionsTab = canViewSecurityTab('user_permissions');
 
     const isRolesTabActive = activeTab === 'roles';
+    const isCustomRolesTabActive = activeTab === 'custom_roles';
     const isSensitiveActionsTabActive = activeTab === 'sensitive_actions';
     const isUserPermissionsTabActive = activeTab === 'user_permissions';
 
@@ -1565,9 +1566,12 @@ export default function Security() {
     } = useSecurityPermissionsAdmin({
         enabled:
             (isRolesTabActive && canViewRolesTab) ||
+            (isCustomRolesTabActive && canViewCustomRoles) ||
             (isSensitiveActionsTabActive && canViewSensitiveActionsTab) ||
             (isUserPermissionsTabActive && canViewUserPermissionsTab),
-        matrix: isRolesTabActive && canViewRolesTab,
+        matrix:
+            (isRolesTabActive && canViewRolesTab) ||
+            (isCustomRolesTabActive && canViewCustomRoles),
         sensitiveActions: isSensitiveActionsTabActive && canViewSensitiveActionsTab,
         members: isUserPermissionsTabActive && canViewUserPermissionsTab,
     });
