@@ -3,8 +3,11 @@
 # Aplica ajustes localizados em:
 # src/pages/private/admin/settings/myHistory/MyHistory.tsx
 #
-# Este script substitui trechos exatos do arquivo atual.
-# Se algum trecho não for encontrado, ele interrompe a execução sem alterar parcialmente.
+# Versão tolerante:
+# - não depende do bloco ACTION_LABELS inteiro estar idêntico;
+# - insere tradutores por âncoras menores;
+# - substitui o bloco profile_request_* por regex;
+# - é idempotente para os tradutores.
 
 $ErrorActionPreference = 'Stop'
 
@@ -16,46 +19,40 @@ if (!(Test-Path $path)) {
 
 $content = Get-Content -Path $path -Raw
 
-function Replace-Required {
+function Replace-Regex-Required {
     param(
         [string]$Current,
-        [string]$Old,
-        [string]$New,
+        [string]$Pattern,
+        [string]$Replacement,
         [string]$Label
     )
 
-    if (!$Current.Contains($Old)) {
+    if ($Current -notmatch $Pattern) {
         throw "Trecho não encontrado para substituição: $Label"
     }
 
-    return $Current.Replace($Old, $New)
+    return [regex]::Replace($Current, $Pattern, $Replacement, 1)
 }
 
-$oldActionLabels = @'
-const ACTION_LABELS: Record<string, string> = {
-  session_store_selected: 'Loja acessada',
-  session_disconnected: 'Sessão encerrada',
-  session_login: 'Login realizado',
-  login: 'Login realizado',
-  logout: 'Logout realizado',
-  idle_timeout: 'Sessão encerrada por inatividade',
-  store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
-  store_role_permission_template_updated: 'Permissão por papel alterada',
-  role_permission_updated: 'Permissão por papel alterada',
-};
-'@
+function Insert-After-Required {
+    param(
+        [string]$Current,
+        [string]$Anchor,
+        [string]$Insert,
+        [string]$Label
+    )
 
-$newActionLabels = @'
-const ACTION_LABELS: Record<string, string> = {
-  session_store_selected: 'Loja acessada',
-  session_disconnected: 'Sessão encerrada',
-  session_login: 'Login realizado',
-  login: 'Login realizado',
-  logout: 'Logout realizado',
-  idle_timeout: 'Sessão encerrada por inatividade',
-  store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
-  store_role_permission_template_updated: 'Permissão por papel alterada',
-  role_permission_updated: 'Permissão por papel alterada',
+    if (!$Current.Contains($Anchor)) {
+        throw "Âncora não encontrada para inserção: $Label"
+    }
+
+    return $Current.Replace($Anchor, "$Anchor$Insert")
+}
+
+# 1) Adiciona actions de solicitações cadastrais dentro de ACTION_LABELS, se ainda não existirem.
+if ($content -notmatch "profile_request_created") {
+    $anchor = "  role_permission_updated: 'Permissão por papel alterada',"
+    $insert = @'
   profile_request_created: 'Solicitação de alteração cadastral criada',
   profile_request_reviewed: 'Solicitação de alteração cadastral revisada',
   profile_request_approved: 'Solicitação de alteração cadastral aprovada',
@@ -64,7 +61,13 @@ const ACTION_LABELS: Record<string, string> = {
   profile_request_applied: 'Alteração cadastral aplicada',
   profile_request_approved_and_applied: 'Alteração cadastral aprovada e aplicada',
   profile_request_member_confirmed: 'Alteração cadastral confirmada pelo usuário',
-};
+'@
+    $content = Insert-After-Required -Current $content -Anchor $anchor -Insert "`r`n$insert" -Label 'ACTION_LABELS/profile_request_*'
+}
+
+# 2) Insere tradutores depois de ACTION_LABELS, se ainda não existirem.
+if ($content -notmatch "PROFILE_REQUEST_TYPE_LABELS") {
+    $translatorBlock = @'
 
 const PROFILE_REQUEST_TYPE_LABELS: Record<string, string> = {
   name_change: 'Alteração de nome',
@@ -147,25 +150,12 @@ function translateTechnicalText(value: string) {
 }
 '@
 
-$oldProfileBlock = @'
-  if (action.startsWith('profile_request_')) {
-    const requestType = getDetailText(details, 'request_type');
-    const status = getDetailText(details, 'status');
-    const reason = getDetailText(details, 'reason');
-    const adminNotes = getDetailText(details, 'admin_notes');
-    const memberFeedback = getDetailText(details, 'member_feedback');
+    $patternActionLabels = "(?s)(const ACTION_LABELS: Record<string, string> = \{.*?\};)"
+    $content = Replace-Regex-Required -Current $content -Pattern $patternActionLabels -Replacement "`$1$translatorBlock" -Label 'inserção dos tradutores após ACTION_LABELS'
+}
 
-    return [
-      requestType ? `Tipo: ${requestType}` : null,
-      status ? `Status: ${status}` : null,
-      reason ? `Motivo: ${reason}` : null,
-      adminNotes ? `Observação do responsável: ${adminNotes}` : null,
-      memberFeedback ? `Resposta do usuário: ${memberFeedback}` : null,
-    ].filter(Boolean).join('\n');
-  }
-'@
-
-$newProfileBlock = @'
+# 3) Substitui bloco profile_request_*.
+$profileBlock = @'
   if (action.startsWith('profile_request_')) {
     const requestType =
       getDetailText(details, 'request_type') ??
@@ -220,17 +210,15 @@ $newProfileBlock = @'
   }
 '@
 
-$oldFallback = @'
-  return (
-    description ||
-    reason ||
-    note ||
-    title ||
-    'Registro de atividade do usuário.'
-  );
-'@
+if ($content -notmatch "translateRequestType\(requestType\)") {
+    $patternProfile = "(?s)  if \(action\.startsWith\('profile_request_'\)\) \{.*?\n  \}"
+    $content = Replace-Regex-Required -Current $content -Pattern $patternProfile -Replacement $profileBlock -Label 'bloco profile_request_*'
+}
 
-$newFallback = @'
+# 4) Torna fallback geral mais amigável, se ainda não estiver aplicado.
+if ($content -notmatch "description \? translateTechnicalText\(description\)") {
+    $patternFallback = "(?s)  return \(\s*description \|\|\s*reason \|\|\s*note \|\|\s*title \|\|\s*'Registro de atividade do usuário\.'\s*\);"
+    $fallbackBlock = @'
   return (
     (description ? translateTechnicalText(description) : null) ||
     (reason ? translateTechnicalText(reason) : null) ||
@@ -239,10 +227,8 @@ $newFallback = @'
     'Registro de atividade do usuário.'
   );
 '@
-
-$content = Replace-Required -Current $content -Old $oldActionLabels -New $newActionLabels -Label 'ACTION_LABELS e tradutores'
-$content = Replace-Required -Current $content -Old $oldProfileBlock -New $newProfileBlock -Label 'bloco profile_request_*'
-$content = Replace-Required -Current $content -Old $oldFallback -New $newFallback -Label 'fallback de descrição'
+    $content = Replace-Regex-Required -Current $content -Pattern $patternFallback -Replacement $fallbackBlock -Label 'fallback de descrição'
+}
 
 Set-Content -Path $path -Value $content -Encoding UTF8
 
