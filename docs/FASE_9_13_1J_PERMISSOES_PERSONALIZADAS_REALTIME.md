@@ -2,7 +2,7 @@
 
 ## Status
 
-**Correção de função personalizada enviada em migration.**
+**Correção de função personalizada enviada e validação de identidade de usuário em ajuste.**
 
 Esta frente nasce após o fechamento funcional da 9.13.1I, durante os testes de Mensagens e Atendimento em Configurações.
 
@@ -95,11 +95,11 @@ O diagnóstico SQL confirmou:
 
 ## Causa principal identificada
 
-A RPC atual:
+A RPC anterior:
 
 - `get_effective_store_permissions(p_store_id uuid)`
 
-considera apenas:
+considerava apenas:
 
 1. owner;
 2. `store_members.permissions` com `all=true`;
@@ -107,20 +107,20 @@ considera apenas:
 4. `store_role_permission_templates` do papel base;
 5. fallback negado.
 
-Ela **não consulta `store_members.custom_role_id`** e **não aplica `store_custom_roles.permissions`**.
+Ela **não consultava `store_members.custom_role_id`** e **não aplicava `store_custom_roles.permissions`**.
 
 Consequência:
 
-- a tela de Funções personalizadas salva corretamente os overrides no JSONB da função;
-- `store_permission_versions` é atualizado;
-- o usuário afetado recarrega as permissões;
-- mas o cálculo efetivo ignora os overrides da função personalizada e cai no template do papel base.
+- a tela de Funções personalizadas salvava corretamente os overrides no JSONB da função;
+- `store_permission_versions` era atualizado;
+- o usuário afetado recarregava as permissões;
+- mas o cálculo efetivo ignorava os overrides da função personalizada e caía no template do papel base.
 
-Este é o motivo de `Subgerente Nível I`, base `Gerente`, não refletir alterações próprias da função personalizada.
+Este era o motivo de `Subgerente Nível I`, base `Gerente`, não refletir alterações próprias da função personalizada.
 
 ---
 
-## Migration enviada
+## Migration de permissões efetivas
 
 Arquivo:
 
@@ -166,6 +166,19 @@ A origem (`source`) reflete a camada aplicada:
 
 ---
 
+## Validação de funções personalizadas
+
+A validação confirmou:
+
+- alteração em função personalizada reflete em tempo real;
+- matriz de permissões carrega corretamente na aba Funções personalizadas após ajuste frontend;
+- permissão individual prevalece sobre função personalizada;
+- função personalizada prevalece sobre papel base;
+- ao retornar permissão individual para `Herdar`, volta a prevalecer a função personalizada;
+- console limpo.
+
+---
+
 ## Observação sobre `assign_store_custom_role_to_member`
 
 A RPC `assign_store_custom_role_to_member` atualiza:
@@ -185,21 +198,35 @@ Em `Permissões por usuário`, foi observado:
 - Carlos Souza aparece pelo nome;
 - Henrique/Rick aparece pelo e-mail.
 
-Esse comportamento indica fallback incompleto no retorno ou renderização dos membros.
+O diagnóstico mostrou:
 
-Pontos a verificar:
+- para Henrique, `auth.users.raw_user_meta_data.full_name = "Henrique souza"`;
+- a função `get_user_display_identity` retornava `(logmytravel.com@gmail.com, logmytravel.com@gmail.com)`;
+- a função anterior usava `COALESCE(p.name, au.raw_user_meta_data->>'name', au.email)`, mas não considerava `raw_user_meta_data->>'full_name'`;
+- para Carlos, `public.profiles.name` já retornava corretamente `Carlos Souza`, então essa origem deveria ser preservada como prioridade.
 
-- retorno da RPC `get_store_members_for_permissions`;
-- campos disponíveis em `StoreMemberForPermissionsRow`;
-- prioridade de exibição na UI.
+---
 
-Ordem desejada de exibição:
+## Migration de identidade do usuário
 
-1. nome do perfil;
-2. apelido/alias interno, se existir;
-3. nome amigável do vínculo/membro, se existir;
-4. e-mail;
-5. identificador curto.
+Arquivo:
+
+- `supabase/migrations/20260627163000_fix_user_display_identity_full_name.sql`
+
+Escopo:
+
+- substitui `get_user_display_identity(p_user_id uuid)` preservando assinatura e retorno;
+- mantém `public.profiles.name` como origem principal;
+- adiciona `auth.users.raw_user_meta_data->>'full_name'` antes do fallback para e-mail;
+- mantém `auth.users.raw_user_meta_data->>'name'` como fallback secundário;
+- usa `NULLIF(btrim(...), '')` para ignorar strings vazias.
+
+Ordem final:
+
+1. `public.profiles.name`;
+2. `auth.users.raw_user_meta_data->>'full_name'`;
+3. `auth.users.raw_user_meta_data->>'name'`;
+4. `auth.users.email`.
 
 ---
 
@@ -228,19 +255,6 @@ Ordem desejada de exibição:
 
 ---
 
-## Validação após aplicar migration
-
-Testar com um membro vinculado a `Subgerente Nível I`:
-
-1. garantir que a função personalizada tenha uma permissão diferente do papel base;
-2. fazer login com o usuário vinculado;
-3. alterar a permissão da função personalizada em outro navegador/sessão;
-4. confirmar se o usuário afetado recebe refresh sem reload;
-5. confirmar se `source` aparece como `custom_role_override` quando consultado pela RPC;
-6. confirmar que override individual continua prevalecendo sobre a função personalizada.
-
----
-
 ## Fora do escopo desta rodada
 
 - Advisors/RLS globais;
@@ -253,10 +267,11 @@ Testar com um membro vinculado a `Subgerente Nível I`:
 
 ## Próximos passos técnicos
 
-1. Aplicar a migration `20260626190000_fix_effective_permissions_custom_roles.sql`.
-2. Rodar `supabase db dump --linked --schema public --file docs/supabase_audit/schema_public_current.sql`.
-3. Testar `Subgerente Nível I`.
-4. Em seguida, diagnosticar `get_store_members_for_permissions` para corrigir fallback de nome/e-mail.
+1. Aplicar a migration `20260627163000_fix_user_display_identity_full_name.sql`.
+2. Rodar o diagnóstico `diagnose_member_display_names.sql` novamente.
+3. Confirmar se Henrique/Rick passa a aparecer por nome amigável.
+4. Atualizar snapshot Supabase, se houver diferença.
+5. Fechar a 9.13.1J se build/console permanecerem limpos.
 
 ---
 
