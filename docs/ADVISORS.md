@@ -2,125 +2,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
 
 [
   {
-    "name": "rls_disabled_in_public",
-    "title": "RLS Disabled in Public",
-    "level": "ERROR",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
-    "detail": "Table \\`public.store_permission_catalog\\` is public, but RLS has not been enabled.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
-    "metadata": {
-      "name": "store_permission_catalog",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "rls_disabled_in_public_public_store_permission_catalog"
-  },
-  {
-    "name": "rls_disabled_in_public",
-    "title": "RLS Disabled in Public",
-    "level": "ERROR",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects cases where row level security (RLS) has not been enabled on tables in schemas exposed to PostgREST",
-    "detail": "Table \\`public.store_role_permission_templates_backup_910c\\` is public, but RLS has not been enabled.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0013_rls_disabled_in_public",
-    "metadata": {
-      "name": "store_role_permission_templates_backup_910c",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "rls_disabled_in_public_public_store_role_permission_templates_backup_910c"
-  }
-]
-
-[
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.can_access_security_section(p_store_id uuid, p_section text, p_manage boolean)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/can_access_security_section`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "can_access_security_section",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_section text, p_manage boolean",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_can_access_security_section_p_store_id uuid, p_section text, p_manage boolean"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.can_access_security_section_v3(p_store_id uuid, p_section text, p_manage boolean)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/can_access_security_section_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "can_access_security_section_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_section text, p_manage boolean",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_can_access_security_section_v3_p_store_id uuid, p_section text, p_manage boolean"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.can_access_settings_section(p_store_id uuid, p_section text, p_manage boolean)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/can_access_settings_section`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "can_access_settings_section",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_section text, p_manage boolean",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_can_access_settings_section_p_store_id uuid, p_section text, p_manage boolean"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.can_access_settings_section_v3(p_store_id uuid, p_section text, p_manage boolean)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/can_access_settings_section_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "can_access_settings_section_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_section text, p_manage boolean",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_can_access_settings_section_v3_p_store_id uuid, p_section text, p_manage boolean"
-  },
-  {
     "name": "anon_security_definer_function_executable",
     "title": "Public Can Execute SECURITY DEFINER Function",
     "level": "WARN",
@@ -179,86 +60,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "security_definer": true
     },
     "cache_key": "anon_security_definer_function_executable_public_customer_login_with_password_p_phone text, p_password text, p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_default_admin_landing_path_v3(p_store_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_default_admin_landing_path_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_default_admin_landing_path_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_default_admin_landing_path_v3_p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_effective_store_member_permissions_v2(p_store_id uuid, p_member_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_effective_store_member_permissions_v2`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_effective_store_member_permissions_v2",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_member_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_effective_store_member_permissions_v2_p_store_id uuid, p_member_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_login_store_options()` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_login_store_options`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_login_store_options",
-      "schema": "public",
-      "language": "sql",
-      "arguments": "",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_login_store_options_"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_my_visible_activity_logs(p_store_id uuid, p_start_date date, p_end_date date, p_action text, p_outcome text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_my_visible_activity_logs`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_my_visible_activity_logs",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_start_date date, p_end_date date, p_action text, p_outcome text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_my_visible_activity_logs_p_store_id uuid, p_start_date date, p_end_date date, p_action text, p_outcome text"
   },
   {
     "name": "anon_security_definer_function_executable",
@@ -409,166 +210,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "SECURITY"
     ],
     "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_store_permission_catalog()` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_store_permission_catalog`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_store_permission_catalog",
-      "schema": "public",
-      "language": "sql",
-      "arguments": "",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_store_permission_catalog_"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_store_permission_matrix(p_store_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_store_permission_matrix`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_store_permission_matrix",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_store_permission_matrix_p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_store_permission_matrix_v3(p_store_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_store_permission_matrix_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_store_permission_matrix_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_store_permission_matrix_v3_p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_store_security_activity_logs(p_store_id uuid, p_start_date date, p_end_date date, p_user_filter text, p_action_filter text, p_outcome text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_store_security_activity_logs`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_store_security_activity_logs",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_start_date date, p_end_date date, p_user_filter text, p_action_filter text, p_outcome text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_store_security_activity_logs_p_store_id uuid, p_start_date date, p_end_date date, p_user_filter text, p_action_filter text, p_outcome text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_store_security_settings(p_store_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_store_security_settings`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_store_security_settings",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_store_security_settings_p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.get_store_settings_center(p_store_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/get_store_settings_center`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "get_store_settings_center",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_get_store_settings_center_p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.register_store_permission_v3(p_permission_key text, p_category text, p_label text, p_description text, p_risk text, p_macro_group text, p_group_key text, p_group_label text, p_item_key text, p_item_label text, p_action_key text, p_action_label text, p_depends_on text, p_access_permission_key text, p_default_role_allowed jsonb, p_ui_sort_order integer, p_show_in_permission_ui boolean)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/register_store_permission_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "register_store_permission_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_permission_key text, p_category text, p_label text, p_description text, p_risk text, p_macro_group text, p_group_key text, p_group_label text, p_item_key text, p_item_label text, p_action_key text, p_action_label text, p_depends_on text, p_access_permission_key text, p_default_role_allowed jsonb, p_ui_sort_order integer, p_show_in_permission_ui boolean",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_register_store_permission_v3_p_permission_key text, p_category text, p_label text, p_description text, p_risk text, p_macro_group text, p_group_key text, p_group_label text, p_item_key text, p_item_label text, p_action_key text, p_action_label text, p_depends_on text, p_access_permission_key text, p_default_role_allowed jsonb, p_ui_sort_order integer, p_show_in_permission_ui boolean"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.seed_store_role_permissions_for_new_store_v3()` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/seed_store_role_permissions_for_new_store_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "seed_store_role_permissions_for_new_store_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_seed_store_role_permissions_for_new_store_v3_"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
     "detail": "Function `public.send_customer_otp(p_phone text, p_store_id uuid)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/send_customer_otp`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
     "metadata": {
@@ -579,246 +220,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "security_definer": true
     },
     "cache_key": "anon_security_definer_function_executable_public_send_customer_otp_p_phone text, p_store_id uuid"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.set_store_role_permission_v3(p_store_id uuid, p_role text, p_permission_code text, p_allowed boolean, p_reason text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/set_store_role_permission_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "set_store_role_permission_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_role text, p_permission_code text, p_allowed boolean, p_reason text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_set_store_role_permission_v3_p_store_id uuid, p_role text, p_permission_code text, p_allowed boolean, p_reason text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.set_store_role_permissions_bulk_v3(p_store_id uuid, p_role text, p_changes jsonb, p_reason text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/set_store_role_permissions_bulk_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "set_store_role_permissions_bulk_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_role text, p_changes jsonb, p_reason text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_set_store_role_permissions_bulk_v3_p_store_id uuid, p_role text, p_changes jsonb, p_reason text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.sync_permission_catalog_v3()` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/sync_permission_catalog_v3`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "sync_permission_catalog_v3",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_sync_permission_catalog_v3_"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.touch_store_permission_version(p_store_id uuid, p_reason text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/touch_store_permission_version`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "touch_store_permission_version",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_reason text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_touch_store_permission_version_p_store_id uuid, p_reason text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.trg_touch_store_permission_version()` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/trg_touch_store_permission_version`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "trg_touch_store_permission_version",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_trg_touch_store_permission_version_"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.update_security_log_member_visibility(p_log_id uuid, p_visible_to_member boolean, p_sensitive boolean)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/update_security_log_member_visibility`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "update_security_log_member_visibility",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_log_id uuid, p_visible_to_member boolean, p_sensitive boolean",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_update_security_log_member_visibility_p_log_id uuid, p_visible_to_member boolean, p_sensitive boolean"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.update_store_identity_settings(p_store_id uuid, p_name text, p_slug text, p_description text, p_logo_url text, p_phone_number text, p_legal_name text, p_doc_type text, p_document text, p_fantasy_name text, p_establishment_type text, p_address jsonb, p_contacts jsonb, p_consents jsonb, p_privacy_policy_text text, p_terms_of_use_text text, p_cookie_policy_text text, p_dpo_email text, p_dpo_contact text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/update_store_identity_settings`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "update_store_identity_settings",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_name text, p_slug text, p_description text, p_logo_url text, p_phone_number text, p_legal_name text, p_doc_type text, p_document text, p_fantasy_name text, p_establishment_type text, p_address jsonb, p_contacts jsonb, p_consents jsonb, p_privacy_policy_text text, p_terms_of_use_text text, p_cookie_policy_text text, p_dpo_email text, p_dpo_contact text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_update_store_identity_settings_p_store_id uuid, p_name text, p_slug text, p_description text, p_logo_url text, p_phone_number text, p_legal_name text, p_doc_type text, p_document text, p_fantasy_name text, p_establishment_type text, p_address jsonb, p_contacts jsonb, p_consents jsonb, p_privacy_policy_text text, p_terms_of_use_text text, p_cookie_policy_text text, p_dpo_email text, p_dpo_contact text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.update_store_idle_timeout_settings(p_store_id uuid, p_idle_timeout_enabled boolean, p_idle_timeout_minutes integer)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/update_store_idle_timeout_settings`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "update_store_idle_timeout_settings",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_idle_timeout_enabled boolean, p_idle_timeout_minutes integer",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_update_store_idle_timeout_settings_p_store_id uuid, p_idle_timeout_enabled boolean, p_idle_timeout_minutes integer"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.update_store_member_permissions(p_member_id uuid, p_permissions jsonb, p_sensitive_actions jsonb, p_reason text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/update_store_member_permissions`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "update_store_member_permissions",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_member_id uuid, p_permissions jsonb, p_sensitive_actions jsonb, p_reason text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_update_store_member_permissions_p_member_id uuid, p_permissions jsonb, p_sensitive_actions jsonb, p_reason text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.update_store_role_permission_template(p_store_id uuid, p_role text, p_permission_code text, p_allowed boolean, p_reason text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/update_store_role_permission_template`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "update_store_role_permission_template",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_role text, p_permission_code text, p_allowed boolean, p_reason text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_update_store_role_permission_template_p_store_id uuid, p_role text, p_permission_code text, p_allowed boolean, p_reason text"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.update_store_settings_section(p_store_id uuid, p_section text, p_settings jsonb)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/update_store_settings_section`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "update_store_settings_section",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_section text, p_settings jsonb",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_update_store_settings_section_p_store_id uuid, p_section text, p_settings jsonb"
-  },
-  {
-    "name": "anon_security_definer_function_executable",
-    "title": "Public Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable without signing in. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if it is not meant to be public.",
-    "detail": "Function `public.validate_store_slug(p_store_id uuid, p_slug text)` can be executed by the `anon` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/validate_store_slug`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable",
-    "metadata": {
-      "name": "validate_store_slug",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_store_id uuid, p_slug text",
-      "security_definer": true
-    },
-    "cache_key": "anon_security_definer_function_executable_public_validate_store_slug_p_store_id uuid, p_slug text"
   },
   {
     "name": "anon_security_definer_function_executable",
@@ -4500,4 +3901,65 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
     },
     "cache_key": "authenticated_security_definer_function_executable_public_user_owns_store_p_store_id uuid"
   },
+  {
+    "name": "authenticated_security_definer_function_executable",
+    "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
+    "level": "WARN",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
+    "detail": "Function `public.validate_store_slug(p_store_id uuid, p_slug text)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/validate_store_slug`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
+    "metadata": {
+      "name": "validate_store_slug",
+      "schema": "public",
+      "language": "plpgsql",
+      "arguments": "p_store_id uuid, p_slug text",
+      "security_definer": true
+    },
+    "cache_key": "authenticated_security_definer_function_executable_public_validate_store_slug_p_store_id uuid, p_slug text"
+  }
+]
+
+----
+
+[
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`public.store_permission_catalog\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "store_permission_catalog",
+      "type": "table",
+      "schema": "public"
+    },
+    "cache_key": "rls_enabled_no_policy_public_store_permission_catalog"
+  },
+  {
+    "name": "rls_enabled_no_policy",
+    "title": "RLS Enabled No Policy",
+    "level": "INFO",
+    "facing": "EXTERNAL",
+    "categories": [
+      "SECURITY"
+    ],
+    "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+    "detail": "Table \\`public.store_role_permission_templates_backup_910c\\` has RLS enabled, but no policies exist",
+    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+    "metadata": {
+      "name": "store_role_permission_templates_backup_910c",
+      "type": "table",
+      "schema": "public"
+    },
+    "cache_key": "rls_enabled_no_policy_public_store_role_permission_templates_backup_910c"
+  }
 ]
