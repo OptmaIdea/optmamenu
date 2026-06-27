@@ -2,7 +2,7 @@
 
 ## Status
 
-**Correção de função personalizada enviada e validação de identidade de usuário em ajuste.**
+**Funções personalizadas e realtime validados; origem do nome em permissões por usuário documentada.**
 
 Esta frente nasce após o fechamento funcional da 9.13.1I, durante os testes de Mensagens e Atendimento em Configurações.
 
@@ -196,7 +196,7 @@ Esse comportamento está alinhado com o modelo de herança, desde que `get_effec
 Em `Permissões por usuário`, foi observado:
 
 - Carlos Souza aparece pelo nome;
-- Henrique/Rick aparece pelo e-mail.
+- Henrique/Rick aparecia pelo e-mail.
 
 O diagnóstico mostrou:
 
@@ -230,6 +230,79 @@ Ordem final:
 
 ---
 
+## Achado adicional — origem real do nome em Permissões por usuário
+
+Após aplicar a migration de identidade, foi confirmado um ponto importante de produto:
+
+- `auth.users.raw_user_meta_data.full_name` é apenas fallback;
+- o nome realmente usado nas telas administrativas vem prioritariamente do cadastro interno/perfil do OptmaMenu, especialmente `public.profiles.name` ou estrutura equivalente usada por `get_user_display_identity`;
+- por isso, enquanto Henrique não tinha **Nome Completo** preenchido/aplicado em **Meus Dados**, a lista de **Permissões por usuário** ainda caía para e-mail;
+- após solicitar/aplicar a alteração cadastral de nome, o nome passou a existir no cadastro principal e a tela de permissões passou a ter base correta para exibir nome amigável.
+
+Conclusão operacional:
+
+- a tela de **Permissões por usuário** deve priorizar o nome cadastral interno;
+- `raw_user_meta_data.full_name` continua útil como fallback para usuários recém-criados ou incompletos;
+- o fluxo correto para corrigir nome oficial é **Meus Dados → Solicitar Alteração → Aprovação/Aplicação**;
+- o campo **Apelido** é vínculo/local e pode aparecer em contexto pessoal/sidebar, mas não deve substituir automaticamente o nome completo oficial em listas administrativas sem regra explícita.
+
+---
+
+## Achado adicional — Meu Histórico com rótulos não amigáveis
+
+O teste do fluxo de alteração de nome também validou que:
+
+- a solicitação de alteração cadastral é registrada;
+- a aprovação/aplicação aparece no Meu Histórico do colaborador;
+- o fluxo funcional está correto.
+
+Mas foram observados rótulos técnicos/não amigáveis no histórico, como:
+
+- `name_change`;
+- status técnicos como `applied`, quando aparecerem em detalhes;
+- textos de detalhe que podem ficar mais humanos.
+
+Pendência futura:
+
+- criar uma rodada de refinamento visual/textual do **Meu Histórico**, traduzindo tipos, status e campos técnicos para labels amigáveis;
+- exemplos esperados: `name_change` → `Alteração de nome`; `applied` → `Aplicada`; `full_name`/`name` → `Nome completo`.
+
+---
+
+## Observação sobre arquivos `.patch`
+
+Os arquivos em `docs/patches/` foram usados como apoio quando a edição direta pelo conector não era segura.
+
+Quando o ajuste já foi aplicado manualmente no código, não é necessário executar o patch correspondente.
+
+Recomendação:
+
+- remover patches já aplicados manualmente para evitar confusão futura;
+- manter somente patches ainda pendentes de aplicação.
+
+---
+
+## Integração Supabase neste ambiente
+
+Foi confirmado que existe ferramenta Supabase disponível para consulta SQL direta (`execute_sql`) quando o projeto estiver identificado/conectado.
+
+Uso recomendado:
+
+- consultas diagnósticas;
+- leitura de funções/RPCs;
+- validações pontuais.
+
+Para DDL/migrations, manter o fluxo preferencial:
+
+1. criar migration no repositório;
+2. aplicar de forma controlada no Supabase;
+3. atualizar snapshot `docs/supabase_audit/schema_public_current.sql`;
+4. commitar o snapshot.
+
+Quando houver ferramenta de aplicação de migration disponível na sessão, pode-se automatizar também a aplicação, mas sem misturar com Advisors/RLS/hardening global.
+
+---
+
 ## Critérios de aceite
 
 ### Realtime
@@ -249,8 +322,8 @@ Ordem final:
 
 ### Permissões por usuário
 
-- Lista de colaboradores deve priorizar nome amigável.
-- Fallback para e-mail deve ser usado somente quando não houver nome/alias disponível.
+- Lista de colaboradores deve priorizar nome amigável cadastral.
+- Fallback para e-mail deve ser usado somente quando não houver nome interno nem metadata confiável.
 - Alterações específicas por usuário continuam funcionando.
 
 ---
@@ -267,11 +340,10 @@ Ordem final:
 
 ## Próximos passos técnicos
 
-1. Aplicar a migration `20260627163000_fix_user_display_identity_full_name.sql`.
-2. Rodar o diagnóstico `diagnose_member_display_names.sql` novamente.
-3. Confirmar se Henrique/Rick passa a aparecer por nome amigável.
-4. Atualizar snapshot Supabase, se houver diferença.
-5. Fechar a 9.13.1J se build/console permanecerem limpos.
+1. Confirmar se o snapshot atualizado foi commitado após a migration `20260627163000_fix_user_display_identity_full_name.sql`.
+2. Remover patches já aplicados manualmente, se ainda estiverem no repositório.
+3. Avaliar rodada futura de labels amigáveis no Meu Histórico.
+4. Fechar a 9.13.1J se build/console permanecerem limpos.
 
 ---
 
