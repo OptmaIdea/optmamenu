@@ -22,7 +22,7 @@ import {
 import { getActiveStoreId } from '@/utils/activeStore';
 
 
-// â”€â”€â”€ Gravidade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Gravidade ────────────────────────────────────────────────────────────────
 
 type Severity = 'info' | 'warning' | 'low' | 'medium' | 'high' | 'critical';
 
@@ -44,7 +44,7 @@ const SEVERITY_CONFIG: Record<
         iconBgCls: 'bg-[#21A896]/10 text-[#21A896]',
     },
     warning: {
-        label: 'AtenÃ§Ã£o',
+        label: 'Atenção',
         icon: <AlertTriangle size={14} />,
         badgeCls: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
         borderCls: 'border-l-amber-500',
@@ -58,7 +58,7 @@ const SEVERITY_CONFIG: Record<
         iconBgCls: 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300',
     },
     medium: {
-        label: 'MÃ©dia',
+        label: 'Média',
         icon: <AlertTriangle size={14} />,
         badgeCls: 'bg-[#FBA93C]/10 text-[#FBA93C] border-[#FBA93C]/30',
         borderCls: 'border-l-[#FBA93C]',
@@ -72,7 +72,7 @@ const SEVERITY_CONFIG: Record<
         iconBgCls: 'bg-[#F26541]/10 text-[#F26541]',
     },
     critical: {
-        label: 'CrÃ­tica',
+        label: 'Crítica',
         icon: <Flame size={14} />,
         badgeCls: 'bg-red-100 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800',
         borderCls: 'border-l-red-500',
@@ -80,11 +80,11 @@ const SEVERITY_CONFIG: Record<
     },
 };
 
-// â”€â”€â”€ Formatadores â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Formatadores ─────────────────────────────────────────────────────────────
 
 function translateRole(role: string) {
     const map: Record<string, string> = {
-        owner: 'ProprietÃ¡rio',
+        owner: 'Proprietário',
         admin: 'Administrador',
         manager: 'Gerente',
         stock: 'Estoque',
@@ -99,30 +99,30 @@ function translateRole(role: string) {
 
 const ACTION_LABELS: Record<string, string> = {
   session_store_selected: 'Loja acessada',
-  session_disconnected: 'SessÃ£o encerrada',
+  session_disconnected: 'Sessão encerrada',
   session_login: 'Login realizado',
   login: 'Login realizado',
   logout: 'Logout realizado',
-  idle_timeout: 'SessÃ£o encerrada por inatividade',
-  store_idle_timeout_settings_updated: 'ConfiguraÃ§Ã£o de inatividade alterada',
-  store_role_permission_template_updated: 'PermissÃ£o por papel alterada',
-  role_permission_updated: 'PermissÃ£o por papel alterada',
-  profile_request_created: 'SolicitaÃ§Ã£o de alteraÃ§Ã£o cadastral criada',
-  profile_request_reviewed: 'SolicitaÃ§Ã£o de alteraÃ§Ã£o cadastral revisada',
-  profile_request_approved: 'SolicitaÃ§Ã£o de alteraÃ§Ã£o cadastral aprovada',
-  profile_request_rejected: 'SolicitaÃ§Ã£o de alteraÃ§Ã£o cadastral rejeitada',
-  profile_request_cancelled: 'SolicitaÃ§Ã£o de alteraÃ§Ã£o cadastral cancelada',
-  profile_request_applied: 'AlteraÃ§Ã£o cadastral aplicada',
-  profile_request_approved_and_applied: 'AlteraÃ§Ã£o cadastral aprovada e aplicada',
-  profile_request_member_confirmed: 'AlteraÃ§Ã£o cadastral confirmada pelo usuÃ¡rio',
+  idle_timeout: 'Sessão encerrada por inatividade',
+  store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
+  store_role_permission_template_updated: 'Permissão por papel alterada',
+  role_permission_updated: 'Permissão por papel alterada',
+  profile_request_created: 'Solicitação de alteração cadastral criada',
+  profile_request_reviewed: 'Solicitação de alteração cadastral revisada',
+  profile_request_approved: 'Solicitação de alteração cadastral aprovada',
+  profile_request_rejected: 'Solicitação de alteração cadastral rejeitada',
+  profile_request_cancelled: 'Solicitação de alteração cadastral cancelada',
+  profile_request_applied: 'Alteração cadastral aplicada',
+  profile_request_approved_and_applied: 'Alteração cadastral aprovada e aplicada',
+  profile_request_member_confirmed: 'Alteração cadastral confirmada pelo usuário',
 };
 const PROFILE_REQUEST_TYPE_LABELS: Record<string, string> = {
-  name_change: 'AlteraÃ§Ã£o de nome',
-  cpf_change: 'AlteraÃ§Ã£o de CPF',
-  birth_date_change: 'AlteraÃ§Ã£o de data de nascimento',
-  contact_change: 'AlteraÃ§Ã£o de contato',
-  address_change: 'AlteraÃ§Ã£o de endereÃ§o',
-  additional_info_change: 'AlteraÃ§Ã£o de informaÃ§Ã£o adicional',
+  name_change: 'Alteração de nome',
+  cpf_change: 'Alteração de CPF',
+  birth_date_change: 'Alteração de data de nascimento',
+  contact_change: 'Alteração de contato',
+  address_change: 'Alteração de endereço',
+  additional_info_change: 'Alteração de informação adicional',
 };
 
 const PROFILE_REQUEST_STATUS_LABELS: Record<string, string> = {
@@ -132,8 +132,8 @@ const PROFILE_REQUEST_STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelada',
   applied: 'Aplicada',
   reviewed: 'Revisada',
-  awaiting_member_confirmation: 'Aguardando confirmaÃ§Ã£o do usuÃ¡rio',
-  correction_requested: 'CorreÃ§Ã£o solicitada',
+  awaiting_member_confirmation: 'Aguardando confirmação do usuário',
+  correction_requested: 'Correção solicitada',
 };
 
 const PROFILE_FIELD_LABELS: Record<string, string> = {
@@ -154,7 +154,7 @@ const PROFILE_FIELD_LABELS: Record<string, string> = {
   city: 'Cidade',
   state: 'Estado',
   zip_code: 'CEP',
-  blood_type: 'Tipo sanguÃ­neo',
+  blood_type: 'Tipo sanguíneo',
 };
 
 function humanizeTechnicalLabel(value: string, map: Record<string, string>) {
@@ -181,12 +181,12 @@ function translateProfileField(value: string) {
 
 function translateTechnicalText(value: string) {
   return value
-    .replace(/\bname_change\b/g, 'AlteraÃ§Ã£o de nome')
-    .replace(/\bcpf_change\b/g, 'AlteraÃ§Ã£o de CPF')
-    .replace(/\bbirth_date_change\b/g, 'AlteraÃ§Ã£o de data de nascimento')
-    .replace(/\bcontact_change\b/g, 'AlteraÃ§Ã£o de contato')
-    .replace(/\baddress_change\b/g, 'AlteraÃ§Ã£o de endereÃ§o')
-    .replace(/\badditional_info_change\b/g, 'AlteraÃ§Ã£o de informaÃ§Ã£o adicional')
+    .replace(/\bname_change\b/g, 'Alteração de nome')
+    .replace(/\bcpf_change\b/g, 'Alteração de CPF')
+    .replace(/\bbirth_date_change\b/g, 'Alteração de data de nascimento')
+    .replace(/\bcontact_change\b/g, 'Alteração de contato')
+    .replace(/\baddress_change\b/g, 'Alteração de endereço')
+    .replace(/\badditional_info_change\b/g, 'Alteração de informação adicional')
     .replace(/\bapplied\b/g, 'Aplicada')
     .replace(/\bapproved\b/g, 'Aprovada')
     .replace(/\brejected\b/g, 'Rejeitada')
@@ -218,7 +218,7 @@ function getDetailText(details: Record<string, unknown>, key: string) {
 
 function formatBooleanText(value: unknown) {
   if (value === true || value === 'true') return 'Sim';
-  if (value === false || value === 'false') return 'NÃ£o';
+  if (value === false || value === 'false') return 'Não';
   return null;
 }
 
@@ -236,14 +236,14 @@ function formatMyHistoryDetails(log: {
 
     return [
       storeName ? `Loja acessada: ${storeName}` : null,
-      role ? `FunÃ§Ã£o: ${translateRole(String(role))}` : null,
-    ].filter(Boolean).join(' â€¢ ');
+      role ? `Função: ${translateRole(String(role))}` : null,
+    ].filter(Boolean).join(' • ');
   }
 
   if (action === 'session_disconnected') {
     return (
       String(details.description || '') ||
-      'SessÃ£o encerrada automaticamente.'
+      'Sessão encerrada automaticamente.'
     );
   }
 
@@ -252,9 +252,9 @@ function formatMyHistoryDetails(log: {
     const minutes = details.idle_timeout_minutes;
 
     return [
-      `Encerramento por inatividade: ${enabled ? 'Sim' : 'NÃ£o'}`,
+      `Encerramento por inatividade: ${enabled ? 'Sim' : 'Não'}`,
       minutes ? `Tempo configurado: ${minutes} minutos` : null,
-    ].filter(Boolean).join(' â€¢ ');
+    ].filter(Boolean).join(' • ');
   }
 
   if (
@@ -308,31 +308,31 @@ function formatMyHistoryDetails(log: {
 
     const parts = [
       oldRole && newRole
-        ? `FunÃ§Ã£o anterior: ${translateRole(String(oldRole))}`
+        ? `Função anterior: ${translateRole(String(oldRole))}`
         : null,
 
       oldRole && newRole
-        ? `Nova funÃ§Ã£o: ${translateRole(String(newRole))}`
+        ? `Nova função: ${translateRole(String(newRole))}`
         : null,
 
       newCustomRole
-        ? `FunÃ§Ã£o personalizada: ${String(newCustomRole)}`
+        ? `Função personalizada: ${String(newCustomRole)}`
         : null,
 
       newBaseRole
-        ? `Base da funÃ§Ã£o: ${translateRole(String(newBaseRole))}`
+        ? `Base da função: ${translateRole(String(newBaseRole))}`
         : null,
 
       oldCustomRole
-        ? `FunÃ§Ã£o personalizada anterior: ${String(oldCustomRole)}`
+        ? `Função personalizada anterior: ${String(oldCustomRole)}`
         : null,
 
       customRoleCleared === 'Sim'
-        ? 'FunÃ§Ã£o personalizada removida automaticamente.'
+        ? 'Função personalizada removida automaticamente.'
         : null,
 
       clearIndividualOverrides
-        ? `PermissÃµes individuais limpas: ${clearIndividualOverrides}`
+        ? `Permissões individuais limpas: ${clearIndividualOverrides}`
         : null,
 
       actorName || actorEmail
@@ -394,8 +394,8 @@ function formatMyHistoryDetails(log: {
       status ? `Status: ${translateProfileRequestStatus(status)}` : null,
       valueChange,
       reason ? `Motivo: ${reason}` : null,
-      adminNotes ? `ObservaÃ§Ã£o do responsÃ¡vel: ${adminNotes}` : null,
-      memberFeedback ? `Resposta do usuÃ¡rio: ${memberFeedback}` : null,
+      adminNotes ? `Observação do responsável: ${adminNotes}` : null,
+      memberFeedback ? `Resposta do usuário: ${memberFeedback}` : null,
       description ? translateTechnicalText(description) : null,
     ].filter(Boolean).join('\n');
   }
@@ -410,7 +410,7 @@ function formatMyHistoryDetails(log: {
     reason ||
     note ||
     title ||
-    'Registro de atividade do usuÃ¡rio.'
+    'Registro de atividade do usuário.'
   );
 }
 
@@ -426,7 +426,7 @@ function formatDateTimeBR(value: string | Date) {
 }
 
 function getActionLabel(action: string | null | undefined): string {
-    if (!action) return 'AÃ§Ã£o desconhecida';
+    if (!action) return 'Ação desconhecida';
     return ACTION_LABELS[action] ?? action
         .replaceAll('_', ' ')
         .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -444,7 +444,7 @@ function getDisplayAction(item: { action?: string | null; display_action?: strin
   return getActionLabel(item.action || '');
 }
 
-// â”€â”€â”€ Card de item â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Card de item ─────────────────────────────────────────────────────────────
 
 function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
     const [expanded, setExpanded] = useState(false);
@@ -453,7 +453,7 @@ function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
     const severity = item.outcome === 'failure' ? 'high' : 'info';
     const sev = SEVERITY_CONFIG[severity] ?? SEVERITY_CONFIG.info;
 
-    // FormataÃ§Ã£o amigÃ¡vel do campo details
+    // Formatação amigÃ¡vel do campo details
     const descriptionText = useMemo(() => {
         return formatMyHistoryDetails(item);
     }, [item]);
@@ -536,7 +536,7 @@ function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
 
                         {!hasDescription && (
                             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500 italic">
-                                Sem descriÃ§Ã£o adicional.
+                                Sem descrição adicional.
                             </p>
                         )}
                     </div>
@@ -546,7 +546,7 @@ function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
     );
 }
 
-// â”€â”€â”€ PÃ¡gina principal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── PÃ¡gina principal ─────────────────────────────────────────────────────────
 
 export default function MyHistory() {
     const [items, setItems] = useState<MyVisibleActivityLog[]>([]);
@@ -579,8 +579,8 @@ export default function MyHistory() {
             });
             setItems(data);
         } catch (err: unknown) {
-            console.error('Erro ao carregar histÃ³rico:', err);
-            setError('NÃ£o foi possÃ­vel carregar o histÃ³rico. Tente novamente.');
+            console.error('Erro ao carregar histórico:', err);
+            setError('Não foi possível carregar o histórico. Tente novamente.');
         } finally {
             setLoading(false);
         }
@@ -614,9 +614,9 @@ export default function MyHistory() {
     if (loading) {
         return (
             <PageContainer
-                title="Meu HistÃ³rico"
+                title="Meu Histórico"
                 subtitle="Acompanhe os registros e eventos relacionados ao seu perfil nesta loja."
-                category="ConfiguraÃ§Ãµes"
+                category="Configurações"
                 icon={<History size={28} className="text-[#21A896]" />}
                 flat
             >
@@ -649,9 +649,9 @@ export default function MyHistory() {
 
     return (
         <PageContainer
-            title="Meu HistÃ³rico"
+            title="Meu Histórico"
             subtitle="Acompanhe os registros e eventos relacionados ao seu perfil nesta loja."
-            category="ConfiguraÃ§Ãµes"
+            category="Configurações"
             icon={<History size={28} className="text-[#21A896]" />}
             flat
         >
@@ -661,7 +661,7 @@ export default function MyHistory() {
                     <div className="mb-6 flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 text-red-700 dark:text-red-400">
                         <ShieldAlert size={18} className="shrink-0 mt-0.5" />
                         <div>
-                            <p className="font-bold text-sm">Erro ao carregar histÃ³rico</p>
+                            <p className="font-bold text-sm">Erro ao carregar histórico</p>
                             <p className="text-sm mt-0.5">{error}</p>
                             <button
                                 type="button"
@@ -711,7 +711,7 @@ export default function MyHistory() {
 
                             <div>
                                 <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
-                                    AtÃ©
+                                    Até
                                 </label>
                                 <input
                                     type="date"
@@ -724,7 +724,7 @@ export default function MyHistory() {
 
                             <div>
                                 <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1">
-                                    AÃ§Ã£o
+                                    Ação
                                 </label>
                                 <input
                                     type="text"
@@ -795,7 +795,7 @@ export default function MyHistory() {
                                 Nenhum resultado para os filtros aplicados
                             </p>
                             <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">
-                                Ajuste o perÃ­odo ou o tipo para visualizar outros registros.
+                                Ajuste o período ou o tipo para visualizar outros registros.
                             </p>
                         </div>
                     </div>
@@ -828,7 +828,7 @@ export default function MyHistory() {
 
                         {items.length >= 100 && (
                             <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
-                                Exibindo os Ãºltimos 100 registros.
+                                Exibindo os últimos 100 registros.
                             </p>
                         )}
                     </>
