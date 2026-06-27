@@ -46,3 +46,6 @@ dist-ssr/
 
 # AI
 .agent/
+
+# Scripts locais
+dump_schema.bat
