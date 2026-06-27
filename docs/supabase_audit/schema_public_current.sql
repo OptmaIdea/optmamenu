@@ -18081,14 +18081,19 @@ CREATE OR REPLACE FUNCTION "public"."get_user_display_identity"("p_user_id" "uui
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'auth'
     AS $$
-  SELECT
-    COALESCE(p.name, au.raw_user_meta_data->>'name', au.email)::text AS user_name,
-    au.email::text AS user_email
-  FROM auth.users au
-  LEFT JOIN public.profiles p
-    ON p.id = au.id
-  WHERE au.id = p_user_id
-  LIMIT 1;
+    SELECT
+        COALESCE(
+            NULLIF(btrim(p.name), ''),
+            NULLIF(btrim(au.raw_user_meta_data->>'full_name'), ''),
+            NULLIF(btrim(au.raw_user_meta_data->>'name'), ''),
+            au.email
+        )::text AS user_name,
+        au.email::text AS user_email
+    FROM auth.users au
+    LEFT JOIN public.profiles p
+        ON p.id = au.id
+    WHERE au.id = p_user_id
+    LIMIT 1;
 $$;
 
 
