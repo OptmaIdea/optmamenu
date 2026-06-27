@@ -17,6 +17,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - Fase 9.13.1H — Pedido Online e Aparência da Loja em Configurações concluídos funcionalmente
 - Fase 9.13.1I — Configurações de Mensagens e Atendimento concluídas funcionalmente
 - Fase 9.13.1J — Ajustes finos de permissões personalizadas e realtime concluídos funcionalmente
+- Fase 9.13.1K — Labels amigáveis, histórico e login de função personalizada concluídos funcionalmente
 - Guia institucional OptmaIdea/OptmaMenu criado
 - Roadmap de mensagens, engajamento e atendente virtual criado
 - Documentação consolidada em andamento
@@ -38,6 +39,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md](./FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md)
 - [FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md](./FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md)
 - [FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md](./FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md)
+- [FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md](./FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md)
 - [CHECKLIST_NOVAS_PERMISSOES.md](./CHECKLIST_NOVAS_PERMISSOES.md)
 - [GUIA_SISTEMA_PERMISSOES_REALTIME.md](./GUIA_SISTEMA_PERMISSOES_REALTIME.md)
 - [PERMISSOES_USUARIOS.md](./PERMISSOES_USUARIOS.md)
@@ -99,6 +101,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
+- FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md
 - CHECKLIST_NOVAS_PERMISSOES.md
 - GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md
 - OPERATIONS_PLAYBOOK.md
@@ -114,6 +117,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
+- FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md
 - CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
@@ -130,6 +134,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
+- FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 
 ### Operação / compras
@@ -148,6 +153,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md
 - FASE_9_13_1I_MENSAGENS_CONFIGURACOES.md
 - FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md
+- FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md
 - CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - RPCS_AND_VIEWS.md
@@ -169,10 +175,12 @@ A frente `9.13.1I` foi concluída funcionalmente em `FASE_9_13_1I_MENSAGENS_ATEN
 
 A frente `9.13.1J` foi concluída funcionalmente em `FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md`, fechando ajustes de funções personalizadas, realtime, precedência de permissões, fallback de identidade de usuário e origem do nome exibido em Permissões por usuário.
 
+A frente `9.13.1K` foi concluída funcionalmente em `FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md`, fechando labels amigáveis do Meu Histórico, ajuste de encoding textual e exibição de função personalizada na escolha de loja/login via `get_login_store_options`.
+
 O checklist `CHECKLIST_NOVAS_PERMISSOES.md` consolida a regra operacional: toda nova permissão deve ser criada no catálogo/templates, versionada via `store_permission_versions` e também registrada em `ROLE_PERMISSION_TREE` e nos agrupamentos visuais correspondentes.
 
 O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
 
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
-A próxima ação recomendada é tratar em rodada própria o refinamento de labels amigáveis no Meu Histórico e seguir com o fechamento documental da Fase 9, sem misturar com Advisors/RLS.
+A próxima ação recomendada é seguir com o fechamento documental amplo da Fase 9 e, em rodada própria, tratar Advisors/RLS sem misturar com fechamento funcional.
