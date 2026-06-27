@@ -2,11 +2,11 @@
 
 ## Status
 
-**Funções personalizadas e realtime validados; origem do nome em permissões por usuário documentada.**
+**Concluída funcionalmente.**
 
-Esta frente nasce após o fechamento funcional da 9.13.1I, durante os testes de Mensagens e Atendimento em Configurações.
+Esta frente nasceu após o fechamento funcional da 9.13.1I, durante os testes de Mensagens e Atendimento em Configurações.
 
-A etapa não altera o escopo funcional da 9.13.1I. O objetivo é refinar o comportamento de Segurança, Funções personalizadas, Permissões por usuário e realtime entre usuários.
+A etapa refinou o comportamento de Segurança, Funções personalizadas, Permissões por usuário e realtime entre usuários, sem alterar o escopo funcional da 9.13.1I.
 
 ---
 
@@ -22,9 +22,22 @@ Corrigir e consolidar:
 
 ---
 
-## Achados iniciais
+## Resultado funcional
 
-### 1. Realtime do usuário afetado
+A frente foi concluída com:
+
+- função personalizada refletindo em tempo real nos usuários vinculados;
+- precedência correta entre permissão individual, função personalizada e papel base;
+- correção de `get_effective_store_permissions` para considerar `store_custom_roles.permissions`;
+- correção de fallback de nome em `get_user_display_identity`;
+- validação do fluxo cadastral de alteração de nome;
+- documentação da origem real do nome em Permissões por usuário;
+- confirmação de que patches temporários não são necessários quando o ajuste já foi aplicado manualmente;
+- definição do padrão de uso seguro da integração Supabase neste ambiente.
+
+---
+
+## Realtime do usuário afetado
 
 O hook principal do usuário afetado é:
 
@@ -41,11 +54,11 @@ Isso confirma o padrão consolidado da 9.13:
 - o usuário afetado não deve depender de listener direto em `store_members`;
 - toda alteração relevante deve atualizar `store_permission_versions`.
 
-O diagnóstico SQL mostrou que existe atualização recente em `store_permission_versions` com reason `store_custom_roles:UPDATE`, então há versionamento acontecendo em alterações de `store_custom_roles`, provavelmente por trigger ou fluxo indireto.
+O diagnóstico SQL mostrou atualização em `store_permission_versions` com reason `store_custom_roles:UPDATE`, confirmando versionamento em alterações de `store_custom_roles`.
 
 ---
 
-### 2. Admin de permissões tem listeners próprios
+## Admin de permissões e listeners próprios
 
 O hook administrativo:
 
@@ -59,15 +72,15 @@ Atualmente escuta diretamente:
 
 Isso atualiza a visão administrativa da tela de Segurança, mas não substitui `store_permission_versions` para o usuário afetado.
 
-Direção recomendada:
+Direção consolidada:
 
 - manter `store_permission_versions` como fonte central para refresh efetivo de permissões;
-- avaliar se o admin hook também deve escutar `store_permission_versions` para padronização;
+- usar listeners administrativos apenas para atualizar a tela de Segurança;
 - evitar que a tela administrativa pareça atualizada enquanto o usuário afetado permanece com cache antigo.
 
 ---
 
-### 3. Funções personalizadas
+## Funções personalizadas
 
 Fluxos envolvidos:
 
@@ -82,14 +95,14 @@ Arquivos principais:
 - `src/pages/private/admin/settings/security/Security.tsx`;
 - `src/types/security.ts`.
 
-Durante os testes, foi observado que a função personalizada `Subgerente Nível I`, com base `Gerente`, não refletiu alteração de permissões como esperado.
+Durante os testes, foi observado que a função personalizada `Subgerente Nível I`, com base `Gerente`, não refletia alteração de permissões como esperado.
 
 O diagnóstico SQL confirmou:
 
 - `update_store_custom_role` grava `store_custom_roles.permissions` com o JSONB recebido em `p_permissions`;
-- a função `Subgerente Nível I` possui overrides salvos em `store_custom_roles.permissions`, incluindo permissões novas como `settings.messages.view=true` e `settings.messages.manage=true`;
-- existe versionamento recente em `store_permission_versions` para `store_custom_roles:UPDATE`;
-- a causa principal está em `get_effective_store_permissions`.
+- a função `Subgerente Nível I` possuía overrides salvos em `store_custom_roles.permissions`, incluindo permissões novas como `settings.messages.view=true` e `settings.messages.manage=true`;
+- existia versionamento recente em `store_permission_versions` para `store_custom_roles:UPDATE`;
+- a causa principal estava em `get_effective_store_permissions`.
 
 ---
 
@@ -107,7 +120,7 @@ considerava apenas:
 4. `store_role_permission_templates` do papel base;
 5. fallback negado.
 
-Ela **não consultava `store_members.custom_role_id`** e **não aplicava `store_custom_roles.permissions`**.
+Ela não consultava `store_members.custom_role_id` e não aplicava `store_custom_roles.permissions`.
 
 Consequência:
 
@@ -177,6 +190,13 @@ A validação confirmou:
 - ao retornar permissão individual para `Herdar`, volta a prevalecer a função personalizada;
 - console limpo.
 
+Exemplo validado:
+
+1. `Subgerente Nível I` define `Mensagens manage=false`.
+2. Permissão individual do usuário define `Mensagens manage=true`.
+3. Prevalece a permissão individual.
+4. Ao retornar a permissão individual para `Herdar`, volta a prevalecer a função personalizada.
+
 ---
 
 ## Observação sobre `assign_store_custom_role_to_member`
@@ -191,11 +211,11 @@ Esse comportamento está alinhado com o modelo de herança, desde que `get_effec
 
 ---
 
-### 4. Nome de colaborador caindo para e-mail
+## Nome de colaborador caindo para e-mail
 
 Em `Permissões por usuário`, foi observado:
 
-- Carlos Souza aparece pelo nome;
+- Carlos Souza aparecia pelo nome;
 - Henrique/Rick aparecia pelo e-mail.
 
 O diagnóstico mostrou:
@@ -267,6 +287,8 @@ Pendência futura:
 - criar uma rodada de refinamento visual/textual do **Meu Histórico**, traduzindo tipos, status e campos técnicos para labels amigáveis;
 - exemplos esperados: `name_change` → `Alteração de nome`; `applied` → `Aplicada`; `full_name`/`name` → `Nome completo`.
 
+Essa pendência não bloqueia o fechamento da 9.13.1J.
+
 ---
 
 ## Observação sobre arquivos `.patch`
@@ -279,6 +301,8 @@ Recomendação:
 
 - remover patches já aplicados manualmente para evitar confusão futura;
 - manter somente patches ainda pendentes de aplicação.
+
+Na conclusão desta frente, o patch de matriz em Funções personalizadas já não estava presente no repositório.
 
 ---
 
@@ -334,16 +358,33 @@ Quando houver ferramenta de aplicação de migration disponível na sessão, pod
 - hardening amplo de SQL;
 - alterações em módulos comerciais;
 - mudanças no modelo de Mensagens e Atendimento;
-- criação de novos grupos de permissões.
+- criação de novos grupos de permissões;
+- refinamento textual amplo do Meu Histórico.
 
 ---
 
-## Próximos passos técnicos
+## Pendências futuras registradas
 
-1. Confirmar se o snapshot atualizado foi commitado após a migration `20260627163000_fix_user_display_identity_full_name.sql`.
-2. Remover patches já aplicados manualmente, se ainda estiverem no repositório.
-3. Avaliar rodada futura de labels amigáveis no Meu Histórico.
-4. Fechar a 9.13.1J se build/console permanecerem limpos.
+- Refinar labels amigáveis no Meu Histórico:
+  - `name_change` → `Alteração de nome`;
+  - `applied` → `Aplicada`;
+  - `full_name`/`name` → `Nome completo`.
+- Atualizar `docs/RPCS_AND_VIEWS.md` com os detalhes completos das RPCs ajustadas, caso o patch documental ainda não tenha sido aplicado.
+
+---
+
+## Fechamento
+
+A 9.13.1J fica concluída funcionalmente como rodada de ajustes finos de permissões personalizadas e realtime.
+
+Foram corrigidos e validados:
+
+- cálculo efetivo de permissões com função personalizada;
+- realtime por `store_permission_versions`;
+- hierarquia de permissões individual > função personalizada > papel base;
+- fallback de identidade do usuário;
+- origem real do nome em Permissões por usuário;
+- fluxo cadastral de alteração de nome como caminho correto para ajustar nome oficial.
 
 ---
 
