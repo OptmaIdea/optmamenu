@@ -7,7 +7,13 @@ import { clearActiveStoreId, setActiveStoreId } from '@/utils/activeStore';
 import type { LoginStoreOption } from '@/types/security';
 import { markSessionAsActive } from '@/utils/sessionSecurity';
 
-function formatLoginRole(role: string | null | undefined): string {
+function formatLoginRole(option: LoginStoreOption): string {
+  const customRoleName = option.custom_role_name?.trim();
+
+  if (customRoleName) {
+    return customRoleName;
+  }
+
   const labels: Record<string, string> = {
     owner: 'Proprietário',
     admin: 'Administrador',
@@ -19,7 +25,7 @@ function formatLoginRole(role: string | null | undefined): string {
     viewer: 'Visualizador',
   };
 
-  return role ? labels[role] ?? role : 'Não definido';
+  return option.role ? labels[option.role] ?? option.role : 'Não definido';
 }
 
 export default function Login() {
@@ -328,7 +334,7 @@ export default function Login() {
                             {option.store_name}
                           </p>
                           <p className="text-sm font-bold text-brand-green flex items-center flex-wrap gap-2">
-                            <span>{formatLoginRole(option.role)}</span>
+                            <span>{formatLoginRole(option)}</span>
                             {isSuspended && (
                               <span className="rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-700 dark:bg-orange-900/50 dark:text-orange-200">
                                 Suspenso

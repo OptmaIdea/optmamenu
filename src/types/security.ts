@@ -260,6 +260,9 @@ export type LoginStoreOption = {
   store_slug: string | null;
   store_logo_url: string | null;
   role: string;
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
+  custom_role_base_role?: string | null;
   status: string;
   status_reason?: string | null;
   is_owner: boolean;
