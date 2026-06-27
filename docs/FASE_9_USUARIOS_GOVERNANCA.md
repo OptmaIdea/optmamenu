@@ -1,26 +1,72 @@
 # Fase 9 — Usuários, permissões, governança e segurança
 
+## Status
+
+**Fechamento funcional consolidado.**
+
+A Fase 9 consolidou a estrutura de usuários, colaboradores, papéis, permissões, segurança operacional, Meus Dados, Meu Histórico, solicitações cadastrais, funções personalizadas e governança de acesso do OptmaMenu.
+
+Esta documentação registra o fechamento funcional da fase. A rodada de **Advisors/RLS/hardening Supabase** permanece separada e deve ser tratada em frente própria, sem misturar com o fechamento funcional.
+
+---
+
 ## Objetivo da fase
 
-A Fase 9 consolida a estrutura de usuários do OptmaMenu, evoluindo o conceito de “usuário do sistema” para uma visão mais completa de membro, colaborador, prestador, responsável operacional e proprietário de loja.
+A Fase 9 evolui o conceito de “usuário do sistema” para uma visão mais completa de:
 
-Esta fase trata de:
+- membro de loja;
+- colaborador;
+- prestador;
+- responsável operacional;
+- administrador;
+- proprietário;
+- usuário com múltiplos vínculos.
+
+A fase trata de:
 
 - usuários e membros de loja;
 - separação entre dados globais do usuário e dados do vínculo com a loja;
-- permissões e papéis personalizados;
-- ações sensíveis;
-- onboarding;
-- avatar;
-- histórico do colaborador;
+- Meus Dados;
+- Meu Histórico;
 - solicitações cadastrais;
-- segurança/RLS/Advisors do Supabase.
+- avatar;
+- onboarding;
+- ocorrências de colaborador;
+- permissões por papel;
+- funções personalizadas;
+- permissões individuais por usuário;
+- ações sensíveis;
+- Configurações e Segurança;
+- realtime de permissões;
+- governança de alterações.
+
+---
+
+## Resultado funcional consolidado
+
+A fase deixa o OptmaMenu com:
+
+- rotas pessoais padronizadas para `/admin/my-profile` e `/admin/my-history`;
+- dados globais separados de dados por vínculo de loja;
+- fluxo de solicitações cadastrais com aprovação/rejeição/aplicação;
+- histórico pessoal visível ao colaborador;
+- permissões por papel;
+- funções personalizadas baseadas em papel;
+- permissões individuais que prevalecem sobre função personalizada;
+- função personalizada que prevalece sobre papel base;
+- realtime centralizado por `store_permission_versions`;
+- padrão `view=false` e `manage=false` consolidado;
+- Configurações e Segurança separadas no menu;
+- Configurações da Loja centralizada em abas;
+- Mensagens, Pedido Online e Aparência integrados a Configurações;
+- exibição de função personalizada na escolha de loja/login;
+- documentação de checklist para novas permissões.
 
 ---
 
 ## Separação entre `profiles` e `store_members`
 
-A Fase 9 consolidou uma separação essencial:
+A Fase 9 consolidou uma separação essencial.
 
 ### `profiles`
 
@@ -49,9 +95,10 @@ Exemplos:
 - status do vínculo;
 - informações adicionais;
 - histórico operacional;
-- permissões e ações sensíveis.
+- permissões e ações sensíveis;
+- função personalizada vinculada.
 
-Essa separação permite que a mesma pessoa seja, por exemplo, proprietária de uma loja e colaboradora remota em outra, usando dados distintos em cada contexto operacional.
+Essa separação permite que a mesma pessoa seja proprietária de uma loja e colaboradora em outra, usando dados e permissões distintos em cada contexto operacional.
 
 ---
 
@@ -65,7 +112,14 @@ Regras consolidadas:
 - solicitações cadastrais devem usar `member_id`, não apenas `store_id`;
 - usuário suspenso não acessa a loja suspensa;
 - usuário com loja própria continua podendo acessar sua própria loja;
-- avatar, apelido, histórico e dados de vínculo devem respeitar a loja ativa.
+- avatar, apelido, histórico e dados de vínculo devem respeitar a loja ativa;
+- a tela de escolha de loja/login deve priorizar função personalizada quando existir.
+
+Exemplo validado:
+
+- papel base: `manager` / Gerente;
+- função personalizada: `Subgerente Nível I`;
+- login deve exibir `Subgerente Nível I` quando `custom_role_name` estiver presente.
 
 ---
 
@@ -73,10 +127,12 @@ Regras consolidadas:
 
 A fase definiu ocorrências críticas para o ciclo do colaborador:
 
-- Admissão;
-- Suspensão;
-- Desligamento;
-- Alteração de função.
+- admissão;
+- suspensão;
+- desligamento;
+- reativação;
+- alteração de função/papel;
+- atribuição/remoção de função personalizada.
 
 ### Regras
 
@@ -86,13 +142,13 @@ A fase definiu ocorrências críticas para o ciclo do colaborador:
 - Alteração de função registra mudança de papel/cargo/função.
 - Suspensão e desligamento exigem motivo.
 - Reativação pode ocorrer sem motivo obrigatório.
-- O histórico deve preservar entradas, saídas, suspensões e reativações.
+- O histórico deve preservar entradas, saídas, suspensões, reativações e alterações de função.
 
 ---
 
 ## Meus Dados
 
-A tela `/admin/my-profile` passa a ser o local principal para cada usuário manter seus próprios dados de vínculo.
+A tela `/admin/my-profile` é o local principal para cada usuário manter seus próprios dados de vínculo.
 
 Todos os usuários autenticados podem acessar:
 
@@ -116,11 +172,21 @@ Dados documentais exigem solicitação justificada:
 - CPF;
 - data de nascimento.
 
+O fluxo validado para alterar nome completo foi:
+
+1. usuário solicita alteração em Meus Dados;
+2. responsável revisa/aprova;
+3. alteração é aplicada;
+4. Meu Histórico registra o evento;
+5. listas administrativas passam a exibir o nome cadastral atualizado.
+
 ---
 
 ## Avatar do usuário
 
-Foi criado o bucket: `user-avatars`
+Foi criado o bucket:
+
+- `user-avatars`
 
 Regras:
 
@@ -136,12 +202,12 @@ Regras:
 
 Foram adicionados os controles:
 
-- `onboarding_required`
-- `onboarding_completed_at`
+- `onboarding_required`;
+- `onboarding_completed_at`.
 
 Regra:
 
-- no primeiro acesso dentro da loja, o colaborador deve ser direcionado para preenchimento dos dados básicos obrigatórios.
+- no primeiro acesso dentro da loja, o colaborador pode ser direcionado para preenchimento dos dados básicos obrigatórios.
 
 ---
 
@@ -177,75 +243,13 @@ Regras:
 
 ---
 
-## Permissões
-
-A Fase 9 refinou permissões ligadas a:
-
-- usuários;
-- dados sensíveis;
-- informações adicionais;
-- informações adicionais sensíveis;
-- solicitações cadastrais;
-- papéis personalizados;
-- ações sensíveis;
-- permissões por papel;
-- permissões individuais;
-- configurações;
-- segurança;
-- realtime de permissões.
-
-Regra geral:
-
-- owner tem acesso integral;
-- admin depende de permissões;
-- manager, visualizador, estoquista e demais papéis não acessam Usuários por padrão;
-- todos acessam Meus Dados e Meu Histórico.
-
-### Hierarquia final de permissões
-
-1. Permissão individual em `store_members.permissions`.
-2. Função personalizada em `store_custom_roles.permissions`.
-3. Papel base em `store_role_permission_templates`.
-4. Fallback seguro `false`.
-5. Owner tem acesso integral.
-
-> Importante: o modelo atual usa JSONB em `store_members.permissions` para overrides individuais. A tabela `store_member_permissions` não faz parte do modelo ativo.
-
-### Realtime consolidado
-
-A sincronização em tempo real usa `store_permission_versions` como canal central.
-
-O hook `usePermissions` escuta apenas `store_permission_versions`, evitando listeners duplicados em tabelas de templates, funções e membros.
-
-### `view=false` e `manage=false`
-
-- `view=false`: oculta menu/aba/rota e bloqueia acesso direto.
-- `view=true` + `manage=false`: abre em modo leitura, com inputs desabilitados e ações ocultas.
-
-O componente padrão criado para isso é:
-
-- `src/components/security/PermissionLocked.tsx`
-
-### Configurações e Segurança
-
-Configurações e Segurança foram separadas no sidebar.
-
-- **Configurações** contém apenas “Configurações da Loja”, com abas internas.
-- **Segurança** contém “Senhas e Acesso”.
-
-`security.view` é porteira absoluta do módulo Segurança.
-
-`settings.view` é porteira do conjunto Configurações da Loja.
-
-Documentação detalhada: `docs/FASE_9_13_PERMISSOES_SEGURANCA.md`.
-
----
-
 ## Solicitações cadastrais
 
-Foi criada a tabela: `store_member_profile_change_requests`
+Foi criada a tabela:
 
-Ela registra solicitações de alteração de dados cadastrais feitas pelo próprio usuário.
+- `store_member_profile_change_requests`
+
+Ela registra solicitações de alteração de dados cadastrais feitas pelo próprio usuário ou propostas pela administração.
 
 Tipos principais:
 
@@ -261,13 +265,13 @@ Tipos principais:
 
 Status usados:
 
-- `pending`
-- `awaiting_member_confirmation`
-- `correction_requested`
-- `approved`
-- `rejected`
-- `cancelled`
-- `applied`
+- `pending`;
+- `awaiting_member_confirmation`;
+- `correction_requested`;
+- `approved`;
+- `rejected`;
+- `cancelled`;
+- `applied`.
 
 Fluxo prático consolidado:
 
@@ -332,82 +336,298 @@ Nova informação adicional continua sendo adicionada diretamente em Meus Dados.
 
 ## Meu Histórico
 
-A rota padronizada é: `/admin/my-history`
+A rota padronizada é:
 
-Ela substitui a rota anterior: `/admin/meu-historico`
+- `/admin/my-history`
 
-O histórico deve registrar:
+Ela substitui a rota anterior:
+
+- `/admin/meu-historico`
+
+O histórico registra:
 
 - admissão;
 - suspensão;
 - desligamento;
 - alteração de função;
+- atribuição/remoção de função personalizada;
 - solicitações cadastrais;
 - aprovação/rejeição/cancelamento;
 - alterações aplicadas;
 - antes/depois;
-- dados de login/logout quando implementados.
+- dados de login/logout quando disponíveis;
+- eventos pessoais visíveis ao colaborador.
 
-### Pendência validada para próxima etapa
+A frente `9.13.1K` refinou labels amigáveis para evitar termos técnicos como:
 
-A alteração de função/papel já reflete em tempo real no sistema, mas ainda deve aparecer no Meu Histórico do usuário afetado com:
+- `name_change`;
+- `applied`;
+- `full_name`;
+- `name`.
 
-- função anterior;
-- nova função;
-- responsável pela alteração;
-- motivo;
-- data/hora;
-- loja.
+Diretriz:
 
-O andamento de solicitações cadastrais também deve aparecer no Meu Histórico do solicitante.
+- Meu Histórico deve ser compreensível para colaborador comum, não apenas para desenvolvedor.
+
+---
+
+## Permissões
+
+A Fase 9 refinou permissões ligadas a:
+
+- usuários;
+- dados sensíveis;
+- informações adicionais;
+- informações adicionais sensíveis;
+- solicitações cadastrais;
+- papéis personalizados;
+- ações sensíveis;
+- permissões por papel;
+- permissões individuais;
+- configurações;
+- segurança;
+- realtime de permissões.
+
+Regra geral:
+
+- owner tem acesso integral;
+- admin depende de permissões;
+- manager, visualizador, estoquista e demais papéis não acessam Usuários por padrão;
+- todos acessam Meus Dados e Meu Histórico.
+
+### Hierarquia final de permissões
+
+1. Owner tem acesso integral.
+2. Permissão individual em `store_members.permissions`.
+3. Função personalizada em `store_custom_roles.permissions`.
+4. Papel base em `store_role_permission_templates`.
+5. Fallback seguro `false`.
+
+> Importante: o modelo atual usa JSONB em `store_members.permissions` para overrides individuais. A tabela `store_member_permissions` não faz parte do modelo ativo.
+
+### Realtime consolidado
+
+A sincronização em tempo real usa `store_permission_versions` como canal central.
+
+O hook `usePermissions` escuta apenas `store_permission_versions`, evitando listeners duplicados em tabelas de templates, funções e membros.
+
+### `view=false` e `manage=false`
+
+- `view=false`: oculta menu/aba/rota e bloqueia acesso direto.
+- `view=true` + `manage=false`: abre em modo leitura, com inputs desabilitados e ações ocultas.
+
+O componente padrão criado para isso é:
+
+- `src/components/security/PermissionLocked.tsx`
+
+---
+
+## Configurações e Segurança
+
+Configurações e Segurança foram separadas no sidebar.
+
+- **Configurações** contém apenas “Configurações da Loja”, com abas internas.
+- **Segurança** contém “Senhas e Acesso”.
+
+`security.view` é porteira absoluta do módulo Segurança.
+
+`settings.view` é porteira do conjunto Configurações da Loja.
+
+A Fase 9.13 e complementos fecharam:
+
+- permissões por papel;
+- funções personalizadas;
+- permissões por usuário;
+- ações sensíveis;
+- contexto de acesso;
+- histórico de atividades;
+- Meu Histórico;
+- Meus Dados;
+- Pedido Online em Configurações;
+- Aparência da Loja;
+- Mensagens e Atendimento;
+- login com função personalizada.
+
+Documentação detalhada:
+
+- `docs/FASE_9_13_PERMISSOES_SEGURANCA.md`;
+- `docs/FASE_9_13_1G_HISTORICO_PESSOAL.md`;
+- `docs/FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md`;
+- `docs/FASE_9_13_1I_MENSAGENS_ATENDIMENTO.md`;
+- `docs/FASE_9_13_1J_PERMISSOES_PERSONALIZADAS_REALTIME.md`;
+- `docs/FASE_9_13_1K_LABELS_AMIGAVEIS_MEU_HISTORICO.md`.
+
+---
+
+## Configurações comerciais fechadas dentro da Fase 9
+
+Embora Configurações seja transversal, as frentes 9.13.1H e 9.13.1I consolidaram itens importantes:
+
+- Pedido Online;
+- Aparência da Loja;
+- Mensagens e Atendimento;
+- permissões dedicadas por aba;
+- padrão `view/manage` para leitura/edição;
+- persistência de mensagens em `stores.config.message_settings`;
+- separação entre mensagens operacionais e marketing;
+- aviso LGPD/WhatsApp manual.
+
+---
+
+## Checklist obrigatório para novas permissões
+
+Toda nova permissão deve seguir o checklist consolidado:
+
+1. Criar/atualizar `store_permission_catalog`.
+2. Criar/atualizar `store_role_permission_templates`.
+3. Atualizar `store_permission_versions`.
+4. Ajustar `PERMISSION_GROUP_DEFINITIONS`, quando a UI depender de prefixos/grupos.
+5. Ajustar `ROLE_PERMISSION_TREE` com item, label, `accessPermission` e lista de permissões.
+6. Conferir ordenação visual manualmente.
+7. Ajustar tela/rota consumidora.
+8. Documentar em `docs/PERMISSOES_USUARIOS.md` e documentos da frente.
+
+Documento específico:
+
+- `docs/CHECKLIST_NOVAS_PERMISSOES.md`.
+
+---
+
+## Frentes de fechamento da Fase 9.13
+
+### 9.13 — Permissões, Segurança, Realtime e `manage=false`
+
+Status: concluída tecnicamente.
+
+Consolidou:
+
+- `view=false`;
+- `manage=false`;
+- `security.view` como porteira absoluta;
+- Configurações e Segurança separadas;
+- `store_permission_versions` como canal central.
+
+### 9.13.1G — Histórico pessoal e auditoria de alterações
+
+Status: concluída funcionalmente.
+
+Consolidou:
+
+- Meu Histórico;
+- eventos pessoais;
+- sessões;
+- alteração de função;
+- solicitações cadastrais;
+- ocorrências visíveis ao colaborador.
+
+### 9.13.1H — Pedido Online e Aparência
+
+Status: concluída funcionalmente.
+
+Consolidou:
+
+- Pedido Online em Configurações;
+- Aparência da Loja;
+- permissões dedicadas;
+- persistência validada;
+- snapshot Supabase atualizado.
+
+### 9.13.1I — Mensagens e Atendimento
+
+Status: concluída funcionalmente.
+
+Consolidou:
+
+- Mensagens operacionais;
+- texto de consentimento;
+- templates de atendimento;
+- OptmaSMSGate;
+- permissões `settings.messages.view/manage`;
+- separação entre mensagens operacionais e marketing.
+
+### 9.13.1J — Funções personalizadas, realtime e identidade
+
+Status: concluída funcionalmente.
+
+Consolidou:
+
+- função personalizada refletindo em tempo real;
+- precedência `individual > função personalizada > papel base`;
+- `get_effective_store_permissions` considerando `custom_role_id`;
+- fallback de identidade com `full_name`;
+- origem real do nome em Permissões por usuário.
+
+### 9.13.1K — Labels amigáveis, histórico e login
+
+Status: concluída funcionalmente.
+
+Consolidou:
+
+- labels amigáveis no Meu Histórico;
+- cuidado com encoding textual;
+- `get_login_store_options` retornando função personalizada;
+- login exibindo `Subgerente Nível I` em vez de apenas `Gerente` quando houver `custom_role_name`.
 
 ---
 
 ## Hardening Supabase / Advisors
 
-Foi feita uma rodada de segurança:
+A rodada de Advisors/RLS **não faz parte deste fechamento funcional**.
 
-- RLS crítico corrigido;
-- anon reduzido ao essencial público;
-- funções internas/triggers tratadas;
-- `search_path` tratado;
-- tabela legacy bloqueada;
-- funções públicas mantidas apenas quando necessárias para loja pública, pedido público ou OTP.
+Diretriz consolidada:
 
-O arquivo `docs/ADVISORS.md` foi revisado no fechamento da etapa 9.13.
+- não misturar fechamento funcional com hardening Supabase;
+- manter `docs/ADVISORS.md` como documento de referência;
+- sempre desconsiderar o aviso `Leaked Password Protection Disabled`;
+- tratar RLS, policies e WARNs de funções em rodada própria.
 
-Pontos atuais de atenção:
+Pontos de atenção conhecidos ficam para rodada específica:
 
-- `store_permission_catalog` aparece com RLS desabilitado;
-- tabela backup `store_role_permission_templates_backup_910c` aparece com RLS desabilitado;
-- há WARNs de funções `SECURITY DEFINER` executáveis por `anon`.
-
-Esses pontos ficam para hardening por módulo antes da publicação/testes reais.
+- `store_permission_catalog` com RLS desabilitado;
+- tabela backup `store_role_permission_templates_backup_910c` com RLS desabilitado;
+- WARNs de funções `SECURITY DEFINER` executáveis por `anon`.
 
 ---
 
-## Estado ao final da Fase 9.13
+## Estado ao final da Fase 9 funcional
 
-Concluído tecnicamente:
+Concluído funcionalmente:
 
+- usuários e vínculos multilojas;
+- Meus Dados;
+- Meu Histórico;
+- solicitações cadastrais;
+- avatar;
+- ocorrências de colaborador;
 - permissões por papel;
 - funções personalizadas;
-- permissões por usuário;
+- permissões individuais;
+- ações sensíveis;
 - realtime de permissões;
 - padrão `view/manage`;
 - separação Configurações x Segurança;
-- fallback seguro para `/admin/my-profile`;
 - Configurações da Loja centralizadas em abas;
+- Pedido Online;
+- Aparência da Loja;
+- Mensagens e Atendimento;
+- login com função personalizada;
+- documentação operacional das frentes 9.13.1G a 9.13.1K.
+
+Validações registradas pelo usuário:
+
+- build passou;
 - console limpo;
-- build validado pelo usuário.
+- permissões por usuário funcionando;
+- funções personalizadas funcionando em tempo real;
+- hierarquia de permissões funcionando;
+- login exibindo função personalizada;
+- snapshot Supabase atualizado após migrations.
 
-Próxima etapa recomendada:
+---
 
-**9.13.1G — Histórico pessoal e auditoria de alterações**
+## Próxima etapa recomendada
 
-Objetivo:
-
-- registrar alteração de função no Meu Histórico;
-- registrar solicitações cadastrais no Meu Histórico;
-- revisar eventos de auditoria sensíveis;
-- manter permissões e dados sensíveis protegidos.
+1. Revisar se `docs/RPCS_AND_VIEWS.md` está completo com todas as RPCs alteradas nas frentes 9.13.1J e 9.13.1K.
+2. Atualizar eventuais documentos de índice/estrutura, se necessário.
+3. Abrir rodada separada de Advisors/RLS/hardening Supabase.
+4. Só depois avançar para novos módulos grandes.
