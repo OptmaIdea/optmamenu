@@ -54,6 +54,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - [GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md](./GUIA_OPERACIONAL_ESTOQUE_MULTILOCAL.md)
 - [DATA_DICTIONARY.md](./DATA_DICTIONARY.md)
 - [RPCS_AND_VIEWS.md](./RPCS_AND_VIEWS.md)
+- [RPCS_AND_VIEWS_FASE_9_13_COMPLEMENTOS.md](./RPCS_AND_VIEWS_FASE_9_13_COMPLEMENTOS.md)
 - [RLS_AND_SECURITY.md](./RLS_AND_SECURITY.md)
 - [OPERATIONS_PLAYBOOK.md](./OPERATIONS_PLAYBOOK.md)
 
@@ -125,6 +126,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 
 - DATA_DICTIONARY.md
 - RPCS_AND_VIEWS.md
+- RPCS_AND_VIEWS_FASE_9_13_COMPLEMENTOS.md
 - RLS_AND_SECURITY.md
 - ADVISORS.md
 - GUIA_SISTEMA_PERMISSOES_REALTIME.md
@@ -157,6 +159,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 - CHECKLIST_NOVAS_PERMISSOES.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
 - RPCS_AND_VIEWS.md
+- RPCS_AND_VIEWS_FASE_9_13_COMPLEMENTOS.md
 - DATA_DICTIONARY.md
 
 ## Fechamento atual
@@ -165,7 +168,7 @@ A Fase 8 Comercial está documentada em `FASE_8_COMERCIAL.md` e nos guias operac
 
 A Fase 9 está documentada em `FASE_9_USUARIOS_GOVERNANCA.md`, com foco em usuários, permissões, colaboradores, solicitações cadastrais, segurança e governança.
 
-A frente `9.13` de permissões e segurança foi consolidada em `FASE_9_13_PERMISSOES_SEGURANCA.md`, com realtime, regras de `view/manage`, separação entre Configurações e Segurança e documentação de RPCs em `RPCS_AND_VIEWS.md`.
+A frente `9.13` de permissões e segurança foi consolidada em `FASE_9_13_PERMISSOES_SEGURANCA.md`, com realtime, regras de `view/manage`, separação entre Configurações e Segurança e documentação de RPCs em `RPCS_AND_VIEWS.md` e `RPCS_AND_VIEWS_FASE_9_13_COMPLEMENTOS.md`.
 
 A frente `9.13.1G` foi concluída funcionalmente em `FASE_9_13_1G_HISTORICO_PESSOAL.md`, fechando o Meu Histórico como histórico pessoal de sessão, segurança, vínculo/função, solicitações cadastrais e ocorrências visíveis do colaborador.
 
@@ -183,4 +186,4 @@ O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missã
 
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
-A próxima ação recomendada é seguir com o fechamento documental amplo da Fase 9 e, em rodada própria, tratar Advisors/RLS sem misturar com fechamento funcional.
+A próxima ação recomendada é abrir uma rodada própria de Advisors/RLS/hardening Supabase, sem misturar com fechamento funcional ou novos módulos grandes.
