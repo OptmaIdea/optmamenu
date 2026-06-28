@@ -590,26 +590,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "SECURITY"
     ],
     "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
-    "detail": "Function `public.cancel_order(p_order_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/cancel_order`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
-    "metadata": {
-      "name": "cancel_order",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_order_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "authenticated_security_definer_function_executable_public_cancel_order_p_order_id uuid"
-  },
-  {
-    "name": "authenticated_security_definer_function_executable",
-    "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
     "detail": "Function `public.cancel_order_reservations(p_store_id uuid, p_order_id uuid, p_created_by uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/cancel_order_reservations`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
     "metadata": {
@@ -800,26 +780,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "security_definer": true
     },
     "cache_key": "authenticated_security_definer_function_executable_public_complete_my_store_member_onboarding_p_store_id uuid, p_internal_alias text, p_member_email text, p_member_phone text, p_member_mobile_phone text, p_member_whatsapp_phone text, p_member_zip_code text, p_member_address text, p_member_address_number text, p_member_complement text, p_member_district text, p_member_city text, p_member_state text"
-  },
-  {
-    "name": "authenticated_security_definer_function_executable",
-    "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
-    "detail": "Function `public.complete_order(p_order_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/complete_order`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
-    "metadata": {
-      "name": "complete_order",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_order_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "authenticated_security_definer_function_executable_public_complete_order_p_order_id uuid"
   },
   {
     "name": "authenticated_security_definer_function_executable",
