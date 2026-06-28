@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
-import { CartDrawer } from '@/pages/store/components/CartDrawer';
 
 export function StoreLayout({ children }: { children: React.ReactNode }) {
     const { items } = useCartStore();
@@ -9,15 +8,13 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="min-h-screen">
-            {/* StoreLayout now only provides the floating actions (WhatsApp, Cart) 
+            {/* StoreLayout now only provides the floating actions (WhatsApp, Cart)
                 The specific store header and content width are handled by the page components */}
 
             {/* Main Content Area */}
             <main className="transition-all duration-300">
                 {children}
             </main>
-
-            <CartDrawer />
 
             {/* Floating Action Buttons */}
             <div className="fixed bottom-6 right-4 z-40 flex flex-col gap-4 items-end">
