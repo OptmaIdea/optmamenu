@@ -5,7 +5,7 @@
 -- de funções antigas/auxiliares sem uso direto atual no frontend/admin.
 --
 -- Funções tratadas:
--- - public.update_store_identity_settings(uuid, text, text, text)
+-- - public.update_store_identity_settings(uuid, text, text, text, text, text, text, text, text, text, text, jsonb, jsonb, jsonb, text, text, text, text, text)
 -- - public.can_access_settings_section(uuid, text, boolean)
 -- - public.can_access_settings_section_v3(uuid, text, boolean)
 --
@@ -14,7 +14,27 @@
 
 BEGIN;
 
-REVOKE EXECUTE ON FUNCTION public.update_store_identity_settings(uuid, text, text, text)
+REVOKE EXECUTE ON FUNCTION public.update_store_identity_settings(
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb,
+  jsonb,
+  jsonb,
+  text,
+  text,
+  text,
+  text,
+  text
+)
 FROM PUBLIC, anon, authenticated;
 
 REVOKE EXECUTE ON FUNCTION public.can_access_settings_section(uuid, text, boolean)
@@ -23,7 +43,27 @@ FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.can_access_settings_section_v3(uuid, text, boolean)
 FROM PUBLIC, anon, authenticated;
 
-GRANT EXECUTE ON FUNCTION public.update_store_identity_settings(uuid, text, text, text)
+GRANT EXECUTE ON FUNCTION public.update_store_identity_settings(
+  uuid,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  text,
+  jsonb,
+  jsonb,
+  jsonb,
+  text,
+  text,
+  text,
+  text,
+  text
+)
 TO service_role;
 
 GRANT EXECUTE ON FUNCTION public.can_access_settings_section(uuid, text, boolean)
