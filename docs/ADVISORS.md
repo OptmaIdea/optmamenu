@@ -370,26 +370,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "SECURITY"
     ],
     "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
-    "detail": "Function `public.apply_purchase_document_to_default_location(p_purchase_document_id uuid, p_location_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/apply_purchase_document_to_default_location`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
-    "metadata": {
-      "name": "apply_purchase_document_to_default_location",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_purchase_document_id uuid, p_location_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "authenticated_security_definer_function_executable_public_apply_purchase_document_to_default_location_p_purchase_document_id uuid, p_location_id uuid"
-  },
-  {
-    "name": "authenticated_security_definer_function_executable",
-    "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
     "detail": "Function `public.assign_store_custom_role_to_member(p_member_id uuid, p_custom_role_id uuid, p_reason text, p_clear_individual_overrides boolean, p_create_occurrence boolean)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/assign_store_custom_role_to_member`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
     "metadata": {
@@ -2360,26 +2340,6 @@ SEMPRE DESCONSIDERE O AVISO Leaked Password Protection Disabled.
       "security_definer": true
     },
     "cache_key": "authenticated_security_definer_function_executable_public_is_store_owner_p_store_id uuid"
-  },
-  {
-    "name": "authenticated_security_definer_function_executable",
-    "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "SECURITY"
-    ],
-    "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
-    "detail": "Function `public.is_supplier_purchase_eligible(p_supplier_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/is_supplier_purchase_eligible`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
-    "metadata": {
-      "name": "is_supplier_purchase_eligible",
-      "schema": "public",
-      "language": "plpgsql",
-      "arguments": "p_supplier_id uuid",
-      "security_definer": true
-    },
-    "cache_key": "authenticated_security_definer_function_executable_public_is_supplier_purchase_eligible_p_supplier_id uuid"
   },
   {
     "name": "authenticated_security_definer_function_executable",
