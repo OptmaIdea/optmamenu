@@ -131,7 +131,12 @@ export default function DirectSalesPage() {
 
   if (loading) {
     return (
-      <PageContainer>
+      <PageContainer
+        title="Venda direta"
+        subtitle="Carregando produtos para venda presencial."
+        category="Comercial"
+        flat
+      >
         <div className="flex min-h-[320px] items-center justify-center">
           <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[#21A896]" />
         </div>
@@ -140,14 +145,18 @@ export default function DirectSalesPage() {
   }
 
   return (
-    <PageContainer>
+    <PageContainer
+      title="Venda direta"
+      subtitle="Registre venda presencial com baixa de estoque, cliente, caixa e fidelidade."
+      category="Comercial"
+      flat
+    >
       <div className="space-y-6">
         <div>
           <Link to="/admin/orders" className="text-sm text-gray-500 hover:text-gray-700">
             ← Voltar para pedidos
           </Link>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900 dark:text-white">Venda direta</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Fluxo mínimo para registrar venda presencial com baixa de estoque, cliente, caixa e fidelidade.
           </p>
         </div>
