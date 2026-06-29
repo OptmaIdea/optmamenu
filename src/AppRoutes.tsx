@@ -82,6 +82,7 @@ const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 
 // Commercial e Customer Section
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
+const DirectSalesPage = lazy(() => import('@/pages/private/admin/commercial/directSales/DirectSalesPage'));
 const Customers = lazy(() => import('@/pages/private/admin/customers/Customers'));
 const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
 const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
@@ -173,6 +174,14 @@ export default function AppRoutes() {
               element={
                 <RequirePermission permission="orders.view">
                   <Orders />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="/admin/direct-sales"
+              element={
+                <RequirePermission permission="orders.manage">
+                  <DirectSalesPage />
                 </RequirePermission>
               }
             />
