@@ -8955,15 +8955,16 @@ BEGIN
   v_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
 
   IF p_store_id IS NULL THEN
-    RAISE EXCEPTION 'store_id obrigatório';
+    RETURN jsonb_build_object('customer', null);
   END IF;
 
   IF NOT EXISTS (
     SELECT 1
     FROM public.stores s
     WHERE s.id = p_store_id
+      AND s.public_store_enabled = true
   ) THEN
-    RAISE EXCEPTION 'Loja inválida';
+    RETURN jsonb_build_object('customer', null);
   END IF;
 
   IF length(v_phone) < 10 OR length(v_phone) > 14 THEN
@@ -8979,6 +8980,7 @@ BEGIN
   FROM public.customers c
   WHERE c.phone = v_phone
     AND c.store_id = p_store_id
+    AND COALESCE(c.status, 'active') = 'active'
     AND c.password_hash IS NOT NULL
     AND c.password_hash = crypt(p_password, c.password_hash)
   LIMIT 1;
@@ -8987,11 +8989,21 @@ BEGIN
     RETURN jsonb_build_object('customer', null);
   END IF;
 
-  v_customer_json := to_jsonb(v_customer) - 'password_hash';
-
-  RETURN jsonb_build_object(
-    'customer', v_customer_json
+  v_customer_json := jsonb_build_object(
+    'id', v_customer.id,
+    'store_id', v_customer.store_id,
+    'full_name', v_customer.full_name,
+    'phone', v_customer.phone,
+    'is_whatsapp', COALESCE(v_customer.is_whatsapp, false),
+    'contact_preference', v_customer.contact_preference,
+    'loyalty_points', COALESCE(v_customer.loyalty_points, 0),
+    'loyalty_tier', COALESCE(v_customer.loyalty_tier, 'Bronze'),
+    'current_tier_id', v_customer.current_tier_id,
+    'loyalty_opt_in', COALESCE(v_customer.loyalty_opt_in, false),
+    'status', COALESCE(v_customer.status, 'active')
   );
+
+  RETURN jsonb_build_object('customer', v_customer_json);
 END;
 $$;
 
@@ -9634,17 +9646,66 @@ CREATE OR REPLACE FUNCTION "public"."extend_reservation"("p_order_id" "uuid", "p
     SET "search_path" TO 'public', 'pg_temp'
     AS $$
 DECLARE
-    v_found boolean;
+  v_order record;
+  v_minutes integer;
+  v_updated_count integer := 0;
 BEGIN
-    -- Check if reservation still exists
-    SELECT EXISTS(SELECT 1 FROM stock_reservations WHERE order_id = p_order_id) INTO v_found;
-    
-    IF NOT v_found THEN
-        RAISE EXCEPTION 'Reserva não encontrada ou já expirada. Não é possível prorrogar.';
+  IF p_order_id IS NULL THEN
+    RAISE EXCEPTION 'Pedido não informado.';
+  END IF;
+
+  v_minutes := COALESCE(p_minutes, 0);
+
+  IF v_minutes < 1 OR v_minutes > 120 THEN
+    RAISE EXCEPTION 'Tempo de prorrogação inválido. Informe entre 1 e 120 minutos.';
+  END IF;
+
+  SELECT
+    o.id,
+    o.store_id,
+    o.status,
+    o.order_code
+  INTO v_order
+  FROM public.orders o
+  WHERE o.id = p_order_id
+  LIMIT 1;
+
+  IF v_order.id IS NULL THEN
+    RAISE EXCEPTION 'Pedido não encontrado.';
+  END IF;
+
+  IF COALESCE(auth.role(), '') IN ('anon', 'authenticated') THEN
+    IF auth.uid() IS NULL THEN
+      RAISE EXCEPTION 'Usuário não autenticado.';
     END IF;
-    UPDATE stock_reservations
-    SET expires_at = GREATEST(expires_at, NOW()) + (p_minutes || ' minutes')::INTERVAL
-    WHERE order_id = p_order_id;
+
+    IF NOT public.is_store_member(v_order.store_id) THEN
+      RAISE EXCEPTION 'Acesso negado ao pedido informado.';
+    END IF;
+  END IF;
+
+  IF v_order.status::text NOT IN ('reserved', 'confirmed') THEN
+    RAISE EXCEPTION 'Apenas pedidos reservados ou confirmados podem ter reserva prorrogada. Status atual: %.', v_order.status;
+  END IF;
+
+  UPDATE public.stock_reservations sr
+  SET
+    expires_at = GREATEST(sr.expires_at, now()) + (v_minutes || ' minutes')::interval,
+    metadata = COALESCE(sr.metadata, '{}'::jsonb) || jsonb_build_object(
+      'extended_at', now(),
+      'extended_by', auth.uid(),
+      'extended_minutes', v_minutes,
+      'extended_by_function', 'extend_reservation'
+    )
+  WHERE sr.order_id = v_order.id
+    AND sr.store_id = v_order.store_id
+    AND sr.status = 'active';
+
+  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+  IF v_updated_count <= 0 THEN
+    RAISE EXCEPTION 'Reserva ativa não encontrada para o pedido informado.';
+  END IF;
 END;
 $$;
 
@@ -14396,7 +14457,6 @@ DECLARE
   v_program record;
   v_current_tier record;
   v_next_tier record;
-  v_transactions jsonb;
 BEGIN
   IF p_slug IS NULL OR length(trim(p_slug)) = 0 THEN
     RETURN jsonb_build_object('ok', false, 'error', 'missing_slug');
@@ -14420,14 +14480,12 @@ BEGIN
   END IF;
 
   SELECT
-    c.id,
-    c.full_name,
-    c.phone,
-    COALESCE(c.loyalty_points, 0) AS loyalty_points,
-    COALESCE(c.loyalty_tier, 'Bronze') AS loyalty_tier,
+    c.loyalty_points,
+    c.loyalty_tier,
     c.current_tier_id,
     c.loyalty_opt_in,
-    c.last_point_activity_at
+    c.last_point_activity_at,
+    c.phone
   INTO v_customer
   FROM public.customers c
   WHERE c.store_id = v_store_id
@@ -14436,7 +14494,7 @@ BEGIN
   ORDER BY c.created_at DESC
   LIMIT 1;
 
-  IF v_customer.id IS NULL THEN
+  IF v_customer.phone IS NULL THEN
     RETURN jsonb_build_object(
       'ok', true,
       'found', false,
@@ -14486,42 +14544,11 @@ BEGIN
   ORDER BY ft.min_points ASC
   LIMIT 1;
 
-  SELECT COALESCE(
-    jsonb_agg(
-      jsonb_build_object(
-        'id', lt.id,
-        'type', lt.type,
-        'points', lt.points,
-        'description', lt.description,
-        'order_id', lt.order_id,
-        'created_at', lt.created_at
-      )
-      ORDER BY lt.created_at DESC
-    ),
-    '[]'::jsonb
-  )
-  INTO v_transactions
-  FROM (
-    SELECT
-      lt.id,
-      lt.type,
-      lt.points,
-      lt.description,
-      lt.order_id,
-      lt.created_at
-    FROM public.loyalty_transactions lt
-    WHERE lt.customer_id = v_customer.id
-    ORDER BY lt.created_at DESC
-    LIMIT 10
-  ) lt;
-
   RETURN jsonb_build_object(
     'ok', true,
     'found', true,
     'loyalty', jsonb_build_object(
       'customer', jsonb_build_object(
-        'id', v_customer.id,
-        'name', v_customer.full_name,
         'phone_last4', right(v_customer.phone, 4),
         'loyalty_opt_in', COALESCE(v_customer.loyalty_opt_in, false),
         'last_point_activity_at', v_customer.last_point_activity_at
@@ -14558,7 +14585,7 @@ BEGIN
           'position', v_next_tier.position
         )
       END,
-      'recent_transactions', v_transactions
+      'recent_transactions', '[]'::jsonb
     )
   );
 END;
@@ -15911,6 +15938,7 @@ CREATE OR REPLACE FUNCTION "public"."get_store_by_slug"("p_slug" "text") RETURNS
     s.config
   FROM public.stores s
   WHERE lower(trim(s.slug)) = lower(trim(p_slug))
+    AND s.public_store_enabled = true
   LIMIT 1;
 $$;
 
@@ -22108,19 +22136,20 @@ BEGIN
   v_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
 
   IF p_store_id IS NULL THEN
-    RAISE EXCEPTION 'store_id obrigatório';
+    RETURN jsonb_build_object('ok', false, 'message', 'Não foi possível enviar o código.');
   END IF;
 
   IF NOT EXISTS (
     SELECT 1
     FROM public.stores s
     WHERE s.id = p_store_id
+      AND s.public_store_enabled = true
   ) THEN
-    RAISE EXCEPTION 'Loja inválida';
+    RETURN jsonb_build_object('ok', false, 'message', 'Não foi possível enviar o código.');
   END IF;
 
   IF length(v_phone) < 10 OR length(v_phone) > 14 THEN
-    RAISE EXCEPTION 'Telefone inválido';
+    RETURN jsonb_build_object('ok', false, 'message', 'Telefone inválido.');
   END IF;
 
   SELECT COUNT(*)
@@ -28672,23 +28701,24 @@ BEGIN
   v_otp := regexp_replace(coalesce(p_otp, ''), '\D', '', 'g');
 
   IF p_store_id IS NULL THEN
-    RAISE EXCEPTION 'store_id obrigatório';
+    RETURN jsonb_build_object('isValid', false);
   END IF;
 
   IF NOT EXISTS (
     SELECT 1
     FROM public.stores s
     WHERE s.id = p_store_id
+      AND s.public_store_enabled = true
   ) THEN
-    RAISE EXCEPTION 'Loja inválida';
+    RETURN jsonb_build_object('isValid', false);
   END IF;
 
   IF length(v_phone) < 10 OR length(v_phone) > 14 THEN
-    RAISE EXCEPTION 'Telefone inválido';
+    RETURN jsonb_build_object('isValid', false);
   END IF;
 
   IF length(v_otp) <> 6 THEN
-    RAISE EXCEPTION 'OTP inválido';
+    RETURN jsonb_build_object('isValid', false);
   END IF;
 
   SELECT *
@@ -28729,11 +28759,24 @@ BEGIN
   FROM public.customers
   WHERE phone = v_phone
     AND store_id = p_store_id
+    AND COALESCE(status, 'active') = 'active'
   LIMIT 1;
 
   IF FOUND THEN
     v_is_new := false;
-    v_customer_json := to_jsonb(v_customer) - 'password_hash';
+    v_customer_json := jsonb_build_object(
+      'id', v_customer.id,
+      'store_id', v_customer.store_id,
+      'full_name', v_customer.full_name,
+      'phone', v_customer.phone,
+      'is_whatsapp', COALESCE(v_customer.is_whatsapp, false),
+      'contact_preference', v_customer.contact_preference,
+      'loyalty_points', COALESCE(v_customer.loyalty_points, 0),
+      'loyalty_tier', COALESCE(v_customer.loyalty_tier, 'Bronze'),
+      'current_tier_id', v_customer.current_tier_id,
+      'loyalty_opt_in', COALESCE(v_customer.loyalty_opt_in, false),
+      'status', COALESCE(v_customer.status, 'active')
+    );
 
     RETURN jsonb_build_object(
       'isValid', true,
@@ -34296,6 +34339,14 @@ CREATE POLICY "customers_self_update" ON "public"."customers" FOR UPDATE TO "aut
 
 
 
+CREATE POLICY "deny_direct_client_access_store_permission_catalog" ON "public"."store_permission_catalog" TO "authenticated", "anon" USING (false) WITH CHECK (false);
+
+
+
+CREATE POLICY "deny_direct_client_access_store_role_permission_templates_backu" ON "public"."store_role_permission_templates_backup_910c" TO "authenticated", "anon" USING (false) WITH CHECK (false);
+
+
+
 ALTER TABLE "public"."fidelity_programs" ENABLE ROW LEVEL SECURITY;
 
 
@@ -35025,6 +35076,9 @@ CREATE POLICY "store_payment_methods_owner_all" ON "public"."store_payment_metho
 
 
 
+ALTER TABLE "public"."store_permission_catalog" ENABLE ROW LEVEL SECURITY;
+
+
 ALTER TABLE "public"."store_permission_versions" ENABLE ROW LEVEL SECURITY;
 
 
@@ -35035,6 +35089,9 @@ CREATE POLICY "store_permission_versions_select_members" ON "public"."store_perm
 
 
 ALTER TABLE "public"."store_role_permission_templates" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."store_role_permission_templates_backup_910c" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "store_role_permission_templates_delete_owner" ON "public"."store_role_permission_templates" FOR DELETE TO "authenticated" USING ("public"."app_is_store_owner"("store_id"));
@@ -35333,7 +35390,6 @@ GRANT ALL ON FUNCTION "public"."add_stock_transfer_item"("p_transfer_id" "uuid",
 
 
 REVOKE ALL ON FUNCTION "public"."add_store_member_by_email"("p_store_id" "uuid", "p_email" "text", "p_role" "text", "p_status" "text", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."add_store_member_by_email"("p_store_id" "uuid", "p_email" "text", "p_role" "text", "p_status" "text", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."add_store_member_by_email"("p_store_id" "uuid", "p_email" "text", "p_role" "text", "p_status" "text", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb") TO "service_role";
 
 
@@ -35429,13 +35485,11 @@ GRANT ALL ON FUNCTION "public"."apply_inventory_location_delta"("p_store_id" "uu
 
 
 REVOKE ALL ON FUNCTION "public"."apply_order_loyalty_points_advanced"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."apply_order_loyalty_points_advanced"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."apply_order_loyalty_points_advanced"("p_order_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."apply_purchase_document_to_default_location"("p_purchase_document_id" "uuid", "p_location_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."apply_purchase_document_to_default_location"("p_purchase_document_id" "uuid", "p_location_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."apply_purchase_document_to_default_location"("p_purchase_document_id" "uuid", "p_location_id" "uuid") TO "service_role";
 
 
@@ -35482,31 +35536,26 @@ GRANT ALL ON FUNCTION "public"."build_campaign_recipients_preview_safe"("p_store
 
 
 REVOKE ALL ON FUNCTION "public"."calculate_order_loyalty_points_advanced"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."calculate_order_loyalty_points_advanced"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."calculate_order_loyalty_points_advanced"("p_order_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."can_access_security_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."can_access_security_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."can_access_security_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."can_access_security_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."can_access_security_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."can_access_security_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."can_access_security_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."can_access_security_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."can_access_settings_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."can_access_settings_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."can_access_settings_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."can_access_settings_section"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."can_access_settings_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."can_access_settings_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."can_access_settings_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."can_access_settings_section_v3"("p_store_id" "uuid", "p_section" "text", "p_manage" boolean) TO "service_role";
 
 
@@ -35518,7 +35567,6 @@ GRANT ALL ON FUNCTION "public"."can_access_transfer_item"("p_transfer_id" "uuid"
 
 
 REVOKE ALL ON FUNCTION "public"."can_manage_user_avatar"("p_target_user_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."can_manage_user_avatar"("p_target_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."can_manage_user_avatar"("p_target_user_id" "uuid") TO "service_role";
 
 
@@ -35534,20 +35582,17 @@ GRANT ALL ON FUNCTION "public"."cancel_expired_reservations"("p_store_id" "uuid"
 
 
 REVOKE ALL ON FUNCTION "public"."cancel_my_profile_change_request"("p_request_id" "uuid", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."cancel_my_profile_change_request"("p_request_id" "uuid", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."cancel_my_profile_change_request"("p_request_id" "uuid", "p_reason" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."cancel_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."cancel_order"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."cancel_order"("p_order_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."cancel_order_reservations"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."cancel_order_reservations"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."cancel_order_reservations"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "authenticated";
 
 
 
@@ -35565,13 +35610,11 @@ GRANT ALL ON FUNCTION "public"."cancel_purchase_document"("p_document_id" "uuid"
 
 REVOKE ALL ON FUNCTION "public"."cancel_reservation_only"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."cancel_reservation_only"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."cancel_reservation_only"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."cancel_reserved_public_order"("p_order_id" "uuid", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."cancel_reserved_public_order"("p_order_id" "uuid", "p_reason" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."cancel_reserved_public_order"("p_order_id" "uuid", "p_reason" "text") TO "anon";
 
 
 
@@ -35623,19 +35666,16 @@ GRANT ALL ON FUNCTION "public"."cleanup_old_messages"("p_store_id" "uuid") TO "a
 
 
 REVOKE ALL ON FUNCTION "public"."complete_confirmed_public_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."complete_confirmed_public_order"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."complete_confirmed_public_order"("p_order_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."complete_my_store_member_onboarding"("p_store_id" "uuid", "p_internal_alias" "text", "p_member_email" "text", "p_member_phone" "text", "p_member_mobile_phone" "text", "p_member_whatsapp_phone" "text", "p_member_zip_code" "text", "p_member_address" "text", "p_member_address_number" "text", "p_member_complement" "text", "p_member_district" "text", "p_member_city" "text", "p_member_state" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."complete_my_store_member_onboarding"("p_store_id" "uuid", "p_internal_alias" "text", "p_member_email" "text", "p_member_phone" "text", "p_member_mobile_phone" "text", "p_member_whatsapp_phone" "text", "p_member_zip_code" "text", "p_member_address" "text", "p_member_address_number" "text", "p_member_complement" "text", "p_member_district" "text", "p_member_city" "text", "p_member_state" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."complete_my_store_member_onboarding"("p_store_id" "uuid", "p_internal_alias" "text", "p_member_email" "text", "p_member_phone" "text", "p_member_mobile_phone" "text", "p_member_whatsapp_phone" "text", "p_member_zip_code" "text", "p_member_address" "text", "p_member_address_number" "text", "p_member_complement" "text", "p_member_district" "text", "p_member_city" "text", "p_member_state" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."complete_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."complete_order"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."complete_order"("p_order_id" "uuid") TO "service_role";
 
 
@@ -35648,7 +35688,6 @@ GRANT ALL ON FUNCTION "public"."confirm_order_payment"("p_order_id" "uuid") TO "
 
 REVOKE ALL ON FUNCTION "public"."confirm_order_stock"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."confirm_order_stock"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."confirm_order_stock"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "authenticated";
 
 
 
@@ -35659,14 +35698,12 @@ GRANT ALL ON FUNCTION "public"."confirm_purchase_document"("p_document_id" "uuid
 
 
 REVOKE ALL ON FUNCTION "public"."confirm_reserved_public_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."confirm_reserved_public_order"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."confirm_reserved_public_order"("p_order_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."confirm_reserved_stock"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."confirm_reserved_stock"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."confirm_reserved_stock"("p_store_id" "uuid", "p_order_id" "uuid", "p_created_by" "uuid") TO "authenticated";
 
 
 
@@ -35689,7 +35726,6 @@ GRANT ALL ON FUNCTION "public"."create_cashbook_entry"("p_store_id" "uuid", "p_t
 
 
 REVOKE ALL ON FUNCTION "public"."create_cashbook_entry_from_order"("p_order_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."create_cashbook_entry_from_order"("p_order_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_cashbook_entry_from_order"("p_order_id" "uuid") TO "service_role";
 
 
@@ -35701,13 +35737,11 @@ GRANT ALL ON FUNCTION "public"."create_manual_stock_adjustment"("p_product_id" "
 
 
 REVOKE ALL ON FUNCTION "public"."create_my_profile_change_request"("p_store_id" "uuid", "p_request_type" "text", "p_requested_changes" "jsonb", "p_reason" "text", "p_sensitive" boolean, "p_metadata" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."create_my_profile_change_request"("p_store_id" "uuid", "p_request_type" "text", "p_requested_changes" "jsonb", "p_reason" "text", "p_sensitive" boolean, "p_metadata" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_my_profile_change_request"("p_store_id" "uuid", "p_request_type" "text", "p_requested_changes" "jsonb", "p_reason" "text", "p_sensitive" boolean, "p_metadata" "jsonb") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."create_my_profile_change_request_v2"("p_member_id" "uuid", "p_request_type" "text", "p_requested_changes" "jsonb", "p_reason" "text", "p_sensitive" boolean, "p_metadata" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."create_my_profile_change_request_v2"("p_member_id" "uuid", "p_request_type" "text", "p_requested_changes" "jsonb", "p_reason" "text", "p_sensitive" boolean, "p_metadata" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_my_profile_change_request_v2"("p_member_id" "uuid", "p_request_type" "text", "p_requested_changes" "jsonb", "p_reason" "text", "p_sensitive" boolean, "p_metadata" "jsonb") TO "service_role";
 
 
@@ -35718,7 +35752,6 @@ GRANT ALL ON FUNCTION "public"."create_operational_timeline_event"("p_store_id" 
 
 
 REVOKE ALL ON FUNCTION "public"."create_order_with_reservation"("p_store_id" "uuid", "p_customer_name" "text", "p_customer_phone" "text", "p_items" "jsonb", "p_payment_method" "text", "p_total" numeric, "p_notes" "text", "p_metadata" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."create_order_with_reservation"("p_store_id" "uuid", "p_customer_name" "text", "p_customer_phone" "text", "p_items" "jsonb", "p_payment_method" "text", "p_total" numeric, "p_notes" "text", "p_metadata" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."create_order_with_reservation"("p_store_id" "uuid", "p_customer_name" "text", "p_customer_phone" "text", "p_items" "jsonb", "p_payment_method" "text", "p_total" numeric, "p_notes" "text", "p_metadata" "jsonb") TO "service_role";
 
 
@@ -35924,13 +35957,11 @@ GRANT ALL ON FUNCTION "public"."get_commercial_dashboard_safe"("p_store_id" "uui
 
 
 REVOKE ALL ON FUNCTION "public"."get_current_user_security_context"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_current_user_security_context"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_current_user_security_context"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."get_current_user_security_context_v2"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_current_user_security_context_v2"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_current_user_security_context_v2"() TO "service_role";
 
 
@@ -35959,7 +35990,7 @@ GRANT ALL ON FUNCTION "public"."get_dashboard_recent_orders"("p_store_id" "uuid"
 
 
 
-GRANT ALL ON FUNCTION "public"."get_default_admin_landing_path_v3"("p_store_id" "uuid") TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_default_admin_landing_path_v3"("p_store_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_default_admin_landing_path_v3"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_default_admin_landing_path_v3"("p_store_id" "uuid") TO "service_role";
 
@@ -35971,14 +36002,12 @@ GRANT ALL ON FUNCTION "public"."get_default_stock_location_id"("p_store_id" "uui
 
 
 
-GRANT ALL ON FUNCTION "public"."get_effective_store_member_permissions_v2"("p_store_id" "uuid", "p_member_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_effective_store_member_permissions_v2"("p_store_id" "uuid", "p_member_id" "uuid") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."get_effective_store_member_permissions_v2"("p_store_id" "uuid", "p_member_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_effective_store_member_permissions_v2"("p_store_id" "uuid", "p_member_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."get_effective_store_permissions"("p_store_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_effective_store_permissions"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_effective_store_permissions"("p_store_id" "uuid") TO "service_role";
 
 
@@ -35990,7 +36019,6 @@ GRANT ALL ON FUNCTION "public"."get_inventory_balance_for_update"("p_store_id" "
 
 
 REVOKE ALL ON FUNCTION "public"."get_inventory_criticality_summary"("p_store_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_inventory_criticality_summary"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_inventory_criticality_summary"("p_store_id" "uuid") TO "service_role";
 
 
@@ -36019,7 +36047,7 @@ GRANT ALL ON FUNCTION "public"."get_inventory_transit_by_store"("p_store_id" "uu
 
 
 
-GRANT ALL ON FUNCTION "public"."get_login_store_options"() TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_login_store_options"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_login_store_options"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_login_store_options"() TO "service_role";
 
@@ -36044,19 +36072,17 @@ GRANT ALL ON FUNCTION "public"."get_my_pending_store_invites"() TO "service_role
 
 
 REVOKE ALL ON FUNCTION "public"."get_my_store_memberships"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_my_store_memberships"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_my_store_memberships"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_my_visible_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_action" "text", "p_outcome" "text") TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_my_visible_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_action" "text", "p_outcome" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_my_visible_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_action" "text", "p_outcome" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_my_visible_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_action" "text", "p_outcome" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."get_my_visible_store_member_history"("p_store_id" "uuid", "p_limit" integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_my_visible_store_member_history"("p_store_id" "uuid", "p_limit" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_my_visible_store_member_history"("p_store_id" "uuid", "p_limit" integer) TO "service_role";
 
 
@@ -36236,7 +36262,6 @@ GRANT ALL ON FUNCTION "public"."get_store_config_admin"("p_store_id" "uuid") TO 
 
 
 REVOKE ALL ON FUNCTION "public"."get_store_member_access_timeline"("p_store_id" "uuid", "p_member_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_store_member_access_timeline"("p_store_id" "uuid", "p_member_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_member_access_timeline"("p_store_id" "uuid", "p_member_id" "uuid") TO "service_role";
 
 
@@ -36266,7 +36291,6 @@ GRANT ALL ON FUNCTION "public"."get_store_member_session_summary"("p_store_id" "
 
 
 REVOKE ALL ON FUNCTION "public"."get_store_members"("p_store_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_store_members"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_members"("p_store_id" "uuid") TO "service_role";
 
 
@@ -36278,30 +36302,27 @@ GRANT ALL ON FUNCTION "public"."get_store_members_for_permissions"("p_store_id" 
 
 
 REVOKE ALL ON FUNCTION "public"."get_store_members_v2"("p_store_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_store_members_v2"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_members_v2"("p_store_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_store_permission_catalog"() TO "anon";
-GRANT ALL ON FUNCTION "public"."get_store_permission_catalog"() TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."get_store_permission_catalog"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_store_permission_catalog"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_store_permission_matrix"("p_store_id" "uuid") TO "anon";
-GRANT ALL ON FUNCTION "public"."get_store_permission_matrix"("p_store_id" "uuid") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."get_store_permission_matrix"("p_store_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_store_permission_matrix"("p_store_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_store_permission_matrix_v3"("p_store_id" "uuid") TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_store_permission_matrix_v3"("p_store_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_store_permission_matrix_v3"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_permission_matrix_v3"("p_store_id" "uuid") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_store_security_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_user_filter" "text", "p_action_filter" "text", "p_outcome" "text") TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_store_security_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_user_filter" "text", "p_action_filter" "text", "p_outcome" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_store_security_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_user_filter" "text", "p_action_filter" "text", "p_outcome" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_security_activity_logs"("p_store_id" "uuid", "p_start_date" "date", "p_end_date" "date", "p_user_filter" "text", "p_action_filter" "text", "p_outcome" "text") TO "service_role";
 
@@ -36313,18 +36334,16 @@ GRANT ALL ON TABLE "public"."store_security_logs" TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."get_store_security_logs"("p_limit" integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_store_security_logs"("p_limit" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_security_logs"("p_limit" integer) TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."get_store_security_logs"("p_store_id" "uuid", "p_limit" integer, "p_date_from" "date", "p_date_to" "date", "p_user" "text", "p_action" "text", "p_outcome" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_store_security_logs"("p_store_id" "uuid", "p_limit" integer, "p_date_from" "date", "p_date_to" "date", "p_user" "text", "p_action" "text", "p_outcome" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_security_logs"("p_store_id" "uuid", "p_limit" integer, "p_date_from" "date", "p_date_to" "date", "p_user" "text", "p_action" "text", "p_outcome" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."get_store_security_settings"("p_store_id" "uuid") TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_store_security_settings"("p_store_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_store_security_settings"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_security_settings"("p_store_id" "uuid") TO "service_role";
 
@@ -36336,7 +36355,7 @@ GRANT ALL ON FUNCTION "public"."get_store_sensitive_action_matrix"("p_store_id" 
 
 
 
-GRANT ALL ON FUNCTION "public"."get_store_settings_center"("p_store_id" "uuid") TO "anon";
+REVOKE ALL ON FUNCTION "public"."get_store_settings_center"("p_store_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."get_store_settings_center"("p_store_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_store_settings_center"("p_store_id" "uuid") TO "service_role";
 
@@ -36403,7 +36422,6 @@ GRANT ALL ON FUNCTION "public"."get_transfer_prefill_preview"("p_product_id" "uu
 
 
 REVOKE ALL ON FUNCTION "public"."get_user_display_identity"("p_user_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_user_display_identity"("p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_display_identity"("p_user_id" "uuid") TO "service_role";
 
 
@@ -36415,7 +36433,6 @@ GRANT ALL ON FUNCTION "public"."get_user_store_by_id"("p_user_id" "uuid") TO "se
 
 
 REVOKE ALL ON FUNCTION "public"."get_user_store_id"() FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."get_user_store_id"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_user_store_id"() TO "service_role";
 
 
@@ -36491,13 +36508,11 @@ GRANT ALL ON FUNCTION "public"."is_store_owner"("p_store_id" "uuid") TO "service
 
 
 REVOKE ALL ON FUNCTION "public"."is_supplier_purchase_eligible"("p_supplier_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."is_supplier_purchase_eligible"("p_supplier_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."is_supplier_purchase_eligible"("p_supplier_id" "uuid") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."list_my_profile_change_requests"("p_store_id" "uuid", "p_limit" integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."list_my_profile_change_requests"("p_store_id" "uuid", "p_limit" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."list_my_profile_change_requests"("p_store_id" "uuid", "p_limit" integer) TO "service_role";
 
 
@@ -36515,7 +36530,6 @@ GRANT ALL ON FUNCTION "public"."list_store_custom_roles"("p_store_id" "uuid", "p
 
 
 REVOKE ALL ON FUNCTION "public"."list_store_profile_change_requests"("p_store_id" "uuid", "p_status" "text", "p_request_type" "text", "p_limit" integer, "p_offset" integer) FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."list_store_profile_change_requests"("p_store_id" "uuid", "p_status" "text", "p_request_type" "text", "p_limit" integer, "p_offset" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."list_store_profile_change_requests"("p_store_id" "uuid", "p_status" "text", "p_request_type" "text", "p_limit" integer, "p_offset" integer) TO "service_role";
 
 
@@ -36551,7 +36565,6 @@ GRANT ALL ON FUNCTION "public"."normalize_phone_digits"() TO "service_role";
 
 
 REVOKE ALL ON FUNCTION "public"."perform_manual_adjustment"("p_product_id" "uuid", "p_quantity_change" integer, "p_reason" "text", "p_password_input" "text", "p_user_id" "uuid") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."perform_manual_adjustment"("p_product_id" "uuid", "p_quantity_change" integer, "p_reason" "text", "p_password_input" "text", "p_user_id" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."perform_manual_adjustment"("p_product_id" "uuid", "p_quantity_change" integer, "p_reason" "text", "p_password_input" "text", "p_user_id" "uuid") TO "service_role";
 
 
@@ -36587,7 +36600,6 @@ GRANT ALL ON FUNCTION "public"."product_has_movements"("p_product_id" "uuid") TO
 
 
 REVOKE ALL ON FUNCTION "public"."propose_store_profile_change_request"("p_request_id" "uuid", "p_proposed_changes" "jsonb", "p_admin_notes" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."propose_store_profile_change_request"("p_request_id" "uuid", "p_proposed_changes" "jsonb", "p_admin_notes" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."propose_store_profile_change_request"("p_request_id" "uuid", "p_proposed_changes" "jsonb", "p_admin_notes" "text") TO "service_role";
 
 
@@ -36622,12 +36634,10 @@ GRANT ALL ON FUNCTION "public"."refresh_customer_segments_safe"("p_store_id" "uu
 
 REVOKE ALL ON FUNCTION "public"."register_stock_movement"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."register_stock_movement"() TO "service_role";
-GRANT ALL ON FUNCTION "public"."register_stock_movement"() TO "authenticated";
 
 
 
-GRANT ALL ON FUNCTION "public"."register_store_permission_v3"("p_permission_key" "text", "p_category" "text", "p_label" "text", "p_description" "text", "p_risk" "text", "p_macro_group" "text", "p_group_key" "text", "p_group_label" "text", "p_item_key" "text", "p_item_label" "text", "p_action_key" "text", "p_action_label" "text", "p_depends_on" "text", "p_access_permission_key" "text", "p_default_role_allowed" "jsonb", "p_ui_sort_order" integer, "p_show_in_permission_ui" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."register_store_permission_v3"("p_permission_key" "text", "p_category" "text", "p_label" "text", "p_description" "text", "p_risk" "text", "p_macro_group" "text", "p_group_key" "text", "p_group_label" "text", "p_item_key" "text", "p_item_label" "text", "p_action_key" "text", "p_action_label" "text", "p_depends_on" "text", "p_access_permission_key" "text", "p_default_role_allowed" "jsonb", "p_ui_sort_order" integer, "p_show_in_permission_ui" boolean) TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."register_store_permission_v3"("p_permission_key" "text", "p_category" "text", "p_label" "text", "p_description" "text", "p_risk" "text", "p_macro_group" "text", "p_group_key" "text", "p_group_label" "text", "p_item_key" "text", "p_item_label" "text", "p_action_key" "text", "p_action_label" "text", "p_depends_on" "text", "p_access_permission_key" "text", "p_default_role_allowed" "jsonb", "p_ui_sort_order" integer, "p_show_in_permission_ui" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."register_store_permission_v3"("p_permission_key" "text", "p_category" "text", "p_label" "text", "p_description" "text", "p_risk" "text", "p_macro_group" "text", "p_group_key" "text", "p_group_label" "text", "p_item_key" "text", "p_item_label" "text", "p_action_key" "text", "p_action_label" "text", "p_depends_on" "text", "p_access_permission_key" "text", "p_default_role_allowed" "jsonb", "p_ui_sort_order" integer, "p_show_in_permission_ui" boolean) TO "service_role";
 
 
@@ -36657,7 +36667,6 @@ GRANT ALL ON FUNCTION "public"."reset_store_master_password"("p_store_id" "uuid"
 
 
 REVOKE ALL ON FUNCTION "public"."reset_user_pin_with_password"("p_password" "text", "p_new_pin" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."reset_user_pin_with_password"("p_password" "text", "p_new_pin" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."reset_user_pin_with_password"("p_password" "text", "p_new_pin" "text") TO "service_role";
 
 
@@ -36669,7 +36678,6 @@ GRANT ALL ON FUNCTION "public"."resolve_permission_section_v3"("p_permission_cod
 
 
 REVOKE ALL ON FUNCTION "public"."respond_my_profile_change_request"("p_request_id" "uuid", "p_decision" "text", "p_member_feedback" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."respond_my_profile_change_request"("p_request_id" "uuid", "p_decision" "text", "p_member_feedback" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."respond_my_profile_change_request"("p_request_id" "uuid", "p_decision" "text", "p_member_feedback" "text") TO "service_role";
 
 
@@ -36687,13 +36695,11 @@ GRANT ALL ON FUNCTION "public"."return_stock_after_confirm"("p_store_id" "uuid",
 
 
 REVOKE ALL ON FUNCTION "public"."review_store_profile_change_request"("p_request_id" "uuid", "p_decision" "text", "p_admin_notes" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."review_store_profile_change_request"("p_request_id" "uuid", "p_decision" "text", "p_admin_notes" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."review_store_profile_change_request"("p_request_id" "uuid", "p_decision" "text", "p_admin_notes" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."seed_store_role_permissions_for_new_store_v3"() TO "anon";
-GRANT ALL ON FUNCTION "public"."seed_store_role_permissions_for_new_store_v3"() TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."seed_store_role_permissions_for_new_store_v3"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."seed_store_role_permissions_for_new_store_v3"() TO "service_role";
 
 
@@ -36770,13 +36776,13 @@ GRANT ALL ON FUNCTION "public"."set_store_permission_catalog_updated_at"() TO "s
 
 
 
-GRANT ALL ON FUNCTION "public"."set_store_role_permission_v3"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") TO "anon";
+REVOKE ALL ON FUNCTION "public"."set_store_role_permission_v3"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."set_store_role_permission_v3"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_store_role_permission_v3"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."set_store_role_permissions_bulk_v3"("p_store_id" "uuid", "p_role" "text", "p_changes" "jsonb", "p_reason" "text") TO "anon";
+REVOKE ALL ON FUNCTION "public"."set_store_role_permissions_bulk_v3"("p_store_id" "uuid", "p_role" "text", "p_changes" "jsonb", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."set_store_role_permissions_bulk_v3"("p_store_id" "uuid", "p_role" "text", "p_changes" "jsonb", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."set_store_role_permissions_bulk_v3"("p_store_id" "uuid", "p_role" "text", "p_changes" "jsonb", "p_reason" "text") TO "service_role";
 
@@ -36818,32 +36824,27 @@ GRANT ALL ON FUNCTION "public"."stock_movements_set_created_by"() TO "service_ro
 
 
 
-GRANT ALL ON FUNCTION "public"."sync_permission_catalog_v3"() TO "anon";
-GRANT ALL ON FUNCTION "public"."sync_permission_catalog_v3"() TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."sync_permission_catalog_v3"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."sync_permission_catalog_v3"() TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."sync_supplier_metrics_document"("p_purchase_document_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."sync_supplier_metrics_document"("p_purchase_document_id" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."sync_supplier_metrics_document"("p_purchase_document_id" "uuid") TO "authenticated";
 
 
 
 REVOKE ALL ON FUNCTION "public"."sync_supplier_price_history_for_document"("p_purchase_document_id" "uuid") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."sync_supplier_price_history_for_document"("p_purchase_document_id" "uuid") TO "service_role";
-GRANT ALL ON FUNCTION "public"."sync_supplier_price_history_for_document"("p_purchase_document_id" "uuid") TO "authenticated";
 
 
 
-GRANT ALL ON FUNCTION "public"."touch_store_permission_version"("p_store_id" "uuid", "p_reason" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."touch_store_permission_version"("p_store_id" "uuid", "p_reason" "text") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."touch_store_permission_version"("p_store_id" "uuid", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."touch_store_permission_version"("p_store_id" "uuid", "p_reason" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."translate_security_action_ptbr"("p_action" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."translate_security_action_ptbr"("p_action" "text") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."translate_security_action_ptbr"("p_action" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."translate_security_action_ptbr"("p_action" "text") TO "service_role";
 
 
@@ -36943,8 +36944,7 @@ GRANT ALL ON FUNCTION "public"."trg_sync_supplier_price_history"() TO "service_r
 
 
 
-GRANT ALL ON FUNCTION "public"."trg_touch_store_permission_version"() TO "anon";
-GRANT ALL ON FUNCTION "public"."trg_touch_store_permission_version"() TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."trg_touch_store_permission_version"() FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."trg_touch_store_permission_version"() TO "service_role";
 
 
@@ -36986,13 +36986,11 @@ GRANT ALL ON FUNCTION "public"."update_my_profile_details"("p_name" "text", "p_i
 
 
 REVOKE ALL ON FUNCTION "public"."update_my_store_member_alias"("p_store_id" "uuid", "p_internal_alias" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_my_store_member_alias"("p_store_id" "uuid", "p_internal_alias" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_my_store_member_alias"("p_store_id" "uuid", "p_internal_alias" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."update_my_store_member_profile"("p_store_id" "uuid", "p_internal_alias" "text", "p_member_email" "text", "p_member_phone" "text", "p_member_mobile_phone" "text", "p_member_whatsapp_phone" "text", "p_member_zip_code" "text", "p_member_address" "text", "p_member_address_number" "text", "p_member_complement" "text", "p_member_district" "text", "p_member_city" "text", "p_member_state" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_my_store_member_profile"("p_store_id" "uuid", "p_internal_alias" "text", "p_member_email" "text", "p_member_phone" "text", "p_member_mobile_phone" "text", "p_member_whatsapp_phone" "text", "p_member_zip_code" "text", "p_member_address" "text", "p_member_address_number" "text", "p_member_complement" "text", "p_member_district" "text", "p_member_city" "text", "p_member_state" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_my_store_member_profile"("p_store_id" "uuid", "p_internal_alias" "text", "p_member_email" "text", "p_member_phone" "text", "p_member_mobile_phone" "text", "p_member_whatsapp_phone" "text", "p_member_zip_code" "text", "p_member_address" "text", "p_member_address_number" "text", "p_member_complement" "text", "p_member_district" "text", "p_member_city" "text", "p_member_state" "text") TO "service_role";
 
 
@@ -37014,8 +37012,7 @@ GRANT ALL ON FUNCTION "public"."update_purchase_quotation_response"("p_quotation
 
 
 
-GRANT ALL ON FUNCTION "public"."update_security_log_member_visibility"("p_log_id" "uuid", "p_visible_to_member" boolean, "p_sensitive" boolean) TO "anon";
-GRANT ALL ON FUNCTION "public"."update_security_log_member_visibility"("p_log_id" "uuid", "p_visible_to_member" boolean, "p_sensitive" boolean) TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."update_security_log_member_visibility"("p_log_id" "uuid", "p_visible_to_member" boolean, "p_sensitive" boolean) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_security_log_member_visibility"("p_log_id" "uuid", "p_visible_to_member" boolean, "p_sensitive" boolean) TO "service_role";
 
 
@@ -37027,7 +37024,6 @@ GRANT ALL ON FUNCTION "public"."update_store_commercial_settings"("p_store_id" "
 
 
 REVOKE ALL ON FUNCTION "public"."update_store_config_admin"("p_store_id" "uuid", "p_config" "jsonb") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_store_config_admin"("p_store_id" "uuid", "p_config" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_config_admin"("p_store_id" "uuid", "p_config" "jsonb") TO "service_role";
 
 
@@ -37038,13 +37034,12 @@ GRANT ALL ON FUNCTION "public"."update_store_custom_role"("p_custom_role_id" "uu
 
 
 
-GRANT ALL ON FUNCTION "public"."update_store_identity_settings"("p_store_id" "uuid", "p_name" "text", "p_slug" "text", "p_description" "text", "p_logo_url" "text", "p_phone_number" "text", "p_legal_name" "text", "p_doc_type" "text", "p_document" "text", "p_fantasy_name" "text", "p_establishment_type" "text", "p_address" "jsonb", "p_contacts" "jsonb", "p_consents" "jsonb", "p_privacy_policy_text" "text", "p_terms_of_use_text" "text", "p_cookie_policy_text" "text", "p_dpo_email" "text", "p_dpo_contact" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_store_identity_settings"("p_store_id" "uuid", "p_name" "text", "p_slug" "text", "p_description" "text", "p_logo_url" "text", "p_phone_number" "text", "p_legal_name" "text", "p_doc_type" "text", "p_document" "text", "p_fantasy_name" "text", "p_establishment_type" "text", "p_address" "jsonb", "p_contacts" "jsonb", "p_consents" "jsonb", "p_privacy_policy_text" "text", "p_terms_of_use_text" "text", "p_cookie_policy_text" "text", "p_dpo_email" "text", "p_dpo_contact" "text") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."update_store_identity_settings"("p_store_id" "uuid", "p_name" "text", "p_slug" "text", "p_description" "text", "p_logo_url" "text", "p_phone_number" "text", "p_legal_name" "text", "p_doc_type" "text", "p_document" "text", "p_fantasy_name" "text", "p_establishment_type" "text", "p_address" "jsonb", "p_contacts" "jsonb", "p_consents" "jsonb", "p_privacy_policy_text" "text", "p_terms_of_use_text" "text", "p_cookie_policy_text" "text", "p_dpo_email" "text", "p_dpo_contact" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_store_identity_settings"("p_store_id" "uuid", "p_name" "text", "p_slug" "text", "p_description" "text", "p_logo_url" "text", "p_phone_number" "text", "p_legal_name" "text", "p_doc_type" "text", "p_document" "text", "p_fantasy_name" "text", "p_establishment_type" "text", "p_address" "jsonb", "p_contacts" "jsonb", "p_consents" "jsonb", "p_privacy_policy_text" "text", "p_terms_of_use_text" "text", "p_cookie_policy_text" "text", "p_dpo_email" "text", "p_dpo_contact" "text") TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."update_store_idle_timeout_settings"("p_store_id" "uuid", "p_idle_timeout_enabled" boolean, "p_idle_timeout_minutes" integer) TO "anon";
+REVOKE ALL ON FUNCTION "public"."update_store_idle_timeout_settings"("p_store_id" "uuid", "p_idle_timeout_enabled" boolean, "p_idle_timeout_minutes" integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_store_idle_timeout_settings"("p_store_id" "uuid", "p_idle_timeout_enabled" boolean, "p_idle_timeout_minutes" integer) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_idle_timeout_settings"("p_store_id" "uuid", "p_idle_timeout_enabled" boolean, "p_idle_timeout_minutes" integer) TO "service_role";
 
@@ -37056,26 +37051,23 @@ GRANT ALL ON FUNCTION "public"."update_store_member_avatar_url"("p_member_id" "u
 
 
 
-GRANT ALL ON FUNCTION "public"."update_store_member_permissions"("p_member_id" "uuid", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb", "p_reason" "text") TO "anon";
+REVOKE ALL ON FUNCTION "public"."update_store_member_permissions"("p_member_id" "uuid", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb", "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_store_member_permissions"("p_member_id" "uuid", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_member_permissions"("p_member_id" "uuid", "p_permissions" "jsonb", "p_sensitive_actions" "jsonb", "p_reason" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."update_store_member_profile_details"("p_member_id" "uuid", "p_profile_name" "text", "p_profile_phone" "text", "p_profile_mobile_phone" "text", "p_profile_whatsapp_phone" "text", "p_profile_cpf" "text", "p_profile_birthdate" "date", "p_profile_zip_code" "text", "p_profile_address" "text", "p_profile_address_number" "text", "p_profile_complement" "text", "p_profile_district" "text", "p_profile_city" "text", "p_profile_state" "text", "p_profile_instagram_url" "text", "p_profile_facebook_url" "text", "p_profile_website_url" "text", "p_internal_alias" "text", "p_job_title" "text", "p_department" "text", "p_internal_notes" "text", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_store_member_profile_details"("p_member_id" "uuid", "p_profile_name" "text", "p_profile_phone" "text", "p_profile_mobile_phone" "text", "p_profile_whatsapp_phone" "text", "p_profile_cpf" "text", "p_profile_birthdate" "date", "p_profile_zip_code" "text", "p_profile_address" "text", "p_profile_address_number" "text", "p_profile_complement" "text", "p_profile_district" "text", "p_profile_city" "text", "p_profile_state" "text", "p_profile_instagram_url" "text", "p_profile_facebook_url" "text", "p_profile_website_url" "text", "p_internal_alias" "text", "p_job_title" "text", "p_department" "text", "p_internal_notes" "text", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_member_profile_details"("p_member_id" "uuid", "p_profile_name" "text", "p_profile_phone" "text", "p_profile_mobile_phone" "text", "p_profile_whatsapp_phone" "text", "p_profile_cpf" "text", "p_profile_birthdate" "date", "p_profile_zip_code" "text", "p_profile_address" "text", "p_profile_address_number" "text", "p_profile_complement" "text", "p_profile_district" "text", "p_profile_city" "text", "p_profile_state" "text", "p_profile_instagram_url" "text", "p_profile_facebook_url" "text", "p_profile_website_url" "text", "p_internal_alias" "text", "p_job_title" "text", "p_department" "text", "p_internal_notes" "text", "p_reason" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."update_store_member_role"("p_member_id" "uuid", "p_role" "text", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_store_member_role"("p_member_id" "uuid", "p_role" "text", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_member_role"("p_member_id" "uuid", "p_role" "text", "p_reason" "text") TO "service_role";
 
 
 
 REVOKE ALL ON FUNCTION "public"."update_store_member_status"("p_member_id" "uuid", "p_status" "text", "p_reason" "text") FROM PUBLIC;
-GRANT ALL ON FUNCTION "public"."update_store_member_status"("p_member_id" "uuid", "p_status" "text", "p_reason" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_member_status"("p_member_id" "uuid", "p_status" "text", "p_reason" "text") TO "service_role";
 
 
@@ -37092,8 +37084,7 @@ GRANT ALL ON FUNCTION "public"."update_store_message_settings_admin"("p_store_id
 
 
 
-GRANT ALL ON FUNCTION "public"."update_store_role_permission_template"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."update_store_role_permission_template"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") TO "authenticated";
+REVOKE ALL ON FUNCTION "public"."update_store_role_permission_template"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_store_role_permission_template"("p_store_id" "uuid", "p_role" "text", "p_permission_code" "text", "p_allowed" boolean, "p_reason" "text") TO "service_role";
 
 
@@ -37104,7 +37095,7 @@ GRANT ALL ON FUNCTION "public"."update_store_sensitive_action_rule"("p_store_id"
 
 
 
-GRANT ALL ON FUNCTION "public"."update_store_settings_section"("p_store_id" "uuid", "p_section" "text", "p_settings" "jsonb") TO "anon";
+REVOKE ALL ON FUNCTION "public"."update_store_settings_section"("p_store_id" "uuid", "p_section" "text", "p_settings" "jsonb") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."update_store_settings_section"("p_store_id" "uuid", "p_section" "text", "p_settings" "jsonb") TO "authenticated";
 GRANT ALL ON FUNCTION "public"."update_store_settings_section"("p_store_id" "uuid", "p_section" "text", "p_settings" "jsonb") TO "service_role";
 
@@ -37190,7 +37181,7 @@ GRANT ALL ON FUNCTION "public"."validate_stock_transfers"() TO "service_role";
 
 REVOKE ALL ON FUNCTION "public"."validate_store_slug"("p_store_id" "uuid", "p_slug" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."validate_store_slug"("p_store_id" "uuid", "p_slug" "text") TO "service_role";
-GRANT ALL ON FUNCTION "public"."validate_store_slug"("p_store_id" "uuid", "p_slug" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."validate_store_slug"("p_store_id" "uuid", "p_slug" "text") TO "authenticated";
 
 
 
@@ -37543,8 +37534,6 @@ GRANT ALL ON TABLE "public"."store_payment_methods" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."store_permission_catalog" TO "anon";
-GRANT ALL ON TABLE "public"."store_permission_catalog" TO "authenticated";
 GRANT ALL ON TABLE "public"."store_permission_catalog" TO "service_role";
 
 
@@ -37561,8 +37550,6 @@ GRANT ALL ON TABLE "public"."store_role_permission_templates" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."store_role_permission_templates_backup_910c" TO "anon";
-GRANT ALL ON TABLE "public"."store_role_permission_templates_backup_910c" TO "authenticated";
 GRANT ALL ON TABLE "public"."store_role_permission_templates_backup_910c" TO "service_role";
 
 
