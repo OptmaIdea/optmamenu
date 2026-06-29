@@ -151,7 +151,7 @@ permission_catalog as (
   where coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'orders.%'
      or coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'customers.%'
      or coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'products.%'
-     or coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'categories.%'
+     or coalesce(js->>'permission_key', js->>'permission_code', js->>'key', js->>'name', '') ilike 'categories.%'
      or coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'loyalty.%'
      or coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'marketing.%'
      or coalesce(js->>'permission_key', js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'sales.%'
@@ -173,7 +173,7 @@ sample_product_commercial_fields as (
     '' as detail_3,
     '' as detail_4
   from public.products p
-  order by p.updated_at desc nulls last, p.created_at desc nulls last
+  order by p.name
   limit 20
 ),
 sample_category_fields as (
@@ -183,12 +183,12 @@ sample_category_fields as (
     'categories' as table_name,
     coalesce(c.name, '') as item_order,
     c.id::text as item_name,
-    (to_jsonb(c) - 'id' - 'name' - 'created_at' - 'updated_at')::text as detail_1,
+    (to_jsonb(c) - 'id' - 'name' - 'created_at')::text as detail_1,
     '' as detail_2,
     '' as detail_3,
     '' as detail_4
   from public.categories c
-  order by c.updated_at desc nulls last, c.created_at desc nulls last
+  order by c.name
   limit 20
 )
 select * from table_columns
