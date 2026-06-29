@@ -7,11 +7,16 @@
 -- Como usar:
 -- Execute no SQL Editor do Supabase e salve o resultado para análise.
 -- Este script é somente leitura.
+--
+-- Observação:
+-- A seção de permissões usa leitura via to_jsonb para evitar erro quando o catálogo
+-- usa `permission_code` em vez de `code`, ou quando algum campo opcional tem nome diferente.
 
 with target_tables(table_name) as (
   values
     ('customers'),
     ('customer_addresses'),
+    ('customer_consent_logs'),
     ('customer_consents'),
     ('customer_segments'),
     ('customer_segment_members'),
@@ -130,23 +135,28 @@ function_defs as (
     '' as detail_4
   from target_functions tf
 ),
+permission_catalog_raw as (
+  select
+    to_jsonb(pc) as js
+  from public.store_permission_catalog pc
+),
 permission_catalog as (
   select
     'permission_catalog' as section,
     'public' as table_schema,
     'store_permission_catalog' as table_name,
-    coalesce(category, '') as item_order,
-    code as item_name,
-    coalesce(label, '') as detail_1,
-    coalesce(description, '') as detail_2,
-    active::text as detail_3,
-    coalesce(sort_order::text, '') as detail_4
-  from public.store_permission_catalog
-  where code ilike 'customers.%'
-     or code ilike 'orders.%'
-     or code ilike 'sales.%'
-     or code ilike 'marketing.%'
-     or code ilike 'loyalty.%'
+    coalesce(js->>'category', js->>'module', js->>'group', '') as item_order,
+    coalesce(js->>'permission_code', js->>'code', js->>'key', js->>'name', js->>'id', '') as item_name,
+    coalesce(js->>'label', js->>'title', js->>'display_name', '') as detail_1,
+    coalesce(js->>'description', '') as detail_2,
+    coalesce(js->>'active', js->>'enabled', '') as detail_3,
+    coalesce(js->>'sort_order', js->>'position', '') as detail_4
+  from permission_catalog_raw
+  where coalesce(js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'customers.%'
+     or coalesce(js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'orders.%'
+     or coalesce(js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'sales.%'
+     or coalesce(js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'marketing.%'
+     or coalesce(js->>'permission_code', js->>'code', js->>'key', js->>'name', '') ilike 'loyalty.%'
 )
 select * from table_columns
 union all
