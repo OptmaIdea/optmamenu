@@ -255,6 +255,36 @@ export default function DirectSalesPage() {
     });
   };
 
+  const setItemAdditionalDiscount = (index: number, discountValue: number) => {
+    setCart((current) => {
+      const target = current[index];
+      if (!target) return current;
+
+      const product = productMap.get(target.productId);
+      if (!product) return current;
+
+      const next = [...current];
+      next[index] = buildCartLine(product, target.quantity, Math.max(discountValue || 0, 0));
+      return sortCartLines(next);
+    });
+  };
+
+  const editItemAdditionalDiscount = (index: number) => {
+    const target = cart[index];
+    if (!target) return;
+
+    const response = window.prompt('Informe o novo desconto adicional', formatCurrency(target.manualDiscount));
+    if (response === null) return;
+
+    const nextDiscount = parseCurrencyInput(response);
+    if (!Number.isFinite(nextDiscount) || nextDiscount < 0) {
+      toast.error('Informe um desconto adicional válido.');
+      return;
+    }
+
+    setItemAdditionalDiscount(index, nextDiscount);
+  };
+
   const submitSale = async () => {
     if (!storeId) return;
     if (!cart.length) {
@@ -426,7 +456,7 @@ export default function DirectSalesPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between gap-3 md:justify-end">
+                        <div className="flex flex-wrap items-center justify-between gap-3 md:justify-end">
                           <div className="inline-flex items-center overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
                             <button
                               type="button"
@@ -451,6 +481,22 @@ export default function DirectSalesPage() {
                           <div className="min-w-[88px] text-right font-semibold text-gray-900 dark:text-white">
                             {formatCurrency(lineTotal)}
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => editItemAdditionalDiscount(index)}
+                            className="text-xs font-medium text-[#21A896] hover:text-[#1A867A]"
+                          >
+                            Alterar desc.
+                          </button>
+                          {item.manualDiscount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setItemAdditionalDiscount(index, 0)}
+                              className="text-xs font-medium text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
+                            >
+                              Zerar desc.
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => removeItem(index)}
