@@ -76,6 +76,36 @@ export default function QuickPosCartSheet({
 }: QuickPosCartSheetProps) {
   if (!isOpen) return null;
 
+  const handleQuantityClick = (index: number) => {
+    const item = cart[index];
+    if (!item) return;
+
+    const product = productMap.get(item.productId);
+    const productName = product?.name || 'o produto';
+
+    const response = window.prompt(`Digite a nova quantidade para ${productName}:`, String(item.quantity));
+    if (response === null) return;
+
+    const nextQty = parseInt(response, 10);
+    if (Number.isNaN(nextQty) || nextQty < 0) {
+      alert('Por favor, digite um número inteiro maior ou igual a 0.');
+      return;
+    }
+
+    if (nextQty === 0) {
+      const confirmRemove = window.confirm(`Deseja realmente remover "${productName}" do carrinho?`);
+      if (confirmRemove) {
+        onRemoveItem(index);
+      }
+      return;
+    }
+
+    const delta = nextQty - item.quantity;
+    if (delta !== 0) {
+      onChangeQuantity(index, delta);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-xs">
       {/* Background overlay click closes on mobile if wanted, or just button */}
@@ -169,7 +199,11 @@ export default function QuickPosCartSheet({
                         >
                           −
                         </button>
-                        <span className="min-w-[28px] text-center text-xs font-bold text-gray-900 dark:text-white">
+                        <span
+                          onClick={() => handleQuantityClick(index)}
+                          className="min-w-[28px] text-center text-xs font-bold text-gray-900 dark:text-white cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 rounded px-1.5 py-0.5"
+                          title="Clique para digitar a quantidade"
+                        >
                           {item.quantity}
                         </span>
                         <button

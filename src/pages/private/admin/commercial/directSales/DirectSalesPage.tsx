@@ -20,6 +20,7 @@ export type ProductOption = {
   category_id: string | null;
   use_category_pricing?: boolean | null;
   price_rules?: PriceRule[] | null;
+  images?: string[] | null;
   categories?: {
     name?: string | null;
     price_rules?: PriceRule[] | null;
@@ -237,7 +238,7 @@ export default function DirectSalesPage() {
         const [productsResult, paymentMethodsResult, customersResult] = await Promise.all([
           supabase
             .from('products')
-            .select('id, name, price, category_id, use_category_pricing, price_rules, categories(name, price_rules)')
+            .select('id, name, price, category_id, use_category_pricing, price_rules, images, categories(name, price_rules)')
             .eq('store_id', activeStoreId)
             .eq('active', true)
             .order('name', { ascending: true }),

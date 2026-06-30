@@ -92,8 +92,6 @@ export default function QuickPosModal({
   const [sortOption, setSortOption] = useState<SortOption>('name_asc');
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  if (!isOpen) return null;
-
   const productMap = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
   // Extract categories dynamically
@@ -156,6 +154,8 @@ export default function QuickPosModal({
     }
     setActiveMode(mode);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#F8F6F2] dark:bg-gray-900 font-sans text-gray-900 dark:text-gray-100">

@@ -73,7 +73,7 @@ function App() {
     <BrowserRouter>
       <AppRoutes />
       <CookieConsent />
-      <Toaster position="top-right" richColors />
+      <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
   );
 }
