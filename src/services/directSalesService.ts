@@ -15,6 +15,11 @@ export interface DirectSaleItemInput {
   quantity: number;
   unitPrice?: number | null;
   discount?: number | null;
+  originalUnitPrice?: number | null;
+  discountReason?: string | null;
+  pricingSource?: string | null;
+  priceRule?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface CreateAdminDirectSaleInput {
@@ -39,6 +44,8 @@ export interface AdminDirectSaleOrderResult {
   order_code: string | null;
   status: string;
   subtotal: number;
+  gross_subtotal?: number;
+  discount_total?: number;
   delivery_fee: number;
   total: number;
   sales_channel: string;
@@ -68,6 +75,11 @@ function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
     quantity: item.quantity,
     unit_price: item.unitPrice ?? null,
     discount: item.discount ?? 0,
+    original_unit_price: item.originalUnitPrice ?? item.unitPrice ?? null,
+    discount_reason: item.discountReason ?? null,
+    pricing_source: item.pricingSource ?? null,
+    price_rule: item.priceRule ?? null,
+    metadata: item.metadata ?? {},
   }));
 }
 
