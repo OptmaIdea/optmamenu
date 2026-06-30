@@ -10,7 +10,7 @@ import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState<string>('all');
+    const [filterStatus, setFilterStatus] = useState<string>('current');
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
@@ -24,7 +24,7 @@ export default function Orders() {
     }, [orders, filterStatus]);
 
     const emptyStateMessage = filterStatus === 'current'
-        ? 'Pedidos atuais mostra apenas novos/em preparo. Vendas diretas já concluídas aparecem em Todos os Status ou Finalizados.'
+        ? 'Nenhum pedido aguardando atendimento agora. Vendas de balcão concluídas ficam no dashboard, vida do cliente e histórico comercial.'
         : 'Nenhum pedido encontrado para o filtro selecionado.';
 
     // Fetch orders
