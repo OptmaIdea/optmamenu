@@ -7,7 +7,7 @@ export default function Documentation() {
             title="Documentação"
             subtitle="Manuais de instrução, tutoriais passo a passo e dicas de uso do sistema"
             category="Suporte"
-            icon={<BookOpen size={28} className="text-[#21A896]" />}
+            icon={<BookOpen size={28} className="text-[#19A999]" />}
             flat
         >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
@@ -58,18 +58,18 @@ export default function Documentation() {
             {/* Features */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 mb-8">
                 <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                    <Smartphone className="text-[#21A896]" /> Funcionalidades Principais
+                    <Smartphone className="text-[#19A999]" /> Funcionalidades Principais
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#21A896]/50 transition">
+                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#19A999]/50 transition">
                         <h3 className="font-bold text-gray-800 dark:text-white mb-2">Pedido Online</h3>
                         <p className="text-sm text-gray-500">Catálogo digital completo com carrinho, variações de produtos e checkout via WhatsApp/Integração.</p>
                     </div>
-                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#21A896]/50 transition">
+                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#19A999]/50 transition">
                         <h3 className="font-bold text-gray-800 dark:text-white mb-2">Painel Administrativo</h3>
                         <p className="text-sm text-gray-500">Gestão completa de pedidos (Kanban), produtos, categorias, estoque e configurações da loja.</p>
                     </div>
-                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#21A896]/50 transition">
+                    <div className="p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-[#19A999]/50 transition">
                         <h3 className="font-bold text-gray-800 dark:text-white mb-2">Fidelidade & CRM</h3>
                         <p className="text-sm text-gray-500">Sistema de pontos automático, cadastro de clientes e histórico de pedidos.</p>
                     </div>

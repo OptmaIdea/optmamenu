@@ -72,7 +72,7 @@ export default function TransferListTable({ rows, onClearFilters }: Props) {
                       e.stopPropagation();
                       navigate(`/admin/transfers/${row.id}`);
                     }}
-                    className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs sm:text-sm font-medium bg-[#21A896]/10 text-[#21A896] hover:bg-[#21A896]/20 transition"
+                    className="inline-flex items-center justify-center rounded-lg px-3 py-2 text-xs sm:text-sm font-medium bg-[#19A999]/10 text-[#19A999] hover:bg-[#19A999]/20 transition"
                   >
                     Detalhe
                   </button>

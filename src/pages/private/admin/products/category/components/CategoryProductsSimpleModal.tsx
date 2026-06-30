@@ -20,7 +20,7 @@ export default function CategoryProductsSimpleModal({
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-2">
-                        <Package size={20} className="text-[#21A896]" />
+                        <Package size={20} className="text-[#19A999]" />
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                             Produtos – {categoryName}
                         </h2>

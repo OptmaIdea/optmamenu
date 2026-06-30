@@ -63,7 +63,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
   if (securityLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
       </div>
     );
   }
@@ -82,7 +82,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
       flat
     >
       <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm text-center font-candara">
-        <AlertTriangle size={64} className="text-[#FBA93C] mb-4 animate-pulse" />
+        <AlertTriangle size={64} className="text-[#FAA832] mb-4 animate-pulse" />
         <h3 className="text-xl font-bold text-gray-900 dark:text-white font-candara-bold">
           Você não tem permissão para acessar essa página
         </h3>
@@ -95,7 +95,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
             </>
           )}
         </p>
-        <p className="mt-4 text-xs font-bold text-[#21A896]">
+        <p className="mt-4 text-xs font-bold text-[#19A999]">
           Redirecionando para Meus Dados em {countdown} segundo{countdown !== 1 ? 's' : ''}...
         </p>
         <div className="mt-8 flex gap-3">
@@ -107,7 +107,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
           </button>
           <button
             onClick={() => navigate('/admin/my-profile')}
-            className="bg-[#21A896] hover:bg-[#1A867A] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition cursor-pointer"
+            className="bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition cursor-pointer"
           >
             Ir para Meus Dados
           </button>

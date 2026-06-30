@@ -1119,7 +1119,7 @@ export function UserDetailModal({
                         }
 
                         header {
-                            border-bottom: 2px solid #21A896;
+                            border-bottom: 2px solid #19A999;
                             padding-bottom: 16px;
                             margin-bottom: 24px;
                         }
@@ -1471,7 +1471,7 @@ export function UserDetailModal({
                         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-900/30">
                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                                 <div className="flex items-center gap-4">
-                                    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] text-2xl font-bold text-white">
+                                    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-full overflow-hidden bg-linear-to-br from-[#19A999] to-[#14887B] text-2xl font-bold text-white">
                                         {user.avatar_url ? (
                                             <img
                                                 src={user.avatar_url}
@@ -1518,7 +1518,7 @@ export function UserDetailModal({
                                             onClick={() => setActiveTab(tab.id)}
                                             className={
                                                 isActive
-                                                    ? 'inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-bold text-white'
+                                                    ? 'inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-3 py-2 text-sm font-bold text-white'
                                                     : 'inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-gray-600 transition hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
                                             }
                                         >
@@ -1618,7 +1618,7 @@ export function UserDetailModal({
                                 <div className="space-y-5">
                                     <div className="rounded-2xl border border-gray-200 p-4 dark:border-gray-700">
                                         <div className="flex items-center gap-4">
-                                            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-[#21A896] text-white flex items-center justify-center text-xl font-black">
+                                            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full bg-[#19A999] text-white flex items-center justify-center text-xl font-black">
                                                 {savingAvatar && (
                                                     <div className="absolute inset-0 z-10 bg-black/50 flex items-center justify-center">
                                                         <Loader className="h-6 w-6 animate-spin text-white" />
@@ -1644,7 +1644,7 @@ export function UserDetailModal({
                                                 </p>
 
                                                 {canManageUsers && (
-                                                    <label className={`mt-3 inline-flex cursor-pointer items-center rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#188b7c] ${savingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                                    <label className={`mt-3 inline-flex cursor-pointer items-center rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white hover:bg-[#188b7c] ${savingAvatar ? 'opacity-50 cursor-not-allowed' : ''}`}>
                                                         Alterar foto
                                                         <input
                                                             type="file"
@@ -1853,7 +1853,7 @@ export function UserDetailModal({
                                     {user.additional_info && user.additional_info.length > 0 && (
                                         <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30">
                                             <h4 className="mb-4 font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                                <Info size={18} className="text-[#21A896]" />
+                                                <Info size={18} className="text-[#19A999]" />
                                                 Informações adicionais
                                             </h4>
 
@@ -1891,7 +1891,7 @@ export function UserDetailModal({
                                                 type="button"
                                                 onClick={handleSaveProfileDetails}
                                                 disabled={!onSaveProfileDetails || savingProfileDetails}
-                                                className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
+                                                className="rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white hover:bg-[#14887B] disabled:opacity-50"
                                             >
                                                 {savingProfileDetails ? 'Salvando...' : 'Salvar dados'}
                                             </button>
@@ -1902,7 +1902,7 @@ export function UserDetailModal({
 
                             {activeTab === 'access_role' && (
                                 <div className="space-y-5">
-                                    <div className="rounded-xl border border-[#21A896]/20 bg-[#21A896]/10 p-3 text-sm text-gray-700 dark:border-[#21A896]/30 dark:bg-[#21A896]/10 dark:text-gray-200">
+                                    <div className="rounded-xl border border-[#19A999]/20 bg-[#19A999]/10 p-3 text-sm text-gray-700 dark:border-[#19A999]/30 dark:bg-[#19A999]/10 dark:text-gray-200">
                                         Papel no sistema define o acesso base. Função personalizada aplica ajustes específicos de permissão compatíveis com esse papel.
                                     </div>
 
@@ -1926,7 +1926,7 @@ export function UserDetailModal({
                                                                 onRequestRoleChange?.(user, nextRole);
                                                             }
                                                         }}
-                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                                     >
                                                         <option value="admin">Administrador</option>
                                                         <option value="cashier">Caixa</option>
@@ -1951,7 +1951,7 @@ export function UserDetailModal({
                                                                 onRequestCustomRoleChange?.(user, nextCustomRoleId);
                                                             }
                                                         }}
-                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                                     >
                                                         <option value="">Sem função personalizada</option>
                                                         {customRoles
@@ -2158,7 +2158,7 @@ export function UserDetailModal({
                                                     type="button"
                                                     onClick={exportUserHistoryCsv}
                                                     disabled={fullHistory.length === 0}
-                                                    className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] disabled:opacity-50"
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-3 py-2 text-sm font-bold text-white transition hover:bg-[#14887B] disabled:opacity-50"
                                                 >
                                                     <FileDown size={15} />
                                                     CSV
@@ -2240,7 +2240,7 @@ export function UserDetailModal({
                                                             })
                                                         }
                                                         placeholder="Buscar..."
-                                                        className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                                        className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                                     />
                                                 </div>
                                             </label>
@@ -2270,7 +2270,7 @@ export function UserDetailModal({
 
                                     {historyLoading ? (
                                         <div className="rounded-xl border border-gray-200 p-8 text-center dark:border-gray-700">
-                                            <Loader className="mx-auto mb-3 h-6 w-6 animate-spin text-[#21A896]" />
+                                            <Loader className="mx-auto mb-3 h-6 w-6 animate-spin text-[#19A999]" />
                                             <p className="text-sm text-gray-500">Carregando histórico...</p>
                                         </div>
                                     ) : fullHistory.length === 0 ? (
@@ -2296,7 +2296,7 @@ export function UserDetailModal({
                                                                 <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
                                                                     {formatHistoryModule(event.module)}
                                                                 </span>
-                                                                <span className="rounded-full bg-[#21A896]/10 px-2 py-1 text-xs font-bold text-[#21A896]">
+                                                                <span className="rounded-full bg-[#19A999]/10 px-2 py-1 text-xs font-bold text-[#19A999]">
                                                                     {formatHistoryOutcome(event.outcome)}
                                                                 </span>
                                                                 <span className="rounded-full bg-purple-100 px-2 py-1 text-xs font-bold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
@@ -2419,7 +2419,7 @@ export function UserDetailModal({
                                             type="button"
                                             onClick={handleSaveInternalDetails}
                                             disabled={saving}
-                                            className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] disabled:opacity-60"
+                                            className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#14887B] disabled:opacity-60"
                                         >
                                             {saving ? (
                                                 <Loader className="h-4 w-4 animate-spin" />
@@ -2666,7 +2666,7 @@ export function UserDetailModal({
                                                     type="button"
                                                     onClick={handleAddOccurrence}
                                                     disabled={saving}
-                                                    className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] disabled:opacity-60"
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#14887B] disabled:opacity-60"
                                                 >
                                                     {saving ? (
                                                         <Loader className="h-4 w-4 animate-spin" />
@@ -2794,7 +2794,7 @@ function TextField({
                 type="text"
                 value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
         </label>
     );
@@ -2818,7 +2818,7 @@ function DateField({
                 type="date"
                 value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
         </label>
     );
@@ -2842,7 +2842,7 @@ function TimeField({
                 type="time"
                 value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
         </label>
     );
@@ -2869,7 +2869,7 @@ function TextAreaField({
                 disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
                 rows={4}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
             />
         </label>
     );
@@ -2941,7 +2941,7 @@ function SelectField({
             <select
                 value={value ?? ''}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
                 {options.map(([optionValue, optionLabel]) => (
                     <option key={optionValue} value={optionValue}>
@@ -2981,7 +2981,7 @@ function InputField({
                 disabled={disabled}
                 placeholder={placeholder}
                 onChange={(event) => onChange(event.target.value)}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#21A896] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:disabled:bg-gray-800"
             />
         </label>
     );

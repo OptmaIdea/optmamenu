@@ -515,7 +515,7 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
                                 <button
                                     type="button"
                                     onClick={() => setIsListExpanded(!isListExpanded)}
-                                    className="w-full mt-2 py-2 px-4 text-xs font-bold text-[#21A896] hover:text-[#1a867a] bg-[#21A896]/10 hover:bg-[#21A896]/20 rounded-xl transition xl:hidden shrink-0 flex items-center justify-center gap-1.5"
+                                    className="w-full mt-2 py-2 px-4 text-xs font-bold text-[#19A999] hover:text-[#14887B] bg-[#19A999]/10 hover:bg-[#19A999]/20 rounded-xl transition xl:hidden shrink-0 flex items-center justify-center gap-1.5"
                                 >
                                     {isListExpanded ? 'Recolher lista de produtos' : `Ver mais ${products.length - 2} produtos`}
                                 </button>
@@ -821,7 +821,7 @@ export default function StockSettingsPage({ withoutHeader = false, disabled = fa
             title="Configurações de estoque"
             subtitle="Configure mínimo/máximo global por produto e distribua os limites entre os locais da loja, como estoque principal e loja física."
             category="Produtos"
-            icon={<SlidersHorizontal size={28} className="text-[#21A896]" />}
+            icon={<SlidersHorizontal size={28} className="text-[#19A999]" />}
             action={
                 !disabled && (
                     <button

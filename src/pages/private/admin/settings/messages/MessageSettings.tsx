@@ -796,7 +796,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="bg-[#21A896] hover:bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-sm cursor-pointer text-sm"
+                        className="bg-[#19A999] hover:bg-green-600 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition disabled:opacity-50 shadow-sm cursor-pointer text-sm"
                     >
                         {saving ? <Loader size={16} className="animate-spin" /> : <Save size={16} />}
                         <span>Salvar Configurações</span>
@@ -813,7 +813,7 @@ export default function MessageSettings({ withoutHeader = false, disabled = fals
             title="Mensagens e Atendimento"
             subtitle="Configure textos operacionais, atendimento via WhatsApp, retirada, entrega e relacionamento responsável."
             category="Configurações"
-            icon={<MessageCircle className="text-[#21A896]" size={28} />}
+            icon={<MessageCircle className="text-[#19A999]" size={28} />}
             flat
         >
             {content}

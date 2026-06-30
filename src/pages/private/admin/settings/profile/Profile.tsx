@@ -891,7 +891,7 @@ export default function Profile() {
     if (loading) {
         return (
             <div className="p-8 flex justify-center">
-                <Loader className="animate-spin text-[#21A896]" size={32} />
+                <Loader className="animate-spin text-[#19A999]" size={32} />
             </div>
         );
     }
@@ -901,7 +901,7 @@ export default function Profile() {
             title="Meus Dados"
             subtitle="Gerencie suas informações pessoais e de contato."
             category="Configurações"
-            icon={<User className="text-[#21A896]" size={28} />}
+            icon={<User className="text-[#19A999]" size={28} />}
             flat
         >
             {portalContainer && createPortal(
@@ -910,7 +910,7 @@ export default function Profile() {
                         type="button"
                         onClick={() => handleTabChange('changes')}
                         title="Ver solicitações de alterações cadastrais"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#21A896]/35 shrink-0 shadow-sm cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#19A999]/35 shrink-0 shadow-sm cursor-pointer"
                     >
                         <History size={13} />
                         <span>Alterações cadastrais</span>
@@ -919,7 +919,7 @@ export default function Profile() {
                         <button
                             type="button"
                             onClick={() => openProfileRequestModal('address_update')}
-                            className="flex items-center gap-2 rounded-lg bg-[#F26541] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
+                            className="flex items-center gap-2 rounded-lg bg-[#F1613A] hover:bg-[#d85535] px-3 py-2 text-sm font-bold text-white shadow-sm transition cursor-pointer"
                         >
                             <Plus size={16} />
                             Solicitar Alteração
@@ -974,7 +974,7 @@ export default function Profile() {
                             type="button"
                             onClick={() => handleTabChange(tab.id)}
                             className={`flex items-center gap-2 px-6 py-4 font-bold text-sm whitespace-nowrap transition-colors border-b-2 cursor-pointer ${activeTab === tab.id
-                                ? 'border-[#21A896] text-[#21A896] bg-[#21A896]/5 dark:bg-[#21A896]/10'
+                                ? 'border-[#19A999] text-[#19A999] bg-[#19A999]/5 dark:bg-[#19A999]/10'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                                 }`}
                         >
@@ -1076,7 +1076,7 @@ export default function Profile() {
                                 }))
                             }
                             rows={4}
-                            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#19A999] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
                             placeholder="Explique por que essa informação deve ser removida (mínimo de 5 caracteres)."
                         />
 
@@ -1155,7 +1155,7 @@ export default function Profile() {
                                         }));
                                     }
                                 }}
-                                className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                                className="rounded-lg bg-[#F1613A] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {removalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
                             </button>
@@ -1207,7 +1207,7 @@ export default function Profile() {
                                             },
                                         }))
                                     }
-                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm bg-white dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                 >
                                     <option value="name_change">Alteração de nome</option>
                                     <option value="cpf_change">Alteração de CPF</option>
@@ -1269,7 +1269,7 @@ export default function Profile() {
                                                         }));
                                                     }
                                                 } : undefined}
-                                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                             />
                                             <p className="mt-1 text-[11px] text-gray-400">
                                                 Atual: {String(currentValue || 'Não informado')}
@@ -1310,7 +1310,7 @@ export default function Profile() {
                                                         },
                                                     }))
                                                 }
-                                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                                className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                             />
                                             <p className="mt-1 text-[11px] text-gray-400">
                                                 Atual: {String(currentValue || 'Não informado')}
@@ -1344,7 +1344,7 @@ export default function Profile() {
                                                     form: { ...current.form, [item.key]: event.target.value },
                                                 }))
                                             }
-                                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                         />
                                         {item.currentValue && (
                                             <p className="mt-1 text-[11px] text-gray-400">
@@ -1382,14 +1382,14 @@ export default function Profile() {
                                                                     }
                                                                 }));
                                                             }}
-                                                            className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-[#21A896] dark:hover:border-[#21A896] bg-gray-50 dark:bg-gray-800/50 cursor-pointer transition flex justify-between items-center"
+                                                            className="p-3 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-[#19A999] dark:hover:border-[#19A999] bg-gray-50 dark:bg-gray-800/50 cursor-pointer transition flex justify-between items-center"
                                                         >
                                                             <div>
                                                                 <p className="text-sm font-bold text-gray-800 dark:text-white">{item.title}</p>
                                                                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Valor: {item.text}</p>
                                                                 <p className="text-[10px] text-gray-400 mt-0.5">Sensível: {item.sensitive ? 'Sim' : 'Não'}</p>
                                                             </div>
-                                                            <span className="text-[#21A896] text-xs font-bold font-candara-bold">Selecionar &rarr;</span>
+                                                            <span className="text-[#19A999] text-xs font-bold font-candara-bold">Selecionar &rarr;</span>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1398,7 +1398,7 @@ export default function Profile() {
                                     ) : (
                                         <div className="space-y-4">
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className="text-xs font-bold text-[#21A896]">Editando: {generalRequestModal.selectedAdditionalInfo.title}</span>
+                                                <span className="text-xs font-bold text-[#19A999]">Editando: {generalRequestModal.selectedAdditionalInfo.title}</span>
                                                 <button
                                                     type="button"
                                                     onClick={() => setGeneralRequestModal(current => ({ ...current, selectedAdditionalInfo: null }))}
@@ -1419,7 +1419,7 @@ export default function Profile() {
                                                         ...current,
                                                         form: { ...current.form, title: e.target.value }
                                                     }))}
-                                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                                 />
                                                 <p className="mt-1 text-[11px] text-gray-400">
                                                     Atual: {generalRequestModal.selectedAdditionalInfo.title}
@@ -1436,7 +1436,7 @@ export default function Profile() {
                                                         ...current,
                                                         form: { ...current.form, text: e.target.value }
                                                     }))}
-                                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none min-h-[80px]"
+                                                    className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none min-h-[80px]"
                                                 />
                                                 <p className="mt-1 text-[11px] text-gray-400">
                                                     Atual: {generalRequestModal.selectedAdditionalInfo.text}
@@ -1492,7 +1492,7 @@ export default function Profile() {
                                                 }))
                                             }
                                             rows={3}
-                                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                                            className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#19A999] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
                                             placeholder="Explique por que essa alteração é necessária (mínimo de 5 caracteres)."
                                         />
                                     </div>
@@ -1616,7 +1616,7 @@ export default function Profile() {
                                             }));
                                         }
                                     }}
-                                    className="rounded-lg bg-[#F26541] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="rounded-lg bg-[#F1613A] hover:bg-[#d85535] px-4 py-2 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {generalRequestModal.saving ? 'Enviando...' : 'Enviar solicitação'}
                                 </button>

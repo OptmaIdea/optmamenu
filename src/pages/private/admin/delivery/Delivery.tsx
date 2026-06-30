@@ -7,7 +7,7 @@ export default function Delivery({ withoutHeader = false, disabled = false }: { 
             title="Entregas & Retiradas"
             subtitle="Configure as opções de entrega e retirada para seus clientes"
             category="Comercial"
-            icon={<Truck size={28} className="text-[#21A896]" />}
+            icon={<Truck size={28} className="text-[#19A999]" />}
             withoutHeader={withoutHeader}
             flat
         >

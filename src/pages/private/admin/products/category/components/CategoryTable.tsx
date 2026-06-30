@@ -64,7 +64,7 @@ export default function CategoryTable({
                             <td className="p-4">
                                 <button
                                     onClick={() => onViewProducts(category)}
-                                    className="flex items-center gap-1 text-xs font-bold text-[#21A896] bg-[#21A896]/10 px-2 py-1 rounded hover:bg-[#21A896]/20 transition-colors"
+                                    className="flex items-center gap-1 text-xs font-bold text-[#19A999] bg-[#19A999]/10 px-2 py-1 rounded hover:bg-[#19A999]/20 transition-colors"
                                 >
                                     <Package size={12} />
                                     {category.products_count ?? 0} itens
@@ -94,7 +94,7 @@ export default function CategoryTable({
                                 <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
                                         onClick={() => onView(category)}
-                                        className="p-2 text-gray-500 hover:text-[#21A896] hover:bg-[#21A896]/10 rounded-lg transition"
+                                        className="p-2 text-gray-500 hover:text-[#19A999] hover:bg-[#19A999]/10 rounded-lg transition"
                                         title="Visualizar"
                                     >
                                         <Eye size={18} />

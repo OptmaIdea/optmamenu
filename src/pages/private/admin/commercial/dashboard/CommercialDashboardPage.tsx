@@ -141,7 +141,7 @@ export default function CommercialDashboardPage() {
       title="Dashboard comercial"
       subtitle="Visão inicial de vendas, pedidos, caixa, clientes, produtos e fidelidade."
       category="Comercial"
-      icon={<BarChart3 size={28} className="text-[#21A896]" />}
+      icon={<BarChart3 size={28} className="text-[#19A999]" />}
       flat
     >
       {error && (

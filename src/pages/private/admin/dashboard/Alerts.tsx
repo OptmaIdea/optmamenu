@@ -70,11 +70,11 @@ export default function Alerts() {
       title={title}
       subtitle={store?.name ? `Alertas de estoque para a loja ${store.name}` : "Acompanhe alertas de estoque crítico, baixo e excessos"}
       category="Dashboard"
-      icon={<AlertCircle size={28} className="text-[#21A896]" />}
+      icon={<AlertCircle size={28} className="text-[#19A999]" />}
       action={
         <Link
           to="/admin/inventory"
-          className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-3.5 py-2 text-sm font-black text-white hover:opacity-90 transition shadow-sm"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-3.5 py-2 text-sm font-black text-white hover:opacity-90 transition shadow-sm"
         >
           <Package size={16} />
           Ver estoque

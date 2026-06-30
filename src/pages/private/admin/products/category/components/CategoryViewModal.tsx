@@ -39,8 +39,8 @@ export default function CategoryViewModal({
                 {/* Header */}
                 <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-[#21A896]/10 rounded-lg">
-                            <Package size={20} className="text-[#21A896]" />
+                        <div className="p-2 bg-[#19A999]/10 rounded-lg">
+                            <Package size={20} className="text-[#19A999]" />
                         </div>
                         <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                             {category.name}
@@ -167,7 +167,7 @@ export default function CategoryViewModal({
                                 {category.price_rules.map((rule, idx) => (
                                     <div key={idx} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
                                         <span className="text-xs text-gray-500">A partir de {rule.min} un.</span>
-                                        <p className="font-bold text-[#21A896]">
+                                        <p className="font-bold text-[#19A999]">
                                             {new Intl.NumberFormat('pt-BR', {
                                                 style: 'currency',
                                                 currency: 'BRL'
@@ -194,7 +194,7 @@ export default function CategoryViewModal({
                                 onEdit(category);
                                 onClose();
                             }}
-                            className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
                             <Edit size={16} />
                             Editar

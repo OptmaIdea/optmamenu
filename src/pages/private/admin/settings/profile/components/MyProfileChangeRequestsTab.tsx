@@ -203,7 +203,7 @@ export default function MyProfileChangeRequestsTab({
                     <button
                         type="button"
                         onClick={() => openProfileRequestModal('address_update')}
-                        className="rounded-lg bg-[#21A896] hover:bg-[#1A867A] px-3 py-2 text-sm font-bold text-white transition shrink-0 cursor-pointer flex items-center gap-1.5"
+                        className="rounded-lg bg-[#19A999] hover:bg-[#14887B] px-3 py-2 text-sm font-bold text-white transition shrink-0 cursor-pointer flex items-center gap-1.5"
                     >
                         <Plus size={16} />
                         Nova Solicitação
@@ -230,13 +230,13 @@ export default function MyProfileChangeRequestsTab({
                                 placeholder="Localizar alteração específica (tipo, motivo, valor)..."
                                 value={requestSearch}
                                 onChange={(e) => setRequestSearch(e.target.value)}
-                                className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                             />
                             {requestSearch && (
                                 <button
                                     type="button"
                                     onClick={() => setRequestSearch('')}
-                                    className="absolute right-3 top-2 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
+                                    className="absolute right-3 top-2 text-gray-400 hover:text-[#F1613A] transition cursor-pointer"
                                 >
                                     <X size={14} />
                                 </button>
@@ -248,7 +248,7 @@ export default function MyProfileChangeRequestsTab({
                             <select
                                 value={requestStatusFilter}
                                 onChange={(e) => setRequestStatusFilter(e.target.value as any)}
-                                className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                             >
                                 <option value="all">Todos os status</option>
                                 <option value="pending">Pendente</option>
@@ -269,7 +269,7 @@ export default function MyProfileChangeRequestsTab({
                                 type="date"
                                 value={requestDateFrom}
                                 onChange={(e) => setRequestDateFrom(e.target.value)}
-                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                             />
                         </div>
 
@@ -282,7 +282,7 @@ export default function MyProfileChangeRequestsTab({
                                 type="date"
                                 value={requestDateTo}
                                 onChange={(e) => setRequestDateTo(e.target.value)}
-                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                             />
                         </div>
 
@@ -294,7 +294,7 @@ export default function MyProfileChangeRequestsTab({
                              <select
                                  value={requestSortOrder}
                                  onChange={(e) => setRequestSortOrder(e.target.value)}
-                                 className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                 className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                              >
                                  <option value="created_desc">Mais recente primeiro (Criação)</option>
                                  <option value="created_asc">Mais antigo primeiro (Criação)</option>
@@ -316,7 +316,7 @@ export default function MyProfileChangeRequestsTab({
                                     setRequestDateTo('');
                                     setRequestSortOrder('created_desc');
                                 }}
-                                className="text-[11px] font-bold text-gray-500 hover:text-[#F26541] transition cursor-pointer"
+                                className="text-[11px] font-bold text-gray-500 hover:text-[#F1613A] transition cursor-pointer"
                             >
                                 Limpar filtros
                             </button>
@@ -327,7 +327,7 @@ export default function MyProfileChangeRequestsTab({
 
             {loadingMyRequests ? (
                 <div className="flex items-center justify-center py-8">
-                    <Loader className="animate-spin text-[#21A896]" size={24} />
+                    <Loader className="animate-spin text-[#19A999]" size={24} />
                     <span className="ml-2 text-sm text-gray-500">Carregando solicitações...</span>
                 </div>
             ) : myRequests.length === 0 ? (

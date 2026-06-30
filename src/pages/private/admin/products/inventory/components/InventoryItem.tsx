@@ -45,7 +45,7 @@ export default function InventoryItem({ product, onEntry, onExit, onViewMovement
                     <span className="text-lg font-bold text-orange-600">{product.reserved_stock}</span>
                 </td>
                 <td className="p-4 text-center">
-                    <span className="text-lg font-bold text-[#21A896]">{product.available_stock}</span>
+                    <span className="text-lg font-bold text-[#19A999]">{product.available_stock}</span>
                 </td>
                 <td className="p-4 text-center">
                     {onViewMovements && (
@@ -116,8 +116,8 @@ export default function InventoryItem({ product, onEntry, onExit, onViewMovement
                     <p className="text-xl font-bold text-orange-600">{product.reserved_stock}</p>
                 </div>
                 <div>
-                    <p className="text-xs text-[#21A896] uppercase">Disponível</p>
-                    <p className="text-xl font-bold text-[#21A896]">{product.available_stock}</p>
+                    <p className="text-xs text-[#19A999] uppercase">Disponível</p>
+                    <p className="text-xl font-bold text-[#19A999]">{product.available_stock}</p>
                 </div>
             </div>
             <div className="flex gap-2 mt-4">

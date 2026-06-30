@@ -126,14 +126,14 @@ export default function FilteredProductsModal({
                                             className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
                                         >
                                             Não agrupar
-                                            {groupBy === 'none' && <Check size={14} className="text-[#21A896]" />}
+                                            {groupBy === 'none' && <Check size={14} className="text-[#19A999]" />}
                                         </button>
                                         <button
                                             onClick={() => { setGroupBy('category'); setShowGroupMenu(false); }}
                                             className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
                                         >
                                             Por categoria
-                                            {groupBy === 'category' && <Check size={14} className="text-[#21A896]" />}
+                                            {groupBy === 'category' && <Check size={14} className="text-[#19A999]" />}
                                         </button>
                                         {type === 'all' && ( // agrupar por status só disponível no modal "Todos os produtos"
                                             <button
@@ -141,7 +141,7 @@ export default function FilteredProductsModal({
                                                 className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-between"
                                             >
                                                 Por status de estoque
-                                                {groupBy === 'stockStatus' && <Check size={14} className="text-[#21A896]" />}
+                                                {groupBy === 'stockStatus' && <Check size={14} className="text-[#19A999]" />}
                                             </button>
                                         )}
                                     </div>

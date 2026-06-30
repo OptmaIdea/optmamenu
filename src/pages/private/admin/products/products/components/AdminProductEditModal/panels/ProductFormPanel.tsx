@@ -93,8 +93,8 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
       {/* Cabeçalho (desktop) */}
       <div className="hidden md:flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-[#21A896]/10 rounded-lg">
-            <Package size={20} className="text-[#21A896]" />
+          <div className="p-2 bg-[#19A999]/10 rounded-lg">
+            <Package size={20} className="text-[#19A999]" />
           </div>
           <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
             {isEditing ? 'Editar Produto' : 'Novo Produto'}
@@ -346,7 +346,7 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
         <button
           onClick={onSaveClick}
           disabled={saving || !canSave}
-          className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? (
             <>

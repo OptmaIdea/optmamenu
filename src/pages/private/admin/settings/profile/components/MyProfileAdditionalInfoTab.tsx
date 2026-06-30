@@ -67,7 +67,7 @@ export default function MyProfileAdditionalInfoTab({
             {/* Additional Info Section */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <Info className="text-[#21A896]" size={20} /> Informações Adicionais
+                    <Info className="text-[#19A999]" size={20} /> Informações Adicionais
                 </h3>
 
                 <div className="space-y-4">
@@ -85,7 +85,7 @@ export default function MyProfileAdditionalInfoTab({
                     <button
                         type="button"
                         onClick={handleAddAdditionalInfo}
-                        className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-[#21A896] hover:text-[#21A896] transition-colors w-full justify-center"
+                        className="flex items-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg text-gray-600 dark:text-gray-400 hover:border-[#19A999] hover:text-[#19A999] transition-colors w-full justify-center"
                     >
                         <Plus size={18} />
                         Adicionar Informação
@@ -98,7 +98,7 @@ export default function MyProfileAdditionalInfoTab({
                 <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-3 bg-[#21A896] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-3 bg-[#19A999] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Save size={24} />
                     {saving ? 'Salvando...' : 'Salvar Alterações'}

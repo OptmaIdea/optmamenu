@@ -202,7 +202,7 @@ export default function SecurityConfirmModal({
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                     <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        <Lock size={20} className="text-[#21A896]" />
+                        <Lock size={20} className="text-[#19A999]" />
                         {step === 'password' ? title : 'Confirmar token'}
                     </h2>
                     <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
@@ -224,7 +224,7 @@ export default function SecurityConfirmModal({
                                         type="password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896]"
+                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999]"
                                         placeholder="••••••••"
                                         autoFocus
                                         required
@@ -240,7 +240,7 @@ export default function SecurityConfirmModal({
                                     <button
                                         type="submit"
                                         disabled={verifying || !password}
-                                        className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-lg font-medium transition disabled:opacity-50"
+                                        className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-lg font-medium transition disabled:opacity-50"
                                     >
                                         {verifying ? 'Verificando...' : 'Continuar'}
                                     </button>
@@ -283,7 +283,7 @@ export default function SecurityConfirmModal({
                                         value={token}
                                         onChange={(e) => setToken(e.target.value.toUpperCase())}
                                         onPaste={handlePaste}
-                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] font-mono tracking-widest uppercase"
+                                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] font-mono tracking-widest uppercase"
                                         placeholder="EX: 3F9K2A"
                                         autoFocus
                                         required

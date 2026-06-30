@@ -31,7 +31,7 @@ export default function DiscontinuedProductsModal({
                     {/* Header */}
                     <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                            <Package size={20} className="text-[#21A896]" />
+                            <Package size={20} className="text-[#19A999]" />
                             Produtos Descontinuados
                         </h2>
                         <button
@@ -76,7 +76,7 @@ export default function DiscontinuedProductsModal({
                                         </div>
                                         <button
                                             onClick={() => handleView(product)}
-                                            className="p-2 text-[#21A896] hover:bg-[#21A896]/10 rounded-lg transition-colors"
+                                            className="p-2 text-[#19A999] hover:bg-[#19A999]/10 rounded-lg transition-colors"
                                             title="Visualizar"
                                         >
                                             <Eye size={18} />

@@ -36,6 +36,12 @@
       - admin/
         - dashboard/
         - commercial/
+          - directSales/
+            - DirectSalesPage.tsx
+            - components/
+              - QuickPosModal.tsx
+              - QuickPosProductCard.tsx
+              - QuickPosCartSheet.tsx
         - customers/
         - financial/
         - products/
@@ -121,6 +127,7 @@
 - docs/MULTISTOCK_FRONTEND.md
 - docs/OPERATIONS_PLAYBOOK.md
 - docs/PERMISSOES_USUARIOS.md
+- docs/POS_9_PDV_RAPIDO_MODAL_1.md
 - docs/PLANO_DE_NEGOCIOS.md
 - docs/PLANO_DE_NEGOCIOS_ATUALIZACAO_2026_02.md
 - docs/RAIO_X_TECNICO_2026_03.md

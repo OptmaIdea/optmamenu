@@ -123,7 +123,7 @@ export default function SalesChannelsPage() {
             title="Canais de venda"
             subtitle="Configure por onde a loja recebe vendas. Esta base será usada nos pedidos, WhatsApp, loja pública, QR Code e vendas diretas."
             category="Comercial"
-            icon={<RadioTower size={28} className="text-[#21A896]" />}
+            icon={<RadioTower size={28} className="text-[#19A999]" />}
             onRefresh={loadChannels}
             flat
         >

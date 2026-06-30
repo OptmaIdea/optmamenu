@@ -56,7 +56,7 @@ export const SortableThumb = ({
             <button
                 onClick={() => setCurrentImageIndex(index)}
                 className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${currentImageIndex === index
-                        ? 'border-[#21A896] opacity-100 scale-105'
+                        ? 'border-[#19A999] opacity-100 scale-105'
                         : 'border-transparent opacity-60 hover:opacity-100'
                     }`}
             >
@@ -99,7 +99,7 @@ export const SortableThumb = ({
             {index !== 0 && (
                 <button
                     onClick={() => setMainMedia(index)}
-                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-[#21A896] text-white text-[8px] font-bold rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
+                    className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-[#19A999] text-white text-[8px] font-bold rounded shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap"
                     title="Definir como imagem principal"
                 >
                     ★ CAPA
@@ -107,7 +107,7 @@ export const SortableThumb = ({
             )}
 
             {index === 0 && (
-                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-[#21A896] text-white text-[8px] font-bold rounded shadow-md whitespace-nowrap">
+                <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-1 py-0.5 bg-[#19A999] text-white text-[8px] font-bold rounded shadow-md whitespace-nowrap">
                     CAPA
                 </span>
             )}

@@ -675,7 +675,7 @@ export default function TransfersPage() {
         title="Transferências"
         subtitle="Gestão de transferências entre locais de estoque."
         category="Produtos"
-        icon={<ArrowRightLeft size={28} className="text-[#21A896]" />}
+        icon={<ArrowRightLeft size={28} className="text-[#19A999]" />}
         flat
       >
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
@@ -684,7 +684,7 @@ export default function TransfersPage() {
               type="button"
               onClick={openManualBatchModal}
               disabled={!storeId}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
             >
               <Plus size={15} />
               Nova transferência manual
@@ -709,7 +709,7 @@ export default function TransfersPage() {
               type="button"
               onClick={openManualBatchModal}
               disabled={!storeId}
-              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0 disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0 disabled:opacity-60"
             >
               <Plus size={13} />
               <span>Nova Transferência Manual</span>
@@ -730,7 +730,7 @@ export default function TransfersPage() {
         title="Transferências"
         subtitle="Gestão de transferências entre locais de estoque."
         category="Produtos"
-        icon={<ArrowRightLeft size={28} className="text-[#21A896]" />}
+        icon={<ArrowRightLeft size={28} className="text-[#19A999]" />}
         onRefresh={refresh}
         flat
       >
@@ -1033,7 +1033,7 @@ export default function TransfersPage() {
               placeholder="Buscar por código, origem, destino ou observação"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+              className="w-full pl-9 pr-8 py-2 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
             />
             {search && (
               <button type="button" onClick={() => setSearch('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -1047,7 +1047,7 @@ export default function TransfersPage() {
             title="Data inicial (formato dd/mm/aaaa)"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
             aria-label="Data inicial"
           />
 
@@ -1056,14 +1056,14 @@ export default function TransfersPage() {
             title="Data final (formato dd/mm/aaaa)"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
             aria-label="Data final"
           />
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
           >
             {STATUS_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -1071,7 +1071,7 @@ export default function TransfersPage() {
           <select
             value={sourceFilter}
             onChange={(e) => setSourceFilter(e.target.value)}
-            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
           >
             {sourceOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -1079,7 +1079,7 @@ export default function TransfersPage() {
           <select
             value={destinationFilter}
             onChange={(e) => setDestinationFilter(e.target.value)}
-            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="py-2 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
           >
             {destinationOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -1140,7 +1140,7 @@ export default function TransfersPage() {
                     <select
                       value={manualSourceLocationId}
                       onChange={(event) => setManualSourceLocationId(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     >
                       <option value="">Selecione a origem</option>
                       {manualLocationOptions.map((location) => (
@@ -1156,7 +1156,7 @@ export default function TransfersPage() {
                     <select
                       value={manualDestinationLocationId}
                       onChange={(event) => setManualDestinationLocationId(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     >
                       <option value="">Selecione o destino</option>
                       {manualLocationOptions.map((location) => (
@@ -1199,7 +1199,7 @@ export default function TransfersPage() {
                             <select
                               value={item.productId}
                               onChange={(event) => updateManualBatchItem(index, { productId: event.target.value })}
-                              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             >
                               <option value="">Selecione um produto</option>
                               {manualProductOptions.map((product) => (
@@ -1218,7 +1218,7 @@ export default function TransfersPage() {
                                 const value = Number(event.target.value);
                                 updateManualBatchItem(index, { quantity: Number.isFinite(value) && value > 0 ? value : 1 });
                               }}
-                              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
                           </div>
 
@@ -1250,7 +1250,7 @@ export default function TransfersPage() {
                     onChange={(event) => setManualBatchNotes(event.target.value)}
                     rows={3}
                     placeholder="Ex.: transferência preventiva para abastecimento da loja."
-                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   />
                 </div>
 
@@ -1268,7 +1268,7 @@ export default function TransfersPage() {
                     type="button"
                     onClick={handleCreateManualBatchDraft}
                     disabled={creatingManualBatchDraft || loadingManualInventory}
-                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
                   >
                     <CheckCircle2 size={15} />
                     {creatingManualBatchDraft ? 'Criando...' : 'Criar rascunho'}

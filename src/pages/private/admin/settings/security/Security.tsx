@@ -3000,7 +3000,7 @@ export default function Security() {
             title="Senhas e Acesso"
             subtitle="Gerencie as configurações de segurança, PIN, senhas master e permissões da equipe."
             category="Segurança"
-            icon={<Shield className="text-[#21A896]" size={28} />}
+            icon={<Shield className="text-[#19A999]" size={28} />}
             flat
         >
             {message && (
@@ -3608,7 +3608,7 @@ export default function Security() {
                                     <select
                                         value={roleFilter}
                                         onChange={(e) => setRoleFilter(e.target.value)}
-                                        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white font-bold"
+                                        className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white font-bold"
                                     >
                                         {ROLE_FILTER_OPTIONS.map((opt) => (
                                             <option key={opt.value} value={opt.value}>
@@ -3624,7 +3624,7 @@ export default function Security() {
                                         placeholder="Buscar autorização..."
                                         value={permissionSearch}
                                         onChange={(e) => setPermissionSearch(e.target.value)}
-                                        className="w-full sm:w-64 rounded-xl border border-gray-200 bg-white px-3 py-2 pl-9 text-sm text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                        className="w-full sm:w-64 rounded-xl border border-gray-200 bg-white px-3 py-2 pl-9 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                     />
                                     <Search size={16} className="absolute left-3 top-3 text-gray-400" />
                                 </div>
@@ -3659,7 +3659,7 @@ export default function Security() {
                             <>
                                 {showMatrixRefreshing && (
                                     <div className="mb-3 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1.5 animate-pulse">
-                                        <Loader size={12} className="animate-spin text-[#21A896]" />
+                                        <Loader size={12} className="animate-spin text-[#19A999]" />
                                         <span>Atualizando permissões em segundo plano...</span>
                                     </div>
                                 )}
@@ -3679,7 +3679,7 @@ export default function Security() {
                                                 placeholder="Pesquisar permissões..."
                                                 value={permissionSearch}
                                                 onChange={(e) => setPermissionSearch(e.target.value)}
-                                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
+                                                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
                                             />
                                             <Search size={14} className="absolute left-3 top-3 text-gray-400" />
                                             {permissionSearch && (
@@ -4051,7 +4051,7 @@ export default function Security() {
                                         placeholder="Pesquisar permissões..."
                                         value={userPermissionSearch}
                                         onChange={(e) => setUserPermissionSearch(e.target.value)}
-                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#21A896] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 pl-9 text-xs text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-650 dark:bg-gray-900 dark:text-white"
                                     />
                                     <Search size={14} className="absolute left-3 top-3 text-gray-400" />
                                     {userPermissionSearch && (
@@ -4238,7 +4238,7 @@ export default function Security() {
                                                                                 event.target.value as 'inherit' | 'allow' | 'deny'
                                                                             )
                                                                         }
-                                                                        className="rounded-lg border border-gray-205 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:border-[#21A896]"
+                                                                        className="rounded-lg border border-gray-205 bg-white px-2 py-1 text-xs font-semibold dark:border-gray-700 dark:bg-gray-800 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed outline-none focus:border-[#19A999]"
                                                                     >
                                                                         <option value="inherit">Herdar</option>
                                                                         <option value="allow">Permitir</option>
@@ -4924,9 +4924,9 @@ export default function Security() {
 
                     {/* SESSÒO E INATIVIDADE */}
                     <div className={activeTab === 'session_inactive' ? 'block space-y-6 animate-fadeIn' : 'hidden'}>
-                        <div className="bg-[#21A896]/5 dark:bg-[#21A896]/10 border border-[#21A896]/20 p-6 rounded-xl">
+                        <div className="bg-[#19A999]/5 dark:bg-[#19A999]/10 border border-[#19A999]/20 p-6 rounded-xl">
                             <div className="flex flex-col md:flex-row md:items-start gap-4">
-                                <div className="p-3 bg-[#21A896]/10 rounded-full text-[#21A896] shrink-0 w-fit">
+                                <div className="p-3 bg-[#19A999]/10 rounded-full text-[#19A999] shrink-0 w-fit">
                                     <Clock size={24} />
                                 </div>
                                 <div className="flex-1 w-full">
@@ -4941,7 +4941,7 @@ export default function Security() {
                                         <label className="flex items-start gap-3 cursor-pointer">
                                             <input
                                                 type="checkbox"
-                                                className="mt-1 rounded border-gray-300 dark:border-gray-600 text-[#21A896] focus:ring-[#21A896] outline-none h-4 w-4"
+                                                className="mt-1 rounded border-gray-300 dark:border-gray-600 text-[#19A999] focus:ring-[#19A999] outline-none h-4 w-4"
                                                 checked={idleTimeoutEnabled}
                                                 disabled={!canManageSessions}
                                                 onChange={(e) => setIdleTimeoutEnabled(e.target.checked)}
@@ -4962,7 +4962,7 @@ export default function Security() {
                                                     <span className="font-bold text-gray-700 dark:text-gray-300">
                                                         Tempo de inatividade:
                                                     </span>
-                                                    <span className="text-[#21A896] font-bold">
+                                                    <span className="text-[#19A999] font-bold">
                                                         {idleTimeoutMinutes} minutos
                                                     </span>
                                                 </div>
@@ -4976,7 +4976,7 @@ export default function Security() {
                                                         value={idleTimeoutMinutes}
                                                         disabled={!canManageSessions}
                                                         onChange={(event) => setIdleTimeoutMinutes(Number(event.target.value))}
-                                                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#21A896]"
+                                                        className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#19A999]"
                                                     />
                                                     <div className="flex justify-between text-[10px] text-gray-400 dark:text-gray-500 px-1 mt-1">
                                                         <span>15 min</span>
@@ -4997,7 +4997,7 @@ export default function Security() {
                                                     type="button"
                                                     disabled={saving}
                                                     onClick={handleSaveIdleTimeout}
-                                                    className="bg-[#F26541] hover:bg-[#d85535] text-white font-bold py-2.5 px-5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 text-sm cursor-pointer shadow-sm"
+                                                    className="bg-[#F1613A] hover:bg-[#d85535] text-white font-bold py-2.5 px-5 rounded-lg transition disabled:cursor-not-allowed disabled:opacity-50 text-sm cursor-pointer shadow-sm"
                                                 >
                                                     {saving ? 'Salvando...' : 'Salvar configuração'}
                                                 </button>

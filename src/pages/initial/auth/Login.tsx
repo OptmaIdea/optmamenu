@@ -182,14 +182,14 @@ export default function Login() {
           <h2 className="text-3xl font-black text-[#2D2A26] dark:text-white font-candara-bold">
             {selectingStore ? 'Escolha onde entrar' : 'Acesse sua conta'}
           </h2>
-          <p className="mt-2 text-sm text-[#6B6258] dark:text-gray-400 font-candara">
+          <p className="mt-2 text-sm text-[#6B6375] dark:text-gray-400 font-candara">
             {selectingStore
               ? 'Selecione a loja ou vínculo de trabalho desta sessão.'
               : 'Faça login para acessar seu painel'}
           </p>
         </div>
 
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-[#6B6258]/10 dark:border-gray-800 p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-[#6B6375]/10 dark:border-gray-800 p-8">
           {error && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
               <AlertCircle size={20} className="text-red-500 shrink-0 mt-0.5" />
@@ -200,7 +200,7 @@ export default function Login() {
           {!selectingStore ? (
             <form onSubmit={handleLogin} className="space-y-6">
               <div>
-                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6375] dark:text-gray-300 mb-2 font-candara">
                   E-mail
                 </label>
                 <div className="relative">
@@ -213,13 +213,13 @@ export default function Login() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
                     required
-                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
+                    className="w-full pl-10 pr-4 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6375]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-[#6B6258] dark:text-gray-300 mb-2 font-candara">
+                <label className="block text-sm font-bold text-[#6B6375] dark:text-gray-300 mb-2 font-candara">
                   Senha
                 </label>
                 <div className="relative">
@@ -232,7 +232,7 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
                     required
-                    className="w-full pl-10 pr-12 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6258]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
+                    className="w-full pl-10 pr-12 py-3 bg-[#F8F6F2] dark:bg-gray-800 border border-[#6B6375]/20 dark:border-gray-750 rounded-xl text-[#2D2A26] dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-green font-candara"
                   />
                   <button
                     type="button"
@@ -252,7 +252,7 @@ export default function Login() {
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" className="w-4 h-4 rounded border-gray-300 text-brand-green focus:ring-brand-green" />
-                  <span className="text-sm text-[#6B6258] dark:text-gray-400 font-candara">Lembrar-me</span>
+                  <span className="text-sm text-[#6B6375] dark:text-gray-400 font-candara">Lembrar-me</span>
                 </label>
                 <Link
                   to="/forgot-password"
@@ -313,7 +313,7 @@ export default function Login() {
                         ? 'cursor-not-allowed opacity-60 border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20'
                         : selected
                           ? 'border-brand-green bg-brand-green/10 ring-2 ring-brand-green/20'
-                          : 'border-[#6B6258]/10 bg-[#F8F6F2] hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900/40'
+                          : 'border-[#6B6375]/10 bg-[#F8F6F2] hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900/40'
                         }`}
                     >
                       <div className="flex items-center gap-3">
@@ -382,7 +382,7 @@ export default function Login() {
 
           {!selectingStore && (
             <div className="mt-6 text-center">
-              <p className="text-sm text-[#6B6258] dark:text-gray-400 font-candara">
+              <p className="text-sm text-[#6B6375] dark:text-gray-400 font-candara">
                 Ainda não tem uma conta?{' '}
                 <Link
                   to="/signup"

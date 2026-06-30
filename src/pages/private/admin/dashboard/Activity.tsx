@@ -416,7 +416,7 @@ export default function Activity() {
       title="Atividades recentes"
       subtitle="Acompanhe cotações, compras, transferências, movimentações e eventos de fornecedores em uma visão única."
       category="Dashboard"
-      icon={<BarChart2 size={28} className="text-[#21A896]" />}
+      icon={<BarChart2 size={28} className="text-[#19A999]" />}
       action={
         <div className="flex flex-wrap gap-2">
           <button
@@ -432,7 +432,7 @@ export default function Activity() {
             type="button"
             onClick={handleExportCsv}
             disabled={filteredEvents.length === 0}
-            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#21A896] px-3 text-sm font-semibold text-white transition hover:bg-[#1b8f80] disabled:opacity-60"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#19A999] px-3 text-sm font-semibold text-white transition hover:bg-[#1b8f80] disabled:opacity-60"
           >
             <Download size={15} />
             Exportar CSV
@@ -472,7 +472,7 @@ export default function Activity() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Buscar por ref., fornecedor, produto..."
-                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
               />
               {search && (
                 <button
@@ -488,7 +488,7 @@ export default function Activity() {
             <select
               value={periodFilter}
               onChange={(event) => setPeriodFilter(event.target.value as PeriodFilter)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
               {PERIOD_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -498,7 +498,7 @@ export default function Activity() {
             <select
               value={entityFilter}
               onChange={(event) => setEntityFilter(event.target.value as EntityFilter)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
               {ENTITY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -508,7 +508,7 @@ export default function Activity() {
             <select
               value={severityFilter}
               onChange={(event) => setSeverityFilter(event.target.value as SeverityFilter)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
               {SEVERITY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -518,7 +518,7 @@ export default function Activity() {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             >
               {STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
@@ -532,14 +532,14 @@ export default function Activity() {
                 type="date"
                 value={dateFrom}
                 onChange={(event) => setDateFrom(event.target.value)}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 aria-label="Data inicial"
               />
               <input
                 type="date"
                 value={dateTo}
                 onChange={(event) => setDateTo(event.target.value)}
-                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#21A896]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 aria-label="Data final"
               />
             </div>
@@ -588,7 +588,7 @@ export default function Activity() {
             const date = toAppDate(event.occurred_at);
 
             const content = (
-              <article className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-[#21A896]/30 dark:border-gray-700 dark:bg-gray-800">
+              <article className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-[#19A999]/30 dark:border-gray-700 dark:bg-gray-800">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="flex min-w-0 gap-3">
                     <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border ${getEventToneClass(event)}`}>

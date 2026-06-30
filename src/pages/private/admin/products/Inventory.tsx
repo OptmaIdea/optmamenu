@@ -28,14 +28,14 @@ export default function InventoryPage() {
         <div className="flex gap-2">
           <Link
             to="/admin/products"
-            className="p-2 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            className="p-2 text-gray-400 hover:text-[#19A999] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
             title="Ir para Produtos"
           >
             <Package size={20} />
           </Link>
           <Link
             to="/admin/stock-movements"
-            className="p-2 text-gray-400 hover:text-[#21A896] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
+            className="p-2 text-gray-400 hover:text-[#19A999] transition bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm"
             title="Ir para Movimentações"
           >
             <History size={20} />
@@ -52,7 +52,7 @@ export default function InventoryPage() {
               placeholder="Buscar produto..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#21A896]"
+              className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#19A999]"
             />
           </div>
           {searchTerm && (

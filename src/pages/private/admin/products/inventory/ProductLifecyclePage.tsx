@@ -626,7 +626,7 @@ export default function ProductLifecyclePage() {
                   type="button"
                   onClick={() => setActiveTab(tab.key)}
                   className={`rounded-xl px-4 py-2 text-sm font-medium transition ${active
-                    ? 'bg-[#21A896] text-white'
+                    ? 'bg-[#19A999] text-white'
                     : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                     }`}
                 >

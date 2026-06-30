@@ -142,13 +142,13 @@ export function UserCard({
             tabIndex={onView ? 0 : undefined}
             onClick={() => onView?.(user)}
             onKeyDown={handleCardKeyDown}
-            className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow ${onView ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#21A896]' : ''
+            className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow ${onView ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#19A999]' : ''
                 }`}
         >
             <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4 flex-1">
                     {/* Avatar */}
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-linear-to-br from-[#21A896] to-[#1A867A] flex items-center justify-center text-white font-bold text-lg shrink-0">
+                    <div className="relative w-12 h-12 rounded-full overflow-hidden bg-linear-to-br from-[#19A999] to-[#14887B] flex items-center justify-center text-white font-bold text-lg shrink-0">
                         {displayAvatar ? (
                             <img
                                 src={displayAvatar}
@@ -175,12 +175,12 @@ export function UserCard({
                             </p>
                         )}
                         {user.department && (
-                            <p className="mt-1 text-xs font-bold text-[#21A896]">
+                            <p className="mt-1 text-xs font-bold text-[#19A999]">
                                 Setor: {user.department}
                             </p>
                         )}
                         {user.custom_role_name && (
-                            <p className="mt-1 text-xs font-bold text-[#21A896]">
+                            <p className="mt-1 text-xs font-bold text-[#19A999]">
                                 {user.custom_role_name}
                                 {user.custom_role_base_role
                                     ? ` · base: ${formatRoleLabel(user.custom_role_base_role)}`

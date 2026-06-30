@@ -182,7 +182,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             title="Pedido Online"
             subtitle="Configure loja pública, catálogo, mínimo de entrega, retirada, WhatsApp e mensagens padrão."
             category="Configurações"
-            icon={<Smartphone size={28} className="text-[#21A896]" />}
+            icon={<Smartphone size={28} className="text-[#19A999]" />}
             onRefresh={loadData}
             action={headerAction}
             withoutHeader={withoutHeader}

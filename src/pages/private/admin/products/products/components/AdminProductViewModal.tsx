@@ -102,7 +102,7 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                                     key={idx}
                                     onClick={() => setCurrentImageIndex(idx)}
                                     className={`flex-shrink-0 w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${currentImageIndex === idx
-                                        ? 'border-[#21A896] opacity-100 scale-105'
+                                        ? 'border-[#19A999] opacity-100 scale-105'
                                         : 'border-transparent opacity-60 hover:opacity-100'
                                         }`}
                                 >
@@ -118,8 +118,8 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                     {/* Header (apenas em desktop, no mobile fica dentro do conteúdo) */}
                     <div className="hidden md:flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-[#21A896]/10 rounded-lg">
-                                <Package size={20} className="text-[#21A896]" />
+                            <div className="p-2 bg-[#19A999]/10 rounded-lg">
+                                <Package size={20} className="text-[#19A999]" />
                             </div>
                             <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                                 {product.name}
@@ -164,7 +164,7 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Preço</label>
-                                    <p className="text-2xl font-bold text-[#21A896]">
+                                    <p className="text-2xl font-bold text-[#19A999]">
                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(product.price)}
                                     </p>
                                 </div>
@@ -238,7 +238,7 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                                         {product.price_rules.map((rule, idx) => (
                                             <div key={idx} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
                                                 <span className="text-xs text-gray-500">A partir de {rule.min} un.</span>
-                                                <p className="font-bold text-[#21A896]">
+                                                <p className="font-bold text-[#19A999]">
                                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rule.price)}
                                                 </p>
                                             </div>
@@ -276,7 +276,7 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                                 }
                                 onClose();
                             }}
-                            className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+                            className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-lg transition-colors flex items-center justify-center gap-2"
                         >
                             <Edit size={16} />
                             Editar

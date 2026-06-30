@@ -190,7 +190,7 @@ export default function ProductLifecycleSelectorPage() {
         title="Vida do produto"
         subtitle="Selecione um produto para abrir sua visão 360º de estoque, movimentações e auditoria."
         category="Produtos"
-        icon={<Activity size={28} className="text-[#21A896]" />}
+        icon={<Activity size={28} className="text-[#19A999]" />}
         lastUpdated={lastUpdated}
         onRefresh={handleRefresh}
         flat
@@ -209,24 +209,24 @@ export default function ProductLifecycleSelectorPage() {
       title="Vida do produto"
       subtitle="Selecione um produto para abrir sua visão 360º de estoque, movimentações e auditoria."
       category="Produtos"
-      icon={<Activity size={28} className="text-[#21A896]" />}
+      icon={<Activity size={28} className="text-[#19A999]" />}
       lastUpdated={lastUpdated}
       onRefresh={handleRefresh}
       flat
     >
       {selected.length > 0 && (
-        <div className="rounded-2xl bg-[#21A896]/10 border border-[#21A896]/30 p-4 flex flex-wrap items-center gap-3">
-          <span className="text-sm font-semibold text-[#21A896]">
+        <div className="rounded-2xl bg-[#19A999]/10 border border-[#19A999]/30 p-4 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-semibold text-[#19A999]">
             {selected.length} produto{selected.length > 1 ? 's' : ''} selecionado{selected.length > 1 ? 's' : ''}:
           </span>
           <div className="flex flex-wrap gap-2 flex-1">
             {selected.map((p) => (
-              <div key={p.id} className="flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-[#21A896]/40 rounded-full px-3 py-1 text-sm">
+              <div key={p.id} className="flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-[#19A999]/40 rounded-full px-3 py-1 text-sm">
                 <span className="font-medium text-gray-800 dark:text-white">{p.name}</span>
                 <button type="button" onClick={() => removeSelected(p.id)} className="text-gray-400 hover:text-red-500 transition" title="Remover">
                   <X size={13} />
                 </button>
-                <button type="button" onClick={() => openSingle(p)} className="text-[#21A896] hover:text-[#1a867a] transition" title="Abrir">
+                <button type="button" onClick={() => openSingle(p)} className="text-[#19A999] hover:text-[#14887B] transition" title="Abrir">
                   <ExternalLink size={13} />
                 </button>
               </div>
@@ -239,7 +239,7 @@ export default function ProductLifecycleSelectorPage() {
             <button
               type="button"
               onClick={() => openSingle(selected[0])}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-semibold rounded-xl transition"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-semibold rounded-xl transition"
             >
               <Activity size={15} />
               {selected.length === 1 ? 'Ver vida do produto' : 'Abrir produtos selecionados'}
@@ -257,7 +257,7 @@ export default function ProductLifecycleSelectorPage() {
               placeholder="Buscar por nome ou categoria"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+              className="w-full pl-9 pr-10 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
             />
             {search && (
               <button
@@ -273,7 +273,7 @@ export default function ProductLifecycleSelectorPage() {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
           >
             <option value="all">Todas as categorias</option>
             {categoryOptions.map((category) => (
@@ -286,7 +286,7 @@ export default function ProductLifecycleSelectorPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+            className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
           >
             <option value="category-asc">Categoria A → Z</option>
             <option value="category-desc">Categoria Z → A</option>
@@ -298,7 +298,7 @@ export default function ProductLifecycleSelectorPage() {
             <select
               value={selectedAction}
               onChange={(e) => setSelectedAction(e.target.value)}
-              className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#21A896]/40"
+              className="w-full py-2.5 px-3 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#19A999]/40"
             >
               <option value="all">Todas as ações</option>
               <option value="buy">Comprar</option>
@@ -352,12 +352,12 @@ export default function ProductLifecycleSelectorPage() {
                 onClick={() => toggleSelect(p)}
                 className={`relative rounded-2xl border-2 cursor-pointer transition-all duration-150 p-4 flex flex-col gap-3 group ${
                   sel
-                    ? 'border-[#21A896] bg-[#21A896]/5 shadow-md shadow-[#21A896]/10'
-                    : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-[#21A896]/40 hover:shadow-sm'
+                    ? 'border-[#19A999] bg-[#19A999]/5 shadow-md shadow-[#19A999]/10'
+                    : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-[#19A999]/40 hover:shadow-sm'
                 }`}
               >
                 <div className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                  sel ? 'border-[#21A896] bg-[#21A896]' : 'border-gray-300 dark:border-gray-600 group-hover:border-[#21A896]/60'
+                  sel ? 'border-[#19A999] bg-[#19A999]' : 'border-gray-300 dark:border-gray-600 group-hover:border-[#19A999]/60'
                 }`}>
                   {sel && (
                     <svg viewBox="0 0 10 8" className="w-3 h-3 fill-white" xmlns="http://www.w3.org/2000/svg">
@@ -410,7 +410,7 @@ export default function ProductLifecycleSelectorPage() {
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); openSingle(p); }}
-                  className="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 dark:bg-gray-700 hover:bg-[#21A896] hover:text-white text-gray-600 dark:text-gray-300 text-xs font-semibold rounded-xl transition-all duration-150"
+                  className="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 dark:bg-gray-700 hover:bg-[#19A999] hover:text-white text-gray-600 dark:text-gray-300 text-xs font-semibold rounded-xl transition-all duration-150"
                 >
                   <Activity size={13} />
                   Ver vida do produto

@@ -37,7 +37,7 @@ function AdminLanding() {
   if (securityLoading || permissionsLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
       </div>
     );
   }
@@ -52,7 +52,7 @@ function AdminLanding() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
     </div>
   );
 }
@@ -131,7 +131,7 @@ const MarketingCenterPage = lazy(() => import('@/pages/private/admin/marketing/M
 // Loading fallback component
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
-    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
   </div>
 );
 
@@ -313,7 +313,7 @@ export default function AppRoutes() {
               </p>
               <button
                 onClick={() => window.history.back()}
-                className="bg-[#21A896] text-white px-6 py-2 rounded-lg hover:bg-[#1A867A] transition-colors"
+                className="bg-[#19A999] text-white px-6 py-2 rounded-lg hover:bg-[#14887B] transition-colors"
               >
                 Voltar
               </button>

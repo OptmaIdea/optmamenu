@@ -78,21 +78,21 @@ export default function ReportsPage() {
             title="Relatórios"
             subtitle="Gere e imprima relatórios gerenciais do seu negócio"
             category="Dashboard"
-            icon={<FileText size={28} className="text-[#21A896]" />}
+            icon={<FileText size={28} className="text-[#19A999]" />}
             action={
                 canExportReports ? (
                     <div className="flex gap-2">
                         <button
                             type="button"
                             onClick={handlePrintReport}
-                            className="inline-flex items-center gap-2 bg-[#21A896] hover:bg-[#1a867a] text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl font-medium"
+                            className="inline-flex items-center gap-2 bg-[#19A999] hover:bg-[#14887B] text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl font-medium"
                         >
                             Imprimir
                         </button>
                         <button
                             type="button"
                             onClick={handleExportReportCsv}
-                            className="inline-flex items-center gap-2 bg-[#21A896] hover:bg-[#1a867a] text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl font-medium"
+                            className="inline-flex items-center gap-2 bg-[#19A999] hover:bg-[#14887B] text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl font-medium"
                         >
                             Exportar CSV
                         </button>
@@ -123,7 +123,7 @@ export default function ReportsPage() {
                                         canExportReports ? (
                                             <Link
                                                 to={report.path}
-                                                className="flex-1 px-3 py-2 bg-[#21A896] text-white text-sm rounded-lg hover:bg-[#1a867a] text-center font-medium"
+                                                className="flex-1 px-3 py-2 bg-[#19A999] text-white text-sm rounded-lg hover:bg-[#14887B] text-center font-medium"
                                             >
                                                 Gerar Relatório
                                             </Link>

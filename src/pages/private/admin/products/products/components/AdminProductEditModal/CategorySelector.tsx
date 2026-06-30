@@ -29,7 +29,7 @@ export const CategorySelector = ({
             <div className="flex gap-2 animate-fadeIn">
                 <input
                     type="text"
-                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     value={newCategoryName}
                     onChange={(e) => onNewCategoryNameChange(e.target.value)}
                     placeholder="Nome da nova categoria"
@@ -38,7 +38,7 @@ export const CategorySelector = ({
                 <button
                     type="button"
                     onClick={onCreateCategorySubmit}
-                    className="px-4 py-2 bg-[#21A896] text-white rounded-lg hover:bg-[#1a867a] transition font-bold"
+                    className="px-4 py-2 bg-[#19A999] text-white rounded-lg hover:bg-[#14887B] transition font-bold"
                 >
                     OK
                 </button>
@@ -56,7 +56,7 @@ export const CategorySelector = ({
     return (
         <div className="flex gap-2">
             <select
-                className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896]/20 focus:border-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white appearance-none cursor-pointer"
+                className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999]/20 focus:border-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white appearance-none cursor-pointer"
                 value={categoryId}
                 onChange={(e) => onCategoryChange(e.target.value)}
                 required

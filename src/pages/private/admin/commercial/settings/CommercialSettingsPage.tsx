@@ -150,7 +150,7 @@ export default function CommercialSettingsPage({ withoutHeader = false, disabled
             title="Configurações comerciais"
             subtitle="Configure a loja pública, o catálogo, o endereço por slug, WhatsApp, local de venda e regras comerciais básicas."
             category="Comercial"
-            icon={<Settings size={28} className="text-[#21A896]" />}
+            icon={<Settings size={28} className="text-[#19A999]" />}
             onRefresh={loadData}
             action={
                 !disabled && publicUrl && (

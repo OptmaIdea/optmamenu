@@ -774,7 +774,7 @@ export function SupplierLifecycleTabs({
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${active
-                ? 'border-b-2 border-[#21A896] text-[#21A896]'
+                ? 'border-b-2 border-[#19A999] text-[#19A999]'
                 : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
                 }`}
             >
@@ -808,7 +808,7 @@ export function SupplierLifecycleTabs({
                     <td className="py-2 pr-3">
                       <Link
                         to={`/admin/stock/purchase-documents?open=${row.purchase_document_id}`}
-                        className="font-medium text-[#21A896] hover:underline"
+                        className="font-medium text-[#19A999] hover:underline"
                       >
                         {getPurchaseDocumentLabel(row)}
                       </Link>
@@ -890,7 +890,7 @@ export function SupplierLifecycleTabs({
                       <td className="py-3 pr-3">
                         <Link
                           to={`/admin/stock/purchase-quotations?open=${row.quotation_id}`}
-                          className="inline-flex items-center gap-1 font-semibold text-[#21A896] hover:underline"
+                          className="inline-flex items-center gap-1 font-semibold text-[#19A999] hover:underline"
                         >
                           {row.quotation_code}
                           <ExternalLink size={13} />
@@ -928,7 +928,7 @@ export function SupplierLifecycleTabs({
                         {row.converted_purchase_document_id ? (
                           <Link
                             to={`/admin/stock/purchase-documents?open=${row.converted_purchase_document_id}`}
-                            className="font-medium text-[#21A896] hover:underline"
+                            className="font-medium text-[#19A999] hover:underline"
                           >
                             {getConvertedPurchaseLabel(row)}
                           </Link>
@@ -1005,7 +1005,7 @@ export function SupplierLifecycleTabs({
                           <div className="flex flex-col">
                             <Link
                               to={`/admin/products/${row.product_id}/lifecycle`}
-                              className="inline-flex items-center gap-1 font-semibold text-[#21A896] hover:underline"
+                              className="inline-flex items-center gap-1 font-semibold text-[#19A999] hover:underline"
                             >
                               {row.product_name}
                               <ArrowRight size={13} />
@@ -1154,7 +1154,7 @@ export function SupplierLifecycleTabs({
                           <div className="flex flex-col">
                             <Link
                               to={`/admin/products/${row.product_id}/lifecycle`}
-                              className="inline-flex items-center gap-1 font-semibold text-[#21A896] hover:underline"
+                              className="inline-flex items-center gap-1 font-semibold text-[#19A999] hover:underline"
                             >
                               {row.product_name}
                               <ArrowRight size={13} />
@@ -1188,7 +1188,7 @@ export function SupplierLifecycleTabs({
                           {row.purchase_document_id ? (
                             <Link
                               to={`/admin/stock/purchase-documents?open=${row.purchase_document_id}`}
-                              className="font-medium text-[#21A896] hover:underline"
+                              className="font-medium text-[#19A999] hover:underline"
                             >
                               {getPriceDocumentLabel(row)}
                             </Link>
@@ -1483,7 +1483,7 @@ export function SupplierLifecycleTabs({
                             {event.related_product_id && (
                               <Link
                                 to={`/admin/products/${event.related_product_id}/lifecycle`}
-                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                                className="inline-flex items-center gap-1 text-[#19A999] hover:underline"
                               >
                                 <Tags size={13} />
                                 {event.related_product_name || 'Produto relacionado'}
@@ -1493,7 +1493,7 @@ export function SupplierLifecycleTabs({
                             {event.related_purchase_document_id && (
                               <Link
                                 to={`/admin/stock/purchase-documents?open=${event.related_purchase_document_id}`}
-                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                                className="inline-flex items-center gap-1 text-[#19A999] hover:underline"
                               >
                                 <FileText size={13} />
                                 Compra relacionada
@@ -1585,14 +1585,14 @@ export function SupplierLifecycleTabs({
                     value={timelineSearch}
                     onChange={(e) => setTimelineSearch(e.target.value)}
                     placeholder="Buscar eventos..."
-                    className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                   />
                 </div>
 
                 <select
                   value={timelineSourceFilter}
                   onChange={(e) => setTimelineSourceFilter(e.target.value as any)}
-                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 >
                   <option value="all">Todas as origens</option>
                   <option value="operational">Operacional</option>
@@ -1602,7 +1602,7 @@ export function SupplierLifecycleTabs({
                 <select
                   value={timelineSort}
                   onChange={(e) => setTimelineSort(e.target.value as any)}
-                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 >
                   <option value="newest">Mais recentes primeiro</option>
                   <option value="oldest">Mais antigos primeiro</option>
@@ -1686,7 +1686,7 @@ export function SupplierLifecycleTabs({
                             {event.related_purchase_quotation_id && (
                               <Link
                                 to={`/admin/stock/purchase-quotations?open=${event.related_purchase_quotation_id}`}
-                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                                className="inline-flex items-center gap-1 text-[#19A999] hover:underline"
                               >
                                 <ClipboardList size={13} />
                                 Abrir cotação
@@ -1696,7 +1696,7 @@ export function SupplierLifecycleTabs({
                             {event.related_purchase_document_id && (
                               <Link
                                 to={`/admin/stock/purchase-documents?open=${event.related_purchase_document_id}`}
-                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                                className="inline-flex items-center gap-1 text-[#19A999] hover:underline"
                               >
                                 <FileText size={13} />
                                 Abrir compra
@@ -1706,7 +1706,7 @@ export function SupplierLifecycleTabs({
                             {event.related_product_id && (
                               <Link
                                 to={`/admin/products/${event.related_product_id}/lifecycle`}
-                                className="inline-flex items-center gap-1 text-[#21A896] hover:underline"
+                                className="inline-flex items-center gap-1 text-[#19A999] hover:underline"
                               >
                                 <Tags size={13} />
                                 Abrir produto

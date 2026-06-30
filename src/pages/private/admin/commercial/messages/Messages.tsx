@@ -170,14 +170,14 @@ export default function AdminMessages() {
             title="Mensagens"
             subtitle="Comunique-se diretamente com seus clientes."
             category="Comercial"
-            icon={<MessageSquare size={28} className="text-[#21A896]" />}
+            icon={<MessageSquare size={28} className="text-[#19A999]" />}
             onRefresh={activeTab === 'history' ? fetchHistory : undefined}
             action={
                 <div className="flex bg-gray-150 dark:bg-gray-800 p-1.5 rounded-2xl shadow-inner border border-gray-200 dark:border-gray-700">
                     <button
                         onClick={() => setActiveTab('send')}
                         className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${activeTab === 'send'
-                            ? 'bg-white dark:bg-gray-700 text-[#21A896] shadow-sm'
+                            ? 'bg-white dark:bg-gray-700 text-[#19A999] shadow-sm'
                             : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                             }`}
                     >
@@ -186,7 +186,7 @@ export default function AdminMessages() {
                     <button
                         onClick={() => setActiveTab('history')}
                         className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${activeTab === 'history'
-                            ? 'bg-white dark:bg-gray-700 text-[#21A896] shadow-sm'
+                            ? 'bg-white dark:bg-gray-700 text-[#19A999] shadow-sm'
                             : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
                             }`}
                     >

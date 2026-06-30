@@ -323,13 +323,13 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
             title="Personalização"
             subtitle="Configure o comportamento e a aparência do seu App."
             category="Configurações"
-            icon={<Smartphone className="text-[#21A896]" size={28} />}
+            icon={<Smartphone className="text-[#19A999]" size={28} />}
             action={
                 !disabled && (
                     <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="bg-[#21A896] hover:bg-[#1a867a] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
+                        className="bg-[#19A999] hover:bg-[#14887B] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
                     >
                         {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
                         <span>Salvar Configurações</span>
@@ -354,7 +354,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                         type="button"
                         onClick={handleSave}
                         disabled={saving}
-                        className="bg-[#21A896] hover:bg-[#1a867a] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
+                        className="bg-[#19A999] hover:bg-[#14887B] text-white px-6 py-2.5 rounded-xl font-bold flex items-center justify-center gap-2 transition disabled:opacity-70 cursor-pointer text-sm shadow-sm"
                     >
                         {saving ? <Loader className="animate-spin" size={16} /> : <Save size={16} />}
                         <span>Salvar Aparência da Loja</span>

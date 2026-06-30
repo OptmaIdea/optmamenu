@@ -819,7 +819,7 @@ export default function PurchaseDocumentsPage() {
         title="Compras e Entradas"
         subtitle="Crie rascunhos de compra por sugestão, revise documentos e confirme entradas no estoque"
         category="Produtos"
-        icon={<History size={28} className="text-[#21A896]" />}
+        icon={<History size={28} className="text-[#19A999]" />}
         onRefresh={fetchAll}
         flat
       >

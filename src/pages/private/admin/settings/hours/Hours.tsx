@@ -177,7 +177,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
         }
     };
 
-    if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-[#21A896]" /></div>;
+    if (loading) return <div className="p-10 flex justify-center"><Loader className="animate-spin text-[#19A999]" /></div>;
 
     const content = (
         <>
@@ -195,7 +195,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                             <button
                                 onClick={handleSaveHours}
                                 disabled={saving}
-                                className="bg-[#21A896] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50"
+                                className="bg-[#19A999] text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-[#14887B] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50"
                             >
                                 {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
                                 Salvar
@@ -250,7 +250,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                             newHours[index].is_closed = !e.target.checked;
                                             setHours(newHours);
                                         }}
-                                        className="accent-[#21A896] w-5 h-5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="accent-[#19A999] w-5 h-5 disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
                                     <span className="text-xs font-bold text-gray-500">Aberto</span>
                                 </label>
@@ -323,7 +323,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                     <button
                                         onClick={handleAddException}
                                         disabled={!newException.exception_date}
-                                        className="ml-auto bg-[#21A896] text-white p-2 rounded-lg hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] disabled:opacity-50"
+                                        className="ml-auto bg-[#19A999] text-white p-2 rounded-lg hover:bg-[#14887B] dark:hover:bg-[#2ec4a6] disabled:opacity-50"
                                     >
                                         <Plus size={20} />
                                     </button>
@@ -347,7 +347,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                         {ex.is_closed ? (
                                             <span className="bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Fechado</span>
                                         ) : (
-                                            <span className="bg-[#21A896]/10 text-[#21A896] text-[10px] font-bold px-2 py-0.5 rounded uppercase">
+                                            <span className="bg-[#19A999]/10 text-[#19A999] text-[10px] font-bold px-2 py-0.5 rounded uppercase">
                                                 {ex.open_time?.slice(0, 5)} - {ex.close_time?.slice(0, 5)}
                                             </span>
                                         )}
@@ -405,7 +405,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1 flex justify-between">
                                         Pré-Abertura (Aceitar pedidos antes)
-                                        <span className="text-[#21A896]">{storeConfig?.pre_opening_minutes || 0} min</span>
+                                        <span className="text-[#19A999]">{storeConfig?.pre_opening_minutes || 0} min</span>
                                     </label>
                                     <input
                                         type="range"
@@ -413,7 +413,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                         max="60"
                                         step="5"
                                         disabled={!canManage}
-                                        className="w-full accent-[#21A896] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full accent-[#19A999] disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.pre_opening_minutes || 0}
                                         onChange={e => setStoreConfig({ ...storeConfig, pre_opening_minutes: parseInt(e.target.value) })}
                                     />
@@ -449,14 +449,14 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1 flex justify-between">
                                         Tolerância de Reserva (Expira em)
-                                        <span className="text-[#21A896]">{storeConfig?.tolerance_minutes || 5} min</span>
+                                        <span className="text-[#19A999]">{storeConfig?.tolerance_minutes || 5} min</span>
                                     </label>
                                     <input
                                         type="range"
                                         min="1"
                                         max="30"
                                         disabled={!canManage}
-                                        className="w-full accent-[#21A896] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full accent-[#19A999] disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.tolerance_minutes || 5}
                                         onChange={e => setStoreConfig({ ...storeConfig, tolerance_minutes: parseInt(e.target.value) })}
                                     />
@@ -466,14 +466,14 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-200 mb-1 flex justify-between">
                                         Tempo de Prorrogação (Extra)
-                                        <span className="text-[#21A896]">{storeConfig?.extension_minutes || 3} min</span>
+                                        <span className="text-[#19A999]">{storeConfig?.extension_minutes || 3} min</span>
                                     </label>
                                     <input
                                         type="range"
                                         min="1"
                                         max="15"
                                         disabled={!canManage}
-                                        className="w-full accent-[#21A896] disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="w-full accent-[#19A999] disabled:opacity-50 disabled:cursor-not-allowed"
                                         value={storeConfig?.extension_minutes || 3}
                                         onChange={e => setStoreConfig({ ...storeConfig, extension_minutes: parseInt(e.target.value) })}
                                     />
@@ -505,7 +505,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
                             <button
                                 onClick={handleSaveHours}
                                 disabled={saving}
-                                className="bg-[#21A896] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-[#1a867a] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50 shadow-lg shadow-[#21A896]/20 dark:shadow-none"
+                                className="bg-[#19A999] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-[#14887B] dark:hover:bg-[#2ec4a6] transition disabled:opacity-50 shadow-lg shadow-[#19A999]/20 dark:shadow-none"
                             >
                                 {saving ? <Loader size={18} className="animate-spin" /> : <Save size={18} />}
                                 Salvar Alterações
@@ -534,7 +534,7 @@ export default function Hours({ withoutHeader = false }: { withoutHeader?: boole
             title="Horários de Funcionamento"
             subtitle="Configure sua grade semanal e dias especiais (feriados)."
             category="Configurações"
-            icon={<Clock className="text-[#21A896]" size={28} />}
+            icon={<Clock className="text-[#19A999]" size={28} />}
             flat
         >
             {content}

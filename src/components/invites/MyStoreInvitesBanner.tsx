@@ -66,7 +66,7 @@ function InviteCard({ invite, accepting, onAccept }: InviteCardProps) {
                 type="button"
                 onClick={() => onAccept(invite.store_id)}
                 disabled={accepting}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#14887B] disabled:cursor-not-allowed disabled:opacity-60"
             >
                 {accepting ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />

@@ -130,7 +130,7 @@ export default function LoyaltyConfig() {
             title="Fidelidade"
             subtitle="Configure regras do programa de fidelidade, cashback e pontuação por compra"
             category="Comercial"
-            icon={<Heart size={28} className="text-[#21A896]" />}
+            icon={<Heart size={28} className="text-[#19A999]" />}
             onRefresh={fetchProgramData}
             action={
                 <div className="flex gap-2">
@@ -147,7 +147,7 @@ export default function LoyaltyConfig() {
                     <button
                         onClick={handleSaveProgram}
                         disabled={saving}
-                        className="bg-[#21A896] hover:bg-[#1b8f80] text-white px-4 py-1.5 rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition disabled:opacity-70 text-xs"
+                        className="bg-[#19A999] hover:bg-[#1b8f80] text-white px-4 py-1.5 rounded-xl font-bold shadow-sm flex items-center gap-1.5 transition disabled:opacity-70 text-xs"
                     >
                         {saving ? <Loader className="animate-spin" size={14} /> : <Save size={14} />}
                         Salvar

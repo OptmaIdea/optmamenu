@@ -6,13 +6,14 @@ import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { DirectSalesService } from '@/services/directSalesService';
 import { Customers360Service, type CustomerListItem } from '@/services/customers360Service';
+import QuickPosModal from './components/QuickPosModal';
 
-type PriceRule = {
+export type PriceRule = {
   min?: number;
   price?: number;
 };
 
-type ProductOption = {
+export type ProductOption = {
   id: string;
   name: string;
   price: number | null;
@@ -25,7 +26,7 @@ type ProductOption = {
   } | null;
 };
 
-type PaymentMethodOption = {
+export type PaymentMethodOption = {
   code: string;
   name: string;
 };
@@ -140,6 +141,7 @@ export default function DirectSalesPage() {
   const [productSearch, setProductSearch] = useState('');
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
   const [productSort, setProductSort] = useState<ProductSortOption>('name_asc');
+  const [isQuickPosOpen, setIsQuickPosOpen] = useState(false);
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const customerMap = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
@@ -288,6 +290,31 @@ export default function DirectSalesPage() {
     setSelectedCustomerId('');
     setCustomerName(COUNTER_CUSTOMER_NAME);
     setCustomerPhone('');
+  };
+
+  const handleAddProductQuickPos = (pId: string) => {
+    const product = productMap.get(pId);
+    if (!product) {
+      toast.error('Produto não encontrado.');
+      return;
+    }
+
+    setCart((current) => {
+      const existingIndex = current.findIndex((item) => item.productId === product.id);
+
+      if (existingIndex >= 0) {
+        const next = [...current];
+        const existing = next[existingIndex];
+        next[existingIndex] = buildCartLine(
+          product,
+          existing.quantity + 1,
+          existing.manualDiscount
+        );
+        return sortCartLines(next);
+      }
+
+      return sortCartLines([...current, buildCartLine(product, 1, 0)]);
+    });
   };
 
   const addItem = () => {
@@ -451,7 +478,7 @@ export default function DirectSalesPage() {
         flat
       >
         <div className="flex min-h-[320px] items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[#21A896]" />
+          <div className="h-10 w-10 animate-spin rounded-full border-b-2 border-[#19A999]" />
         </div>
       </PageContainer>
     );
@@ -465,13 +492,22 @@ export default function DirectSalesPage() {
       flat
     >
       <div className="space-y-6">
-        <div>
-          <Link to="/admin/orders" className="text-sm text-gray-500 hover:text-gray-700">
-            ← Voltar para pedidos
-          </Link>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Fluxo mínimo para registrar venda presencial com desconto adicional e desconto por quantidade.
-          </p>
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <Link to="/admin/orders" className="text-sm text-gray-500 hover:text-gray-700">
+              ← Voltar para pedidos
+            </Link>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Fluxo mínimo para registrar venda presencial com desconto adicional e desconto por quantidade.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsQuickPosOpen(true)}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#19A999] to-[#14887B] px-5 py-3 text-sm font-bold text-white shadow-md transition hover:scale-102 hover:shadow-lg focus:outline-hidden"
+          >
+            ⚡ Abrir PDV rápido
+          </button>
         </div>
 
         {lastOrderCode && (
@@ -582,7 +618,7 @@ export default function DirectSalesPage() {
                 <button
                   type="button"
                   onClick={addItem}
-                  className="w-full rounded-lg bg-[#21A896] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1A867A]"
+                  className="w-full rounded-lg bg-[#19A999] px-4 py-2 text-sm font-semibold text-white hover:bg-[#14887B]"
                 >
                   Adicionar
                 </button>
@@ -643,7 +679,7 @@ export default function DirectSalesPage() {
                           <button
                             type="button"
                             onClick={() => editItemAdditionalDiscount(index)}
-                            className="text-xs font-medium text-[#21A896] hover:text-[#1A867A]"
+                            className="text-xs font-medium text-[#19A999] hover:text-[#14887B]"
                           >
                             Alterar desc.
                           </button>
@@ -770,7 +806,7 @@ export default function DirectSalesPage() {
                 type="button"
                 onClick={submitSale}
                 disabled={submitting || cart.length === 0}
-                className="w-full rounded-lg bg-[#21A896] px-4 py-3 text-sm font-semibold text-white hover:bg-[#1A867A] disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-[#19A999] px-4 py-3 text-sm font-semibold text-white hover:bg-[#14887B] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? 'Concluindo...' : 'Concluir venda direta'}
               </button>
@@ -778,6 +814,33 @@ export default function DirectSalesPage() {
           </section>
         </div>
       </div>
+
+      <QuickPosModal
+        isOpen={isQuickPosOpen}
+        onClose={() => setIsQuickPosOpen(false)}
+        products={products}
+        customers={customers}
+        paymentMethods={paymentMethods}
+        cart={cart}
+        totals={totals}
+        selectedCustomerId={selectedCustomerId}
+        customerName={customerName}
+        customerPhone={customerPhone}
+        paymentMethodCode={paymentMethodCode}
+        submitting={submitting}
+        lastOrderCode={lastOrderCode}
+        onAddProduct={handleAddProductQuickPos}
+        onChangeQuantity={changeItemQuantity}
+        onRemoveItem={removeItem}
+        onEditAdditionalDiscount={editItemAdditionalDiscount}
+        onZerarAdditionalDiscount={(idx) => setItemAdditionalDiscount(idx, 0)}
+        onSelectCustomer={handleCustomerSelect}
+        onChangeCustomerName={setCustomerName}
+        onChangeCustomerPhone={setCustomerPhone}
+        onChangePaymentMethod={setPaymentMethodCode}
+        onSubmitSale={submitSale}
+        formatCurrency={formatCurrency}
+      />
     </PageContainer>
   );
 }

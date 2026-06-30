@@ -15,7 +15,7 @@ export default function LoadingSpinner({ size = 'md', text = 'Carregando...' }: 
             <div className="text-center">
                 <div
                     className={`
-                        animate-spin rounded-full border-b-2 border-[#21A896] mx-auto mb-4
+                        animate-spin rounded-full border-b-2 border-[#19A999] mx-auto mb-4
                         ${sizeClasses[size]}
                     `}
                 />

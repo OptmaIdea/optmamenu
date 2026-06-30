@@ -280,7 +280,7 @@ export default function Orders() {
             title="Pedidos"
             subtitle="Gerencie os pedidos chegando em tempo real."
             category="Comercial"
-            icon={<ShoppingBag className="text-[#21A896]" size={28} />}
+            icon={<ShoppingBag className="text-[#19A999]" size={28} />}
             onRefresh={fetchOrders}
             flat
         >

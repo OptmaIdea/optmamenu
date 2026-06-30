@@ -99,7 +99,7 @@ const handleAddRule = () => {
                             type="text"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896]/20 focus:border-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999]/20 focus:border-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                             placeholder="Ex: Picolés Cremosos"
                             required
                             disabled={disabled}
@@ -115,7 +115,7 @@ const handleAddRule = () => {
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             rows={7}
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896]/20 focus:border-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white resize-none"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999]/20 focus:border-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white resize-none"
                             placeholder="Descrição da categoria..."
                             disabled={disabled}
                         />
@@ -131,7 +131,7 @@ const handleAddRule = () => {
                             value={sortOrder}
                             onChange={(e) => setSortOrder(parseInt(e.target.value) || 0)}
                             min="0"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896]/20 focus:border-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999]/20 focus:border-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                             disabled={disabled}
                         />
                         <p className="text-xs text-gray-500 mt-1">
@@ -183,7 +183,7 @@ const handleAddRule = () => {
                                 type="button"
                                 onClick={() => handleSelectPricingMode('standard')}
                                 className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${priceLogicType === 'standard'
-                                    ? 'bg-white dark:bg-gray-600 text-[#21A896] shadow-sm'
+                                    ? 'bg-white dark:bg-gray-600 text-[#19A999] shadow-sm'
                                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                                     }`}
                                 disabled={disabled}
@@ -194,7 +194,7 @@ const handleAddRule = () => {
                                 type="button"
                                 onClick={() => handleSelectPricingMode('category_volume')}
                                 className={`flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all ${priceLogicType === 'category_volume'
-                                    ? 'bg-white dark:bg-gray-600 text-[#21A896] shadow-sm'
+                                    ? 'bg-white dark:bg-gray-600 text-[#19A999] shadow-sm'
                                     : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                                     }`}
                                 disabled={disabled}

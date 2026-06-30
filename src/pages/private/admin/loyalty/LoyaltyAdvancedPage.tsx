@@ -490,7 +490,7 @@ export default function LoyaltyAdvancedPage() {
             title="Fidelidade avançada"
             subtitle="Configure regras de pontuação, benefícios, descontos e vantagens por nível ou tag."
             category="Comercial"
-            icon={<Sparkles size={28} className="text-[#21A896]" />}
+            icon={<Sparkles size={28} className="text-[#19A999]" />}
             onRefresh={loadSettings}
             flat
         >

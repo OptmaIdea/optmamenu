@@ -60,7 +60,7 @@ export function InfoCard({ item, index, onUpdate, onRemove, onRemoveRequest }: I
                     </label>
                     <input
                         type="text"
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500"
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500"
                         value={item.title}
                         disabled={!item.isNew}
                         onChange={(e) => onUpdate(index, 'title', e.target.value)}
@@ -73,7 +73,7 @@ export function InfoCard({ item, index, onUpdate, onRemove, onRemoveRequest }: I
                         Descrição
                     </label>
                     <textarea
-                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition resize-none"
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition resize-none"
                         rows={3}
                         value={item.text}
                         onChange={(e) => onUpdate(index, 'text', e.target.value)}
@@ -87,7 +87,7 @@ export function InfoCard({ item, index, onUpdate, onRemove, onRemoveRequest }: I
                         id={`sensitive-${index}`}
                         checked={item.sensitive}
                         onChange={(e) => onUpdate(index, 'sensitive', e.target.checked)}
-                        className="rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]"
+                        className="rounded border-gray-300 text-[#19A999] focus:ring-[#19A999]"
                     />
                     <label htmlFor={`sensitive-${index}`} className="text-sm font-medium text-gray-700 dark:text-gray-300">
                         Marcar como informação sensível

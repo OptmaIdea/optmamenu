@@ -115,8 +115,8 @@ export function InventoryQuickNav({ extra }: InventoryQuickNavProps) {
             border border-gray-200 dark:border-gray-700
             bg-white dark:bg-gray-800
             text-gray-500 dark:text-gray-400
-            hover:text-[#21A896] hover:border-[#21A896]/40
-            dark:hover:text-[#21A896]
+            hover:text-[#19A999] hover:border-[#19A999]/40
+            dark:hover:text-[#19A999]
             transition-colors
             shrink-0
           "

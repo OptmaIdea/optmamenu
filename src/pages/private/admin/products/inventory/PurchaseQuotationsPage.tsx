@@ -862,7 +862,7 @@ export default function PurchaseQuotationsPage() {
                 <button
                     type="button"
                     onClick={() => setManualQuotationOpen(true)}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
                 >
                     <Plus size={13} />
                     <span>Nova Cotação</span>
@@ -874,7 +874,7 @@ export default function PurchaseQuotationsPage() {
                 title="Cotações"
                 subtitle="Acesso rápido às cotações salvas para fornecedores."
                 category="Produtos"
-                icon={<FileText size={28} className="text-[#21A896]" />}
+                icon={<FileText size={28} className="text-[#19A999]" />}
                 onRefresh={() => loadQuotations(storeId, { silent: true })}
                 flat
             >

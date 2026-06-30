@@ -185,7 +185,7 @@ export default function SuppliersPage() {
           {canManageSuppliers && (
             <button
               onClick={() => { setSupplierModalMode('create'); setEditingSupplier(null); setSupplierModalOpen(true); }}
-              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
               type="button"
             >
               <Plus size={13} />
@@ -200,7 +200,7 @@ export default function SuppliersPage() {
         title="Fornecedores"
         subtitle="Cadastre a origem das entradas para facilitar compras e reposição."
         category="Produtos"
-        icon={<Truck size={28} className="text-[#21A896]" />}
+        icon={<Truck size={28} className="text-[#19A999]" />}
         lastUpdated={lastUpdated}
         onRefresh={fetchSuppliers}
         flat
@@ -385,7 +385,7 @@ export default function SuppliersPage() {
                           <div className="flex items-center justify-end gap-1">
                             <Link
                               to={`/admin/suppliers/${s.id}/lifecycle`}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-[#21A896] hover:bg-[#21A896]/10"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-[#19A999] hover:bg-[#19A999]/10"
                               title="Vida do fornecedor"
                             >
                               <Activity size={15} />

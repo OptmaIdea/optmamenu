@@ -39,9 +39,9 @@ const SEVERITY_CONFIG: Record<
     info: {
         label: 'Informativo',
         icon: <Info size={14} />,
-        badgeCls: 'bg-[#21A896]/10 text-[#21A896] border-[#21A896]/20',
-        borderCls: 'border-l-[#21A896]',
-        iconBgCls: 'bg-[#21A896]/10 text-[#21A896]',
+        badgeCls: 'bg-[#19A999]/10 text-[#19A999] border-[#19A999]/20',
+        borderCls: 'border-l-[#19A999]',
+        iconBgCls: 'bg-[#19A999]/10 text-[#19A999]',
     },
     warning: {
         label: 'Atenção',
@@ -60,16 +60,16 @@ const SEVERITY_CONFIG: Record<
     medium: {
         label: 'Média',
         icon: <AlertTriangle size={14} />,
-        badgeCls: 'bg-[#FBA93C]/10 text-[#FBA93C] border-[#FBA93C]/30',
-        borderCls: 'border-l-[#FBA93C]',
-        iconBgCls: 'bg-[#FBA93C]/10 text-[#FBA93C]',
+        badgeCls: 'bg-[#FAA832]/10 text-[#FAA832] border-[#FAA832]/30',
+        borderCls: 'border-l-[#FAA832]',
+        iconBgCls: 'bg-[#FAA832]/10 text-[#FAA832]',
     },
     high: {
         label: 'Alta',
         icon: <ShieldAlert size={14} />,
-        badgeCls: 'bg-[#F26541]/10 text-[#F26541] border-[#F26541]/30',
-        borderCls: 'border-l-[#F26541]',
-        iconBgCls: 'bg-[#F26541]/10 text-[#F26541]',
+        badgeCls: 'bg-[#F1613A]/10 text-[#F1613A] border-[#F1613A]/30',
+        borderCls: 'border-l-[#F1613A]',
+        iconBgCls: 'bg-[#F1613A]/10 text-[#F1613A]',
     },
     critical: {
         label: 'Crítica',
@@ -523,7 +523,7 @@ function HistoryCard({ item }: { item: MyVisibleActivityLog }) {
                                 <button
                                     type="button"
                                     onClick={() => setExpanded((v) => !v)}
-                                    className="mt-1.5 flex items-center gap-0.5 text-[11px] text-[#21A896] font-semibold hover:underline transition"
+                                    className="mt-1.5 flex items-center gap-0.5 text-[11px] text-[#19A999] font-semibold hover:underline transition"
                                 >
                                     {expanded ? 'Mostrar menos' : 'Ver mais'}
                                     <ChevronDown
@@ -617,7 +617,7 @@ export default function MyHistory() {
                 title="Meu Histórico"
                 subtitle="Acompanhe os registros e eventos relacionados ao seu perfil nesta loja."
                 category="Configurações"
-                icon={<History size={28} className="text-[#21A896]" />}
+                icon={<History size={28} className="text-[#19A999]" />}
                 flat
             >
                 <div className="max-w-3xl mx-auto space-y-4">
@@ -652,7 +652,7 @@ export default function MyHistory() {
             title="Meu Histórico"
             subtitle="Acompanhe os registros e eventos relacionados ao seu perfil nesta loja."
             category="Configurações"
-            icon={<History size={28} className="text-[#21A896]" />}
+            icon={<History size={28} className="text-[#19A999]" />}
             flat
         >
             <div className="max-w-3xl mx-auto">
@@ -679,7 +679,7 @@ export default function MyHistory() {
                 {!error && items.length > 0 && (
                     <div className="mb-5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
-                            <Filter size={14} className="text-[#21A896]" />
+                            <Filter size={14} className="text-[#19A999]" />
                             <span className="text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider">
                                 Filtros
                             </span>
@@ -687,7 +687,7 @@ export default function MyHistory() {
                                 <button
                                     type="button"
                                     onClick={handleClearFilters}
-                                    className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:text-[#F26541] transition"
+                                    className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-gray-500 dark:text-gray-400 hover:text-[#F1613A] transition"
                                 >
                                     <X size={12} />
                                     Limpar filtros
@@ -705,7 +705,7 @@ export default function MyHistory() {
                                     value={dateFrom}
                                     max={dateTo || undefined}
                                     onChange={(e) => setDateFrom(e.target.value)}
-                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30"
                                 />
                             </div>
 
@@ -718,7 +718,7 @@ export default function MyHistory() {
                                     value={dateTo}
                                     min={dateFrom || undefined}
                                     onChange={(e) => setDateTo(e.target.value)}
-                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30"
                                 />
                             </div>
 
@@ -731,7 +731,7 @@ export default function MyHistory() {
                                     placeholder="Ex: login, update"
                                     value={typeFilter}
                                     onChange={(e) => setTypeFilter(e.target.value)}
-                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30"
                                 />
                             </div>
 
@@ -742,7 +742,7 @@ export default function MyHistory() {
                                 <select
                                     value={outcomeFilter}
                                     onChange={(e) => setOutcomeFilter(e.target.value)}
-                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30"
                                 >
                                     <option value="all">Todos os resultados</option>
                                     <option value="success">Sucesso</option>
@@ -757,7 +757,7 @@ export default function MyHistory() {
                                 <select
                                     value={sortOrder}
                                     onChange={(e) => setSortOrder(e.target.value as 'desc' | 'asc')}
-                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30"
+                                    className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30"
                                 >
                                     <option value="desc">Mais recente primeiro</option>
                                     <option value="asc">Mais antigo primeiro</option>
@@ -770,8 +770,8 @@ export default function MyHistory() {
                 {/* Vazio (sem itens carregados) */}
                 {!error && items.length === 0 && (
                     <div className="flex flex-col items-center justify-center py-20 text-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl bg-[#21A896]/10 flex items-center justify-center">
-                            <Inbox size={28} className="text-[#21A896]" />
+                        <div className="w-16 h-16 rounded-2xl bg-[#19A999]/10 flex items-center justify-center">
+                            <Inbox size={28} className="text-[#19A999]" />
                         </div>
                         <div>
                             <p className="text-base font-bold text-gray-700 dark:text-gray-200">

@@ -1140,7 +1140,7 @@ export default function PrivateLayout() {
                                         title={isSidebarCollapsed ? userData.name : ''}
                                     />
                                 ) : (
-                                    <div className={`${isSidebarCollapsed ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-lg'} rounded-full bg-[#21A896]/10 dark:bg-[#21A896]/20 flex items-center justify-center text-[#21A896] font-bold`} title={isSidebarCollapsed ? userData.name : ''}>
+                                    <div className={`${isSidebarCollapsed ? 'w-8 h-8 text-sm' : 'w-10 h-10 text-lg'} rounded-full bg-[#19A999]/10 dark:bg-[#19A999]/20 flex items-center justify-center text-[#19A999] font-bold`} title={isSidebarCollapsed ? userData.name : ''}>
                                         {userData.name.charAt(0).toUpperCase()}
                                     </div>
                                 )}
@@ -1299,13 +1299,13 @@ export default function PrivateLayout() {
                                                         className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all relative
                                                         ${isSidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'}
                                                         ${isActive
-                                                                ? 'bg-[#21A896]/10 text-[#21A896] border border-[#21A896]/20 dark:bg-[#21A896]/20'
+                                                                ? 'bg-[#19A999]/10 text-[#19A999] border border-[#19A999]/20 dark:bg-[#19A999]/20'
                                                                 : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
                                                             }`}
                                                     >
                                                         <IconComponent
                                                             size={isSidebarCollapsed ? 22 : 18}
-                                                            className={isActive ? 'text-[#21A896]' : 'text-gray-400'}
+                                                            className={isActive ? 'text-[#19A999]' : 'text-gray-400'}
                                                         />
                                                         {isSidebarCollapsed && item.path === '/admin/inventory' && attentionCount > 0 && (
                                                             <span className="absolute right-3 w-2 h-2 rounded-full bg-amber-400" />
@@ -1409,7 +1409,7 @@ export default function PrivateLayout() {
                             <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden lg:block shrink-0" />
                         )}
 
-                        {/* Store Slug Icon (Casinha para slug) - cor brand green #21A896 */}
+                        {/* Store Slug Icon (Casinha para slug) - cor brand green #19A999 */}
                         {storeSlug && (
                             isPublicStoreEnabled ? (
                                 <a
@@ -1417,9 +1417,9 @@ export default function PrivateLayout() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     title={`Acessar loja: /s/${storeSlug}`}
-                                    className="p-2 rounded-lg text-[#21A896] hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                                    className="p-2 rounded-lg text-[#19A999] hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
                                 >
-                                    <StoreIcon size={19} className="text-[#21A896]" />
+                                    <StoreIcon size={19} className="text-[#19A999]" />
                                 </a>
                             ) : (
                                 <button
@@ -1471,7 +1471,7 @@ export default function PrivateLayout() {
                                     onClick={handleClockClick}
                                     title="Tempo de Sessão"
                                     className={`p-2 rounded-lg transition relative shrink-0 ${isClockPopoverOpen
-                                        ? 'text-[#21A896] bg-[#21A896]/10 hover:bg-[#21A896]/20'
+                                        ? 'text-[#19A999] bg-[#19A999]/10 hover:bg-[#19A999]/20'
                                         : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                         }`}
                                 >
@@ -1487,7 +1487,7 @@ export default function PrivateLayout() {
                                 >
                                     <div className="space-y-3 font-candara text-xs text-gray-650 dark:text-gray-300">
                                         <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2 mb-1">
-                                            <Clock size={15} className="text-[#21A896]" />
+                                            <Clock size={15} className="text-[#19A999]" />
                                             <span className="font-bold text-gray-800 dark:text-white">Informações da Sessão</span>
                                         </div>
                                         <div className="flex justify-between items-center">
@@ -1504,7 +1504,7 @@ export default function PrivateLayout() {
                                         </div>
                                         <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700/50 p-2 rounded-lg">
                                             <span className="text-gray-550 dark:text-gray-400">Duração da sessão:</span>
-                                            <span className="font-mono font-bold text-[#21A896]">
+                                            <span className="font-mono font-bold text-[#19A999]">
                                                 {sessionElapsedTime}
                                             </span>
                                         </div>
@@ -1554,7 +1554,7 @@ export default function PrivateLayout() {
                                             <Link
                                                 key={`${item.path}-${item.queryString ?? ''}`}
                                                 to={siblingTo}
-                                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors border border-gray-100 dark:border-gray-700 shrink-0"
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#19A999]/10 hover:text-[#19A999] text-xs font-semibold text-gray-600 dark:text-gray-300 transition-colors border border-gray-100 dark:border-gray-700 shrink-0"
                                             >
                                                 <SiblingIcon size={13} className="text-gray-400 dark:text-gray-500" />
                                                 <span>{item.label}</span>
@@ -1571,7 +1571,7 @@ export default function PrivateLayout() {
                                 >
                                     <button
                                         onClick={() => setIsQuickAccessOpen(!isQuickAccessOpen)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#21A896]/10 hover:text-[#21A896] text-xs font-bold text-gray-600 dark:text-gray-300 transition-all border border-gray-150 dark:border-gray-700 shrink-0 cursor-pointer shadow-sm"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 hover:bg-[#19A999]/10 hover:text-[#19A999] text-xs font-bold text-gray-600 dark:text-gray-300 transition-all border border-gray-150 dark:border-gray-700 shrink-0 cursor-pointer shadow-sm"
                                     >
                                         <SlidersHorizontal size={13} className="text-gray-400 dark:text-gray-500" />
                                         <span>Acesso Rápido</span>
@@ -1590,7 +1590,7 @@ export default function PrivateLayout() {
                                                         key={`${item.path}-${item.queryString ?? ''}`}
                                                         to={siblingTo}
                                                         onClick={() => setIsQuickAccessOpen(false)}
-                                                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-[#21A896]/10 hover:text-[#21A896] dark:hover:bg-[#21A896]/20 transition-all rounded-lg mx-1"
+                                                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-[#19A999]/10 hover:text-[#19A999] dark:hover:bg-[#19A999]/20 transition-all rounded-lg mx-1"
                                                     >
                                                         <SiblingIcon size={14} className="text-gray-400 dark:text-gray-500" />
                                                         <span>{item.label}</span>
@@ -1614,7 +1614,7 @@ export default function PrivateLayout() {
 
                         <button
                             onClick={handleRefresh}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#21A896]/35 shrink-0 shadow-sm cursor-pointer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#19A999]/35 shrink-0 shadow-sm cursor-pointer"
                             title="Atualizar dados da página"
                         >
                             <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />

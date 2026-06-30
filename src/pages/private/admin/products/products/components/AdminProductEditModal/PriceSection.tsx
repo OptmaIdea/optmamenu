@@ -43,7 +43,7 @@ export const PriceSection = ({
                     type="button"
                     onClick={() => onPricingModeChange('inherit')}
                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${pricingMode === 'inherit'
-                            ? 'bg-white dark:bg-gray-600 text-[#21A896] shadow-sm'
+                            ? 'bg-white dark:bg-gray-600 text-[#19A999] shadow-sm'
                             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                         }`}
                 >
@@ -53,7 +53,7 @@ export const PriceSection = ({
                     type="button"
                     onClick={() => onPricingModeChange('custom')}
                     className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${pricingMode === 'custom'
-                            ? 'bg-white dark:bg-gray-600 text-[#21A896] shadow-sm'
+                            ? 'bg-white dark:bg-gray-600 text-[#19A999] shadow-sm'
                             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
                         }`}
                 >
@@ -64,7 +64,7 @@ export const PriceSection = ({
             {pricingMode === 'inherit' ? (
                 <div className="p-4 bg-gray-50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 rounded-xl text-sm border border-gray-100 dark:border-gray-700">
                     <div className="flex items-center gap-2 mb-2">
-                        <div className="w-1 h-8 bg-[#21A896] rounded-full"></div>
+                        <div className="w-1 h-8 bg-[#19A999] rounded-full"></div>
                         <div>
                             <span className="font-bold block text-gray-800 dark:text-white">
                                 Herdando da Categoria: {categoryName || 'Selecione uma categoria'}
@@ -79,7 +79,7 @@ export const PriceSection = ({
                 <div className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
                         <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all ${priceLogicType === 'standard'
-                                ? 'border-[#21A896] bg-[#21A896]/5 dark:bg-[#21A896]/10'
+                                ? 'border-[#19A999] bg-[#19A999]/5 dark:bg-[#19A999]/10'
                                 : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                             }`}>
                             <input
@@ -88,17 +88,17 @@ export const PriceSection = ({
                                 value="standard"
                                 checked={priceLogicType === 'standard'}
                                 onChange={() => onPriceLogicTypeChange('standard')}
-                                className="mt-1 accent-[#21A896]"
+                                className="mt-1 accent-[#19A999]"
                             />
                             <div>
-                                <span className={`block font-bold ${priceLogicType === 'standard' ? 'text-[#21A896]' : 'text-gray-800 dark:text-gray-200'
+                                <span className={`block font-bold ${priceLogicType === 'standard' ? 'text-[#19A999]' : 'text-gray-800 dark:text-gray-200'
                                     }`}>
                                     Preço Padrão
                                 </span>
                             </div>
                         </label>
                         <label className={`flex items-start gap-3 p-4 border rounded-xl cursor-pointer transition-all ${priceLogicType === 'category_volume'
-                                ? 'border-[#21A896] bg-[#21A896]/5 dark:bg-[#21A896]/10'
+                                ? 'border-[#19A999] bg-[#19A999]/5 dark:bg-[#19A999]/10'
                                 : 'border-gray-200 dark:border-gray-600 hover:border-gray-300'
                             }`}>
                             <input
@@ -107,10 +107,10 @@ export const PriceSection = ({
                                 value="category_volume"
                                 checked={priceLogicType === 'category_volume'}
                                 onChange={() => onPriceLogicTypeChange('category_volume')}
-                                className="mt-1 accent-[#21A896]"
+                                className="mt-1 accent-[#19A999]"
                             />
                             <div>
-                                <span className={`block font-bold ${priceLogicType === 'category_volume' ? 'text-[#21A896]' : 'text-gray-800 dark:text-gray-200'
+                                <span className={`block font-bold ${priceLogicType === 'category_volume' ? 'text-[#19A999]' : 'text-gray-800 dark:text-gray-200'
                                     }`}>
                                     Atacado (Volume)
                                 </span>
@@ -131,7 +131,7 @@ export const PriceSection = ({
                     <NumericFormat
                         className={`w-full pl-12 p-4 border rounded-xl outline-none transition-all text-lg font-bold ${isPriceDisabled
                                 ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 cursor-not-allowed'
-                                : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-[#21A896]/20 focus:border-[#21A896] text-gray-900 dark:text-white'
+                                : 'bg-gray-50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-600 focus:ring-2 focus:ring-[#19A999]/20 focus:border-[#19A999] text-gray-900 dark:text-white'
                             }`}
                         value={price}
                         onValueChange={(values) => !isPriceDisabled && onPriceChange(values.value)}

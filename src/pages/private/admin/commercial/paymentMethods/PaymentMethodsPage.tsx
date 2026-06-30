@@ -138,7 +138,7 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
             title="Formas de pagamento"
             subtitle="Configure quais formas de pagamento a loja aceita. Esta base será usada no pedido público, vendas diretas e livro diário de caixa."
             category="Comercial"
-            icon={<WalletCards size={28} className="text-[#21A896]" />}
+            icon={<WalletCards size={28} className="text-[#19A999]" />}
             onRefresh={loadMethods}
             withoutHeader={withoutHeader}
             flat

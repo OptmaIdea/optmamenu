@@ -22,14 +22,14 @@ export default function ProgressCard({
 
   const colors = {
     green: {
-      bg: 'bg-[#21A896]/10',
-      fill: 'bg-[#21A896]',
-      text: 'text-[#21A896]'
+      bg: 'bg-[#19A999]/10',
+      fill: 'bg-[#19A999]',
+      text: 'text-[#19A999]'
     },
     orange: {
-      bg: 'bg-[#F26541]/10',
-      fill: 'bg-[#F26541]',
-      text: 'text-[#F26541]'
+      bg: 'bg-[#F1613A]/10',
+      fill: 'bg-[#F1613A]',
+      text: 'text-[#F1613A]'
     },
     blue: {
       bg: 'bg-[#7B2D8E]/10',

@@ -28,8 +28,8 @@ export default function RecentActivity({
 
   const getIcon = (type: string) => {
     switch (type) {
-      case 'order': return <ShoppingBag size={16} className="text-[#21A896]" />;
-      case 'product': return <Package size={16} className="text-[#F26541]" />;
+      case 'order': return <ShoppingBag size={16} className="text-[#19A999]" />;
+      case 'product': return <Package size={16} className="text-[#F1613A]" />;
       case 'message': return <MessageCircle size={16} className="text-blue-500" />;
       case 'customer': return <User size={16} className="text-purple-500" />;
       default: return <Clock size={16} className="text-gray-400" />;
@@ -52,7 +52,7 @@ export default function RecentActivity({
           {title}
         </h3>
         {activities.length > 0 && (
-          <span className="px-2.5 py-0.5 bg-[#21A896]/10 text-[#21A896] rounded-full text-xs font-bold">
+          <span className="px-2.5 py-0.5 bg-[#19A999]/10 text-[#19A999] rounded-full text-xs font-bold">
             {activities.length}
           </span>
         )}
@@ -107,7 +107,7 @@ export default function RecentActivity({
 
                   <p className="text-sm text-gray-600 dark:text-gray-300 font-candara mb-1">
                     {activity.action}{' '}
-                    <span className="font-bold text-[#21A896]">
+                    <span className="font-bold text-[#19A999]">
                       {activity.target}
                     </span>
                   </p>
@@ -135,7 +135,7 @@ export default function RecentActivity({
         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 text-center">
           <Link
             to={viewAllLink}
-            className="text-sm font-bold text-[#21A896] hover:text-[#1a867a] transition-colors font-candara"
+            className="text-sm font-bold text-[#19A999] hover:text-[#14887B] transition-colors font-candara"
           >
             Ver todas as atividades →
           </Link>

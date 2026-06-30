@@ -741,7 +741,7 @@ export default function Catalog() {
     if (loadingStore) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-                <Loader2 className="animate-spin h-12 w-12 text-[#21A896]" />
+                <Loader2 className="animate-spin h-12 w-12 text-[#19A999]" />
             </div>
         );
     }

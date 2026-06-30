@@ -379,7 +379,7 @@ export default function PushNotifications() {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#21A896] mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#19A999] mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-300 font-candara">Carregando sistema de notificações...</p>
         </div>
       </div>
@@ -467,7 +467,7 @@ export default function PushNotifications() {
           <button
             onClick={() => setActiveTab('send')}
             className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'send'
-              ? 'text-[#21A896] border-b-2 border-[#21A896]'
+              ? 'text-[#19A999] border-b-2 border-[#19A999]'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
           >
@@ -477,7 +477,7 @@ export default function PushNotifications() {
           <button
             onClick={() => setActiveTab('devices')}
             className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'devices'
-              ? 'text-[#21A896] border-b-2 border-[#21A896]'
+              ? 'text-[#19A999] border-b-2 border-[#19A999]'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
           >
@@ -487,7 +487,7 @@ export default function PushNotifications() {
           <button
             onClick={() => setActiveTab('history')}
             className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'history'
-              ? 'text-[#21A896] border-b-2 border-[#21A896]'
+              ? 'text-[#19A999] border-b-2 border-[#19A999]'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
           >
@@ -497,7 +497,7 @@ export default function PushNotifications() {
           <button
             onClick={() => setActiveTab('templates')}
             className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === 'templates'
-              ? 'text-[#21A896] border-b-2 border-[#21A896]'
+              ? 'text-[#19A999] border-b-2 border-[#19A999]'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
               }`}
           >
@@ -515,7 +515,7 @@ export default function PushNotifications() {
                 {/* Formulário de Envio */}
                 <div className="space-y-4">
                   <h3 className="font-bold text-gray-800 dark:text-white font-candara-bold flex items-center gap-2">
-                    <Send size={18} className="text-[#21A896]" />
+                    <Send size={18} className="text-[#19A999]" />
                     Nova Mensagem
                   </h3>
 
@@ -528,7 +528,7 @@ export default function PushNotifications() {
                       value={newNotification.title}
                       onChange={(e) => setNewNotification({ ...newNotification, title: e.target.value })}
                       placeholder="Ex: Novo pedido, Alerta de estoque..."
-                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] font-candara"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] font-candara"
                     />
                   </div>
 
@@ -541,7 +541,7 @@ export default function PushNotifications() {
                       onChange={(e) => setNewNotification({ ...newNotification, message: e.target.value })}
                       placeholder="Digite sua mensagem..."
                       rows={4}
-                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] font-candara resize-none"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] font-candara resize-none"
                     />
                   </div>
 
@@ -553,7 +553,7 @@ export default function PushNotifications() {
                       <select
                         value={newNotification.channel}
                         onChange={(e) => setNewNotification({ ...newNotification, channel: e.target.value as MessageChannel })}
-                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896]"
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999]"
                       >
                         <option value="both">Push + WhatsApp</option>
                         <option value="push">Apenas Push</option>
@@ -568,7 +568,7 @@ export default function PushNotifications() {
                       <select
                         value={newNotification.recipients}
                         onChange={(e) => setNewNotification({ ...newNotification, recipients: e.target.value as any })}
-                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896]"
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999]"
                       >
                         <option value="all">Todos</option>
                         <option value="admins">Administradores</option>
@@ -588,14 +588,14 @@ export default function PushNotifications() {
                       value={newNotification.link}
                       onChange={(e) => setNewNotification({ ...newNotification, link: e.target.value })}
                       placeholder="https://..."
-                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] font-candara"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] font-candara"
                     />
                   </div>
 
                   <button
                     onClick={sendNotification}
                     disabled={!newNotification.title || !newNotification.message}
-                    className="w-full py-4 bg-[#21A896] hover:bg-[#1a867a] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-[#19A999] hover:bg-[#14887B] disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                   >
                     <Send size={18} />
                     Enviar Notificação
@@ -603,14 +603,14 @@ export default function PushNotifications() {
                 </div>
 
                 {/* QR Code para conexão */}
-                <div className="bg-gradient-to-br from-[#21A896]/10 to-[#1a867a]/10 dark:from-[#21A896]/5 dark:to-[#1a867a]/5 rounded-2xl p-6 border border-[#21A896]/20">
+                <div className="bg-gradient-to-br from-[#19A999]/10 to-[#14887B]/10 dark:from-[#19A999]/5 dark:to-[#14887B]/5 rounded-2xl p-6 border border-[#19A999]/20">
                   <h3 className="font-bold text-gray-800 dark:text-white font-candara-bold flex items-center gap-2 mb-4">
-                    <QrCode size={18} className="text-[#21A896]" />
+                    <QrCode size={18} className="text-[#19A999]" />
                     Conectar Novo Dispositivo
                   </h3>
 
                   <div className="flex flex-col items-center">
-                    <div className="bg-white p-4 rounded-2xl mb-4 border-2 border-[#21A896]">
+                    <div className="bg-white p-4 rounded-2xl mb-4 border-2 border-[#19A999]">
                       <div className="w-48 h-48 bg-gray-200 dark:bg-gray-700 rounded-xl flex items-center justify-center">
                         <QrCode size={120} className="text-gray-600 dark:text-gray-400" />
                       </div>
@@ -628,7 +628,7 @@ export default function PushNotifications() {
                         {copied ? <CheckCheck size={18} /> : <Copy size={18} />}
                         {copied ? 'Copiado!' : 'Copiar link'}
                       </button>
-                      <button className="flex-1 py-3 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-xl transition-colors flex items-center justify-center gap-2">
+                      <button className="flex-1 py-3 bg-[#19A999] hover:bg-[#14887B] text-white rounded-xl transition-colors flex items-center justify-center gap-2">
                         <Download size={18} />
                         Baixar App
                       </button>
@@ -642,8 +642,8 @@ export default function PushNotifications() {
                 <p className="text-xs font-bold text-gray-400 uppercase mb-3">PRÉVIA DA MENSAGEM</p>
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-4 max-w-md mx-auto shadow-sm border border-gray-100 dark:border-gray-700">
                   <div className="flex items-start gap-3">
-                    <div className="p-2 bg-[#21A896]/10 rounded-lg">
-                      <Bell size={20} className="text-[#21A896]" />
+                    <div className="p-2 bg-[#19A999]/10 rounded-lg">
+                      <Bell size={20} className="text-[#19A999]" />
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-gray-800 dark:text-white text-sm mb-1">
@@ -667,10 +667,10 @@ export default function PushNotifications() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-gray-800 dark:text-white font-candara-bold flex items-center gap-2">
-                  <Smartphone size={18} className="text-[#21A896]" />
+                  <Smartphone size={18} className="text-[#19A999]" />
                   Dispositivos Ativos ({stats.activeDevices}/{stats.totalDevices})
                 </h3>
-                <button className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-xl text-sm font-bold flex items-center gap-2">
+                <button className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-xl text-sm font-bold flex items-center gap-2">
                   <UserPlus size={16} />
                   Convidar Usuário
                 </button>
@@ -713,7 +713,7 @@ export default function PushNotifications() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button className="p-2 text-gray-400 hover:text-[#21A896] transition-colors">
+                      <button className="p-2 text-gray-400 hover:text-[#19A999] transition-colors">
                         <Edit size={16} />
                       </button>
                       <button
@@ -733,7 +733,7 @@ export default function PushNotifications() {
           {activeTab === 'history' && (
             <div className="space-y-4">
               <h3 className="font-bold text-gray-800 dark:text-white font-candara-bold flex items-center gap-2">
-                <Clock size={18} className="text-[#21A896]" />
+                <Clock size={18} className="text-[#19A999]" />
                 Últimas Notificações
               </h3>
 
@@ -795,7 +795,7 @@ export default function PushNotifications() {
                       {notification.metadata?.link && (
                         <Link
                           to={notification.metadata.link}
-                          className="text-xs font-bold text-[#21A896] hover:underline"
+                          className="text-xs font-bold text-[#19A999] hover:underline"
                         >
                           Ver detalhes →
                         </Link>
@@ -812,10 +812,10 @@ export default function PushNotifications() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="font-bold text-gray-800 dark:text-white font-candara-bold flex items-center gap-2">
-                  <MessageCircle size={18} className="text-[#21A896]" />
+                  <MessageCircle size={18} className="text-[#19A999]" />
                   Templates WhatsApp
                 </h3>
-                <button className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-xl text-sm font-bold flex items-center gap-2">
+                <button className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-xl text-sm font-bold flex items-center gap-2">
                   <Plus size={16} />
                   Novo Template
                 </button>
@@ -846,7 +846,7 @@ export default function PushNotifications() {
                           {template.category === 'authentication' && 'Autenticação'}
                         </span>
                       </div>
-                      <button className="p-1.5 text-gray-400 hover:text-[#21A896] transition-colors">
+                      <button className="p-1.5 text-gray-400 hover:text-[#19A999] transition-colors">
                         <Edit size={16} />
                       </button>
                     </div>
@@ -857,7 +857,7 @@ export default function PushNotifications() {
                       <span className="text-xs text-gray-500">
                         {template.variables.length} variáveis
                       </span>
-                      <button className="text-xs font-bold text-[#21A896] hover:underline flex items-center gap-1">
+                      <button className="text-xs font-bold text-[#19A999] hover:underline flex items-center gap-1">
                         <Send size={12} />
                         Usar template
                       </button>

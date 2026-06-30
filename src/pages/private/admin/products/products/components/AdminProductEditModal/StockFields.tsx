@@ -26,7 +26,7 @@ export const StockFields = ({
                     value={stockQuantity}
                     onChange={(e) => onStockQuantityChange(parseInt(e.target.value) || 0)}
                     min="0"
-                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896]/20 focus:border-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999]/20 focus:border-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                 />
             </div>
             <div className="grid grid-cols-2 gap-3">

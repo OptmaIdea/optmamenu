@@ -5,49 +5,49 @@
 @layer base {
   html {
     @apply bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100;
-    font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
+    font-family: "Plus Jakarta Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
 }
 
 @theme {
-  --font-sans: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
-  --color-brand-green: #21A896;
-  --color-brand-orange: #F26541;
-  --color-brand-light: #FBA93C;
-  --color-brand-dark: #1A867A;
+  --font-sans: "Plus Jakarta Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-brand-green: #19A999;
+  --color-brand-orange: #F1613A;
+  --color-brand-light: #FAA832;
+  --color-brand-dark: #14887B;
   --color-brand-purple: #7B2D8E;
   --color-brand-purple-light: #B77ED8;
-  --color-brand-gray: #6B6258;
+  --color-brand-gray: #6B6375;
 }
 
 :root {
   /* Gradiente para landing */
-  --landing-gradient: linear-gradient(135deg, #21A896 0%, #1A867A 100%);
+  --landing-gradient: linear-gradient(135deg, #19A999 0%, #14887B 100%);
 }
 
 /* Font stack para Candara com fallback premium */
 .font-candara {
-  font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
+  font-family: 'Candara', "Plus Jakarta Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-weight: 400;
 }
 
 .font-candara-bold {
-  font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
+  font-family: 'Candara', "Plus Jakarta Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-weight: 700;
 }
 
 /* Botão com efeito de profundidade */
 .button-primary,
 .button-primary:hover {
-  background: linear-gradient(to bottom, #F26541, #E05A36);
-  box-shadow: 0 4px 12px rgba(242, 101, 65, 0.3);
+  background: linear-gradient(to bottom, #F1613A, #E05A36);
+  box-shadow: 0 4px 12px rgba(241, 97, 58, 0.3);
   transition: all 0.3s ease;
   border-radius: 50px;
 }
 
 .button-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(242, 101, 65, 0.4);
+  box-shadow: 0 6px 16px rgba(241, 97, 58, 0.4);
 }
 
 /* Cards com animação suave */

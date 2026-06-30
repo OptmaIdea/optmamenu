@@ -91,7 +91,7 @@ export default function MyProfileAddressTab({
             {/* Address Section */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <MapPin className="text-[#21A896]" size={20} /> Endereço Residencial
+                    <MapPin className="text-[#19A999]" size={20} /> Endereço Residencial
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div className="md:col-span-1">
@@ -99,7 +99,7 @@ export default function MyProfileAddressTab({
                         <div className="flex gap-2">
                             <input
                                 type="text"
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                 value={profile.zip_code}
                                 placeholder="00000-000"
                                 onChange={(e) =>
@@ -135,7 +135,7 @@ export default function MyProfileAddressTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Endereço (Rua/Avenida)</label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                             value={profile.address}
                             onChange={(e) => setProfile({ ...profile, address: e.target.value })}
                         />
@@ -145,7 +145,7 @@ export default function MyProfileAddressTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Número</label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                             value={profile.address_number}
                             onChange={(e) => setProfile({ ...profile, address_number: e.target.value })}
                         />
@@ -155,7 +155,7 @@ export default function MyProfileAddressTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Complemento</label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                             value={profile.complement}
                             onChange={(e) => setProfile({ ...profile, complement: e.target.value })}
                         />
@@ -165,7 +165,7 @@ export default function MyProfileAddressTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Bairro</label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                             value={profile.district}
                             onChange={(e) => setProfile({ ...profile, district: e.target.value })}
                         />
@@ -174,7 +174,7 @@ export default function MyProfileAddressTab({
                     <div className="md:col-span-1">
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Estado (UF)</label>
                         <select
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                             value={profile.state}
                             onChange={(e) => setProfile({ ...profile, state: e.target.value, city: '' })}
                         >
@@ -191,14 +191,14 @@ export default function MyProfileAddressTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 flex justify-between">
                             Cidade
                             {loadingCities && (
-                                <span className="text-xs text-[#21A896] flex items-center gap-1">
+                                <span className="text-xs text-[#19A999] flex items-center gap-1">
                                     <Loader size={12} className="animate-spin" /> Carregando...
                                 </span>
                             )}
                         </label>
                         {profile.state ? (
                             <select
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                 value={profile.city}
                                 onChange={(e) => setProfile({ ...profile, city: e.target.value })}
                                 disabled={loadingCities}
@@ -226,7 +226,7 @@ export default function MyProfileAddressTab({
             {/* Social Media Section */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <Globe className="text-[#21A896]" size={20} /> Redes Sociais e Canais
+                    <Globe className="text-[#19A999]" size={20} /> Redes Sociais e Canais
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
@@ -234,7 +234,7 @@ export default function MyProfileAddressTab({
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.instagram_url}
                                 onChange={(e) => setProfile({ ...profile, instagram_url: e.target.value })}
                                 placeholder="Ex: @seuusername"
@@ -249,7 +249,7 @@ export default function MyProfileAddressTab({
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.facebook_url}
                                 onChange={(e) => setProfile({ ...profile, facebook_url: e.target.value })}
                                 placeholder="Ex: facebook.com/perfil"
@@ -264,7 +264,7 @@ export default function MyProfileAddressTab({
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.website_url}
                                 onChange={(e) => setProfile({ ...profile, website_url: e.target.value })}
                                 placeholder="Ex: www.seusite.com"
@@ -281,7 +281,7 @@ export default function MyProfileAddressTab({
                 <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-3 bg-[#21A896] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-3 bg-[#19A999] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Save size={24} />
                     {saving ? 'Salvando...' : 'Salvar Alterações'}

@@ -127,7 +127,7 @@ export default function CategoryEditModal({
                             </div>
                         ) : (
                             <div
-                                className="w-full h-48 border-2 border-dashed rounded-lg flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-800/50 cursor-pointer hover:border-[#21A896] hover:bg-[#21A896]/5 transition-colors"
+                                className="w-full h-48 border-2 border-dashed rounded-lg flex flex-col items-center justify-center bg-gray-100 dark:bg-gray-800/50 cursor-pointer hover:border-[#19A999] hover:bg-[#19A999]/5 transition-colors"
                                 onClick={() => document.getElementById('category-image-upload')?.click()}
                             >
                                 <span className="text-4xl text-gray-400 mb-2">🖼️</span>
@@ -163,8 +163,8 @@ export default function CategoryEditModal({
                 <div className="w-full md:w-3/5 flex flex-col max-h-full overflow-hidden">
                     <div className="hidden md:flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-[#21A896]/10 rounded-lg">
-                                <Package size={20} className="text-[#21A896]" />
+                            <div className="p-2 bg-[#19A999]/10 rounded-lg">
+                                <Package size={20} className="text-[#19A999]" />
                             </div>
                             <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
                                 {isEditing ? 'Editar Categoria' : 'Nova Categoria'}
@@ -197,7 +197,7 @@ export default function CategoryEditModal({
                         <button
                             onClick={handleSaveClick}
                             disabled={saving || !form.name || !canManage}
-                            className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
+                            className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50"
                         >
                             {saving ? (
                                 <>

@@ -94,8 +94,8 @@ export default function Dashboard() {
       </div>
       <span className="text-gray-300 dark:text-gray-700 hidden sm:inline">|</span>
       <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800/40 px-2.5 py-0.5 rounded-md border border-gray-200/60 dark:border-gray-700/60">
-        <span className="font-semibold text-[#21A896]">Tempo:</span>
-        <span className="font-mono font-bold text-[#21A896]">{sessionElapsedTime}</span>
+        <span className="font-semibold text-[#19A999]">Tempo:</span>
+        <span className="font-mono font-bold text-[#19A999]">{sessionElapsedTime}</span>
       </div>
     </div>
   );
@@ -343,7 +343,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-[50vh] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#21A896] mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-[#19A999] mx-auto mb-4"></div>
           <p className="text-gray-600 dark:text-gray-300 font-candara">
             Carregando dashboard...
           </p>
@@ -365,7 +365,7 @@ export default function Dashboard() {
           <button
             type="button"
             onClick={fetchDashboardData}
-            className="px-4 py-2 rounded-xl font-bold bg-[#21A896] text-white hover:brightness-110"
+            className="px-4 py-2 rounded-xl font-bold bg-[#19A999] text-white hover:brightness-110"
           >
             Tentar novamente
           </button>
@@ -379,7 +379,7 @@ export default function Dashboard() {
       title="Dashboard"
       subtitle="Visão completa da sua operação em tempo real"
       category="Dashboard"
-      icon={<LayoutDashboard size={28} className="text-[#21A896]" />}
+      icon={<LayoutDashboard size={28} className="text-[#19A999]" />}
       action={sessionStats}
       flat
     >
@@ -530,7 +530,7 @@ export default function Dashboard() {
                       </div>
                       <Link
                         to={`/admin/products/${p.id}`}
-                        className="text-xs text-gray-400 hover:text-[#21A896]"
+                        className="text-xs text-gray-400 hover:text-[#19A999]"
                       >
                         Repor
                       </Link>
@@ -565,7 +565,7 @@ export default function Dashboard() {
                 </p>
                 <Link
                   to="/admin/messages-admin"
-                  className="text-xs font-bold text-[#21A896] hover:underline"
+                  className="text-xs font-bold text-[#19A999] hover:underline"
                 >
                   Acessar →
                 </Link>

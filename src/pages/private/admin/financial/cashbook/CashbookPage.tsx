@@ -297,7 +297,7 @@ export default function CashbookPage() {
             title="Livro diário de caixa"
             subtitle="Gerencie entradas, saídas e lançamentos financeiros simples da loja."
             category="Financeiro"
-            icon={<WalletCards size={28} className="text-[#21A896]" />}
+            icon={<WalletCards size={28} className="text-[#19A999]" />}
             onRefresh={loadData}
             action={
                 <div className="flex items-center gap-2">
@@ -364,8 +364,8 @@ export default function CashbookPage() {
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
-                    <div className="flex items-center gap-3 text-[#21A896] mb-3">
-                        <div className="p-2 bg-[#21A896]/10 rounded-xl">
+                    <div className="flex items-center gap-3 text-[#19A999] mb-3">
+                        <div className="p-2 bg-[#19A999]/10 rounded-xl">
                             <Wallet size={20} />
                         </div>
                         <span className="text-xs font-black uppercase tracking-widest">Saldo Atual</span>
@@ -384,7 +384,7 @@ export default function CashbookPage() {
                         <History size={18} className="text-gray-400" />
                         <h2 className="font-black text-gray-900 dark:text-white uppercase tracking-tight">Últimos Lançamentos</h2>
                     </div>
-                    <button className="text-xs font-black text-[#21A896] hover:underline uppercase tracking-widest">
+                    <button className="text-xs font-black text-[#19A999] hover:underline uppercase tracking-widest">
                         Ver todos
                     </button>
                 </div>
@@ -398,7 +398,7 @@ export default function CashbookPage() {
                                 type="date"
                                 value={startDate}
                                 onChange={(event) => setStartDate(event.target.value)}
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                             />
                         </div>
                     </label>
@@ -412,7 +412,7 @@ export default function CashbookPage() {
                                 value={endDate}
                                 onChange={(event) => setEndDate(event.target.value)}
                                 max={getDateInputValue(new Date())}
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                             />
                         </div>
                     </label>
@@ -425,7 +425,7 @@ export default function CashbookPage() {
                                 value={customerFilter}
                                 onChange={(event) => setCustomerFilter(event.target.value)}
                                 placeholder="Nome, descrição, pedido ou cliente"
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                             />
                         </div>
                     </label>
@@ -435,7 +435,7 @@ export default function CashbookPage() {
                         <select
                             value={statusFilter}
                             onChange={(event) => setStatusFilter(event.target.value as CashbookStatusFilter)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                         >
                             <option value="active">Ativos</option>
                             <option value="cancelled">Cancelados</option>
@@ -556,7 +556,7 @@ export default function CashbookPage() {
                     >
                         <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-6 dark:border-gray-800">
                             <div>
-                                <p className="text-xs font-black uppercase tracking-widest text-[#21A896]">
+                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">
                                     Livro diário
                                 </p>
                                 <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">
@@ -586,7 +586,7 @@ export default function CashbookPage() {
                                 <input
                                     value={formState.description}
                                     onChange={(event) => setFormState({ ...formState, description: event.target.value })}
-                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                     placeholder="Descrição do lançamento"
                                 />
                             </label>
@@ -600,7 +600,7 @@ export default function CashbookPage() {
                                                 value={formState.amount}
                                                 onChange={(event) => setFormState({ ...formState, amount: event.target.value })}
                                                 inputMode="decimal"
-                                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                                 placeholder="0,00"
                                             />
                                         </label>
@@ -611,7 +611,7 @@ export default function CashbookPage() {
                                                 type="datetime-local"
                                                 value={formState.occurredAt}
                                                 onChange={(event) => setFormState({ ...formState, occurredAt: event.target.value })}
-                                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                             />
                                         </label>
                                     </div>
@@ -621,7 +621,7 @@ export default function CashbookPage() {
                                         <select
                                             value={formState.paymentMethodCode}
                                             onChange={(event) => setFormState({ ...formState, paymentMethodCode: event.target.value })}
-                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                         >
                                             <option value="cash">Dinheiro</option>
                                             <option value="pix">Pix</option>
@@ -636,7 +636,7 @@ export default function CashbookPage() {
                                             value={formState.notes}
                                             onChange={(event) => setFormState({ ...formState, notes: event.target.value })}
                                             rows={3}
-                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                             placeholder="Detalhes internos opcionais"
                                         />
                                     </label>
@@ -655,7 +655,7 @@ export default function CashbookPage() {
                             <button
                                 type="submit"
                                 disabled={savingForm || !canCreateCashbookEntry}
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-black text-white transition hover:bg-[#188575] disabled:cursor-not-allowed disabled:opacity-60"
+                                className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-black text-white transition hover:bg-[#188575] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <Save size={16} />
                                 Salvar lançamento
@@ -670,7 +670,7 @@ export default function CashbookPage() {
                     <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
                         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-gray-100 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
                             <div>
-                                <p className="text-xs font-black uppercase tracking-widest text-[#21A896]">
+                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">
                                     Detalhes do lançamento
                                 </p>
                                 <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">

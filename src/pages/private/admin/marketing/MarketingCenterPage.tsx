@@ -717,7 +717,7 @@ export default function MarketingCenterPage() {
             title="Segmentos e promoções"
             subtitle="Organize públicos, campanhas e mensagens dirigidas para WhatsApp, e-mail e ações futuras."
             category="Comercial"
-            icon={<Megaphone size={28} className="text-[#21A896]" />}
+            icon={<Megaphone size={28} className="text-[#19A999]" />}
             onRefresh={handleRefreshSegments}
             action={
                 <div className="flex flex-wrap gap-2">

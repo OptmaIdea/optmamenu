@@ -170,7 +170,7 @@ const result = await performAdjustment(
                                 <select
                                     value={supplierId}
                                     onChange={(e) => setSupplierId(e.target.value)}
-                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                                 >
                                     <option value="">Selecione...</option>
                                     {activeSuppliers.map(s => (
@@ -207,7 +207,7 @@ const result = await performAdjustment(
                                 min="1"
                                 value={quantity}
                                 onChange={(e) => setQuantity(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                                 placeholder="0"
                                 required
                             />
@@ -223,7 +223,7 @@ const result = await performAdjustment(
                 type="text"
                 value={invoiceNumber}
                 onChange={(e) => setInvoiceNumber(e.target.value)}
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                 placeholder="Ex: NF 1234"
             />
         </div>
@@ -238,7 +238,7 @@ const result = await performAdjustment(
                 min="0"
                 value={unitCost}
                 onChange={(e) => setUnitCost(e.target.value)}
-                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                 placeholder="0,00"
             />
             {unitCost !== '' && quantity !== '' && (
@@ -258,7 +258,7 @@ const result = await performAdjustment(
                                 type="text"
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                                 placeholder={type === 'entry' ? 'Ex: Compra NF 123' : 'Ex: Quebra, consumo'}
                                 required
                             />
@@ -302,7 +302,7 @@ const result = await performAdjustment(
                                 <input
                                     value={newSupplier.name}
                                     onChange={(e) => setNewSupplier((p) => ({ ...p, name: e.target.value }))}
-                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                    className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                                     placeholder="Ex: Distribuidora X"
                                 />
                             </div>
@@ -314,7 +314,7 @@ const result = await performAdjustment(
                                     <input
                                         value={newSupplier.document ?? ''}
                                         onChange={(e) => setNewSupplier((p) => ({ ...p, document: e.target.value }))}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                                         placeholder="CNPJ/CPF"
                                     />
                                 </div>
@@ -325,7 +325,7 @@ const result = await performAdjustment(
                                     <input
                                         value={newSupplier.phone ?? ''}
                                         onChange={(e) => setNewSupplier((p) => ({ ...p, phone: e.target.value }))}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white"
                                         placeholder="(00) 00000-0000"
                                     />
                                 </div>

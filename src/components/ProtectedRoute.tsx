@@ -21,8 +21,8 @@ export function ProtectedRoute() {
             <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
                 <div className="flex flex-col items-center">
                     <div className="relative">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896]"></div>
-                        <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-2 border-[#21A896] opacity-20"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
+                        <div className="absolute top-0 left-0 w-12 h-12 rounded-full border-2 border-[#19A999] opacity-20"></div>
                     </div>
                     <p className="mt-4 text-gray-600 dark:text-gray-300 font-candara">
                         Verificando sua autenticação...

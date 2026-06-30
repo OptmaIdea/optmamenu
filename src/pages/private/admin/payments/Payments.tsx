@@ -7,7 +7,7 @@ export default function Payments() {
             title="Pagamentos & Financeiro"
             subtitle="Gerencie suas vendas e recebimentos em um só lugar."
             category="Configurações"
-            icon={<CreditCard className="text-[#21A896]" size={28} />}
+            icon={<CreditCard className="text-[#19A999]" size={28} />}
             flat
         >
 

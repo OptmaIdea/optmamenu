@@ -44,31 +44,31 @@ export default function ProductTable({
                         <tr>
                             {/* Coluna Produto - sticky no mobile */}
                             <th
-                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896] lg:sticky lg:left-0 lg:z-20 bg-gray-50 dark:bg-gray-900/50 lg:border-r border-gray-200 dark:border-gray-700"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999] lg:sticky lg:left-0 lg:z-20 bg-gray-50 dark:bg-gray-900/50 lg:border-r border-gray-200 dark:border-gray-700"
                                 onClick={() => onSort('name')}
                             >
                                 Produto {getSortIndicator('name')}
                             </th>
                             <th
-                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999]"
                                 onClick={() => onSort('display_available')}
                             >
                                 Estoque {getSortIndicator('display_available')}
                             </th>
                             <th
-                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999]"
                                 onClick={() => onSort('price')}
                             >
                                 Preço {getSortIndicator('price')}
                             </th>
                             <th
-                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999]"
                                 onClick={() => onSort('recommended_action')}
                             >
                                 Ação {getSortIndicator('recommended_action')}
                             </th>
                             <th
-                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#21A896]"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999]"
                                 onClick={() => onSort('active')}
                             >
                                 Status {getSortIndicator('active')}
@@ -91,7 +91,7 @@ export default function ProductTable({
                                         >
                                             <td colSpan={6} className="px-4 py-2">
                                                 <div className="flex items-center gap-2">
-                                                    <button className="p-1 bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-600 text-[#21A896]">
+                                                    <button className="p-1 bg-white dark:bg-gray-800 rounded shadow-sm border border-gray-200 dark:border-gray-600 text-[#19A999]">
                                                         {isCollapsed ? (
                                                             <Plus size={14} />
                                                         ) : (

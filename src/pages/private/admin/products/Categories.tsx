@@ -127,7 +127,7 @@ export default function CategoriesPage() {
                 title="Categorias"
                 subtitle="Gerencie as categorias do seu cardápio"
                 category="Produtos"
-                icon={<Layers size={28} className="text-[#21A896]" />}
+                icon={<Layers size={28} className="text-[#19A999]" />}
                 lastUpdated={lastUpdated}
                 onRefresh={refresh}
                 flat
@@ -143,7 +143,7 @@ export default function CategoriesPage() {
                         {canManageCategories && (
                             <button
                                 onClick={openNewModal}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#21A896] hover:bg-[#1a867a] text-white text-sm font-medium rounded-md transition-colors"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-medium rounded-md transition-colors"
                             >
                                 <Plus size={16} />
                                 <span className="hidden md:inline">Nova Categoria</span>
@@ -163,7 +163,7 @@ export default function CategoriesPage() {
                                 placeholder="Buscar categorias..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#21A896]"
+                                className="w-full pl-8 pr-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-[#19A999]"
                             />
                         </div>
 
@@ -171,7 +171,7 @@ export default function CategoriesPage() {
                             <select
                                 value={sortBy}
                                 onChange={(e) => setSortBy(e.target.value as 'name' | 'sort_order')}
-                                className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:ring-1 focus:ring-[#21A896]"
+                                className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-md text-sm focus:ring-1 focus:ring-[#19A999]"
                             >
                                 <option value="sort_order">Ordenar por posição</option>
                                 <option value="name">Ordenar por nome</option>

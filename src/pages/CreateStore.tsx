@@ -95,7 +95,7 @@ export default function CreateStore() {
                                     type="button"
                                     onClick={() => setDocType('PF')}
                                     className={`flex-1 py-3 px-4 rounded-lg border-2 font-bold flex items-center justify-center gap-2 transition ${docType === 'PF'
-                                        ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
+                                        ? 'border-[#19A999] bg-[#19A999]/10 text-[#19A999]'
                                         : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400'
                                         }`}
                                 >
@@ -106,7 +106,7 @@ export default function CreateStore() {
                                     type="button"
                                     onClick={() => setDocType('PJ')}
                                     className={`flex-1 py-3 px-4 rounded-lg border-2 font-bold flex items-center justify-center gap-2 transition ${docType === 'PJ'
-                                        ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
+                                        ? 'border-[#19A999] bg-[#19A999]/10 text-[#19A999]'
                                         : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400'
                                         }`}
                                 >
@@ -127,7 +127,7 @@ export default function CreateStore() {
                                         type="text"
                                         value={fullName}
                                         onChange={(e) => setFullName(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                         placeholder="Ex: João da Silva"
                                         required
                                     />
@@ -140,7 +140,7 @@ export default function CreateStore() {
                                         type="text"
                                         value={cpf}
                                         onChange={(e) => setCpf(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                         placeholder="000.000.000-00"
                                     />
                                 </div>
@@ -158,7 +158,7 @@ export default function CreateStore() {
                                         type="text"
                                         value={legalName}
                                         onChange={(e) => setLegalName(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                         placeholder="Ex: Empresa Ltda"
                                         required
                                     />
@@ -171,7 +171,7 @@ export default function CreateStore() {
                                         type="text"
                                         value={fantasyName}
                                         onChange={(e) => setFantasyName(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                         placeholder="Ex: Nome Fantasia"
                                     />
                                 </div>
@@ -183,7 +183,7 @@ export default function CreateStore() {
                                         type="text"
                                         value={cnpj}
                                         onChange={(e) => setCnpj(e.target.value)}
-                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                         placeholder="00.000.000/0001-00"
                                     />
                                 </div>
@@ -199,7 +199,7 @@ export default function CreateStore() {
                                 type="tel"
                                 value={phone}
                                 onChange={(e) => setPhone(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                 placeholder="(11) 99999-9999"
                             />
                         </div>
@@ -213,7 +213,7 @@ export default function CreateStore() {
                                 type="text"
                                 value={storeName}
                                 onChange={(e) => setStoreName(e.target.value)}
-                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none"
                                 placeholder="Ex: Gelinhares"
                                 required
                             />
@@ -232,7 +232,7 @@ export default function CreateStore() {
                                     type="text"
                                     value={slug}
                                     onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-                                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] outline-none lowercase"
+                                    className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-r-xl bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] outline-none lowercase"
                                     placeholder="sua-loja"
                                     required
                                 />
@@ -246,10 +246,10 @@ export default function CreateStore() {
                                     type="checkbox"
                                     checked={acceptTerms}
                                     onChange={(e) => setAcceptTerms(e.target.checked)}
-                                    className="mt-1 w-4 h-4 text-[#21A896] rounded border-gray-300 focus:ring-[#21A896]"
+                                    className="mt-1 w-4 h-4 text-[#19A999] rounded border-gray-300 focus:ring-[#19A999]"
                                 />
                                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                                    Li e aceito os <Link to="/terms" target="_blank" className="text-[#21A896] hover:underline font-bold">Termos de Uso</Link> e a <Link to="/politica-privacidade" target="_blank" className="text-[#21A896] hover:underline font-bold">Política de Privacidade</Link>.
+                                    Li e aceito os <Link to="/terms" target="_blank" className="text-[#19A999] hover:underline font-bold">Termos de Uso</Link> e a <Link to="/politica-privacidade" target="_blank" className="text-[#19A999] hover:underline font-bold">Política de Privacidade</Link>.
                                 </span>
                             </label>
                             <label className="flex items-start gap-3 cursor-pointer">
@@ -257,7 +257,7 @@ export default function CreateStore() {
                                     type="checkbox"
                                     checked={acceptCommunications}
                                     onChange={(e) => setAcceptCommunications(e.target.checked)}
-                                    className="mt-1 w-4 h-4 text-[#21A896] rounded border-gray-300 focus:ring-[#21A896]"
+                                    className="mt-1 w-4 h-4 text-[#19A999] rounded border-gray-300 focus:ring-[#19A999]"
                                 />
                                 <span className="text-sm text-gray-600 dark:text-gray-400">
                                     Aceito receber comunicações sobre pedidos e novidades via WhatsApp e e-mail.
@@ -268,7 +268,7 @@ export default function CreateStore() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 px-4 bg-[#21A896] hover:bg-[#1a867a] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                            className="w-full py-3 px-4 bg-[#19A999] hover:bg-[#14887B] text-white font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
                         >
                             {loading ? <Loader className="animate-spin" size={18} /> : <Building size={18} />}
                             {loading ? 'Criando...' : 'Criar Loja'}

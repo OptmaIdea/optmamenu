@@ -201,7 +201,7 @@ export default function FAQ() {
             title="FAQ"
             subtitle="Dúvidas frequentes e respostas sobre o funcionamento da plataforma"
             category="Suporte"
-            icon={<HelpCircle size={28} className="text-[#21A896]" />}
+            icon={<HelpCircle size={28} className="text-[#19A999]" />}
             flat
         >
             {/* Search Bar */}
@@ -212,7 +212,7 @@ export default function FAQ() {
                     placeholder="Buscar pergunta..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                    className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                 />
             </div>
 
@@ -223,7 +223,7 @@ export default function FAQ() {
                         key={cat.id}
                         onClick={() => setActiveCategory(cat.id)}
                         className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition ${activeCategory === cat.id
-                            ? 'bg-[#21A896] text-white shadow-lg shadow-[#21A896]/20'
+                            ? 'bg-[#19A999] text-white shadow-lg shadow-[#19A999]/20'
                             : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700'
                             }`}
                     >
@@ -268,16 +268,16 @@ export default function FAQ() {
             </div>
 
             {/* Contact Support */}
-            <div className="mt-12 bg-gradient-to-r from-[#21A896]/10 to-blue-500/10 dark:from-[#21A896]/20 dark:to-blue-500/20 p-6 rounded-2xl border border-[#21A896]/20">
+            <div className="mt-12 bg-gradient-to-r from-[#19A999]/10 to-blue-500/10 dark:from-[#19A999]/20 dark:to-blue-500/20 p-6 rounded-2xl border border-[#19A999]/20">
                 <h3 className="font-bold text-lg text-gray-800 dark:text-white mb-2">Não encontrou sua resposta?</h3>
                 <p className="text-gray-600 dark:text-gray-300 mb-4">
                     Nossa equipe de suporte está pronta para ajudar você!
                 </p>
                 <div className="flex flex-wrap gap-4 text-sm">
-                    <a href="mailto:suporte@optmasolutions.com.br" className="text-[#21A896] font-bold hover:underline">
+                    <a href="mailto:suporte@optmasolutions.com.br" className="text-[#19A999] font-bold hover:underline">
                         📧 suporte@optmasolutions.com.br
                     </a>
-                    <a href="https://wa.me/5562982433802" target="_blank" rel="noopener noreferrer" className="text-[#21A896] font-bold hover:underline">
+                    <a href="https://wa.me/5562982433802" target="_blank" rel="noopener noreferrer" className="text-[#19A999] font-bold hover:underline">
                         💬 WhatsApp: (62) 98243-3802
                     </a>
                 </div>

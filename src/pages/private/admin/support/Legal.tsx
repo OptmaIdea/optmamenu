@@ -294,7 +294,7 @@ export default function Legal() {
             title="Termos Legais"
             subtitle="Leia os termos de serviço, políticas de privacidade e contratos de licença"
             category="Suporte"
-            icon={<FileText size={28} className="text-[#21A896]" />}
+            icon={<FileText size={28} className="text-[#19A999]" />}
             flat
         >
             <div className="flex flex-col md:flex-row gap-8">
@@ -305,7 +305,7 @@ export default function Legal() {
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
                             className={`flex items-center justify-between p-4 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id
-                                ? 'bg-[#21A896] text-white shadow-lg shadow-[#21A896]/20'
+                                ? 'bg-[#19A999] text-white shadow-lg shadow-[#19A999]/20'
                                 : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-transparent hover:border-gray-200 dark:hover:border-gray-600'
                                 }`}
                         >

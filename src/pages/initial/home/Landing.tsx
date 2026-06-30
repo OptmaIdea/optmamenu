@@ -91,7 +91,7 @@ export default function Landing() {
               <Truck className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-[#2D2A26] dark:text-white mb-3 font-candara-bold">Delivery</h3>
-            <p className="text-[#6B6258] dark:text-gray-400 font-candara">
+            <p className="text-[#6B6375] dark:text-gray-400 font-candara">
               Receba pedidos organizados diretamente no seu WhatsApp ou painel.
             </p>
           </div>
@@ -102,7 +102,7 @@ export default function Landing() {
               <Store className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-[#2D2A26] dark:text-white mb-3 font-candara-bold">Loja Física</h3>
-            <p className="text-[#6B6258] dark:text-gray-400 font-candara">
+            <p className="text-[#6B6375] dark:text-gray-400 font-candara">
               Cardápio QR Code para mesas e autoatendimento simplificado.
             </p>
           </div>
@@ -113,7 +113,7 @@ export default function Landing() {
               <TrendingUp className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-[#2D2A26] dark:text-white mb-3 font-candara-bold">Escalabilidade</h3>
-            <p className="text-[#6B6258] dark:text-gray-400 font-candara">
+            <p className="text-[#6B6375] dark:text-gray-400 font-candara">
               Gerencie múltiplas unidades com um único login administrativo.
             </p>
           </div>
@@ -130,7 +130,7 @@ export default function Landing() {
               <Smartphone className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-[#2D2A26] dark:text-white mb-3 font-candara-bold">Design Responsivo</h3>
-            <p className="text-[#6B6258] dark:text-gray-400 font-candara">
+            <p className="text-[#6B6375] dark:text-gray-400 font-candara">
               Seus clientes acessam pelo celular, tablet ou computador com a mesma fluidez.
             </p>
           </div>
@@ -140,7 +140,7 @@ export default function Landing() {
               <Zap className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-[#2D2A26] dark:text-white mb-3 font-candara-bold">Rápido e Leve</h3>
-            <p className="text-[#6B6258] dark:text-gray-400 font-candara">
+            <p className="text-[#6B6375] dark:text-gray-400 font-candara">
               Tecnologia de ponta para carregar seu cardápio instantaneamente.
             </p>
           </div>
@@ -150,7 +150,7 @@ export default function Landing() {
               <Palette className="w-8 h-8" />
             </div>
             <h3 className="text-xl font-bold text-[#2D2A26] dark:text-white mb-3 font-candara-bold">Personalizável</h3>
-            <p className="text-[#6B6258] dark:text-gray-400 font-candara">
+            <p className="text-[#6B6375] dark:text-gray-400 font-candara">
               Adapte as cores e identidade visual para combinar com a sua marca.
             </p>
           </div>

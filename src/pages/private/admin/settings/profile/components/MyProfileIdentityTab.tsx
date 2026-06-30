@@ -108,7 +108,7 @@ export default function MyProfileIdentityTab({
             {/* Visual Avatar Block */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center gap-6">
                 <div className="relative group">
-                    <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#21A896]/10 flex items-center justify-center">
+                    <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#19A999]/10 flex items-center justify-center">
                         {profile.avatar_url ? (
                             <img
                                 src={profile.avatar_url}
@@ -116,7 +116,7 @@ export default function MyProfileIdentityTab({
                                 className="absolute inset-0 h-full w-full object-cover"
                             />
                         ) : (
-                            <span className="text-3xl font-black text-[#21A896]">
+                            <span className="text-3xl font-black text-[#19A999]">
                                 {getInitials(profile.name)}
                             </span>
                         )}
@@ -132,13 +132,13 @@ export default function MyProfileIdentityTab({
 
                     {savingAvatar && (
                         <div className="absolute inset-0 bg-white/70 dark:bg-gray-800/70 rounded-full flex items-center justify-center">
-                            <Loader size={20} className="animate-spin text-[#21A896]" />
+                            <Loader size={20} className="animate-spin text-[#19A999]" />
                         </div>
                     )}
 
                     <label
                         htmlFor="avatar-upload"
-                        className="absolute bottom-0 right-0 bg-[#21A896] text-white p-1.5 rounded-full shadow-md cursor-pointer hover:brightness-110 transition"
+                        className="absolute bottom-0 right-0 bg-[#19A999] text-white p-1.5 rounded-full shadow-md cursor-pointer hover:brightness-110 transition"
                     >
                         <Camera size={14} />
                     </label>
@@ -165,7 +165,7 @@ export default function MyProfileIdentityTab({
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-2">
                     <span className="flex items-center gap-2">
-                        <User className="text-[#21A896]" size={20} /> Identificação e acesso
+                        <User className="text-[#19A999]" size={20} /> Identificação e acesso
                     </span>
                     {canRequestProfileChanges && !canEditGlobalProfile && (
                         <button
@@ -185,7 +185,7 @@ export default function MyProfileIdentityTab({
                         </label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                             value={profile.name}
                             onChange={(e) => setProfile({ ...profile, name: e.target.value })}
                             required
@@ -211,7 +211,7 @@ export default function MyProfileIdentityTab({
                         </label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                             value={profile.internal_alias}
                             onChange={(e) => setProfile({ ...profile, internal_alias: e.target.value })}
                             placeholder="Ex: Lucas"
@@ -222,7 +222,7 @@ export default function MyProfileIdentityTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">CPF</label>
                         <input
                             type="text"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                             value={profile.cpf}
                             onChange={(e) => setProfile({ ...profile, cpf: e.target.value })}
                             disabled={!canEditGlobalProfile}
@@ -248,7 +248,7 @@ export default function MyProfileIdentityTab({
                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Data de Nascimento</label>
                         <input
                             type="date"
-                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                             value={profile.birthdate}
                             onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
                             disabled={!canEditGlobalProfile}
@@ -272,7 +272,7 @@ export default function MyProfileIdentityTab({
             {/* Contacts Section */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
                 <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4 flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-2">
-                    <User className="text-[#21A896]" size={20} /> Contatos e Acesso
+                    <User className="text-[#19A999]" size={20} /> Contatos e Acesso
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
@@ -280,7 +280,7 @@ export default function MyProfileIdentityTab({
                         <div className="relative">
                             <input
                                 type="email"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                 value={profile.member_email}
                                 onChange={(e) => setProfile({ ...profile, member_email: e.target.value })}
                                 placeholder="Ex: contato@empresa.com"
@@ -296,7 +296,7 @@ export default function MyProfileIdentityTab({
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                 value={profile.mobile_phone}
                                 onChange={(e) => handleMobileChange(e.target.value)}
                                 placeholder="Ex: (22) 99999-9999"
@@ -313,7 +313,7 @@ export default function MyProfileIdentityTab({
                             <label className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
                                 <input
                                     type="checkbox"
-                                    className="rounded border-gray-300 text-[#21A896] focus:ring-[#21A896]"
+                                    className="rounded border-gray-300 text-[#19A999] focus:ring-[#19A999]"
                                     checked={!!profile.whatsapp_same_as_mobile}
                                     onChange={(event) => {
                                         const checked = event.target.checked;
@@ -330,7 +330,7 @@ export default function MyProfileIdentityTab({
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
                                 value={profile.whatsapp_phone}
                                 onChange={(event) =>
                                     setProfile((current) => ({
@@ -350,7 +350,7 @@ export default function MyProfileIdentityTab({
                         <div className="relative">
                             <input
                                 type="text"
-                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#21A896] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
+                                className="w-full p-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition"
                                 value={profile.phone}
                                 onChange={(e) => setProfile((current) => ({ ...current, phone: formatLandline(e.target.value) }))}
                                 placeholder="Ex: (22) 3333-3333"
@@ -366,7 +366,7 @@ export default function MyProfileIdentityTab({
                 <button
                     type="submit"
                     disabled={saving}
-                    className="flex items-center gap-3 bg-[#21A896] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex items-center gap-3 bg-[#19A999] text-white px-8 py-3 rounded-xl font-bold text-lg hover:brightness-95 shadow-md hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <Save size={24} />
                     {saving ? 'Salvando...' : 'Salvar Alterações'}

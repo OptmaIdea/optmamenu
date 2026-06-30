@@ -30,7 +30,7 @@ export default function CategoryProductsModal({
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                     <div className="flex items-center gap-2">
-                        <Package size={20} className="text-[#21A896]" />
+                        <Package size={20} className="text-[#19A999]" />
                         <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                             Produtos – {categoryName}
                         </h2>
@@ -63,7 +63,7 @@ export default function CategoryProductsModal({
                                     <span className="font-medium text-gray-900 dark:text-white">
                                         {prod.name}
                                     </span>
-                                    <span className="font-bold text-[#21A896]">
+                                    <span className="font-bold text-[#19A999]">
                                         R$ {prod.price.toFixed(2)}
                                     </span>
                                 </Link>

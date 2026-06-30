@@ -197,7 +197,7 @@ export default function ProductsPage() {
             {canManageProducts && portalContainer && createPortal(
                 <button
                     onClick={handleNewProduct}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
                 >
                     <Plus size={13} />
                     <span>Novo Produto</span>
@@ -209,7 +209,7 @@ export default function ProductsPage() {
                 title="Produtos"
                 subtitle="Gerencie seu catálogo"
                 category="Produtos"
-                icon={<Package size={28} className="text-[#21A896]" />}
+                icon={<Package size={28} className="text-[#19A999]" />}
                 lastUpdated={lastUpdated}
                 onRefresh={handleRefresh}
                 flat

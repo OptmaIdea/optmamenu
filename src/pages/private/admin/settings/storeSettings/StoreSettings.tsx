@@ -621,7 +621,7 @@ export default function StoreSettings() {
             title="Configurações da Loja"
             subtitle="Gerencie as configurações gerais da sua loja, regras comerciais, formas de pagamento, termos e sistema."
             category="Configurações"
-            icon={<Settings className="text-[#21A896]" size={28} />}
+            icon={<Settings className="text-[#19A999]" size={28} />}
             flat
         >
             {/* Top-level Tabs Navigation */}
@@ -936,7 +936,7 @@ export default function StoreSettings() {
                         <form onSubmit={handleSave} className="space-y-6">
                             <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-gray-100 dark:border-gray-700">
                                 <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-6 flex items-center gap-2">
-                                    <UserCircle className="text-[#21A896]" size={20} /> Configurações de Sistema
+                                    <UserCircle className="text-[#19A999]" size={20} /> Configurações de Sistema
                                 </h2>
                                 <div className="space-y-6">
                                     <div>

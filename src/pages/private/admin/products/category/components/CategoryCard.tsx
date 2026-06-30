@@ -54,7 +54,7 @@ export default function CategoryCard({
                         </span>
                         <button
                             onClick={() => onViewProducts(category)}
-                            className="flex items-center gap-1 text-xs font-bold text-[#21A896] bg-[#21A896]/10 px-2 py-1 rounded hover:bg-[#21A896]/20 transition-colors"
+                            className="flex items-center gap-1 text-xs font-bold text-[#19A999] bg-[#19A999]/10 px-2 py-1 rounded hover:bg-[#19A999]/20 transition-colors"
                         >
                             <Package size={12} />
                             {category.products_count ?? 0} {category.products_count === 1 ? 'item' : 'itens'}

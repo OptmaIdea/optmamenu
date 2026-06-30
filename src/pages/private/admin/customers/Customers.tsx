@@ -145,7 +145,7 @@ export default function Customers() {
                     className="group inline-flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-white transition font-black uppercase text-left outline-none"
                 >
                     {label}
-                    <span className={`inline-flex transition ${isActive ? 'text-[#21A896]' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`}>
+                    <span className={`inline-flex transition ${isActive ? 'text-[#19A999]' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`}>
                         {isActive && sortDirection === 'desc' ? (
                             <ChevronDown size={14} />
                         ) : (
@@ -267,14 +267,14 @@ export default function Customers() {
             title="Clientes"
             subtitle="Gerencie clientes diretos, clientes de WhatsApp/loja pública e acompanhe pedidos, pontos, origem e governança dos dados."
             category="Comercial"
-            icon={<Users size={28} className="text-[#21A896]" />}
+            icon={<Users size={28} className="text-[#19A999]" />}
             onRefresh={loadCustomers}
             action={
                 canManageCustomers ? (
                     <button
                         type="button"
                         onClick={() => navigate('/admin/customers/new')}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#21A896] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1b8f80]"
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1b8f80]"
                     >
                         <Plus size={18} />
                         Novo cliente

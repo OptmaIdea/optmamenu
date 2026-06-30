@@ -398,7 +398,7 @@ export default function InventoryByLocationPage() {
         title="Estoque"
         subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
         category="Produtos"
-        icon={<FileText size={28} className="text-[#21A896]" />}
+        icon={<FileText size={28} className="text-[#19A999]" />}
         flat
       >
         <EmptyState
@@ -427,7 +427,7 @@ export default function InventoryByLocationPage() {
         title="Estoque"
         subtitle="Visão multiestoque com saldo físico, reservado e disponível por local."
         category="Produtos"
-        icon={<FileText size={28} className="text-[#21A896]" />}
+        icon={<FileText size={28} className="text-[#19A999]" />}
         flat
       >
 
@@ -605,7 +605,7 @@ export default function InventoryByLocationPage() {
                 type="checkbox"
                 checked={showInactives}
                 onChange={(e) => setShowInactives(e.target.checked)}
-                className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-[#21A896] checked:bg-[#21A896] hover:border-[#21A896]"
+                className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-[#19A999] checked:bg-[#19A999] hover:border-[#19A999]"
               />
               <svg className="absolute h-3.5 w-3.5 text-white opacity-0 peer-checked:opacity-100 left-1/2 -translate-x-1/2 pointer-events-none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </div>
@@ -733,7 +733,7 @@ export default function InventoryByLocationPage() {
                         <div className="font-medium">{row.product_name}</div>
                         <Link
                           to={`/admin/products/${row.product_id}/lifecycle`}
-                          className="text-xs text-[#21A896] hover:underline"
+                          className="text-xs text-[#19A999] hover:underline"
                         >
                           Ver vida do produto
                         </Link>
@@ -859,7 +859,7 @@ export default function InventoryByLocationPage() {
                 return groupedRows?.map((group) => (
                   <Fragment key={group.label}>
                     <tr className="bg-gray-50/50 dark:bg-gray-900/20">
-                      <td colSpan={12} className="px-4 py-2 font-bold text-[#21A896] border-y border-gray-100 dark:border-gray-700">
+                      <td colSpan={12} className="px-4 py-2 font-bold text-[#19A999] border-y border-gray-100 dark:border-gray-700">
                         {groupBy === 'product' ? 'Produto: ' : 'Local: '}{group.label}
                         <span className="ml-2 font-normal text-xs text-gray-400">
                           ({group.rows.length} posiç{group.rows.length === 1 ? 'ão' : 'ões'})

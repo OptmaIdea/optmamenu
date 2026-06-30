@@ -48,7 +48,7 @@ export default function CookieConsent() {
                     <p className="text-sm text-gray-700 dark:text-gray-300 font-candara">
                         Utilizamos cookies para melhorar sua experiência em nosso aplicativo e garantir o funcionamento adequado dos serviços.
                         Ao continuar navegando, você concorda com nossa{' '}
-                        <Link to="/politica-privacidade" className="text-[#21A896] hover:underline font-bold">
+                        <Link to="/politica-privacidade" className="text-[#19A999] hover:underline font-bold">
                             Política de Privacidade
                         </Link>.
                     </p>
@@ -67,7 +67,7 @@ export default function CookieConsent() {
                     <button
                         onClick={handleAccept}
                         id="accept-cookies"
-                        className="flex-1 md:flex-none px-6 py-2 bg-[#21A896] hover:bg-[#1A867A] text-white rounded-lg transition font-bold text-sm shadow-sm whitespace-nowrap font-candara-bold"
+                        className="flex-1 md:flex-none px-6 py-2 bg-[#19A999] hover:bg-[#14887B] text-white rounded-lg transition font-bold text-sm shadow-sm whitespace-nowrap font-candara-bold"
                     >
                         Aceitar Cookies
                     </button>

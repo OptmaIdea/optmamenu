@@ -138,7 +138,7 @@ export function UserFormModal({
                                             message: 'Email inválido',
                                         },
                                     })}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                                     placeholder="usuario@exemplo.com"
                                 />
                                 {errors.email && (
@@ -161,7 +161,7 @@ export function UserFormModal({
                                         message: 'Nome deve ter pelo menos 3 caracteres',
                                     },
                                 })}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                                 placeholder="João Silva"
                             />
                             {errors.full_name && (
@@ -178,7 +178,7 @@ export function UserFormModal({
                                 <input
                                     type="tel"
                                     {...register('phone')}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                                     placeholder="(00) 00000-0000"
                                 />
                             </div>
@@ -189,7 +189,7 @@ export function UserFormModal({
                                 <input
                                     type="text"
                                     {...register('cpf')}
-                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                                     placeholder="000.000.000-00"
                                 />
                             </div>
@@ -207,7 +207,7 @@ export function UserFormModal({
                                     setValue('role', role);
                                     setValue('is_admin', role === 'admin' || role === 'manager');
                                 }}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                             >
                                 <option value="viewer">Visualizador</option>
                                 <option value="staff">Equipe</option>
@@ -227,7 +227,7 @@ export function UserFormModal({
                             <textarea
                                 {...register('internal_notes')}
                                 rows={3}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent resize-none"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent resize-none"
                                 placeholder="Adicione observações sobre este usuário..."
                             />
                         </div>
@@ -244,7 +244,7 @@ export function UserFormModal({
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
-                                className="flex-1 px-4 py-2 rounded-lg bg-[#21A896] text-white hover:bg-[#1A867A] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 px-4 py-2 rounded-lg bg-[#19A999] text-white hover:bg-[#14887B] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Vincular/Convidar' : 'Salvar'}
                             </button>

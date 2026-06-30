@@ -466,7 +466,7 @@ export default function StockMovementsPage() {
             <button
               type="button"
               onClick={() => setAdjustmentModalOpen(true)}
-              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
+              className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
             >
               <PlusCircle size={13} />
               <span>Registrar ajuste</span>
@@ -476,7 +476,7 @@ export default function StockMovementsPage() {
             type="button"
             onClick={() => setShowFilters(!showFilters)}
             className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-xs font-bold transition-colors shadow-sm cursor-pointer shrink-0 ${showFilters
-              ? 'bg-[#21A896] border-[#21A896] text-white hover:bg-[#1a867a]'
+              ? 'bg-[#19A999] border-[#19A999] text-white hover:bg-[#14887B]'
               : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800'}`}
           >
             <Filter size={13} />
@@ -510,7 +510,7 @@ export default function StockMovementsPage() {
         title={selectedProduct ? `Movimentações: ${selectedProduct.name}` : 'Movimentações de Estoque'}
         subtitle="Entradas, saídas, baixas e ajustes centralizados em um único lugar"
         category="Produtos"
-        icon={<History size={28} className="text-[#21A896]" />}
+        icon={<History size={28} className="text-[#19A999]" />}
         onRefresh={loadMovements}
         flat
       >
@@ -707,7 +707,7 @@ export default function StockMovementsPage() {
                         className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-800"
                       >
                         <span className="truncate text-gray-800 dark:text-gray-200">{product.name}</span>
-                        <Plus size={14} className="text-[#21A896]" />
+                        <Plus size={14} className="text-[#19A999]" />
                       </button>
                     ))}
                   </div>
@@ -718,7 +718,7 @@ export default function StockMovementsPage() {
                     {selectedProducts.map((product) => (
                       <span
                         key={product.id}
-                        className="inline-flex items-center gap-2 rounded-full bg-[#21A896]/10 px-3 py-1 text-sm text-[#1a867a] dark:text-[#6ee7d1]"
+                        className="inline-flex items-center gap-2 rounded-full bg-[#19A999]/10 px-3 py-1 text-sm text-[#14887B] dark:text-[#6ee7d1]"
                       >
                         {product.name}
                         <button type="button" onClick={() => removeProductSelection(product.id)}>
@@ -732,7 +732,7 @@ export default function StockMovementsPage() {
                 <div className="mt-3 flex flex-col sm:flex-row items-center gap-3">
                   <button
                     onClick={applyProductFilter}
-                    className="w-full sm:w-auto px-3 py-1.5 bg-[#21A896] text-white text-sm rounded-lg hover:bg-[#1a867a]"
+                    className="w-full sm:w-auto px-3 py-1.5 bg-[#19A999] text-white text-sm rounded-lg hover:bg-[#14887B]"
                   >
                     Aplicar filtro de produtos
                   </button>
@@ -832,7 +832,7 @@ export default function StockMovementsPage() {
                             <button
                               type="button"
                               onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
-                              className="font-medium text-[#21A896] hover:underline text-left"
+                              className="font-medium text-[#19A999] hover:underline text-left"
                             >
                               {movement.product_name || 'Produto removido'}
                             </button>
@@ -892,7 +892,7 @@ export default function StockMovementsPage() {
                               <button
                                 type="button"
                                 onClick={() => navigate(`/admin/transfers/${movement.transfer_id}`)}
-                                className="text-xs text-gray-500 hover:text-[#21A896] mt-0.5"
+                                className="text-xs text-gray-500 hover:text-[#19A999] mt-0.5"
                               >
                                 Ver transferência
                               </button>

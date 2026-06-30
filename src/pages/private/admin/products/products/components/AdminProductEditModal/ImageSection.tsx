@@ -71,8 +71,8 @@ export const ImageSection = ({
             {mediaItems.length === 0 ? (
                 <div
                     className={`w-full flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-lg p-8 mb-4 transition-all ${isDragging
-                        ? 'border-[#21A896] bg-[#21A896]/5'
-                        : 'border-gray-300 dark:border-gray-600 hover:border-[#21A896]/50 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                        ? 'border-[#19A999] bg-[#19A999]/5'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-[#19A999]/50 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                         }`}
                     onDragOver={onDragOver}
                     onDragLeave={onDragLeave}
@@ -87,7 +87,7 @@ export const ImageSection = ({
                         className="hidden"
                         onChange={onFileSelect}
                     />
-                    <div className="w-16 h-16 bg-[#21A896]/10 rounded-full flex items-center justify-center mb-4 text-[#21A896]">
+                    <div className="w-16 h-16 bg-[#19A999]/10 rounded-full flex items-center justify-center mb-4 text-[#19A999]">
                         <UploadCloud size={32} />
                     </div>
                     <p className="font-medium text-gray-700 dark:text-gray-200 mb-1 text-center">
@@ -161,7 +161,7 @@ export const ImageSection = ({
                                         {mediaItems.length < 4 && (
                                             <button
                                                 onClick={() => document.getElementById('edit-media-upload')?.click()}
-                                                className="w-14 h-14 flex-shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-[#21A896] hover:bg-[#21A896]/5 transition-colors"
+                                                className="w-14 h-14 flex-shrink-0 flex items-center justify-center bg-gray-100 dark:bg-gray-700 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-[#19A999] hover:bg-[#19A999]/5 transition-colors"
                                             >
                                                 <UploadCloud size={20} className="text-gray-500" />
                                             </button>

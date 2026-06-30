@@ -641,7 +641,7 @@ export default function Users() {
             title="Usuários"
             subtitle="Gerencie os usuários do sistema e suas permissões"
             category="Configurações"
-            icon={<UsersIcon size={28} className="text-[#21A896]" />}
+            icon={<UsersIcon size={28} className="text-[#19A999]" />}
             flat
         >
             {/* Stats */}
@@ -700,7 +700,7 @@ export default function Users() {
                             placeholder="Buscar por nome, telefone ou CPF..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                         />
                     </div>
 
@@ -709,7 +709,7 @@ export default function Users() {
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={`px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${showFilters
-                                ? 'border-[#21A896] bg-[#21A896]/10 text-[#21A896]'
+                                ? 'border-[#19A999] bg-[#19A999]/10 text-[#19A999]'
                                 : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                                 }`}
                         >
@@ -724,7 +724,7 @@ export default function Users() {
                                     ? 'Vincular usuário existente'
                                     : 'Você não tem permissão para gerenciar usuários'
                             }
-                            className={`px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <Plus size={18} />
                             Novo Usuário
@@ -744,7 +744,7 @@ export default function Users() {
                                 onChange={(e) =>
                                     handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
                                 }
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                             >
                                 <option value="">Todos</option>
                                 <option value="active">Ativo</option>
@@ -764,7 +764,7 @@ export default function Users() {
                                 onChange={(e) =>
                                     handleFilterChange('role', e.target.value as UserRole | undefined)
                                 }
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                             >
                                 <option value="">Todas</option>
                                 <option value="owner">Proprietário</option>
@@ -787,7 +787,7 @@ export default function Users() {
                                 onChange={(e) =>
                                     handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
                                 }
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#21A896] focus:border-transparent"
+                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
                             >
                                 <option value="created_at">Data de Criação</option>
                                 <option value="full_name">Nome</option>
@@ -802,7 +802,7 @@ export default function Users() {
             {loading ? (
                 <div className="min-h-[40vh] flex items-center justify-center">
                     <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#21A896] mx-auto mb-4"></div>
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999] mx-auto mb-4"></div>
                         <p className="text-gray-600 dark:text-gray-300 font-candara">
                             Carregando usuários...
                         </p>
@@ -828,7 +828,7 @@ export default function Users() {
                                     ? 'Vincular usuário existente'
                                     : 'Você não tem permissão para gerenciar usuários'
                             }
-                            className={`px-4 py-2 rounded-lg bg-[#21A896] text-white font-medium hover:bg-[#1A867A] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             Criar Primeiro Usuário
                         </button>
@@ -895,13 +895,13 @@ export default function Users() {
                                         placeholder="Localizar alteração específica (tipo, motivo, valor)..."
                                         value={profileRequestSearch}
                                         onChange={(e) => setProfileRequestSearch(e.target.value)}
-                                        className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                        className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                                     />
                                     {profileRequestSearch && (
                                         <button
                                             type="button"
                                             onClick={() => setProfileRequestSearch('')}
-                                            className="absolute right-3 top-2 text-gray-400 hover:text-[#F26541] transition cursor-pointer"
+                                            className="absolute right-3 top-2 text-gray-400 hover:text-[#F1613A] transition cursor-pointer"
                                         >
                                             <X size={14} />
                                         </button>
@@ -913,7 +913,7 @@ export default function Users() {
                                     <select
                                         value={profileRequestStatusFilter}
                                         onChange={(e) => setProfileRequestStatusFilter(e.target.value as any)}
-                                        className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                        className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                                     >
                                         <option value="all">Todos os status</option>
                                         <option value="pending">Pendente</option>
@@ -934,7 +934,7 @@ export default function Users() {
                                         type="date"
                                         value={profileRequestDateFrom}
                                         onChange={(e) => setProfileRequestDateFrom(e.target.value)}
-                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                                     />
                                 </div>
 
@@ -947,7 +947,7 @@ export default function Users() {
                                         type="date"
                                         value={profileRequestDateTo}
                                         onChange={(e) => setProfileRequestDateTo(e.target.value)}
-                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                                     />
                                 </div>
 
@@ -959,7 +959,7 @@ export default function Users() {
                                     <select
                                         value={profileRequestRequesterFilter}
                                         onChange={(e) => setProfileRequestRequesterFilter(e.target.value)}
-                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                                     >
                                         <option value="all">Todos os solicitantes</option>
                                         {uniqueRequesters.map((name) => (
@@ -978,7 +978,7 @@ export default function Users() {
                                     <select
                                         value={profileRequestSortOrder}
                                         onChange={(e) => setProfileRequestSortOrder(e.target.value)}
-                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#21A896] focus:ring-1 focus:ring-[#21A896]/30 transition"
+                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
                                     >
                                         <option value="created_desc">Mais recente primeiro (Criação)</option>
                                         <option value="created_asc">Mais antigo primeiro (Criação)</option>
@@ -1001,7 +1001,7 @@ export default function Users() {
                                             setProfileRequestRequesterFilter('all');
                                             setProfileRequestSortOrder('created_desc');
                                         }}
-                                        className="text-[11px] font-bold text-gray-500 hover:text-[#F26541] transition cursor-pointer"
+                                        className="text-[11px] font-bold text-gray-500 hover:text-[#F1613A] transition cursor-pointer"
                                     >
                                         Limpar filtros
                                     </button>
@@ -1287,7 +1287,7 @@ export default function Users() {
                                 <p className="text-xs font-bold uppercase text-gray-500">
                                     Nova função
                                 </p>
-                                <p className="font-bold text-[#21A896]">
+                                <p className="font-bold text-[#19A999]">
                                     {formatRoleLabel(roleChangeConfirmation.newRole)}
                                 </p>
                             </div>
@@ -1327,7 +1327,7 @@ export default function Users() {
                             <button
                                 type="button"
                                 onClick={handleConfirmRoleChange}
-                                className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A]"
+                                className="rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white hover:bg-[#14887B]"
                             >
                                 Confirmar alteração
                             </button>
@@ -1369,7 +1369,7 @@ export default function Users() {
                                 <p className="text-xs font-bold uppercase text-gray-500">
                                     Nova função
                                 </p>
-                                <p className="font-bold text-[#21A896]">
+                                <p className="font-bold text-[#19A999]">
                                     {getCustomRoleById(customRoleConfirmation.customRoleId)?.name ??
                                         'Sem função personalizada'}
                                 </p>
@@ -1411,7 +1411,7 @@ export default function Users() {
                                 type="button"
                                 onClick={handleConfirmCustomRoleChange}
                                 disabled={customRoleSaving}
-                                className="rounded-xl bg-[#21A896] px-4 py-2 text-sm font-bold text-white hover:bg-[#1A867A] disabled:opacity-50"
+                                className="rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white hover:bg-[#14887B] disabled:opacity-50"
                             >
                                 {customRoleSaving ? 'Salvando...' : 'Confirmar alteração'}
                             </button>
@@ -1431,7 +1431,7 @@ export default function Users() {
                                     : 'Cancelar solicitação'}
                         </h3>
 
-                        <p className="mt-2 text-sm text-[#21A896] font-candara">
+                        <p className="mt-2 text-sm text-[#19A999] font-candara">
                             {PROFILE_REQUEST_TYPE_LABELS[reviewModal.request.request_type] ??
                                 reviewModal.request.request_type}
                         </p>
@@ -1456,7 +1456,7 @@ export default function Users() {
                                 }))
                             }
                             rows={4}
-                            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#21A896] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
+                            className="mt-2 w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-[#19A999] outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white transition"
                             placeholder={
                                 reviewModal.decision === 'approve'
                                     ? 'Observação opcional para aprovação.'

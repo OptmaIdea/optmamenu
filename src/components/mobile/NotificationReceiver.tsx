@@ -66,10 +66,10 @@ export default function NotificationReceiver() {
   if (permission !== 'granted') {
     return (
       <div className="fixed bottom-24 right-6 z-50 max-w-sm">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-[#21A896]/20 p-4 animate-slideUp">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-[#19A999]/20 p-4 animate-slideUp">
           <div className="flex items-start gap-3">
-            <div className="p-2 bg-[#21A896]/10 rounded-lg">
-              <Bell size={20} className="text-[#21A896]" />
+            <div className="p-2 bg-[#19A999]/10 rounded-lg">
+              <Bell size={20} className="text-[#19A999]" />
             </div>
             <div className="flex-1">
               <h4 className="font-bold text-gray-800 dark:text-white text-sm mb-1">
@@ -80,7 +80,7 @@ export default function NotificationReceiver() {
               </p>
               <button
                 onClick={requestPermission}
-                className="px-4 py-2 bg-[#21A896] hover:bg-[#1a867a] text-white text-xs font-bold rounded-lg transition-colors"
+                className="px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors"
               >
                 Ativar Notificações
               </button>

@@ -38,7 +38,7 @@ export default function PageContainer({
             <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
                 {category && (
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#21A896] dark:text-[#37d0bb]">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#19A999] dark:text-[#37d0bb]">
                     {category}
                   </p>
                 )}
@@ -65,7 +65,7 @@ export default function PageContainer({
                 {onRefresh && (
                   <button
                     onClick={onRefresh}
-                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:border-[#21A896]/30 font-candara text-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:border-[#19A999]/30 font-candara text-sm"
                   >
                     <RefreshCw size={16} className="animate-spin-slow" />
                     <span className="hidden sm:inline">Atualizar</span>
@@ -85,12 +85,12 @@ export default function PageContainer({
           </div>
         ) : (
           <div className="relative mb-6 md:mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-800/80 p-6 md:p-8 border border-gray-100 dark:border-gray-700 shadow-sm">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-[#21A896]/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
+            <div className="absolute top-0 right-0 w-64 h-64 bg-[#19A999]/5 rounded-full blur-3xl -mr-20 -mt-20"></div>
 
             <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="space-y-1">
                 {category && (
-                  <p className="text-xs font-semibold uppercase tracking-wider text-[#21A896] dark:text-[#37d0bb] mb-1">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-[#19A999] dark:text-[#37d0bb] mb-1">
                     {category}
                   </p>
                 )}
@@ -117,7 +117,7 @@ export default function PageContainer({
                 {onRefresh && (
                   <button
                     onClick={onRefresh}
-                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:border-[#21A896]/30 font-candara text-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:border-[#19A999]/30 font-candara text-sm"
                   >
                     <RefreshCw size={16} className="animate-spin-slow" />
                     <span className="hidden sm:inline">Atualizar</span>

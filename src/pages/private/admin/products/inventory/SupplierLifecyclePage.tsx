@@ -360,14 +360,14 @@ export default function SupplierLifecyclePage() {
         <div>
           <Link
             to="/admin/suppliers"
-            className="inline-flex items-center gap-2 text-sm font-medium text-[#21A896] hover:underline"
+            className="inline-flex items-center gap-2 text-sm font-medium text-[#19A999] hover:underline"
           >
             <ArrowLeft size={16} />
             Voltar para fornecedores
           </Link>
 
           <div className="mt-2 flex items-center gap-2">
-            <Truck size={24} className="text-[#21A896]" />
+            <Truck size={24} className="text-[#19A999]" />
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
               {pageTitle}
             </h1>
@@ -606,7 +606,7 @@ export default function SupplierLifecyclePage() {
               type="button"
               onClick={handleCreateContact}
               disabled={savingAction}
-              className="rounded-xl bg-[#21A896] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-xl bg-[#19A999] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
               {savingAction ? 'Salvando...' : 'Salvar contato'}
             </button>
@@ -700,7 +700,7 @@ export default function SupplierLifecyclePage() {
               type="button"
               onClick={handleCreateEvent}
               disabled={savingAction}
-              className="rounded-xl bg-[#21A896] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              className="rounded-xl bg-[#19A999] px-3 py-2 text-sm font-semibold text-white disabled:opacity-60"
             >
               {savingAction ? 'Salvando...' : 'Registrar evento'}
             </button>

@@ -17,14 +17,14 @@ interface StatsCardProps {
 
 const colorVariants = {
   green: {
-    bg: 'bg-[#21A896]/10 dark:bg-[#21A896]/20',
-    text: 'text-[#21A896]',
-    border: 'border-[#21A896]/20'
+    bg: 'bg-[#19A999]/10 dark:bg-[#19A999]/20',
+    text: 'text-[#19A999]',
+    border: 'border-[#19A999]/20'
   },
   orange: {
-    bg: 'bg-[#F26541]/10 dark:bg-[#F26541]/20',
-    text: 'text-[#F26541]',
-    border: 'border-[#F26541]/20'
+    bg: 'bg-[#F1613A]/10 dark:bg-[#F1613A]/20',
+    text: 'text-[#F1613A]',
+    border: 'border-[#F1613A]/20'
   },
   blue: {
     bg: 'bg-[#7B2D8E]/10 dark:bg-[#7B2D8E]/20',
@@ -54,7 +54,7 @@ export default function StatsCard({
       className={`
         bg-white dark:bg-gray-800 p-6 rounded-2xl border border-gray-100 dark:border-gray-700 
         shadow-sm hover:shadow-lg transition-all duration-300 
-        ${onClick ? 'cursor-pointer hover:border-[#21A896]/30 hover:-translate-y-1' : ''}
+        ${onClick ? 'cursor-pointer hover:border-[#19A999]/30 hover:-translate-y-1' : ''}
       `}
     >
       <div className="flex items-start justify-between mb-4">

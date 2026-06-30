@@ -126,19 +126,19 @@ Documentação principal em `docs/`.
 Fonte:
 
 ```css
-font-family: 'Candara', 'Plus Jakarta Sans', 'Segoe UI', -apple-system, Arial, sans-serif;
+font-family: "Plus Jakarta Sans", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 ```
 
 Cores principais:
 
 | Cor | Uso | HEX |
 |---|---|---|
-| Verde-água | Status ativo/sucesso/seleção | `#21A896` |
-| Laranja | Ações primárias | `#F26541` |
-| Mostarda | Atenção | `#FBA93C` |
+| Verde-água | Status ativo/sucesso/seleção | `#19A999` |
+| Laranja/Coral | Ações primárias | `#F1613A` |
+| Mostarda | Atenção | `#FAA832` |
 | Roxo | Premium/indicadores especiais | `#7B2D8E` |
 | Vermelho | Erro/exclusão crítica | `#DC2626` |
-| Off-white | Background claro | `#F8F6F2` |
+| Off-white | Background claro | `#F9F6F0` / `#F8F6F2` |
 
 > Não usar azul clássico como cor principal. Vermelho é exclusivo para erro, exclusão ou criticidade.
 

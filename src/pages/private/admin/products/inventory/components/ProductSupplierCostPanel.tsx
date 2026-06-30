@@ -87,7 +87,7 @@ export function ProductSupplierCostPanel({
         <section className="space-y-4">
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="flex items-center gap-2">
-                    <Truck size={18} className="text-[#21A896]" />
+                    <Truck size={18} className="text-[#19A999]" />
                     <h2 className="text-base font-semibold text-gray-900 dark:text-white">
                         Fornecedores e custo de compra
                     </h2>
@@ -103,7 +103,7 @@ export function ProductSupplierCostPanel({
                         {mainSupplier ? (
                             <Link
                                 to={`/admin/suppliers/${mainSupplier.supplier_id}/lifecycle`}
-                                className="mt-1 block font-semibold text-[#21A896] hover:underline"
+                                className="mt-1 block font-semibold text-[#19A999] hover:underline"
                             >
                                 {mainSupplier.supplier_trade_name || mainSupplier.supplier_name}
                             </Link>
@@ -137,7 +137,7 @@ export function ProductSupplierCostPanel({
 
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="mb-3 flex items-center gap-2">
-                    <Package size={17} className="text-[#21A896]" />
+                    <Package size={17} className="text-[#19A999]" />
                     <h3 className="font-semibold text-gray-900 dark:text-white">
                         Fornecedores do produto
                     </h3>
@@ -168,7 +168,7 @@ export function ProductSupplierCostPanel({
                                         <div className="flex flex-wrap items-center gap-2">
                                             <Link
                                                 to={`/admin/suppliers/${supplier.supplier_id}/lifecycle`}
-                                                className="font-semibold text-[#21A896] hover:underline"
+                                                className="font-semibold text-[#19A999] hover:underline"
                                             >
                                                 {supplier.supplier_trade_name || supplier.supplier_name}
                                             </Link>
@@ -236,7 +236,7 @@ export function ProductSupplierCostPanel({
 
             <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="mb-3 flex items-center gap-2">
-                    <History size={17} className="text-[#21A896]" />
+                    <History size={17} className="text-[#19A999]" />
                     <h3 className="font-semibold text-gray-900 dark:text-white">
                         Histórico de custo
                     </h3>
@@ -282,7 +282,7 @@ export function ProductSupplierCostPanel({
                                         <td className="py-2 pr-3">
                                             <Link
                                                 to={`/admin/suppliers/${row.supplier_id}/lifecycle`}
-                                                className="font-medium text-[#21A896] hover:underline"
+                                                className="font-medium text-[#19A999] hover:underline"
                                             >
                                                 {row.supplier_trade_name || row.supplier_name}
                                             </Link>
