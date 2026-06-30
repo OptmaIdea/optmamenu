@@ -101,6 +101,21 @@ function getFormTitle(form: CashbookFormState) {
     return form.direction === 'in' ? 'Nova entrada' : 'Nova saída';
 }
 
+function getPaymentMethodLabel(value?: string | null) {
+    if (!value) return '—';
+    const lower = value.toLowerCase();
+    const labels: Record<string, string> = {
+        pending: 'Pendente',
+        pix: 'Pix',
+        cash: 'Dinheiro',
+        card: 'Cartão',
+        credit_card: 'Cartão de crédito',
+        debit_card: 'Cartão de débito',
+        dinheiro: 'Dinheiro',
+    };
+    return labels[lower] || value;
+}
+
 function getPeriodDates(period: string) {
     const today = new Date();
     
@@ -379,25 +394,34 @@ export default function CashbookPage() {
             g.entries.push(entry);
 
             const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
-            if (!isCancelled) {
-                const isPending = entry.status === 'pending' || 
-                                  entry.payment_method_code === 'pending' || 
-                                  (entry.payment_method && entry.payment_method.toLowerCase() === 'pending');
-                const amountVal = Number(entry.amount || 0);
-                const signedAmount = entry.direction === 'in' ? amountVal : -amountVal;
 
+            const isPending =
+                !isCancelled &&
+                (
+                    entry.status === 'pending' ||
+                    entry.payment_method_code === 'pending' ||
+                    entry.payment_method?.toLowerCase() === 'pending' ||
+                    entry.affects_balance === false
+                );
+
+            const isRealized = !isCancelled && !isPending && entry.affects_balance === true;
+
+            const amountVal = Number(entry.amount || 0);
+            const signedAmount = entry.direction === 'in' ? amountVal : -amountVal;
+
+            if (isRealized) {
                 if (entry.direction === 'in') {
                     g.totalIn += amountVal;
                 } else {
                     g.totalOut += amountVal;
                 }
 
+                g.periodRealized += signedAmount;
                 g.periodBalance += signedAmount;
-                if (isPending) {
-                    g.periodPending += signedAmount;
-                } else {
-                    g.periodRealized += signedAmount;
-                }
+            }
+
+            if (isPending) {
+                g.periodPending += signedAmount;
             }
         });
 
@@ -888,8 +912,10 @@ export default function CashbookPage() {
                                                         Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
                                                     </div>
                                                 )}
-                                                {entry.payment_method && (
-                                                    <div className={`text-[10px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{entry.payment_method}</div>
+                                                {(entry.payment_method_code || entry.payment_method) && (
+                                                    <div className={`text-[10px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>
+                                                        {getPaymentMethodLabel(entry.payment_method_code || entry.payment_method)}
+                                                    </div>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
@@ -973,7 +999,7 @@ export default function CashbookPage() {
                                             </div>
                                             <div className="flex flex-wrap items-center gap-4 text-xs font-black">
                                                 <div className="text-gray-500 dark:text-gray-400">
-                                                    SALDO ANTERIOR: <span className="font-extrabold">{formatCurrencyPtBr(group.endingBalance - group.periodBalance)}</span>
+                                                    SALDO ANTERIOR: <span className="font-extrabold">{formatCurrencyPtBr(group.endingBalance - group.periodRealized)}</span>
                                                 </div>
                                                 <div className="text-emerald-600 dark:text-emerald-400">
                                                     ENTRADAS: <span className="font-extrabold">+{formatCurrencyPtBr(group.totalIn)}</span>
@@ -984,8 +1010,8 @@ export default function CashbookPage() {
                                                 <div className="h-4 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block" />
                                                 <div className="text-gray-900 dark:text-white flex items-center gap-1">
                                                     <span>SALDO DO PERÍODO:</span>
-                                                    <span className={group.periodBalance >= 0 ? 'text-[#19A999]' : 'text-rose-600'}>
-                                                        {formatCurrencyPtBr(group.periodBalance)}
+                                                    <span className={group.periodRealized >= 0 ? 'text-[#19A999]' : 'text-rose-600'}>
+                                                        {formatCurrencyPtBr(group.periodRealized)}
                                                     </span>
                                                     <span className="text-[9px] text-gray-400 font-normal">
                                                         ({formatCurrencyPtBr(group.periodRealized)} real. / <span className="text-[#FAA832] font-extrabold">{formatCurrencyPtBr(group.periodPending)} pend.</span>)
@@ -1033,8 +1059,10 @@ export default function CashbookPage() {
                                                                             Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
                                                                         </div>
                                                                     )}
-                                                                    {entry.payment_method && (
-                                                                        <div className={`text-[9px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{entry.payment_method}</div>
+                                                                    {(entry.payment_method_code || entry.payment_method) && (
+                                                                        <div className={`text-[9px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>
+                                                                            {getPaymentMethodLabel(entry.payment_method_code || entry.payment_method)}
+                                                                        </div>
                                                                     )}
                                                                 </td>
                                                                 <td className="px-5 py-3 whitespace-nowrap">
