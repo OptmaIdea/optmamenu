@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
     AlertTriangle,
+    ChevronDown,
+    ChevronUp,
     Eye,
     Loader2,
+    Pencil,
     Plus,
     Search,
     ShieldCheck,
@@ -84,6 +87,13 @@ export default function Customers() {
     const [search, setSearch] = useState('');
     const [error, setError] = useState<string | null>(null);
 
+    const [filterSource, setFilterSource] = useState<string>('all');
+    const [filterOwnership, setFilterOwnership] = useState<string>('all');
+    const [filterPurchases, setFilterPurchases] = useState<string>('all');
+
+    const [sortField, setSortField] = useState<'full_name' | 'source' | 'data_ownership' | 'loyalty_points' | 'total_spent'>('full_name');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
     async function loadCustomers() {
         if (!storeId) return;
 
@@ -109,27 +119,114 @@ export default function Customers() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [loadingStore, storeId]);
 
+    function handleSort(field: 'full_name' | 'source' | 'data_ownership' | 'loyalty_points' | 'total_spent') {
+        if (sortField === field) {
+            setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            if (field === 'loyalty_points' || field === 'total_spent') {
+                setSortDirection('desc');
+            } else {
+                setSortDirection('asc');
+            }
+        }
+    }
+
+    const renderSortableHeader = (
+        field: 'full_name' | 'source' | 'data_ownership' | 'loyalty_points' | 'total_spent',
+        label: string
+    ) => {
+        const isActive = sortField === field;
+        return (
+            <th className="px-4 py-3 text-left text-xs font-black uppercase text-gray-500">
+                <button
+                    type="button"
+                    onClick={() => handleSort(field)}
+                    className="group inline-flex items-center gap-1.5 hover:text-gray-900 dark:hover:text-white transition font-black uppercase text-left outline-none"
+                >
+                    {label}
+                    <span className={`inline-flex transition ${isActive ? 'text-[#21A896]' : 'text-gray-400 opacity-0 group-hover:opacity-100'}`}>
+                        {isActive && sortDirection === 'desc' ? (
+                            <ChevronDown size={14} />
+                        ) : (
+                            <ChevronUp size={14} />
+                        )}
+                    </span>
+                </button>
+            </th>
+        );
+    };
+
     const filteredCustomers = useMemo(() => {
+        let result = customers;
         const term = search.trim().toLowerCase();
 
-        if (!term) return customers;
+        if (term) {
+            result = result.filter((customer) => {
+                const haystack = [
+                    customer.full_name,
+                    customer.phone,
+                    customer.email,
+                    customer.current_tier_name,
+                    customer.source,
+                    customer.tags?.join(' '),
+                ]
+                    .filter(Boolean)
+                    .join(' ')
+                    .toLowerCase();
 
-        return customers.filter((customer) => {
-            const haystack = [
-                customer.full_name,
-                customer.phone,
-                customer.email,
-                customer.current_tier_name,
-                customer.source,
-                customer.tags?.join(' '),
-            ]
-                .filter(Boolean)
-                .join(' ')
-                .toLowerCase();
+                return haystack.includes(term);
+            });
+        }
 
-            return haystack.includes(term);
+        if (filterSource !== 'all') {
+            result = result.filter((c) => c.source === filterSource);
+        }
+
+        if (filterOwnership !== 'all') {
+            result = result.filter((c) => c.data_ownership === filterOwnership);
+        }
+
+        if (filterPurchases !== 'all') {
+            if (filterPurchases === 'has_purchases') {
+                result = result.filter((c) => (c.total_orders || 0) > 0);
+            } else if (filterPurchases === 'no_purchases') {
+                result = result.filter((c) => (c.total_orders || 0) === 0);
+            } else if (filterPurchases === 'above_100') {
+                result = result.filter((c) => (c.total_spent || 0) > 100);
+            } else if (filterPurchases === 'above_500') {
+                result = result.filter((c) => (c.total_spent || 0) > 500);
+            }
+        }
+
+        return [...result].sort((a, b) => {
+            let comparison = 0;
+
+            if (sortField === 'full_name') {
+                const nameA = a.full_name || '';
+                const nameB = b.full_name || '';
+                comparison = nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+            } else if (sortField === 'source') {
+                const sourceA = getSourceLabel(a.source);
+                const sourceB = getSourceLabel(b.source);
+                comparison = sourceA.localeCompare(sourceB, 'pt-BR', { sensitivity: 'base' });
+            } else if (sortField === 'data_ownership') {
+                const ownA = getOwnershipLabel(a);
+                const ownB = getOwnershipLabel(b);
+                comparison = ownA.localeCompare(ownB, 'pt-BR', { sensitivity: 'base' });
+            } else if (sortField === 'loyalty_points') {
+                const ptsA = a.loyalty_points || 0;
+                const ptsB = b.loyalty_points || 0;
+                comparison = ptsA - ptsB;
+            } else if (sortField === 'total_spent') {
+                const spentA = a.total_spent || 0;
+                const spentB = b.total_spent || 0;
+                comparison = spentA - spentB;
+            }
+
+            return sortDirection === 'asc' ? comparison : -comparison;
         });
-    }, [customers, search]);
+    }, [customers, search, filterSource, filterOwnership, filterPurchases, sortField, sortDirection]);
 
     const summary = useMemo(() => {
         const total = customers.length;
@@ -253,26 +350,82 @@ export default function Customers() {
                     </div>
                 </div>
 
+                <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+                    <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Origem</span>
+                        <select
+                            value={filterSource}
+                            onChange={(e) => setFilterSource(e.target.value)}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        >
+                            <option value="all">Todas as origens</option>
+                            <option value="admin">Admin</option>
+                            <option value="public_store">Loja pública</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="qr_table">QR/Mesa</option>
+                            <option value="direct_sale">Venda direta</option>
+                            <option value="import">Importado</option>
+                            <option value="other">Outro</option>
+                        </select>
+                    </label>
+
+                    <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Governança</span>
+                        <select
+                            value={filterOwnership}
+                            onChange={(e) => setFilterOwnership(e.target.value)}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        >
+                            <option value="all">Todas as governanças</option>
+                            <option value="customer_owned">Protegidos (Cliente)</option>
+                            <option value="mixed">Misto</option>
+                            <option value="store_managed">Editáveis (Loja)</option>
+                        </select>
+                    </label>
+
+                    <label className="flex flex-col gap-1">
+                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Compras</span>
+                        <select
+                            value={filterPurchases}
+                            onChange={(e) => setFilterPurchases(e.target.value)}
+                            className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        >
+                            <option value="all">Todos os históricos</option>
+                            <option value="has_purchases">Com compras</option>
+                            <option value="no_purchases">Sem compras</option>
+                            <option value="above_100">Compras &gt; R$ 100,00</option>
+                            <option value="above_500">Compras &gt; R$ 500,00</option>
+                        </select>
+                    </label>
+
+                    <div className="flex items-end">
+                        {(filterSource !== 'all' || filterOwnership !== 'all' || filterPurchases !== 'all' || search !== '') && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setFilterSource('all');
+                                    setFilterOwnership('all');
+                                    setFilterPurchases('all');
+                                    setSearch('');
+                                }}
+                                className="w-full rounded-xl border border-gray-200 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 transition"
+                            >
+                                Limpar filtros
+                            </button>
+                        )}
+                    </div>
+                </div>
+
                 <div className="mt-5 overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-100 text-sm dark:divide-gray-800">
                             <thead className="bg-gray-50 dark:bg-gray-950">
                                 <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-black uppercase text-gray-500">
-                                        Cliente
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-black uppercase text-gray-500">
-                                        Origem
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-black uppercase text-gray-500">
-                                        Governança
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-black uppercase text-gray-500">
-                                        Fidelidade
-                                    </th>
-                                    <th className="px-4 py-3 text-left text-xs font-black uppercase text-gray-500">
-                                        Compras
-                                    </th>
+                                    {renderSortableHeader('full_name', 'Cliente')}
+                                    {renderSortableHeader('source', 'Origem')}
+                                    {renderSortableHeader('data_ownership', 'Governança')}
+                                    {renderSortableHeader('loyalty_points', 'Fidelidade')}
+                                    {renderSortableHeader('total_spent', 'Compras')}
                                     <th className="px-4 py-3 text-right text-xs font-black uppercase text-gray-500">
                                         Ações
                                     </th>
@@ -350,24 +503,33 @@ export default function Customers() {
                                         <td className="px-4 py-3 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 {canViewCustomers && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => navigate(`/admin/customers/${customer.id}`)}
-                                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                                    >
-                                                        <Eye size={15} />
-                                                        Vida do cliente
-                                                    </button>
+                                                    <div className="group relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate(`/admin/customers/${customer.id}`)}
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                        >
+                                                            <Eye size={15} />
+                                                        </button>
+                                                        <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-950 px-2.5 py-1 text-[10px] font-bold text-white opacity-0 transition duration-200 group-hover:opacity-100 dark:bg-gray-800 shadow-md">
+                                                            Vida do cliente
+                                                        </span>
+                                                    </div>
                                                 )}
 
                                                 {canManageCustomers && customer.data_ownership !== 'customer_owned' && customer.editable_by_store !== false && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}
-                                                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                                    >
-                                                        Editar
-                                                    </button>
+                                                    <div className="group relative">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => navigate(`/admin/customers/${customer.id}/edit`)}
+                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                        >
+                                                            <Pencil size={15} />
+                                                        </button>
+                                                        <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-gray-950 px-2.5 py-1 text-[10px] font-bold text-white opacity-0 transition duration-200 group-hover:opacity-100 dark:bg-gray-800 shadow-md">
+                                                            Editar
+                                                        </span>
+                                                    </div>
                                                 )}
                                             </div>
                                         </td>
