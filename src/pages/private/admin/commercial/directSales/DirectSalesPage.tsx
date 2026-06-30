@@ -5,6 +5,7 @@ import PageContainer from '@/components/common/PageContainer';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { DirectSalesService } from '@/services/directSalesService';
+import { Customers360Service, type CustomerListItem } from '@/services/customers360Service';
 
 type PriceRule = {
   min?: number;
@@ -38,6 +39,8 @@ type CartLine = {
   pricingSource: string;
   priceRule: PriceRule | null;
 };
+
+const COUNTER_CUSTOMER_NAME = 'Cliente de balcão';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
@@ -94,22 +97,32 @@ function resolvePrice(product: ProductOption, quantity: number) {
   };
 }
 
+function getCustomerLabel(customer: CustomerListItem) {
+  const name = customer.full_name || 'Cliente sem nome';
+  const phone = customer.phone ? ` — ${customer.phone}` : '';
+  return `${name}${phone}`;
+}
+
 export default function DirectSalesPage() {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [manualDiscount, setManualDiscount] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [customerName, setCustomerName] = useState('Cliente balcão');
+  const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [customerName, setCustomerName] = useState(COUNTER_CUSTOMER_NAME);
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethodCode, setPaymentMethodCode] = useState('pending');
   const [lastOrderCode, setLastOrderCode] = useState<string | null>(null);
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
+  const customerMap = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
+  const selectedCustomer = selectedCustomerId ? customerMap.get(selectedCustomerId) || null : null;
 
   const totals = useMemo(() => {
     return cart.reduce(
@@ -160,7 +173,7 @@ export default function DirectSalesPage() {
         if (!activeStoreId) throw new Error('Nenhuma loja ativa selecionada.');
         setStoreId(activeStoreId);
 
-        const [productsResult, paymentMethodsResult] = await Promise.all([
+        const [productsResult, paymentMethodsResult, customersResult] = await Promise.all([
           supabase
             .from('products')
             .select('id, name, price, category_id, use_category_pricing, price_rules, categories(name, price_rules)')
@@ -173,6 +186,7 @@ export default function DirectSalesPage() {
             .eq('store_id', activeStoreId)
             .eq('active', true)
             .order('sort_order', { ascending: true }),
+          Customers360Service.listCustomers(activeStoreId, 500),
         ]);
 
         if (productsResult.error) throw productsResult.error;
@@ -180,6 +194,11 @@ export default function DirectSalesPage() {
 
         setProducts((productsResult.data || []) as ProductOption[]);
         setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
+        setCustomers(
+          (customersResult || [])
+            .filter((customer) => customer.status !== 'deleted_requested')
+            .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'pt-BR', { sensitivity: 'base' }))
+        );
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Erro ao carregar dados da venda direta.');
       } finally {
@@ -189,6 +208,28 @@ export default function DirectSalesPage() {
 
     load();
   }, []);
+
+  const handleCustomerSelect = (customerId: string) => {
+    setSelectedCustomerId(customerId);
+
+    if (!customerId) {
+      setCustomerName(COUNTER_CUSTOMER_NAME);
+      setCustomerPhone('');
+      return;
+    }
+
+    const customer = customerMap.get(customerId);
+    if (!customer) return;
+
+    setCustomerName(customer.full_name || COUNTER_CUSTOMER_NAME);
+    setCustomerPhone(customer.phone || '');
+  };
+
+  const resetCounterCustomer = () => {
+    setSelectedCustomerId('');
+    setCustomerName(COUNTER_CUSTOMER_NAME);
+    setCustomerPhone('');
+  };
 
   const addItem = () => {
     const product = productMap.get(productId);
@@ -310,15 +351,17 @@ export default function DirectSalesPage() {
             manual_discount_total: item.manualDiscount,
           },
         })),
+        customerId: selectedCustomerId || null,
         customerName,
         customerPhone,
         paymentMethodCode,
         salesChannel: 'direct',
         fulfillmentType: 'in_person',
-        createCustomerIfMissing: true,
+        createCustomerIfMissing: !selectedCustomerId,
         loyaltyOptIn: true,
         metadata: {
           source: 'direct_sales_minimal_ui',
+          customer_selection_mode: selectedCustomerId ? 'existing_customer' : 'counter_customer',
           gross_subtotal: totals.grossSubtotal,
           automatic_discount_total: totals.quantityDiscount,
           manual_discount_total: totals.additionalDiscount,
@@ -517,17 +560,49 @@ export default function DirectSalesPage() {
             <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Cliente e pagamento</h2>
 
             <div className="space-y-3">
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Cliente</span>
+                <select
+                  value={selectedCustomerId}
+                  onChange={(event) => handleCustomerSelect(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                >
+                  <option value="">Cliente de balcão</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {getCustomerLabel(customer)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {selectedCustomer && (
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  Cliente selecionado: <strong>{selectedCustomer.full_name || 'Cliente sem nome'}</strong>
+                  {selectedCustomer.phone ? ` — ${selectedCustomer.phone}` : ''}
+                  <button
+                    type="button"
+                    onClick={resetCounterCustomer}
+                    className="ml-2 font-semibold underline decoration-dotted underline-offset-2"
+                  >
+                    voltar para balcão
+                  </button>
+                </div>
+              )}
+
               <input
                 value={customerName}
                 onChange={(event) => setCustomerName(event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                readOnly={Boolean(selectedCustomerId)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm read-only:bg-gray-50 read-only:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:read-only:bg-gray-900"
                 placeholder="Nome do cliente"
               />
 
               <input
                 value={customerPhone}
                 onChange={(event) => setCustomerPhone(event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                readOnly={Boolean(selectedCustomerId)}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm read-only:bg-gray-50 read-only:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:read-only:bg-gray-900"
                 placeholder="Telefone/WhatsApp"
               />
 
