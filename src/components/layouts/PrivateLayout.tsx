@@ -60,6 +60,7 @@ import {
     Bell,
     Building,
     ScrollText,
+    BadgeDollarSign,
 } from 'lucide-react';
 
 type MenuItem = {
@@ -356,47 +357,48 @@ export default function PrivateLayout() {
     const navigationItems = useMemo<MenuSection>(() => ({
         personal: [
             {
-                path: '/admin/my-profile',
-                icon: UserCircle,
-                label: 'Meus Dados',
-                alwaysVisible: true,
-            },
-            {
                 path: '/admin/my-history',
                 icon: ScrollText,
                 label: 'Meu Histórico',
                 alwaysVisible: true,
             },
+            {
+                path: '/admin/my-profile',
+                icon: UserCircle,
+                label: 'Meus Dados',
+                alwaysVisible: true,
+            },
         ],
         dashboard: [
-            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
-            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'dashboard.activity.view' },
             { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas', permission: 'dashboard.alerts.view' },
+            { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'dashboard.activity.view' },
+            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
             { path: '/admin/reports', icon: FileStack, label: 'Relatórios', permission: 'reports.view' },
         ],
         commercial: [
-            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/sales-channels', icon: RadioTower, label: 'Canais de venda', permission: 'commercial.sales_channels.view' },
-            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
+            { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
             { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
+            { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
+            { path: '/admin/direct-sales', icon: BadgeDollarSign, label: 'Venda direta', permission: 'orders.manage' },
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
         ],
         products: [
-            { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.view' },
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
-            { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
-            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.view' },
-            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
-            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'purchases.view' },
+            { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
+            { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
+            { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.view' },
+            { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
+            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.view' },
         ],
         team: [
             {
@@ -421,9 +423,9 @@ export default function PrivateLayout() {
             },
         ],
         support: [
-            { path: '/admin/legal', icon: FileText, label: 'Termos Legais', permission: 'support.view' },
-            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ', permission: 'support.view' },
             { path: '/admin/docs', icon: BookOpen, label: 'Documentação', permission: 'support.view' },
+            { path: '/admin/faq', icon: HelpCircle, label: 'FAQ', permission: 'support.view' },
+            { path: '/admin/legal', icon: FileText, label: 'Termos Legais', permission: 'support.view' },
         ]
     }), []);
 
