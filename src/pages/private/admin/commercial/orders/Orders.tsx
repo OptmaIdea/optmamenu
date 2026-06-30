@@ -10,7 +10,7 @@ import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filterStatus, setFilterStatus] = useState<string>('current');
+    const [filterStatus, setFilterStatus] = useState<string>('all');
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
@@ -22,6 +22,10 @@ export default function Orders() {
         }
         return orders;
     }, [orders, filterStatus]);
+
+    const emptyStateMessage = filterStatus === 'current'
+        ? 'Pedidos atuais mostra apenas novos/em preparo. Vendas diretas já concluídas aparecem em Todos os Status ou Finalizados.'
+        : 'Nenhum pedido encontrado para o filtro selecionado.';
 
     // Fetch orders
     const fetchOrders = useCallback(async () => {
@@ -173,7 +177,7 @@ export default function Orders() {
             return;
         }
 
-        const phone = (order.customer_phone ?? '').replace(/\\D/g, '');
+        const phone = (order.customer_phone ?? '').replace(/\D/g, '');
         if (phone.length < 10) return;
 
         const firstName = (order.customer_name ?? 'Cliente').split(' ')[0];
@@ -283,10 +287,10 @@ export default function Orders() {
             <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
             {/* Kanban / List */}
             {displayedOrders.length === 0 && !loading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl">
+                <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl text-center px-6">
                     <ShoppingBag size={64} className="opacity-20 mb-4" />
                     <h2 className="text-xl font-bold">Nenhum pedido encontrado</h2>
-                    <p className="text-sm">Aguardando novos pedidos chegarem...</p>
+                    <p className="text-sm max-w-md">{emptyStateMessage}</p>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 gap-4">
@@ -375,7 +379,7 @@ export default function Orders() {
                                                     <p className="flex justify-between"><span className="text-gray-500">Telefone:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_phone || 'Não informado'}</span></p>
                                                     <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
                                                         <a
-                                                            href={`https://wa.me/55${(order.customer_phone ?? '').replace(/\\D/g, '')}`}
+                                                            href={`https://wa.me/55${(order.customer_phone ?? '').replace(/\D/g, '')}`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="flex items-center justify-center gap-2 w-full p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition text-sm font-bold"
@@ -387,7 +391,7 @@ export default function Orders() {
                                                                 onClick={() => sendSmsNotification(order, 'prepared')}
                                                                 className="flex items-center justify-center gap-2 w-full p-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition text-sm font-bold mt-2"
                                                             >
-                                                                <MessageCircle size={16} /> Enviar Aviso \"Preparando\"
+                                                                <MessageCircle size={16} /> Enviar Aviso "Preparando"
                                                             </button>
                                                         )}
                                                     </div>
