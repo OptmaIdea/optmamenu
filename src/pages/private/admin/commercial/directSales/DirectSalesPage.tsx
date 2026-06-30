@@ -201,6 +201,10 @@ export default function DirectSalesPage() {
     setManualDiscount(0);
   };
 
+  const removeItem = (index: number) => {
+    setCart((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
   const submitSale = async () => {
     if (!storeId) return;
     if (!cart.length) {
@@ -357,6 +361,13 @@ export default function DirectSalesPage() {
                         {automaticDiscount > 0 && <span>Regra: -{formatCurrency(automaticDiscount)}</span>}
                         {item.manualDiscount > 0 && <span>Manual: -{formatCurrency(item.manualDiscount)}</span>}
                         {item.pricingSource !== 'product_price' && <span>{item.pricingSource === 'category_price_rules' ? 'Categoria' : 'Produto'}</span>}
+                        <button
+                          type="button"
+                          onClick={() => removeItem(index)}
+                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                        >
+                          Remover
+                        </button>
                       </div>
                     </div>
                   );
