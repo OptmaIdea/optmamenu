@@ -6,20 +6,82 @@ import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { DirectSalesService } from '@/services/directSalesService';
 
+type PriceRule = {
+  min?: number;
+  price?: number;
+};
+
 type ProductOption = {
   id: string;
   name: string;
   price: number | null;
+  category_id: string | null;
+  use_category_pricing?: boolean | null;
+  price_rules?: PriceRule[] | null;
+  categories?: {
+    name?: string | null;
+    price_rules?: PriceRule[] | null;
+  } | null;
 };
 
 type CartLine = {
   productId: string;
   quantity: number;
+  originalUnitPrice: number;
   unitPrice: number;
+  manualDiscount: number;
+  pricingSource: string;
+  priceRule: PriceRule | null;
 };
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
+
+function normalizeRules(rules?: PriceRule[] | null): PriceRule[] {
+  if (!Array.isArray(rules)) return [];
+  return rules
+    .map((rule) => ({ min: Number(rule?.min ?? 0), price: Number(rule?.price ?? 0) }))
+    .filter((rule) => Number.isFinite(rule.min) && Number.isFinite(rule.price) && rule.price >= 0)
+    .sort((a, b) => Number(a.min || 0) - Number(b.min || 0));
+}
+
+function resolvePrice(product: ProductOption, quantity: number) {
+  const basePrice = Number(product.price || 0);
+  const productRules = normalizeRules(product.price_rules);
+  const categoryRules = normalizeRules(product.categories?.price_rules);
+  let appliedRule: PriceRule | null = null;
+  let pricingSource = 'product_price';
+
+  const sourceRules = productRules.length
+    ? productRules
+    : product.use_category_pricing && categoryRules.length
+      ? categoryRules
+      : [];
+
+  if (sourceRules.length) {
+    appliedRule = sourceRules.reduce<PriceRule | null>((best, rule) => {
+      if (Number(rule.min || 0) <= quantity) return rule;
+      return best;
+    }, null);
+
+    if (appliedRule?.price !== undefined) {
+      pricingSource = productRules.length ? 'product_price_rules' : 'category_price_rules';
+      return {
+        originalUnitPrice: basePrice,
+        unitPrice: Number(appliedRule.price),
+        pricingSource,
+        priceRule: appliedRule,
+      };
+    }
+  }
+
+  return {
+    originalUnitPrice: basePrice,
+    unitPrice: basePrice,
+    pricingSource,
+    priceRule: null,
+  };
+}
 
 export default function DirectSalesPage() {
   const [storeId, setStoreId] = useState<string | null>(null);
@@ -28,6 +90,7 @@ export default function DirectSalesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [productId, setProductId] = useState('');
   const [quantity, setQuantity] = useState(1);
+  const [manualDiscount, setManualDiscount] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [customerName, setCustomerName] = useState('Cliente balcão');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -36,10 +99,25 @@ export default function DirectSalesPage() {
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
 
-  const total = useMemo(
-    () => cart.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0),
-    [cart]
-  );
+  const totals = useMemo(() => {
+    return cart.reduce(
+      (acc, item) => {
+        const gross = item.quantity * item.originalUnitPrice;
+        const applied = item.quantity * item.unitPrice;
+        const automaticDiscount = Math.max(gross - applied, 0);
+        const manual = Math.max(item.manualDiscount || 0, 0);
+        const lineTotal = Math.max(applied - manual, 0);
+
+        return {
+          grossSubtotal: acc.grossSubtotal + gross,
+          automaticDiscount: acc.automaticDiscount + automaticDiscount,
+          manualDiscount: acc.manualDiscount + manual,
+          total: acc.total + lineTotal,
+        };
+      },
+      { grossSubtotal: 0, automaticDiscount: 0, manualDiscount: 0, total: 0 }
+    );
+  }, [cart]);
 
   useEffect(() => {
     const load = async () => {
@@ -50,7 +128,7 @@ export default function DirectSalesPage() {
 
         const { data, error } = await supabase
           .from('products')
-          .select('id, name, price')
+          .select('id, name, price, category_id, use_category_pricing, price_rules, categories(name, price_rules)')
           .eq('store_id', activeStoreId)
           .eq('active', true)
           .order('name', { ascending: true });
@@ -75,21 +153,35 @@ export default function DirectSalesPage() {
     }
 
     const normalizedQuantity = Number(quantity);
+    const normalizedManualDiscount = Math.max(Number(manualDiscount || 0), 0);
+
     if (!Number.isFinite(normalizedQuantity) || normalizedQuantity <= 0) {
       toast.error('Informe uma quantidade válida.');
       return;
     }
+
+    if (!Number.isFinite(normalizedManualDiscount)) {
+      toast.error('Informe um desconto válido.');
+      return;
+    }
+
+    const pricing = resolvePrice(product, normalizedQuantity);
 
     setCart((current) => [
       ...current,
       {
         productId: product.id,
         quantity: normalizedQuantity,
-        unitPrice: Number(product.price || 0),
+        originalUnitPrice: pricing.originalUnitPrice,
+        unitPrice: pricing.unitPrice,
+        manualDiscount: normalizedManualDiscount,
+        pricingSource: pricing.pricingSource,
+        priceRule: pricing.priceRule,
       },
     ]);
     setProductId('');
     setQuantity(1);
+    setManualDiscount(0);
   };
 
   const submitSale = async () => {
@@ -107,7 +199,15 @@ export default function DirectSalesPage() {
           productId: item.productId,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
-          discount: 0,
+          originalUnitPrice: item.originalUnitPrice,
+          discount: item.manualDiscount,
+          discountReason: item.manualDiscount > 0 ? 'desconto_manual_pdv' : null,
+          pricingSource: item.pricingSource,
+          priceRule: item.priceRule || null,
+          metadata: {
+            automatic_discount_total: Math.max(item.quantity * item.originalUnitPrice - item.quantity * item.unitPrice, 0),
+            manual_discount_total: item.manualDiscount,
+          },
         })),
         customerName,
         customerPhone,
@@ -116,7 +216,13 @@ export default function DirectSalesPage() {
         fulfillmentType: 'in_person',
         createCustomerIfMissing: true,
         loyaltyOptIn: true,
-        metadata: { source: 'direct_sales_minimal_ui' },
+        metadata: {
+          source: 'direct_sales_minimal_ui',
+          gross_subtotal: totals.grossSubtotal,
+          automatic_discount_total: totals.automaticDiscount,
+          manual_discount_total: totals.manualDiscount,
+          total_final: totals.total,
+        },
       });
 
       setLastOrderCode(result.order?.order_code || result.order?.id || null);
@@ -157,7 +263,7 @@ export default function DirectSalesPage() {
             ← Voltar para pedidos
           </Link>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Fluxo mínimo para registrar venda presencial com baixa de estoque, cliente, caixa e fidelidade.
+            Fluxo mínimo para registrar venda presencial com desconto manual e regra por quantidade.
           </p>
         </div>
 
@@ -171,7 +277,7 @@ export default function DirectSalesPage() {
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Itens</h2>
 
-            <div className="grid gap-3 md:grid-cols-[1fr_120px_auto]">
+            <div className="grid gap-3 md:grid-cols-[1fr_110px_140px_auto]">
               <select
                 value={productId}
                 onChange={(event) => setProductId(event.target.value)}
@@ -191,6 +297,17 @@ export default function DirectSalesPage() {
                 value={quantity}
                 onChange={(event) => setQuantity(Number(event.target.value))}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                placeholder="Qtd."
+              />
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={manualDiscount}
+                onChange={(event) => setManualDiscount(Number(event.target.value))}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                placeholder="Desconto"
               />
 
               <button
@@ -210,12 +327,20 @@ export default function DirectSalesPage() {
               ) : (
                 cart.map((item, index) => {
                   const product = productMap.get(item.productId);
+                  const automaticDiscount = Math.max(item.quantity * item.originalUnitPrice - item.quantity * item.unitPrice, 0);
+                  const lineTotal = Math.max(item.quantity * item.unitPrice - item.manualDiscount, 0);
                   return (
-                    <div key={`${item.productId}-${index}`} className="flex items-center justify-between rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
-                      <span className="text-gray-900 dark:text-white">{product?.name || item.productId}</span>
-                      <span className="text-gray-600 dark:text-gray-300">
-                        {item.quantity} × {formatCurrency(item.unitPrice)}
-                      </span>
+                    <div key={`${item.productId}-${index}`} className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="font-medium text-gray-900 dark:text-white">{product?.name || item.productId}</span>
+                        <span className="text-gray-900 dark:text-white">{formatCurrency(lineTotal)}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                        <span>{item.quantity} × {formatCurrency(item.unitPrice)}</span>
+                        {automaticDiscount > 0 && <span>Regra: -{formatCurrency(automaticDiscount)}</span>}
+                        {item.manualDiscount > 0 && <span>Manual: -{formatCurrency(item.manualDiscount)}</span>}
+                        {item.pricingSource !== 'product_price' && <span>{item.pricingSource === 'category_price_rules' ? 'Categoria' : 'Produto'}</span>}
+                      </div>
                     </div>
                   );
                 })
@@ -250,12 +375,20 @@ export default function DirectSalesPage() {
 
               <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800/60">
                 <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                  <span>Itens</span>
-                  <strong>{cart.length}</strong>
+                  <span>Subtotal bruto</span>
+                  <strong>{formatCurrency(totals.grossSubtotal)}</strong>
                 </div>
-                <div className="mt-2 flex items-center justify-between text-lg font-bold text-gray-900 dark:text-white">
+                <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>Desconto por regra</span>
+                  <strong>-{formatCurrency(totals.automaticDiscount)}</strong>
+                </div>
+                <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>Desconto manual</span>
+                  <strong>-{formatCurrency(totals.manualDiscount)}</strong>
+                </div>
+                <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3 text-lg font-bold text-gray-900 dark:border-gray-700 dark:text-white">
                   <span>Total</span>
-                  <span>{formatCurrency(total)}</span>
+                  <span>{formatCurrency(totals.total)}</span>
                 </div>
               </div>
 
