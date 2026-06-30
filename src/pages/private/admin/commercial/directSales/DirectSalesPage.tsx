@@ -125,6 +125,28 @@ export default function DirectSalesPage() {
     );
   }, [cart]);
 
+  const sortCartLines = (lines: CartLine[]) => {
+    return [...lines].sort((a, b) => {
+      const nameA = productMap.get(a.productId)?.name || '';
+      const nameB = productMap.get(b.productId)?.name || '';
+      return nameA.localeCompare(nameB, 'pt-BR', { sensitivity: 'base' });
+    });
+  };
+
+  const buildCartLine = (product: ProductOption, quantityValue: number, discountValue: number): CartLine => {
+    const pricing = resolvePrice(product, quantityValue);
+
+    return {
+      productId: product.id,
+      quantity: quantityValue,
+      originalUnitPrice: pricing.originalUnitPrice,
+      unitPrice: pricing.unitPrice,
+      manualDiscount: Math.max(discountValue || 0, 0),
+      pricingSource: pricing.pricingSource,
+      priceRule: pricing.priceRule,
+    };
+  };
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -182,20 +204,23 @@ export default function DirectSalesPage() {
       return;
     }
 
-    const pricing = resolvePrice(product, normalizedQuantity);
+    setCart((current) => {
+      const existingIndex = current.findIndex((item) => item.productId === product.id);
 
-    setCart((current) => [
-      ...current,
-      {
-        productId: product.id,
-        quantity: normalizedQuantity,
-        originalUnitPrice: pricing.originalUnitPrice,
-        unitPrice: pricing.unitPrice,
-        manualDiscount: normalizedManualDiscount,
-        pricingSource: pricing.pricingSource,
-        priceRule: pricing.priceRule,
-      },
-    ]);
+      if (existingIndex >= 0) {
+        const next = [...current];
+        const existing = next[existingIndex];
+        next[existingIndex] = buildCartLine(
+          product,
+          existing.quantity + normalizedQuantity,
+          existing.manualDiscount + normalizedManualDiscount
+        );
+        return sortCartLines(next);
+      }
+
+      return sortCartLines([...current, buildCartLine(product, normalizedQuantity, normalizedManualDiscount)]);
+    });
+
     setProductId('');
     setQuantity(1);
     setManualDiscount(0);
@@ -203,6 +228,25 @@ export default function DirectSalesPage() {
 
   const removeItem = (index: number) => {
     setCart((current) => current.filter((_, itemIndex) => itemIndex !== index));
+  };
+
+  const changeItemQuantity = (index: number, delta: number) => {
+    setCart((current) => {
+      const target = current[index];
+      if (!target) return current;
+
+      const product = productMap.get(target.productId);
+      if (!product) return current;
+
+      const nextQuantity = target.quantity + delta;
+      if (nextQuantity <= 0) {
+        return current.filter((_, itemIndex) => itemIndex !== index);
+      }
+
+      const next = [...current];
+      next[index] = buildCartLine(product, nextQuantity, target.manualDiscount);
+      return sortCartLines(next);
+    });
   };
 
   const submitSale = async () => {
@@ -351,23 +395,51 @@ export default function DirectSalesPage() {
                   const automaticDiscount = Math.max(item.quantity * item.originalUnitPrice - item.quantity * item.unitPrice, 0);
                   const lineTotal = Math.max(item.quantity * item.unitPrice - item.manualDiscount, 0);
                   return (
-                    <div key={`${item.productId}-${index}`} className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium text-gray-900 dark:text-white">{product?.name || item.productId}</span>
-                        <span className="text-gray-900 dark:text-white">{formatCurrency(lineTotal)}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                        <span>{item.quantity} × {formatCurrency(item.unitPrice)}</span>
-                        {automaticDiscount > 0 && <span>Regra: -{formatCurrency(automaticDiscount)}</span>}
-                        {item.manualDiscount > 0 && <span>Manual: -{formatCurrency(item.manualDiscount)}</span>}
-                        {item.pricingSource !== 'product_price' && <span>{item.pricingSource === 'category_price_rules' ? 'Categoria' : 'Produto'}</span>}
-                        <button
-                          type="button"
-                          onClick={() => removeItem(index)}
-                          className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Remover
-                        </button>
+                    <div key={item.productId} className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">{product?.name || item.productId}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                            <span>{item.quantity} × {formatCurrency(item.unitPrice)}</span>
+                            {automaticDiscount > 0 && <span>Regra: -{formatCurrency(automaticDiscount)}</span>}
+                            {item.manualDiscount > 0 && <span>Manual: -{formatCurrency(item.manualDiscount)}</span>}
+                            {item.pricingSource !== 'product_price' && <span>{item.pricingSource === 'category_price_rules' ? 'Categoria' : 'Produto'}</span>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 md:justify-end">
+                          <div className="inline-flex items-center overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+                            <button
+                              type="button"
+                              onClick={() => changeItemQuantity(index, -1)}
+                              className="px-3 py-1 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                              aria-label="Diminuir quantidade"
+                            >
+                              −
+                            </button>
+                            <span className="min-w-[42px] border-x border-gray-200 px-3 py-1 text-center text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-white">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => changeItemQuantity(index, 1)}
+                              className="px-3 py-1 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                              aria-label="Aumentar quantidade"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <div className="min-w-[88px] text-right font-semibold text-gray-900 dark:text-white">
+                            {formatCurrency(lineTotal)}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeItem(index)}
+                            className="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                          >
+                            Remover
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
