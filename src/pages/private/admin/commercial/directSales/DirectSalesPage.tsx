@@ -51,6 +51,13 @@ const parseCurrencyInput = (value: string) => {
   return Number(digits) / 100;
 };
 
+const normalizeCustomerName = (value?: string | null) =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
 function normalizeRules(rules?: PriceRule[] | null): PriceRule[] {
   if (!Array.isArray(rules)) return [];
   return rules
@@ -123,6 +130,10 @@ export default function DirectSalesPage() {
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const customerMap = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
   const selectedCustomer = selectedCustomerId ? customerMap.get(selectedCustomerId) || null : null;
+  const counterCustomer = useMemo(
+    () => customers.find((customer) => ['cliente de balcao', 'cliente balcao'].includes(normalizeCustomerName(customer.full_name))) || null,
+    [customers]
+  );
 
   const totals = useMemo(() => {
     return cart.reduce(
@@ -333,6 +344,8 @@ export default function DirectSalesPage() {
       return;
     }
 
+    const effectiveCustomerId = selectedCustomerId || counterCustomer?.id || null;
+
     try {
       setSubmitting(true);
       const result = await DirectSalesService.createAdminDirectSale({
@@ -351,17 +364,19 @@ export default function DirectSalesPage() {
             manual_discount_total: item.manualDiscount,
           },
         })),
-        customerId: selectedCustomerId || null,
+        customerId: effectiveCustomerId,
         customerName,
         customerPhone,
         paymentMethodCode,
         salesChannel: 'direct',
         fulfillmentType: 'in_person',
-        createCustomerIfMissing: !selectedCustomerId,
+        createCustomerIfMissing: !effectiveCustomerId,
         loyaltyOptIn: true,
         metadata: {
           source: 'direct_sales_minimal_ui',
-          customer_selection_mode: selectedCustomerId ? 'existing_customer' : 'counter_customer',
+          customer_selection_mode: selectedCustomerId ? 'existing_customer' : counterCustomer?.id ? 'counter_customer' : 'counter_customer_unlinked',
+          effective_customer_id: effectiveCustomerId,
+          display_customer_name: customerName,
           gross_subtotal: totals.grossSubtotal,
           automatic_discount_total: totals.quantityDiscount,
           manual_discount_total: totals.additionalDiscount,
@@ -576,6 +591,18 @@ export default function DirectSalesPage() {
                 </select>
               </label>
 
+              {!selectedCustomer && counterCustomer && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                  As vendas de balcão serão vinculadas ao cliente operacional <strong>Cliente de balcão</strong>, sem exigir telefone do comprador.
+                </div>
+              )}
+
+              {!selectedCustomer && !counterCustomer && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  Cliente operacional de balcão não encontrado. A venda será salva sem vínculo na Vida do Cliente até esse cadastro existir.
+                </div>
+              )}
+
               {selectedCustomer && (
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
                   Cliente selecionado: <strong>{selectedCustomer.full_name || 'Cliente sem nome'}</strong>
@@ -595,7 +622,7 @@ export default function DirectSalesPage() {
                 onChange={(event) => setCustomerName(event.target.value)}
                 readOnly={Boolean(selectedCustomerId)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm read-only:bg-gray-50 read-only:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:read-only:bg-gray-900"
-                placeholder="Nome do cliente"
+                placeholder="Nome exibido no pedido"
               />
 
               <input
@@ -603,7 +630,7 @@ export default function DirectSalesPage() {
                 onChange={(event) => setCustomerPhone(event.target.value)}
                 readOnly={Boolean(selectedCustomerId)}
                 className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm read-only:bg-gray-50 read-only:text-gray-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:read-only:bg-gray-900"
-                placeholder="Telefone/WhatsApp"
+                placeholder="Telefone/WhatsApp opcional"
               />
 
               <select
