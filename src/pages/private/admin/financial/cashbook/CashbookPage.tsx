@@ -24,6 +24,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 function getDateInputValue(value: Date) {
     return value.toISOString().slice(0, 10);
@@ -100,6 +101,84 @@ function getFormTitle(form: CashbookFormState) {
     return form.direction === 'in' ? 'Nova entrada' : 'Nova saída';
 }
 
+function getPeriodDates(period: string) {
+    const today = new Date();
+    
+    switch (period) {
+        case 'current_month': {
+            const start = new Date(today.getFullYear(), today.getMonth(), 1);
+            const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            return {
+                start: start.toISOString().slice(0, 10),
+                end: end.toISOString().slice(0, 10)
+            };
+        }
+        case 'last_month': {
+            const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            const end = new Date(today.getFullYear(), today.getMonth(), 0);
+            return {
+                start: start.toISOString().slice(0, 10),
+                end: end.toISOString().slice(0, 10)
+            };
+        }
+        case 'fortnight': {
+            // Quinzena atual: 1 a 15, ou 16 a fim do mês
+            const day = today.getDate();
+            if (day <= 15) {
+                const start = new Date(today.getFullYear(), today.getMonth(), 1);
+                const end = new Date(today.getFullYear(), today.getMonth(), 15);
+                return {
+                    start: start.toISOString().slice(0, 10),
+                    end: end.toISOString().slice(0, 10)
+                };
+            } else {
+                const start = new Date(today.getFullYear(), today.getMonth(), 16);
+                const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+                return {
+                    start: start.toISOString().slice(0, 10),
+                    end: end.toISOString().slice(0, 10)
+                };
+            }
+        }
+        case 'last_fortnight': {
+            // Quinzena anterior: se dia <= 15, 2ª quinzena do mês anterior. Se dia >= 16, 1ª quinzena do mês atual.
+            const day = today.getDate();
+            if (day <= 15) {
+                const start = new Date(today.getFullYear(), today.getMonth() - 1, 16);
+                const end = new Date(today.getFullYear(), today.getMonth(), 0);
+                return {
+                    start: start.toISOString().slice(0, 10),
+                    end: end.toISOString().slice(0, 10)
+                };
+            } else {
+                const start = new Date(today.getFullYear(), today.getMonth(), 1);
+                const end = new Date(today.getFullYear(), today.getMonth(), 15);
+                return {
+                    start: start.toISOString().slice(0, 10),
+                    end: end.toISOString().slice(0, 10)
+                };
+            }
+        }
+        case 'week': {
+            // Semana: de Domingo a Sábado
+            const dayOfWeek = today.getDay(); // 0 is Sunday, 6 is Saturday
+            const sunday = new Date(today);
+            sunday.setDate(today.getDate() - dayOfWeek);
+            const saturday = new Date(sunday);
+            saturday.setDate(sunday.getDate() + 6);
+            return {
+                start: sunday.toISOString().slice(0, 10),
+                end: saturday.toISOString().slice(0, 10)
+            };
+        }
+        case 'all': {
+            return { start: '', end: '' };
+        }
+        default:
+            return { start: '', end: '' };
+    }
+}
+
 export default function CashbookPage() {
     const { storeId, loading: loadingStore } = useCurrentStore();
 
@@ -117,11 +196,17 @@ export default function CashbookPage() {
         window.print();
     }
 
+    const initialDates = getPeriodDates('current_month');
     const [entries, setEntries] = useState<CashbookEntry[]>([]);
     const [summary, setSummary] = useState<CashbookSummary | null>(null);
+    const [absoluteSummary, setAbsoluteSummary] = useState<CashbookSummary | null>(null);
+    const [pendingAllTime, setPendingAllTime] = useState(0);
     const [loading, setLoading] = useState(true);
-    const [startDate, setStartDate] = useState('');
-    const [endDate, setEndDate] = useState('');
+    const [startDate, setStartDate] = useState(initialDates.start);
+    const [endDate, setEndDate] = useState(initialDates.end);
+    const [periodFilter, setPeriodFilter] = useState('current_month');
+    const [viewMode, setViewMode] = useState<'libro' | 'extrato'>('libro');
+    const [extratoGroupType, setExtratoGroupType] = useState<'day' | 'week' | 'fortnight' | 'month'>('fortnight');
     const [customerFilter, setCustomerFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState<CashbookStatusFilter>('active');
     const [selectedEntry, setSelectedEntry] = useState<CashbookEntry | null>(null);
@@ -158,26 +243,253 @@ export default function CashbookPage() {
         });
     }, [customerFilter, endDate, entries, startDate, statusFilter]);
 
+    const pendingAndCancelledSums = useMemo(() => {
+        let pending = 0;
+        let cancelled = 0;
+
+        entries.forEach((entry) => {
+            const dateKey = getEntryDateKey(entry);
+            const inPeriod = (!startDate || dateKey >= startDate) && (!endDate || dateKey <= endDate);
+            if (!inPeriod) return;
+
+            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+            const isPending = !isCancelled && (
+                entry.status === 'pending' ||
+                entry.payment_method_code === 'pending' ||
+                (entry.payment_method && entry.payment_method.toLowerCase() === 'pending')
+            );
+
+            if (isPending) {
+                pending += Number(entry.amount || 0);
+            } else if (isCancelled) {
+                cancelled += Number(entry.amount || 0);
+            }
+        });
+
+        return { pending, cancelled };
+    }, [entries, startDate, endDate]);
+
+    const entriesWithRunningBalance = useMemo(() => {
+        // Ordena cronologicamente do mais antigo para o mais recente
+        const sorted = [...entries].sort((a, b) => {
+            const timeA = new Date(a.occurred_at || a.created_at).getTime();
+            const timeB = new Date(b.occurred_at || b.created_at).getTime();
+            return timeA - timeB;
+        });
+
+        let running = 0;
+        const balanceMap = new Map<string, number>();
+
+        sorted.forEach((entry) => {
+            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+            if (entry.affects_balance && !isCancelled) {
+                if (entry.direction === 'in') {
+                    running += Number(entry.amount || 0);
+                } else {
+                    running -= Number(entry.amount || 0);
+                }
+            }
+            balanceMap.set(entry.id, running);
+        });
+
+        return balanceMap;
+    }, [entries]);
+
+    const groupedExtrato = useMemo(() => {
+        if (viewMode !== 'extrato') return [];
+
+        const groupsMap = new Map<string, {
+            key: string;
+            label: string;
+            dateForSort: Date;
+            entries: CashbookEntry[];
+            totalIn: number;
+            totalOut: number;
+            periodBalance: number;
+            periodRealized: number;
+            periodPending: number;
+            endingBalance: number;
+        }>();
+
+        filteredEntries.forEach((entry) => {
+            const dateObj = new Date(entry.occurred_at || entry.entry_date);
+            const dateStr = dateObj.toISOString().slice(0, 10);
+            
+            let groupKey = '';
+            let groupLabel = '';
+            let dateForSort = dateObj;
+
+            if (extratoGroupType === 'day') {
+                groupKey = dateStr;
+                groupLabel = dateObj.toLocaleDateString('pt-BR');
+                dateForSort = new Date(dateStr + 'T00:00:00.000Z');
+            } else if (extratoGroupType === 'week') {
+                const dayOfWeek = dateObj.getDay();
+                const sunday = new Date(dateObj);
+                sunday.setDate(dateObj.getDate() - dayOfWeek);
+                const saturday = new Date(sunday);
+                saturday.setDate(sunday.getDate() + 6);
+                const sundayStr = sunday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                const saturdayStr = saturday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                
+                groupKey = sunday.toISOString().slice(0, 10);
+                groupLabel = `Semana de ${sundayStr} a ${saturdayStr}`;
+                dateForSort = new Date(groupKey + 'T00:00:00.000Z');
+            } else if (extratoGroupType === 'fortnight') {
+                const year = dateObj.getFullYear();
+                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const day = dateObj.getDate();
+                const q = day <= 15 ? 'Q1' : 'Q2';
+                groupKey = `${year}-${month}-${q}`;
+                
+                const monthName = dateObj.toLocaleString('pt-BR', { month: 'long' });
+                const monthYearLabel = `${month}/${year}`;
+                groupLabel = q === 'Q1' 
+                    ? `Quinzena 1 - ${monthYearLabel} (1 a 15 de ${monthName})` 
+                    : `Quinzena 2 - ${monthYearLabel} (16 a ${new Date(year, dateObj.getMonth() + 1, 0).getDate()} de ${monthName})`;
+                
+                dateForSort = q === 'Q1' 
+                    ? new Date(year, dateObj.getMonth(), 1)
+                    : new Date(year, dateObj.getMonth(), 16);
+            } else { // month
+                const year = dateObj.getFullYear();
+                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                groupKey = `${year}-${month}`;
+                const monthName = dateObj.toLocaleString('pt-BR', { month: 'long' });
+                groupLabel = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`;
+                dateForSort = new Date(year, dateObj.getMonth(), 1);
+            }
+
+            if (!groupsMap.has(groupKey)) {
+                groupsMap.set(groupKey, {
+                    key: groupKey,
+                    label: groupLabel,
+                    dateForSort,
+                    entries: [],
+                    totalIn: 0,
+                    totalOut: 0,
+                    periodBalance: 0,
+                    periodRealized: 0,
+                    periodPending: 0,
+                    endingBalance: 0,
+                });
+            }
+
+            const g = groupsMap.get(groupKey)!;
+            g.entries.push(entry);
+
+            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+            if (!isCancelled) {
+                const isPending = entry.status === 'pending' || 
+                                  entry.payment_method_code === 'pending' || 
+                                  (entry.payment_method && entry.payment_method.toLowerCase() === 'pending');
+                const amountVal = Number(entry.amount || 0);
+                const signedAmount = entry.direction === 'in' ? amountVal : -amountVal;
+
+                if (entry.direction === 'in') {
+                    g.totalIn += amountVal;
+                } else {
+                    g.totalOut += amountVal;
+                }
+
+                g.periodBalance += signedAmount;
+                if (isPending) {
+                    g.periodPending += signedAmount;
+                } else {
+                    g.periodRealized += signedAmount;
+                }
+            }
+        });
+
+        const sortedGroups = Array.from(groupsMap.values()).sort((a, b) => {
+            return b.dateForSort.getTime() - a.dateForSort.getTime();
+        });
+
+        sortedGroups.forEach((g) => {
+            const sortedEntries = [...g.entries].sort((a, b) => {
+                return new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime();
+            });
+
+            const activeEntry = sortedEntries.find(e => e.affects_balance && e.status !== 'cancelled' && e.status !== 'canceled');
+            if (activeEntry) {
+                g.endingBalance = entriesWithRunningBalance.get(activeEntry.id) || 0;
+            } else {
+                g.endingBalance = 0;
+                let limitTime = 0;
+                if (extratoGroupType === 'day') {
+                    limitTime = new Date(g.dateForSort.getTime() + 24 * 3600 * 1000).getTime();
+                } else if (extratoGroupType === 'week') {
+                    limitTime = new Date(g.dateForSort.getTime() + 7 * 24 * 3600 * 1000).getTime();
+                } else if (extratoGroupType === 'fortnight') {
+                    const isQ1 = g.key.endsWith('Q1');
+                    const year = g.dateForSort.getFullYear();
+                    const month = g.dateForSort.getMonth();
+                    limitTime = isQ1 
+                        ? new Date(year, month, 16).getTime()
+                        : new Date(year, month + 1, 1).getTime();
+                } else { // month
+                    const year = g.dateForSort.getFullYear();
+                    const month = g.dateForSort.getMonth();
+                    limitTime = new Date(year, month + 1, 1).getTime();
+                }
+
+                const pastEntries = [...entries]
+                    .filter(e => e.affects_balance && e.status !== 'cancelled' && e.status !== 'canceled')
+                    .sort((a, b) => new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime());
+                
+                const matched = pastEntries.find(e => new Date(e.occurred_at || e.created_at).getTime() < limitTime);
+                if (matched) {
+                    g.endingBalance = entriesWithRunningBalance.get(matched.id) || 0;
+                }
+            }
+        });
+
+        return sortedGroups;
+    }, [viewMode, filteredEntries, startDate, endDate, extratoGroupType, entriesWithRunningBalance, entries]);
+
     const loadData = useCallback(async () => {
         if (!storeId) return;
         try {
             setLoading(true);
             const today = new Date();
-            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString();
-            const now = today.toISOString();
+            const startISO = periodFilter === 'all'
+                ? '1970-01-01T00:00:00.000Z'
+                : (startDate ? `${startDate}T00:00:00.000Z` : new Date(today.getFullYear(), today.getMonth(), 1).toISOString());
+            const endISO = periodFilter === 'all'
+                ? new Date().toISOString()
+                : (endDate ? `${endDate}T23:59:59.999Z` : today.toISOString());
+            
+            const absoluteStartISO = '1970-01-01T00:00:00.000Z';
+            const absoluteEndISO = new Date().toISOString();
 
-            const [entriesData, summaryData] = await Promise.all([
+            const [entriesData, summaryData, absoluteSummaryData, pendingEntriesResult] = await Promise.all([
                 CashbookService.listByStore(storeId),
-                CashbookService.getSummary(storeId, firstDayOfMonth, now)
+                CashbookService.getSummary(storeId, startISO, endISO),
+                CashbookService.getSummary(storeId, absoluteStartISO, absoluteEndISO),
+                supabase
+                    .from('cashbook_entries')
+                    .select('amount, direction, status, payment_method_code')
+                    .eq('store_id', storeId)
+                    .neq('status', 'cancelled')
+                    .neq('status', 'canceled')
+                    .or("status.eq.pending,payment_method_code.eq.pending")
             ]);
+
+            const totalPending = (pendingEntriesResult.data || []).reduce((sum, item) => {
+                const amount = Number(item.amount || 0);
+                return item.direction === 'in' ? sum + amount : sum - amount;
+            }, 0);
+
             setEntries(entriesData);
             setSummary(summaryData);
+            setAbsoluteSummary(absoluteSummaryData);
+            setPendingAllTime(totalPending);
         } catch (err) {
             console.error('Erro ao carregar dados do livro de caixa:', err);
         } finally {
             setLoading(false);
         }
-    }, [storeId]);
+    }, [storeId, startDate, endDate]);
 
     useEffect(() => {
         if (!loadingStore && storeId) {
@@ -290,7 +602,7 @@ export default function CashbookPage() {
         }
     }
 
-    if (loadingStore || loading) return <LoadingSpinner />;
+    if (loadingStore || (loading && entries.length === 0)) return <LoadingSpinner />;
 
     return (
         <PageContainer
@@ -336,7 +648,7 @@ export default function CashbookPage() {
         >
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
                     <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400 mb-3">
                         <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
@@ -347,7 +659,7 @@ export default function CashbookPage() {
                     <div className="text-2xl font-black text-gray-900 dark:text-white">
                         {formatCurrencyPtBr(summary?.total_in || 0)}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Este mês</p>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">No período</p>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
@@ -360,7 +672,7 @@ export default function CashbookPage() {
                     <div className="text-2xl font-black text-gray-900 dark:text-white">
                         {formatCurrencyPtBr(summary?.total_out || 0)}
                     </div>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Este mês</p>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">No período</p>
                 </div>
 
                 <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
@@ -370,10 +682,34 @@ export default function CashbookPage() {
                         </div>
                         <span className="text-xs font-black uppercase tracking-widest">Saldo Atual</span>
                     </div>
-                    <div className={`text-2xl font-black ${((summary?.balance || 0) >= 0) ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>
-                        {formatCurrencyPtBr(summary?.balance || 0)}
+                    <div className={`text-2xl font-black ${((absoluteSummary?.balance || 0) >= 0) ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>
+                        {formatCurrencyPtBr(absoluteSummary?.balance || 0)}
+                    </div>
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold mt-1.5 flex justify-between items-center border-t border-gray-100 dark:border-gray-700 pt-1.5">
+                        <span>Realizado + Pendente:</span>
+                        <span>{formatCurrencyPtBr((absoluteSummary?.balance || 0) + pendingAllTime)}</span>
                     </div>
                     <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Total acumulado</p>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
+                    <div className="flex items-center gap-3 text-[#FAA832] mb-3">
+                        <div className="p-2 bg-[#FAA832]/10 rounded-xl">
+                            <History size={20} />
+                        </div>
+                        <span className="text-xs font-black uppercase tracking-widest">Pendente / Cancelado</span>
+                    </div>
+                    <div className="text-sm font-black text-gray-900 dark:text-white space-y-1.5 mt-1">
+                        <div className="flex justify-between items-center text-amber-600 dark:text-amber-400">
+                            <span className="text-[10px] font-bold uppercase tracking-wide">Pendente:</span>
+                            <span className="text-base tracking-tighter font-extrabold">{formatCurrencyPtBr(pendingAndCancelledSums.pending)}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-gray-400 dark:text-gray-500">
+                            <span className="text-[10px] font-bold uppercase tracking-wide">Cancelado:</span>
+                            <span className="text-base tracking-tighter line-through font-extrabold">{formatCurrencyPtBr(pendingAndCancelledSums.cancelled)}</span>
+                        </div>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-2.5 uppercase font-bold tracking-tighter">Período selecionado</p>
                 </div>
             </div>
 
@@ -384,12 +720,58 @@ export default function CashbookPage() {
                         <History size={18} className="text-gray-400" />
                         <h2 className="font-black text-gray-900 dark:text-white uppercase tracking-tight">Últimos Lançamentos</h2>
                     </div>
-                    <button className="text-xs font-black text-[#19A999] hover:underline uppercase tracking-widest">
-                        Ver todos
-                    </button>
+                    <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900/60 p-1 rounded-xl">
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('libro')}
+                            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+                                viewMode === 'libro'
+                                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
+                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                            }`}
+                        >
+                            Modo Livro
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setViewMode('extrato')}
+                            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
+                                viewMode === 'extrato'
+                                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
+                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+                            }`}
+                        >
+                            Modo Extrato
+                        </button>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 border-b border-gray-100 p-4 dark:border-gray-700 md:grid-cols-4">
+                <div className={`grid grid-cols-1 gap-3 border-b border-gray-100 p-4 dark:border-gray-700 ${viewMode === 'extrato' ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
+                    <label className="space-y-1">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Período</span>
+                        <select
+                            value={periodFilter}
+                            onChange={(event) => {
+                                const newPeriod = event.target.value;
+                                setPeriodFilter(newPeriod);
+                                if (newPeriod !== 'custom') {
+                                    const dates = getPeriodDates(newPeriod);
+                                    setStartDate(dates.start);
+                                    setEndDate(dates.end);
+                                }
+                            }}
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                        >
+                            <option value="current_month">Mês Atual</option>
+                            <option value="last_month">Mês Anterior</option>
+                            <option value="fortnight">Quinzena Atual</option>
+                            <option value="last_fortnight">Quinzena Anterior</option>
+                            <option value="week">Semana (Dom-Sáb)</option>
+                            <option value="all">Todo o período</option>
+                            <option value="custom">Personalizado</option>
+                        </select>
+                    </label>
+
                     <label className="space-y-1">
                         <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data inicial</span>
                         <div className="relative">
@@ -397,8 +779,12 @@ export default function CashbookPage() {
                             <input
                                 type="date"
                                 value={startDate}
-                                onChange={(event) => setStartDate(event.target.value)}
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                onChange={(event) => {
+                                    setStartDate(event.target.value);
+                                    setPeriodFilter('custom');
+                                }}
+                                disabled={periodFilter === 'all'}
+                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 disabled:opacity-50"
                             />
                         </div>
                     </label>
@@ -410,9 +796,13 @@ export default function CashbookPage() {
                             <input
                                 type="date"
                                 value={endDate}
-                                onChange={(event) => setEndDate(event.target.value)}
+                                onChange={(event) => {
+                                    setEndDate(event.target.value);
+                                    setPeriodFilter('custom');
+                                }}
+                                disabled={periodFilter === 'all'}
                                 max={getDateInputValue(new Date())}
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 disabled:opacity-50"
                             />
                         </div>
                     </label>
@@ -442,110 +832,277 @@ export default function CashbookPage() {
                             <option value="all">Todos</option>
                         </select>
                     </label>
+
+                    {viewMode === 'extrato' && (
+                        <label className="space-y-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Agrupar por</span>
+                            <select
+                                value={extratoGroupType}
+                                onChange={(event) => setExtratoGroupType(event.target.value as any)}
+                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                            >
+                                <option value="day">Diário</option>
+                                <option value="week">Semanal</option>
+                                <option value="fortnight">Quinzenal</option>
+                                <option value="month">Mensal</option>
+                            </select>
+                        </label>
+                    )}
                 </div>
 
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 dark:bg-gray-900/40 text-gray-400 uppercase text-[10px] font-black tracking-widest">
-                            <tr>
-                                <th className="px-6 py-4 text-left">Data</th>
-                                <th className="px-6 py-4 text-left">Descrição</th>
-                                <th className="px-6 py-4 text-left">Tipo</th>
-                                <th className="px-6 py-4 text-right">Valor</th>
-                                <th className="px-6 py-4 text-right">Ações</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                            {filteredEntries.length > 0 ? (
-                                filteredEntries.map((entry) => {
-                                    const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
-                                    const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : '';
+                {viewMode === 'libro' ? (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 dark:bg-gray-900/40 text-gray-400 uppercase text-[10px] font-black tracking-widest">
+                                <tr>
+                                    <th className="px-6 py-4 text-left">Data</th>
+                                    <th className="px-6 py-4 text-left">Descrição</th>
+                                    <th className="px-6 py-4 text-left">Tipo</th>
+                                    <th className="px-6 py-4 text-right">Valor</th>
+                                    <th className="px-6 py-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                                {filteredEntries.length > 0 ? (
+                                    filteredEntries.map((entry) => {
+                                        const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+                                        const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : '';
 
-                                    return (
-                                    <tr key={entry.id} className={`transition ${isCancelled ? 'bg-gray-50/70 opacity-75 dark:bg-gray-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
-                                        <td className={`px-6 py-4 whitespace-nowrap font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
-                                            {new Date(entry.occurred_at).toLocaleDateString('pt-BR')}
-                                        </td>
-                                        <td className="px-6 py-4">
-                                            <div className={`font-bold tracking-tight ${isCancelled ? cancelledClass : 'text-gray-900 dark:text-white'}`}>
-                                                {entry.type === 'sale' ? (
-                                                    <>
-                                                        Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}
-                                                    </>
-                                                ) : (
-                                                    entry.description
-                                                )}
-                                            </div>
-                                            {entry.type === 'sale' && (
-                                                <div className={`mt-1 text-xs font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
-                                                    Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
+                                        return (
+                                        <tr key={entry.id} className={`transition ${isCancelled ? 'bg-gray-50/70 opacity-75 dark:bg-gray-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                                            <td className={`px-6 py-4 whitespace-nowrap font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
+                                                {new Date(entry.occurred_at).toLocaleDateString('pt-BR')}
+                                            </td>
+                                            <td className="px-6 py-4">
+                                                <div className={`font-bold tracking-tight ${isCancelled ? cancelledClass : 'text-gray-900 dark:text-white'}`}>
+                                                    {entry.type === 'sale' ? (
+                                                        <>
+                                                            Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}
+                                                        </>
+                                                    ) : (
+                                                        entry.description
+                                                    )}
                                                 </div>
-                                            )}
-                                            {entry.payment_method && (
-                                                <div className={`text-[10px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{entry.payment_method}</div>
-                                            )}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2">
-                                                {entry.direction === 'in' ? (
-                                                    <ArrowUpCircle size={16} className="text-emerald-500" />
-                                                ) : (
-                                                    <ArrowDownCircle size={16} className="text-rose-500" />
+                                                {entry.type === 'sale' && (
+                                                    <div className={`mt-1 text-xs font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
+                                                        Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
+                                                    </div>
                                                 )}
-                                                <span className={`text-[10px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
-                                                    {entry.direction === 'in' ? 'Entrada' : 'Saída'}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className={`px-6 py-4 whitespace-nowrap text-right font-black tracking-tighter ${isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                            {entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedEntry(entry)}
-                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                    title="Ver detalhes"
-                                                    aria-label="Ver detalhes"
-                                                >
-                                                    <Eye size={15} />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openEditForm(entry)}
-                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                    title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                    aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                >
-                                                    <Edit2 size={15} />
-                                                </button>
-                                                {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
+                                                {entry.payment_method && (
+                                                    <div className={`text-[10px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{entry.payment_method}</div>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center gap-2">
+                                                    {entry.direction === 'in' ? (
+                                                        <ArrowUpCircle size={16} className="text-emerald-500" />
+                                                    ) : (
+                                                        <ArrowDownCircle size={16} className="text-rose-500" />
+                                                    )}
+                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                                                        {entry.direction === 'in' ? 'Entrada' : 'Saída'}
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 whitespace-nowrap text-right font-black tracking-tighter">
+                                                 <div className={isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
+                                                     {entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}
+                                                 </div>
+                                                 <div className="text-[10px] text-gray-400 dark:text-gray-500 font-bold mt-0.5">
+                                                     Saldo: {formatCurrencyPtBr(entriesWithRunningBalance.get(entry.id) || 0)}
+                                                 </div>
+                                             </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex justify-end gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleCancelEntry(entry)}
-                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                                                        title="Cancelar lançamento"
-                                                        aria-label="Cancelar lançamento"
+                                                        onClick={() => setSelectedEntry(entry)}
+                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                        title="Ver detalhes"
+                                                        aria-label="Ver detalhes"
                                                     >
-                                                        <Ban size={15} />
+                                                        <Eye size={15} />
                                                     </button>
-                                                )}
-                                            </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => openEditForm(entry)}
+                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                        title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
+                                                        aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
+                                                    >
+                                                        <Edit2 size={15} />
+                                                    </button>
+                                                    {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleCancelEntry(entry)}
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                                            title="Cancelar lançamento"
+                                                            aria-label="Cancelar lançamento"
+                                                        >
+                                                            <Ban size={15} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        );
+                                    })
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="px-6 py-16 text-center text-gray-400 italic">
+                                            Nenhum lançamento encontrado.
                                         </td>
                                     </tr>
-                                    );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-16 text-center text-gray-400 italic">
-                                        Nenhum lançamento encontrado.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    <div className="p-6 space-y-6">
+                        {groupedExtrato.length > 0 ? (
+                            groupedExtrato.map((group) => {
+                                return (
+                                    <div key={group.key} className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-xs bg-gray-50/50 dark:bg-gray-900/10">
+                                        {/* Group Header */}
+                                        <div className="bg-gray-50 dark:bg-gray-900/60 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 dark:border-gray-800">
+                                            <div>
+                                                <h3 className="font-extrabold text-sm text-gray-800 dark:text-gray-200">
+                                                    {group.label}
+                                                </h3>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-4 text-xs font-black">
+                                                <div className="text-gray-500 dark:text-gray-400">
+                                                    SALDO ANTERIOR: <span className="font-extrabold">{formatCurrencyPtBr(group.endingBalance - group.periodBalance)}</span>
+                                                </div>
+                                                <div className="text-emerald-600 dark:text-emerald-400">
+                                                    ENTRADAS: <span className="font-extrabold">+{formatCurrencyPtBr(group.totalIn)}</span>
+                                                </div>
+                                                <div className="text-rose-600 dark:text-rose-400">
+                                                    SAÍDAS: <span className="font-extrabold">-{formatCurrencyPtBr(group.totalOut)}</span>
+                                                </div>
+                                                <div className="h-4 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block" />
+                                                <div className="text-gray-900 dark:text-white flex items-center gap-1">
+                                                    <span>SALDO DO PERÍODO:</span>
+                                                    <span className={group.periodBalance >= 0 ? 'text-[#19A999]' : 'text-rose-600'}>
+                                                        {formatCurrencyPtBr(group.periodBalance)}
+                                                    </span>
+                                                    <span className="text-[9px] text-gray-400 font-normal">
+                                                        ({formatCurrencyPtBr(group.periodRealized)} real. / <span className="text-[#FAA832] font-extrabold">{formatCurrencyPtBr(group.periodPending)} pend.</span>)
+                                                    </span>
+                                                </div>
+                                                <div className="text-gray-900 dark:text-white bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-2xs">
+                                                    FECHAMENTO: <span className={group.endingBalance >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}>
+                                                        {formatCurrencyPtBr(group.endingBalance)}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Group Transactions List */}
+                                        <div className="overflow-x-auto bg-white dark:bg-gray-800">
+                                            <table className="w-full text-xs">
+                                                <thead className="bg-gray-50/50 dark:bg-gray-900/20 text-gray-400 uppercase text-[9px] font-black tracking-widest border-b border-gray-100 dark:border-gray-800">
+                                                    <tr>
+                                                        <th className="px-5 py-3 text-left">Data</th>
+                                                        <th className="px-5 py-3 text-left">Descrição</th>
+                                                        <th className="px-5 py-3 text-left">Tipo</th>
+                                                        <th className="px-5 py-3 text-right">Valor</th>
+                                                        <th className="px-5 py-3 text-right">Ações</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                                                    {group.entries.map((entry) => {
+                                                        const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+                                                        const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : '';
+                                                        return (
+                                                            <tr key={entry.id} className={`transition ${isCancelled ? 'bg-gray-50/70 opacity-75 dark:bg-gray-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
+                                                                <td className={`px-5 py-3 whitespace-nowrap font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                    {new Date(entry.occurred_at).toLocaleDateString('pt-BR')}
+                                                                </td>
+                                                                <td className="px-5 py-3">
+                                                                    <div className={`font-bold tracking-tight ${isCancelled ? cancelledClass : 'text-gray-900 dark:text-white'}`}>
+                                                                        {entry.type === 'sale' ? (
+                                                                            <>Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}</>
+                                                                        ) : (
+                                                                            entry.description
+                                                                        )}
+                                                                    </div>
+                                                                    {entry.type === 'sale' && (
+                                                                        <div className={`mt-0.5 text-[10px] font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
+                                                                            Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
+                                                                        </div>
+                                                                    )}
+                                                                    {entry.payment_method && (
+                                                                        <div className={`text-[9px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{entry.payment_method}</div>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-5 py-3 whitespace-nowrap">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        {entry.direction === 'in' ? (
+                                                                            <ArrowUpCircle size={14} className="text-emerald-500" />
+                                                                        ) : (
+                                                                            <ArrowDownCircle size={14} className="text-rose-500" />
+                                                                        )}
+                                                                        <span className={`text-[9px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
+                                                                            {entry.direction === 'in' ? 'Entrada' : 'Saída'}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-5 py-3 whitespace-nowrap text-right font-black tracking-tighter">
+                                                                    <div className={isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
+                                                                        {entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}
+                                                                    </div>
+                                                                    <div className="text-[9px] text-gray-400 dark:text-gray-500 font-bold mt-0.5">
+                                                                        Saldo: {formatCurrencyPtBr(entriesWithRunningBalance.get(entry.id) || 0)}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-5 py-3 text-right">
+                                                                    <div className="flex justify-end gap-1.5">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setSelectedEntry(entry)}
+                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                                            title="Ver detalhes"
+                                                                        >
+                                                                            <Eye size={13} />
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => openEditForm(entry)}
+                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                                            title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
+                                                                        >
+                                                                            <Edit2 size={13} />
+                                                                        </button>
+                                                                        {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => handleCancelEntry(entry)}
+                                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
+                                                                                title="Cancelar lançamento"
+                                                                            >
+                                                                                <Ban size={13} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="py-16 text-center text-gray-400 italic">
+                                Nenhum lançamento agrupado encontrado para este período.
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {formState && (
