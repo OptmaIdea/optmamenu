@@ -9,6 +9,11 @@
 -- pending = pagamento pendente / a combinar.
 -- Enquanto estiver pendente, não entra no saldo do Livro Diário de Caixa.
 -- Quando o pagamento for confirmado por fluxo próprio, aí sim deve gerar/ativar lançamento financeiro.
+--
+-- Importante:
+-- Não altera cashbook_entries.status para 'pending', pois esse status não é aceito
+-- pelo check constraint atual da tabela. O controle financeiro é feito por affects_balance=false
+-- e metadados de pendência.
 
 DO $$
 DECLARE
@@ -31,15 +36,14 @@ BEGIN
 
   v_definition := pg_get_functiondef(v_oid);
 
-  IF position('v_cashbook_result := public.create_cashbook_entry_from_order(v_order_id);' in v_definition) = 0 THEN
-    RAISE NOTICE 'Trecho de geração do livro caixa não encontrado. A função pode já estar ajustada.';
-    RETURN;
-  END IF;
-
-  v_new_definition := replace(
-    v_definition,
-    'v_cashbook_result := public.create_cashbook_entry_from_order(v_order_id);',
-    'IF v_payment_code <> ''pending'' AND COALESCE(v_payment_affects_cashbook, true) = true THEN
+  IF position('payment_pending' in v_definition) > 0
+     AND position('payment_method_does_not_affect_cashbook' in v_definition) > 0 THEN
+    RAISE NOTICE 'Função create_admin_direct_sale_order_safe já possui guarda de caixa pendente.';
+  ELSIF position('v_cashbook_result := public.create_cashbook_entry_from_order(v_order_id);' in v_definition) > 0 THEN
+    v_new_definition := replace(
+      v_definition,
+      'v_cashbook_result := public.create_cashbook_entry_from_order(v_order_id);',
+      'IF v_payment_code <> ''pending'' AND COALESCE(v_payment_affects_cashbook, true) = true THEN
     v_cashbook_result := public.create_cashbook_entry_from_order(v_order_id);
   ELSE
     v_cashbook_result := jsonb_build_object(
@@ -53,22 +57,23 @@ BEGIN
       ''affects_cashbook'', COALESCE(v_payment_affects_cashbook, true)
     );
   END IF;'
-  );
+    );
 
-  EXECUTE v_new_definition;
+    EXECUTE v_new_definition;
+  ELSE
+    RAISE NOTICE 'Trecho de geração do livro caixa não encontrado. A função pode estar em versão diferente.';
+  END IF;
 END $$;
 
 -- Corrige lançamentos já criados para pedidos/vendas com pagamento pendente.
 -- Eles permanecem no histórico, mas deixam de compor saldo.
+-- Mantemos status compatível com o check constraint atual e usamos affects_balance=false.
 UPDATE public.cashbook_entries ce
 SET
   affects_balance = false,
-  status = CASE
-    WHEN COALESCE(ce.status, 'active') IN ('cancelled', 'canceled', 'voided') THEN ce.status
-    ELSE 'pending'
-  END,
   metadata = COALESCE(ce.metadata, '{}'::jsonb) || jsonb_build_object(
     'pending_payment_excluded_from_balance', true,
+    'cashbook_status_preserved', ce.status,
     'corrected_by', '20260630153000_fix_pending_cashbook_balance',
     'corrected_at', now()
   ),
