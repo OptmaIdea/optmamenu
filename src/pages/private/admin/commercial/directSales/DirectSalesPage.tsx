@@ -42,6 +42,12 @@ type CartLine = {
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 
+const parseCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return 0;
+  return Number(digits) / 100;
+};
+
 function normalizeRules(rules?: PriceRule[] | null): PriceRule[] {
   if (!Array.isArray(rules)) return [];
   return rules
@@ -110,18 +116,18 @@ export default function DirectSalesPage() {
       (acc, item) => {
         const gross = item.quantity * item.originalUnitPrice;
         const applied = item.quantity * item.unitPrice;
-        const automaticDiscount = Math.max(gross - applied, 0);
-        const manual = Math.max(item.manualDiscount || 0, 0);
-        const lineTotal = Math.max(applied - manual, 0);
+        const quantityDiscount = Math.max(gross - applied, 0);
+        const additionalDiscount = Math.max(item.manualDiscount || 0, 0);
+        const lineTotal = Math.max(applied - additionalDiscount, 0);
 
         return {
           grossSubtotal: acc.grossSubtotal + gross,
-          automaticDiscount: acc.automaticDiscount + automaticDiscount,
-          manualDiscount: acc.manualDiscount + manual,
+          quantityDiscount: acc.quantityDiscount + quantityDiscount,
+          additionalDiscount: acc.additionalDiscount + additionalDiscount,
           total: acc.total + lineTotal,
         };
       },
-      { grossSubtotal: 0, automaticDiscount: 0, manualDiscount: 0, total: 0 }
+      { grossSubtotal: 0, quantityDiscount: 0, additionalDiscount: 0, total: 0 }
     );
   }, [cart]);
 
@@ -200,7 +206,7 @@ export default function DirectSalesPage() {
     }
 
     if (!Number.isFinite(normalizedManualDiscount)) {
-      toast.error('Informe um desconto válido.');
+      toast.error('Informe um desconto adicional válido.');
       return;
     }
 
@@ -266,7 +272,7 @@ export default function DirectSalesPage() {
           unitPrice: item.unitPrice,
           originalUnitPrice: item.originalUnitPrice,
           discount: item.manualDiscount,
-          discountReason: item.manualDiscount > 0 ? 'desconto_manual_pdv' : null,
+          discountReason: item.manualDiscount > 0 ? 'desconto_adicional_pdv' : null,
           pricingSource: item.pricingSource,
           priceRule: item.priceRule || null,
           metadata: {
@@ -284,8 +290,8 @@ export default function DirectSalesPage() {
         metadata: {
           source: 'direct_sales_minimal_ui',
           gross_subtotal: totals.grossSubtotal,
-          automatic_discount_total: totals.automaticDiscount,
-          manual_discount_total: totals.manualDiscount,
+          automatic_discount_total: totals.quantityDiscount,
+          manual_discount_total: totals.additionalDiscount,
           total_final: totals.total,
         },
       });
@@ -328,7 +334,7 @@ export default function DirectSalesPage() {
             ← Voltar para pedidos
           </Link>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Fluxo mínimo para registrar venda presencial com desconto manual e regra por quantidade.
+            Fluxo mínimo para registrar venda presencial com desconto adicional e desconto por quantidade.
           </p>
         </div>
 
@@ -342,46 +348,56 @@ export default function DirectSalesPage() {
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Itens</h2>
 
-            <div className="grid gap-3 md:grid-cols-[1fr_110px_140px_auto]">
-              <select
-                value={productId}
-                onChange={(event) => setProductId(event.target.value)}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-              >
-                <option value="">Selecione um produto</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name} — {formatCurrency(Number(product.price || 0))}
-                  </option>
-                ))}
-              </select>
+            <div className="grid gap-3 md:grid-cols-[1fr_110px_160px_auto]">
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Produto</span>
+                <select
+                  value={productId}
+                  onChange={(event) => setProductId(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                >
+                  <option value="">Selecione um produto</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name} — {formatCurrency(Number(product.price || 0))}
+                    </option>
+                  ))}
+                </select>
+              </label>
 
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(event) => setQuantity(Number(event.target.value))}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                placeholder="Qtd."
-              />
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Quantidade</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={quantity}
+                  onChange={(event) => setQuantity(Number(event.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  placeholder="Qtd."
+                />
+              </label>
 
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={manualDiscount}
-                onChange={(event) => setManualDiscount(Number(event.target.value))}
-                className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                placeholder="Desconto"
-              />
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Desc. adicional</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatCurrency(manualDiscount)}
+                  onChange={(event) => setManualDiscount(parseCurrencyInput(event.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  placeholder="R$ 0,00"
+                />
+              </label>
 
-              <button
-                type="button"
-                onClick={addItem}
-                className="rounded-lg bg-[#21A896] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1A867A]"
-              >
-                Adicionar
-              </button>
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={addItem}
+                  className="w-full rounded-lg bg-[#21A896] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1A867A]"
+                >
+                  Adicionar
+                </button>
+              </div>
             </div>
 
             <div className="mt-5 space-y-2">
@@ -392,18 +408,21 @@ export default function DirectSalesPage() {
               ) : (
                 cart.map((item, index) => {
                   const product = productMap.get(item.productId);
-                  const automaticDiscount = Math.max(item.quantity * item.originalUnitPrice - item.quantity * item.unitPrice, 0);
+                  const quantityDiscount = Math.max(item.quantity * item.originalUnitPrice - item.quantity * item.unitPrice, 0);
                   const lineTotal = Math.max(item.quantity * item.unitPrice - item.manualDiscount, 0);
+                  const hasUnitDiscount = item.unitPrice !== item.originalUnitPrice;
+
                   return (
                     <div key={item.productId} className="rounded-lg border border-gray-200 p-3 text-sm dark:border-gray-800">
                       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div>
                           <div className="font-medium text-gray-900 dark:text-white">{product?.name || item.productId}</div>
                           <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-                            <span>{item.quantity} × {formatCurrency(item.unitPrice)}</span>
-                            {automaticDiscount > 0 && <span>Regra: -{formatCurrency(automaticDiscount)}</span>}
-                            {item.manualDiscount > 0 && <span>Manual: -{formatCurrency(item.manualDiscount)}</span>}
-                            {item.pricingSource !== 'product_price' && <span>{item.pricingSource === 'category_price_rules' ? 'Categoria' : 'Produto'}</span>}
+                            <span>
+                              Unit.: {hasUnitDiscount ? `${formatCurrency(item.originalUnitPrice)} → ${formatCurrency(item.unitPrice)}` : formatCurrency(item.unitPrice)}
+                            </span>
+                            {quantityDiscount > 0 && <span>Desc. quantidade: -{formatCurrency(quantityDiscount)}</span>}
+                            {item.manualDiscount > 0 && <span>Desc. adicional: -{formatCurrency(item.manualDiscount)}</span>}
                           </div>
                         </div>
 
@@ -485,12 +504,12 @@ export default function DirectSalesPage() {
                   <strong>{formatCurrency(totals.grossSubtotal)}</strong>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                  <span>Desconto por regra</span>
-                  <strong>-{formatCurrency(totals.automaticDiscount)}</strong>
+                  <span>Desc. quantidade</span>
+                  <strong>-{formatCurrency(totals.quantityDiscount)}</strong>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                  <span>Desconto manual</span>
-                  <strong>-{formatCurrency(totals.manualDiscount)}</strong>
+                  <span>Desc. adicional</span>
+                  <strong>-{formatCurrency(totals.additionalDiscount)}</strong>
                 </div>
                 <div className="mt-3 flex items-center justify-between border-t border-gray-200 pt-3 text-lg font-bold text-gray-900 dark:border-gray-700 dark:text-white">
                   <span>Total</span>
