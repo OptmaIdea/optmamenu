@@ -24,6 +24,11 @@ type ProductOption = {
   } | null;
 };
 
+type PaymentMethodOption = {
+  code: string;
+  name: string;
+};
+
 type CartLine = {
   productId: string;
   quantity: number;
@@ -86,6 +91,7 @@ function resolvePrice(product: ProductOption, quantity: number) {
 export default function DirectSalesPage() {
   const [storeId, setStoreId] = useState<string | null>(null);
   const [products, setProducts] = useState<ProductOption[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [productId, setProductId] = useState('');
@@ -126,17 +132,28 @@ export default function DirectSalesPage() {
         if (!activeStoreId) throw new Error('Nenhuma loja ativa selecionada.');
         setStoreId(activeStoreId);
 
-        const { data, error } = await supabase
-          .from('products')
-          .select('id, name, price, category_id, use_category_pricing, price_rules, categories(name, price_rules)')
-          .eq('store_id', activeStoreId)
-          .eq('active', true)
-          .order('name', { ascending: true });
+        const [productsResult, paymentMethodsResult] = await Promise.all([
+          supabase
+            .from('products')
+            .select('id, name, price, category_id, use_category_pricing, price_rules, categories(name, price_rules)')
+            .eq('store_id', activeStoreId)
+            .eq('active', true)
+            .order('name', { ascending: true }),
+          supabase
+            .from('store_payment_methods')
+            .select('code, name')
+            .eq('store_id', activeStoreId)
+            .eq('active', true)
+            .order('sort_order', { ascending: true }),
+        ]);
 
-        if (error) throw error;
-        setProducts((data || []) as ProductOption[]);
+        if (productsResult.error) throw productsResult.error;
+        if (paymentMethodsResult.error) throw paymentMethodsResult.error;
+
+        setProducts((productsResult.data || []) as ProductOption[]);
+        setPaymentMethods((paymentMethodsResult.data || []) as PaymentMethodOption[]);
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Erro ao carregar produtos.');
+        toast.error(error instanceof Error ? error.message : 'Erro ao carregar dados da venda direta.');
       } finally {
         setLoading(false);
       }
@@ -366,12 +383,18 @@ export default function DirectSalesPage() {
                 placeholder="Telefone/WhatsApp"
               />
 
-              <input
+              <select
                 value={paymentMethodCode}
                 onChange={(event) => setPaymentMethodCode(event.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                placeholder="Código do pagamento. Ex.: cash, pix"
-              />
+                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+              >
+                <option value="pending">Pagamento pendente / a combinar</option>
+                {paymentMethods.map((method) => (
+                  <option key={method.code} value={method.code}>
+                    {method.name}
+                  </option>
+                ))}
+              </select>
 
               <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-800/60">
                 <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
