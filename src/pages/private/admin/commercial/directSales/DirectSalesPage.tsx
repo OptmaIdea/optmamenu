@@ -40,6 +40,8 @@ type CartLine = {
   priceRule: PriceRule | null;
 };
 
+type ProductSortOption = 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'category_asc';
+
 const COUNTER_CUSTOMER_NAME = 'Cliente de balcão';
 
 const formatCurrency = (value: number) =>
@@ -57,6 +59,15 @@ const normalizeCustomerName = (value?: string | null) =>
     .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase();
+
+const normalizeSearch = (value?: string | null) =>
+  (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+
+const getProductCategoryName = (product: ProductOption) => product.categories?.name || 'Sem categoria';
 
 function normalizeRules(rules?: PriceRule[] | null): PriceRule[] {
   if (!Array.isArray(rules)) return [];
@@ -126,6 +137,9 @@ export default function DirectSalesPage() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [paymentMethodCode, setPaymentMethodCode] = useState('pending');
   const [lastOrderCode, setLastOrderCode] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const [productCategoryFilter, setProductCategoryFilter] = useState('all');
+  const [productSort, setProductSort] = useState<ProductSortOption>('name_asc');
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const customerMap = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
@@ -134,6 +148,40 @@ export default function DirectSalesPage() {
     () => customers.find((customer) => ['cliente de balcao', 'cliente balcao'].includes(normalizeCustomerName(customer.full_name))) || null,
     [customers]
   );
+
+  const productCategories = useMemo(() => {
+    return Array.from(new Set(products.map((product) => getProductCategoryName(product))))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+  }, [products]);
+
+  const filteredProducts = useMemo(() => {
+    const search = normalizeSearch(productSearch);
+
+    return products
+      .filter((product) => {
+        const categoryName = getProductCategoryName(product);
+        const matchesSearch = !search || normalizeSearch(`${product.name} ${categoryName}`).includes(search);
+        const matchesCategory = productCategoryFilter === 'all' || categoryName === productCategoryFilter;
+        return matchesSearch && matchesCategory;
+      })
+      .sort((a, b) => {
+        if (productSort === 'name_desc') {
+          return b.name.localeCompare(a.name, 'pt-BR', { sensitivity: 'base' });
+        }
+        if (productSort === 'price_asc') {
+          return Number(a.price || 0) - Number(b.price || 0);
+        }
+        if (productSort === 'price_desc') {
+          return Number(b.price || 0) - Number(a.price || 0);
+        }
+        if (productSort === 'category_asc') {
+          const categoryCompare = getProductCategoryName(a).localeCompare(getProductCategoryName(b), 'pt-BR', { sensitivity: 'base' });
+          if (categoryCompare !== 0) return categoryCompare;
+        }
+        return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+      });
+  }, [products, productSearch, productCategoryFilter, productSort]);
 
   const totals = useMemo(() => {
     return cart.reduce(
@@ -434,7 +482,60 @@ export default function DirectSalesPage() {
 
         <div className="grid gap-6 lg:grid-cols-[1.4fr_0.8fr]">
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Itens</h2>
+            <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Itens</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Busque, filtre e ordene para evitar lançamento errado no balcão.
+                </p>
+              </div>
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                {filteredProducts.length} de {products.length} produtos
+              </span>
+            </div>
+
+            <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Buscar produto</span>
+                <input
+                  value={productSearch}
+                  onChange={(event) => setProductSearch(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  placeholder="Nome ou categoria"
+                />
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Categoria</span>
+                <select
+                  value={productCategoryFilter}
+                  onChange={(event) => setProductCategoryFilter(event.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                >
+                  <option value="all">Todas</option>
+                  {productCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Ordenar</span>
+                <select
+                  value={productSort}
+                  onChange={(event) => setProductSort(event.target.value as ProductSortOption)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                >
+                  <option value="name_asc">Nome A-Z</option>
+                  <option value="name_desc">Nome Z-A</option>
+                  <option value="price_asc">Menor preço</option>
+                  <option value="price_desc">Maior preço</option>
+                  <option value="category_asc">Categoria</option>
+                </select>
+              </label>
+            </div>
 
             <div className="grid gap-3 md:grid-cols-[1fr_110px_160px_auto]">
               <label className="space-y-1">
@@ -445,7 +546,7 @@ export default function DirectSalesPage() {
                   className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                 >
                   <option value="">Selecione um produto</option>
-                  {products.map((product) => (
+                  {filteredProducts.map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name} — {formatCurrency(Number(product.price || 0))}
                     </option>
