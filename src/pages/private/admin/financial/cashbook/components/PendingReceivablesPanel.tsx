@@ -23,7 +23,6 @@ const PAYMENT_OPTIONS: PaymentOption[] = [
   { code: 'cash', label: 'Dinheiro' },
   { code: 'debit_card', label: 'Cartão de débito' },
   { code: 'credit_card', label: 'Cartão de crédito' },
-  { code: 'card', label: 'Cartão' },
 ];
 
 function isPendingReceivable(entry: CashbookEntry) {
