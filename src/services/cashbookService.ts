@@ -58,6 +58,15 @@ export interface UpdateCashbookEntryInput {
     occurred_at?: string;
 }
 
+export interface ConfirmPendingPaymentInput {
+    store_id: string;
+    order_id: string;
+    payment_method_code: string;
+    received_at?: string;
+    notes?: string | null;
+    metadata?: Record<string, unknown>;
+}
+
 export interface CashbookSummary {
     start_date: string;
     end_date: string;
@@ -132,6 +141,25 @@ export const CashbookService = {
         if (error) throw error;
 
         return data as CashbookEntry | null;
+    },
+
+    async confirmPendingPayment(input: ConfirmPendingPaymentInput) {
+        const { data, error } = await supabase.rpc('confirm_pending_order_payment_safe', {
+            p_store_id: input.store_id,
+            p_order_id: input.order_id,
+            p_payment_method_code: input.payment_method_code,
+            p_received_at: input.received_at || new Date().toISOString(),
+            p_notes: input.notes || null,
+            p_metadata: input.metadata || {},
+        });
+
+        if (error) throw error;
+
+        if (!data?.ok) {
+            throw new Error(data?.message || data?.error || 'Erro ao confirmar recebimento pendente.');
+        }
+
+        return data;
     },
 
     async cancel(storeId: string, entryId: string) {
