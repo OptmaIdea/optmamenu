@@ -296,10 +296,6 @@ export default function PaymentMethodsPage({ withoutHeader = false, disabled = f
                 })}
             </div>
 
-            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-                <strong>Nota da Fase 8:</strong> esta tela configura as formas aceitas.
-                O lançamento financeiro no livro diário de caixa será tratado na Sprint 8.6.
-            </div>
         </PageContainer>
     );
 }
