@@ -25,6 +25,7 @@ import { formatCurrencyPtBr } from '@/utils/export/formatters';
 import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import PendingReceivablesPanel from './components/PendingReceivablesPanel';
 
 function getDateInputValue(value: Date) {
     return value.toISOString().slice(0, 10);
@@ -735,6 +736,15 @@ export default function CashbookPage() {
                     </div>
                     <p className="text-[10px] text-gray-400 mt-2.5 uppercase font-bold tracking-tighter">Período selecionado</p>
                 </div>
+            </div>
+
+            <div className="my-6">
+                <PendingReceivablesPanel
+                    storeId={storeId}
+                    entries={entries}
+                    canConfirm={canCreateCashbookEntry}
+                    onConfirmed={loadData}
+                />
             </div>
 
             {/* Entries List */}
