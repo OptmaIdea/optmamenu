@@ -186,6 +186,59 @@ function getExternalDetailItems(metadata: Record<string, unknown> | null | undef
   return Array.isArray(items) ? items : [];
 }
 
+function metadataValue(metadata: Record<string, unknown> | null | undefined, key: string) {
+  return metadata ? metadata[key] : undefined;
+}
+
+function metadataBoolean(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadataValue(metadata, key);
+  return value === true || value === 'true';
+}
+
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string, fallback = '') {
+  const value = metadataValue(metadata, key);
+  if (typeof value === 'string') return value;
+  if (typeof value === 'boolean' || typeof value === 'number') return String(value);
+  return fallback;
+}
+
+function getDivergenceInfo(closing: CashbookDayClosing) {
+  const metadata = closing.metadata || {};
+  const hasDivergence = metadataBoolean(metadata, 'has_divergence') || Math.abs(Number(closing.difference_total || 0)) >= 0.01;
+  const type = hasDivergence ? metadataString(metadata, 'divergence_type', closing.difference_total < 0 ? 'shortage' : 'surplus') : 'none';
+  const level = hasDivergence ? metadataString(metadata, 'divergence_level', 'relevant') : 'none';
+  const occurrenceRequired = metadataBoolean(metadata, 'occurrence_required') || hasDivergence;
+
+  const typeLabel = type === 'shortage' ? 'Falta' : type === 'surplus' ? 'Sobra' : 'Sem divergência';
+  const levelLabel =
+    level === 'critical'
+      ? 'Crítica'
+      : level === 'relevant'
+        ? 'Relevante'
+        : level === 'low'
+          ? 'Leve'
+          : 'Nenhuma';
+
+  const className =
+    level === 'critical'
+      ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200'
+      : level === 'relevant'
+        ? 'border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-200'
+        : level === 'low'
+          ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
+          : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200';
+
+  return {
+    hasDivergence,
+    occurrenceRequired,
+    type,
+    level,
+    typeLabel,
+    levelLabel,
+    className,
+  };
+}
+
 export default function DayClosingPanel({ storeId, canClose = false }: DayClosingPanelProps) {
   const [closingDate, setClosingDate] = useState(todayIsoDate());
   const [preview, setPreview] = useState<CashbookDayClosingPreview | null>(null);
@@ -510,6 +563,19 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
     );
   }
 
+  function renderDivergenceBadge(closing: CashbookDayClosing) {
+    const info = getDivergenceInfo(closing);
+
+    return (
+      <div className={`inline-flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black ${info.className}`}>
+        {info.hasDivergence ? <AlertTriangle size={14} /> : <CheckCircle2 size={14} />}
+        <span>{info.hasDivergence ? `Divergência ${info.levelLabel}` : 'Sem divergência'}</span>
+        {info.hasDivergence && <span>· {info.typeLabel}</span>}
+        {info.occurrenceRequired && <span>· Ocorrência obrigatória</span>}
+      </div>
+    );
+  }
+
   return (
     <section className="rounded-3xl border border-teal-200 bg-teal-50/70 p-5 shadow-sm dark:border-teal-900/50 dark:bg-teal-950/20">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -628,6 +694,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
           {isClosedDate && preview?.existing_closing ? (
             <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100">
               Caixa desta data já foi fechado em {preview.existing_closing.closed_at ? new Date(preview.existing_closing.closed_at).toLocaleString('pt-BR') : 'data não informada'}.
+              <div className="mt-3">{renderDivergenceBadge(preview.existing_closing)}</div>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
                   <p className="text-[10px] font-black uppercase text-gray-400">Esperado</p>
@@ -928,8 +995,11 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
               <div key={closing.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/60">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm font-black text-gray-900 dark:text-white">{formatDatePtBr(closing.closing_date)}</p>
-                    <p className="text-xs font-semibold text-gray-400">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-black text-gray-900 dark:text-white">{formatDatePtBr(closing.closing_date)}</p>
+                      {renderDivergenceBadge(closing)}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-gray-400">
                       {closing.closed_at ? `Fechado em ${new Date(closing.closed_at).toLocaleString('pt-BR')}` : 'Sem horário de fechamento'}
                     </p>
                     {closing.notes && <p className="mt-2 text-xs font-bold text-gray-600 dark:text-gray-300">Obs.: {closing.notes}</p>}
