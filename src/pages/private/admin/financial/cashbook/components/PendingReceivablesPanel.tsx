@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, Clock, History, RefreshCw } from 'lucide-react';
+import { Calculator, CheckCircle2, Clock, History, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { CashbookService, type CashbookEntry } from '@/services/cashbookService';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
+import DayClosingPanel from './DayClosingPanel';
 
 type PaymentOption = {
   code: string;
   label: string;
 };
 
-type CashbookTab = 'entries' | 'receivables';
+type CashbookTab = 'entries' | 'receivables' | 'closing';
 
 interface PendingReceivablesPanelProps {
   storeId: string | null;
@@ -117,11 +118,11 @@ export default function PendingReceivablesPanel({
 
   return (
     <div
-      data-cashbook-receivables-active={activeTab === 'receivables' ? 'true' : 'false'}
+      data-cashbook-secondary-active={activeTab === 'entries' ? 'false' : 'true'}
       className="cashbook-tabs-bridge"
     >
       <style>{`
-        .my-6:has([data-cashbook-receivables-active="true"]) + div {
+        .my-6:has([data-cashbook-secondary-active="true"]) + div {
           display: none;
         }
       `}</style>
@@ -161,6 +162,19 @@ export default function PendingReceivablesPanel({
               {pendingEntries.length}
             </span>
           )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('closing')}
+          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-black transition ${
+            activeTab === 'closing'
+              ? 'bg-teal-600 text-white shadow-sm'
+              : 'text-gray-500 hover:bg-teal-50 hover:text-teal-700 dark:text-gray-400 dark:hover:bg-teal-950/30 dark:hover:text-teal-300'
+          }`}
+        >
+          <Calculator size={16} />
+          Fechamento do dia
         </button>
       </div>
 
@@ -254,6 +268,8 @@ export default function PendingReceivablesPanel({
           )}
         </section>
       )}
+
+      {activeTab === 'closing' && <DayClosingPanel storeId={storeId} canClose={canConfirm} />}
     </div>
   );
 }
