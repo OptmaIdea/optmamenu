@@ -40,8 +40,15 @@ function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function normalizeNumber(value: string) {
-  const normalized = value.replace(/\./g, '').replace(',', '.');
+function normalizeNumber(value: string | number | null | undefined) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+
+  const cleaned = raw.replace(/[R$\s]/g, '').replace(/[^0-9,.-]/g, '');
+  const normalized = cleaned.includes(',')
+    ? cleaned.replace(/\./g, '').replace(',', '.')
+    : cleaned;
+
   const parsed = Number(normalized);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
@@ -69,6 +76,82 @@ function createExternalDetail(): ExternalDetailItem {
   };
 }
 
+function externalDetailTotal(items: ExternalDetailItem[]) {
+  return items.reduce((sum, item) => sum + normalizeNumber(item.amount), 0);
+}
+
+function serializeExternalDetails(details: ExternalDetails) {
+  return {
+    pix: {
+      total: externalDetailTotal(details.pix),
+      items: details.pix
+        .filter((item) => item.label.trim() || item.amount.trim())
+        .map((item) => ({
+          label: item.label.trim(),
+          amount: item.amount,
+          amount_value: normalizeNumber(item.amount),
+        })),
+    },
+    debit: {
+      total: externalDetailTotal(details.debit),
+      items: details.debit
+        .filter((item) => item.label.trim() || item.amount.trim())
+        .map((item) => ({
+          label: item.label.trim(),
+          amount: item.amount,
+          amount_value: normalizeNumber(item.amount),
+        })),
+    },
+    credit: {
+      total: externalDetailTotal(details.credit),
+      items: details.credit
+        .filter((item) => item.label.trim() || item.amount.trim())
+        .map((item) => ({
+          label: item.label.trim(),
+          amount: item.amount,
+          amount_value: normalizeNumber(item.amount),
+        })),
+    },
+    other: {
+      total: externalDetailTotal(details.other),
+      items: details.other
+        .filter((item) => item.label.trim() || item.amount.trim())
+        .map((item) => ({
+          label: item.label.trim(),
+          amount: item.amount,
+          amount_value: normalizeNumber(item.amount),
+        })),
+    },
+  };
+}
+
+function restoreExternalDetails(metadata: Record<string, unknown> | null | undefined): ExternalDetails {
+  const details = metadata?.external_conference_details;
+  if (!details || typeof details !== 'object') return emptyExternalDetails();
+
+  const detailsRecord = details as Record<string, unknown>;
+  const restored = emptyExternalDetails();
+
+  (['pix', 'debit', 'credit', 'other'] as ExternalMethodKey[]).forEach((method) => {
+    const methodDetails = detailsRecord[method];
+    if (!methodDetails || typeof methodDetails !== 'object') return;
+
+    const items = (methodDetails as Record<string, unknown>).items;
+    if (!Array.isArray(items)) return;
+
+    restored[method] = items.map((item) => {
+      const itemRecord = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+      return {
+        id: createExternalDetail().id,
+        label: String(itemRecord.label || ''),
+        amount: String(itemRecord.amount || itemRecord.amount_value || ''),
+      };
+    });
+  });
+
+  return restored;
+}
+
 export default function DayClosingPanel({ storeId, canClose = false }: DayClosingPanelProps) {
   const [closingDate, setClosingDate] = useState(todayIsoDate());
   const [preview, setPreview] = useState<CashbookDayClosingPreview | null>(null);
@@ -91,10 +174,10 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
 
   const externalDetailTotals = useMemo(() => {
     return {
-      pix: externalDetails.pix.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
-      debit: externalDetails.debit.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
-      credit: externalDetails.credit.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
-      other: externalDetails.other.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
+      pix: externalDetailTotal(externalDetails.pix),
+      debit: externalDetailTotal(externalDetails.debit),
+      credit: externalDetailTotal(externalDetails.credit),
+      other: externalDetailTotal(externalDetails.other),
     };
   }, [externalDetails]);
 
@@ -134,8 +217,10 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         setConfirmedDebit(String(result.existing_closing.confirmed_debit_card_total || ''));
         setConfirmedCredit(String(result.existing_closing.confirmed_credit_card_total || ''));
         setConfirmedOther(String(result.existing_closing.confirmed_other_total || ''));
-        setExternalDetails(emptyExternalDetails());
+        setExternalDetails(restoreExternalDetails(result.existing_closing.metadata));
         setNotes(result.existing_closing.notes || '');
+      } else {
+        setExternalDetails(emptyExternalDetails());
       }
     } catch (error) {
       console.error('Erro ao carregar prévia de fechamento:', error);
@@ -223,11 +308,17 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
           expected_snapshot: preview?.expected || null,
           pending_snapshot: preview?.pending || null,
           cancelled_snapshot: preview?.cancelled || null,
+          external_conference_details: serializeExternalDetails(externalDetails),
+          external_conference_totals: {
+            pix: confirmedPixTotal,
+            debit: confirmedDebitTotal,
+            credit: confirmedCreditTotal,
+            other: confirmedOtherTotal,
+          },
         },
       });
 
       toast.success(status === 'closed' ? 'Caixa fechado com sucesso.' : 'Rascunho salvo.');
-      setExternalDetails(emptyExternalDetails());
       await loadPreview();
     } catch (error) {
       console.error('Erro ao salvar fechamento:', error);
@@ -320,7 +411,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       </div>
 
       <div className="mt-5 rounded-2xl border border-teal-200 bg-white/70 p-4 text-xs font-bold text-teal-900 dark:border-teal-900/50 dark:bg-gray-900/60 dark:text-teal-200">
-        O fechamento registra o resultado final conferido, diferenças, responsável e horário. Detalhes auxiliares de conferência externa são apenas apoio visual local e não ficam salvos como extrato externo.
+        O fechamento registra o resultado final conferido, diferenças, responsável e horário. Detalhes auxiliares de conferência externa são preservados no registro para consulta e auditoria posterior.
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
