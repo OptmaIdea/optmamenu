@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, CheckCircle2, Plus, RefreshCw, Save, X } from 'lucide-react';
+import { AlertTriangle, Calculator, CheckCircle2, Eye, Plus, RefreshCw, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { CashbookService, type CashbookDayClosingPreview } from '@/services/cashbookService';
+import {
+  CashbookService,
+  type CashbookClosingStatusResult,
+  type CashbookDayClosing,
+  type CashbookDayClosingPreview,
+} from '@/services/cashbookService';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
 
 const DENOMINATIONS = [
@@ -18,6 +23,9 @@ const DENOMINATIONS = [
   100,
   200,
 ] as const;
+
+const DEFAULT_LOOKBACK_DAYS = 120;
+const DEFAULT_ALLOWED_OPEN_DAYS = 3;
 
 type DenominationValue = (typeof DENOMINATIONS)[number];
 type DenominationCounts = Record<string, number>;
@@ -38,6 +46,12 @@ interface DayClosingPanelProps {
 
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function formatDatePtBr(date: string | null | undefined) {
+  if (!date) return '—';
+  const [year, month, day] = date.slice(0, 10).split('-');
+  return `${day}/${month}/${year}`;
 }
 
 function normalizeNumber(value: string | number | null | undefined) {
@@ -152,10 +166,32 @@ function restoreExternalDetails(metadata: Record<string, unknown> | null | undef
   return restored;
 }
 
+function resetExternalInputs() {
+  return {
+    pix: '',
+    debit: '',
+    credit: '',
+    other: '',
+  };
+}
+
+function getExternalDetailItems(metadata: Record<string, unknown> | null | undefined, method: ExternalMethodKey) {
+  const details = metadata?.external_conference_details;
+  if (!details || typeof details !== 'object') return [];
+
+  const methodDetails = (details as Record<string, unknown>)[method];
+  if (!methodDetails || typeof methodDetails !== 'object') return [];
+
+  const items = (methodDetails as Record<string, unknown>).items;
+  return Array.isArray(items) ? items : [];
+}
+
 export default function DayClosingPanel({ storeId, canClose = false }: DayClosingPanelProps) {
   const [closingDate, setClosingDate] = useState(todayIsoDate());
   const [preview, setPreview] = useState<CashbookDayClosingPreview | null>(null);
+  const [closingStatus, setClosingStatus] = useState<CashbookClosingStatusResult | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState(false);
   const [saving, setSaving] = useState<'draft' | 'closed' | null>(null);
   const [counts, setCounts] = useState<DenominationCounts>({});
   const [confirmedPix, setConfirmedPix] = useState('');
@@ -164,6 +200,14 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
   const [confirmedOther, setConfirmedOther] = useState('');
   const [externalDetails, setExternalDetails] = useState<ExternalDetails>(() => emptyExternalDetails());
   const [notes, setNotes] = useState('');
+
+  const openDays = closingStatus?.open_days || [];
+  const overdueDays = openDays.filter((day) => day.is_overdue);
+  const recentClosings = closingStatus?.recent_closings || [];
+  const selectedOpenDay = openDays.find((day) => day.entry_date === closingDate);
+  const isClosedDate = preview?.existing_closing?.status === 'closed';
+  const isDraftDate = preview?.existing_closing?.status === 'draft';
+  const isFormLocked = isClosedDate;
 
   const countedCashTotal = useMemo(() => {
     return DENOMINATIONS.reduce((sum, denomination) => {
@@ -203,6 +247,44 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
     total: confirmedTotal - expectedTotal,
   };
 
+  function clearForm() {
+    setCounts({});
+    const emptyInputs = resetExternalInputs();
+    setConfirmedPix(emptyInputs.pix);
+    setConfirmedDebit(emptyInputs.debit);
+    setConfirmedCredit(emptyInputs.credit);
+    setConfirmedOther(emptyInputs.other);
+    setExternalDetails(emptyExternalDetails());
+    setNotes('');
+  }
+
+  async function loadClosingStatus(preferredDate?: string) {
+    if (!storeId) return;
+
+    try {
+      setLoadingStatus(true);
+      const result = await CashbookService.listDayClosingStatus(storeId, DEFAULT_LOOKBACK_DAYS, DEFAULT_ALLOWED_OPEN_DAYS);
+      setClosingStatus(result);
+
+      if (preferredDate) {
+        setClosingDate(preferredDate);
+        return;
+      }
+
+      const currentSelectionStillOpen = result.open_days.some((day) => day.entry_date === closingDate);
+      const firstOpenDate = result.open_days[0]?.entry_date;
+
+      if (!currentSelectionStillOpen && firstOpenDate && !result.recent_closings.some((closing) => closing.closing_date === closingDate)) {
+        setClosingDate(firstOpenDate);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar status dos fechamentos:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao carregar caixas abertos.');
+    } finally {
+      setLoadingStatus(false);
+    }
+  }
+
   async function loadPreview() {
     if (!storeId) return;
 
@@ -220,7 +302,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         setExternalDetails(restoreExternalDetails(result.existing_closing.metadata));
         setNotes(result.existing_closing.notes || '');
       } else {
-        setExternalDetails(emptyExternalDetails());
+        clearForm();
       }
     } catch (error) {
       console.error('Erro ao carregar prévia de fechamento:', error);
@@ -229,6 +311,11 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       setLoadingPreview(false);
     }
   }
+
+  useEffect(() => {
+    void loadClosingStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storeId]);
 
   useEffect(() => {
     void loadPreview();
@@ -272,6 +359,11 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
 
   async function save(status: 'draft' | 'closed') {
     if (!storeId) return;
+
+    if (isClosedDate) {
+      toast.error('Este caixa já foi fechado. Confira os detalhes no histórico de fechamentos.');
+      return;
+    }
 
     if (!canClose) {
       toast.error('Você não tem permissão para salvar o fechamento do caixa.');
@@ -319,7 +411,14 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       });
 
       toast.success(status === 'closed' ? 'Caixa fechado com sucesso.' : 'Rascunho salvo.');
-      await loadPreview();
+
+      if (status === 'closed') {
+        clearForm();
+        await loadClosingStatus();
+      } else {
+        await loadClosingStatus(closingDate);
+        await loadPreview();
+      }
     } catch (error) {
       console.error('Erro ao salvar fechamento:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao salvar fechamento.');
@@ -375,6 +474,42 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
     },
   ];
 
+  function renderExternalDetailsSummary(closing: CashbookDayClosing) {
+    const methods: Array<[ExternalMethodKey, string]> = [
+      ['pix', 'Pix'],
+      ['debit', 'Débito'],
+      ['credit', 'Crédito'],
+      ['other', 'Outros'],
+    ];
+
+    const rows = methods.flatMap(([method, label]) => {
+      return getExternalDetailItems(closing.metadata, method).map((item, index) => {
+        const itemRecord = item && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+        return {
+          key: `${method}-${index}`,
+          method: label,
+          label: String(itemRecord.label || 'Sem descrição'),
+          amount: normalizeNumber(String(itemRecord.amount || itemRecord.amount_value || '0')),
+        };
+      });
+    });
+
+    if (rows.length === 0) {
+      return <p className="text-xs font-semibold text-gray-400">Sem detalhamento externo registrado.</p>;
+    }
+
+    return (
+      <div className="mt-2 space-y-1">
+        {rows.map((row) => (
+          <div key={row.key} className="flex items-center justify-between gap-3 text-xs font-bold text-gray-500 dark:text-gray-400">
+            <span>{row.method} · {row.label}</span>
+            <span>{formatCurrencyPtBr(row.amount)}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <section className="rounded-3xl border border-teal-200 bg-teal-50/70 p-5 shadow-sm dark:border-teal-900/50 dark:bg-teal-950/20">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -384,34 +519,134 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
             <h2 className="text-sm font-black uppercase tracking-widest">Fechamento do caixa do dia</h2>
           </div>
           <p className="mt-1 text-sm text-teal-800/80 dark:text-teal-200/80">
-            Confira dinheiro físico, Pix e cartões antes de fechar o expediente.
+            Confira caixas abertos, dinheiro físico, Pix e cartões antes de fechar o expediente.
           </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <label className="space-y-1">
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data</span>
-            <input
-              type="date"
-              value={closingDate}
-              onChange={(event) => setClosingDate(event.target.value)}
-              className="rounded-xl border border-teal-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-teal-900/60 dark:bg-gray-950 dark:text-gray-100"
-            />
-          </label>
-          <button
-            type="button"
-            onClick={loadPreview}
-            disabled={loadingPreview}
-            className="mt-4 inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-black text-teal-700 transition hover:bg-teal-50 disabled:opacity-60 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40 sm:mt-5"
-          >
-            <RefreshCw size={16} className={loadingPreview ? 'animate-spin' : ''} />
-            Atualizar
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => loadClosingStatus(closingDate)}
+          disabled={loadingStatus || loadingPreview}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-black text-teal-700 transition hover:bg-teal-50 disabled:opacity-60 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40"
+        >
+          <RefreshCw size={16} className={loadingStatus || loadingPreview ? 'animate-spin' : ''} />
+          Atualizar caixas
+        </button>
       </div>
 
       <div className="mt-5 rounded-2xl border border-teal-200 bg-white/70 p-4 text-xs font-bold text-teal-900 dark:border-teal-900/50 dark:bg-gray-900/60 dark:text-teal-200">
         O fechamento registra o resultado final conferido, diferenças, responsável e horário. Detalhes auxiliares de conferência externa são preservados no registro para consulta e auditoria posterior.
+      </div>
+
+      {overdueDays.length > 0 && (
+        <div className="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+          <div className="flex items-start gap-3">
+            <AlertTriangle size={20} className="mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest">Caixas atrasados</p>
+              <p className="mt-1 text-sm font-bold">
+                Existem {overdueDays.length} caixa(s) aberto(s) há mais de {closingStatus?.allowed_open_days || DEFAULT_ALLOWED_OPEN_DAYS} dia(s). Revise e regularize o quanto antes.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+        <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+          <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Caixas abertos</h3>
+          <p className="mt-1 text-xs font-semibold text-gray-400">
+            Selecione um caixa aberto para conferir. Datas fechadas ficam no histórico.
+          </p>
+
+          <div className="mt-4 space-y-2">
+            {openDays.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 p-4 text-sm font-bold text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                Nenhum caixa aberto encontrado no período analisado.
+              </div>
+            ) : (
+              openDays.map((day) => (
+                <button
+                  key={day.entry_date}
+                  type="button"
+                  onClick={() => setClosingDate(day.entry_date)}
+                  className={`w-full rounded-2xl border p-3 text-left transition ${
+                    closingDate === day.entry_date
+                      ? 'border-teal-400 bg-teal-50 shadow-sm dark:border-teal-700 dark:bg-teal-950/30'
+                      : day.is_overdue
+                        ? 'border-amber-200 bg-amber-50/70 hover:border-amber-300 dark:border-amber-900/60 dark:bg-amber-950/20'
+                        : 'border-gray-100 bg-gray-50 hover:border-teal-200 dark:border-gray-800 dark:bg-gray-950/60'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-black text-gray-900 dark:text-white">{formatDatePtBr(day.entry_date)}</p>
+                      <p className="text-xs font-semibold text-gray-400">
+                        {day.entries_count} lançamento(s) · aberto há {day.age_days} dia(s)
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(day.realized_total)}</p>
+                      {day.is_overdue && <p className="text-[10px] font-black uppercase text-amber-700 dark:text-amber-300">Atrasado</p>}
+                    </div>
+                  </div>
+                  {day.pending_count > 0 && (
+                    <p className="mt-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-amber-700 dark:bg-gray-900 dark:text-amber-300">
+                      {day.pending_count} pendente(s) · {formatCurrencyPtBr(day.pending_total)} fora do realizado
+                    </p>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Caixa em conferência</h3>
+              <p className="mt-1 text-xs font-semibold text-gray-400">
+                {isClosedDate
+                  ? 'Este caixa já foi fechado. Consulte o histórico para auditoria.'
+                  : selectedOpenDay
+                    ? `Data selecionada: ${formatDatePtBr(selectedOpenDay.entry_date)}`
+                    : `Data selecionada: ${formatDatePtBr(closingDate)}`}
+              </p>
+            </div>
+            {isDraftDate && (
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">
+                Rascunho salvo
+              </span>
+            )}
+            {isClosedDate && (
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                Fechado
+              </span>
+            )}
+          </div>
+
+          {isClosedDate && preview?.existing_closing ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-100">
+              Caixa desta data já foi fechado em {preview.existing_closing.closed_at ? new Date(preview.existing_closing.closed_at).toLocaleString('pt-BR') : 'data não informada'}.
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
+                  <p className="text-[10px] font-black uppercase text-gray-400">Esperado</p>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(preview.existing_closing.expected_total)}</p>
+                </div>
+                <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
+                  <p className="text-[10px] font-black uppercase text-gray-400">Conferido</p>
+                  <p className="text-lg font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(preview.existing_closing.confirmed_total)}</p>
+                </div>
+                <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
+                  <p className="text-[10px] font-black uppercase text-gray-400">Diferença</p>
+                  <p className={`text-lg font-black ${differenceClass(preview.existing_closing.difference_total)}`}>{formatCurrencyPtBr(preview.existing_closing.difference_total)}</p>
+                </div>
+              </div>
+              {preview.existing_closing.notes && <p className="mt-3">Obs.: {preview.existing_closing.notes}</p>}
+              {renderExternalDetailsSummary(preview.existing_closing)}
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -444,204 +679,208 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         </div>
       ) : null}
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
-          <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência de dinheiro</h3>
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[460px] text-sm">
-              <thead>
-                <tr className="text-left text-[10px] font-black uppercase tracking-widest text-gray-400">
-                  <th className="py-2">Nota/moeda</th>
-                  <th className="py-2">Qtde</th>
-                  <th className="py-2 text-right">Total</th>
-                  <th className="py-2 text-right">Limpar</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DENOMINATIONS.map((denomination) => {
-                  const quantity = Number(counts[String(denomination)] || 0);
-                  const lineTotal = quantity * denomination;
+      {!isClosedDate && (
+        <>
+          <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+              <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência de dinheiro</h3>
+              <div className="mt-4 overflow-x-auto">
+                <table className="w-full min-w-[460px] text-sm">
+                  <thead>
+                    <tr className="text-left text-[10px] font-black uppercase tracking-widest text-gray-400">
+                      <th className="py-2">Nota/moeda</th>
+                      <th className="py-2">Qtde</th>
+                      <th className="py-2 text-right">Total</th>
+                      <th className="py-2 text-right">Limpar</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DENOMINATIONS.map((denomination) => {
+                      const quantity = Number(counts[String(denomination)] || 0);
+                      const lineTotal = quantity * denomination;
 
-                  return (
-                    <tr key={denomination} className="border-t border-gray-100 dark:border-gray-800">
-                      <td className="py-2 font-black text-gray-700 dark:text-gray-200">{formatCurrencyPtBr(denomination)}</td>
-                      <td className="py-2">
-                        <input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={quantity || ''}
-                          onChange={(event) => updateCount(denomination, event.target.value)}
-                          className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                        />
-                      </td>
-                      <td className="py-2 text-right font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(lineTotal)}</td>
-                      <td className="py-2 text-right">
+                      return (
+                        <tr key={denomination} className="border-t border-gray-100 dark:border-gray-800">
+                          <td className="py-2 font-black text-gray-700 dark:text-gray-200">{formatCurrencyPtBr(denomination)}</td>
+                          <td className="py-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={quantity || ''}
+                              onChange={(event) => updateCount(denomination, event.target.value)}
+                              disabled={isFormLocked}
+                              className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                            />
+                          </td>
+                          <td className="py-2 text-right font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(lineTotal)}</td>
+                          <td className="py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={() => clearCount(denomination)}
+                              disabled={!quantity || isFormLocked}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                              title="Limpar quantidade"
+                            >
+                              <X size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t-2 border-gray-200 dark:border-gray-700">
+                      <td colSpan={2} className="py-3 text-sm font-black text-gray-500 dark:text-gray-400">Total em caixa dinheiro</td>
+                      <td className="py-3 text-right text-lg font-black text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(countedCashTotal)}</td>
+                      <td className="py-3 text-right">
                         <button
                           type="button"
-                          onClick={() => clearCount(denomination)}
-                          disabled={!quantity}
+                          onClick={() => setCounts({})}
+                          disabled={countedCashTotal <= 0 || isFormLocked}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-                          title="Limpar quantidade"
+                          title="Limpar dinheiro"
                         >
                           <X size={14} />
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-gray-200 dark:border-gray-700">
-                  <td colSpan={2} className="py-3 text-sm font-black text-gray-500 dark:text-gray-400">Total em caixa dinheiro</td>
-                  <td className="py-3 text-right text-lg font-black text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(countedCashTotal)}</td>
-                  <td className="py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setCounts({})}
-                      disabled={countedCashTotal <= 0}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-                      title="Limpar dinheiro"
-                    >
-                      <X size={14} />
-                    </button>
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
 
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência externa</h3>
-            <div className="mt-4 grid gap-4">
-              {externalConfigs.map((config) => {
-                const details = externalDetails[config.method];
-                const usingDetails = details.length > 0;
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência externa</h3>
+                <div className="mt-4 grid gap-4">
+                  {externalConfigs.map((config) => {
+                    const details = externalDetails[config.method];
+                    const usingDetails = details.length > 0;
 
-                return (
-                  <div key={config.method} className="rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/60">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{config.label}</p>
-                        <p className="text-xs font-semibold text-gray-400">{config.hint}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => clearExternalMethod(config.method, config.setter)}
-                        disabled={!config.value && !usingDetails}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-                        title="Limpar conferência"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-
-                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        value={usingDetails ? formatCurrencyPtBr(config.total) : config.value}
-                        onChange={(event) => config.setter(event.target.value)}
-                        placeholder="0,00"
-                        disabled={usingDetails}
-                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => addExternalDetail(config.method)}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-black text-teal-700 transition hover:bg-teal-50 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40"
-                      >
-                        <Plus size={14} />
-                        Detalhar
-                      </button>
-                    </div>
-
-                    {usingDetails && (
-                      <div className="mt-3 space-y-2">
-                        {details.map((item) => (
-                          <div key={item.id} className="grid gap-2 sm:grid-cols-[1fr_120px_auto]">
-                            <input
-                              type="text"
-                              value={item.label}
-                              onChange={(event) => updateExternalDetail(config.method, item.id, 'label', event.target.value)}
-                              placeholder="Ex.: Infinite, Bradesco pessoal"
-                              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                            />
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              value={item.amount}
-                              onChange={(event) => updateExternalDetail(config.method, item.id, 'amount', event.target.value)}
-                              placeholder="0,00"
-                              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeExternalDetail(config.method, item.id)}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
-                              title="Remover detalhe"
-                            >
-                              <X size={16} />
-                            </button>
+                    return (
+                      <div key={config.method} className="rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/60">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{config.label}</p>
+                            <p className="text-xs font-semibold text-gray-400">{config.hint}</p>
                           </div>
-                        ))}
-                        <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-gray-900">
-                          <span className="text-gray-500 dark:text-gray-400">Total detalhado</span>
-                          <span className="text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(config.total)}</span>
+                          <button
+                            type="button"
+                            onClick={() => clearExternalMethod(config.method, config.setter)}
+                            disabled={(!config.value && !usingDetails) || isFormLocked}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                            title="Limpar conferência"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={usingDetails ? formatCurrencyPtBr(config.total) : config.value}
+                            onChange={(event) => config.setter(event.target.value)}
+                            placeholder="0,00"
+                            disabled={usingDetails || isFormLocked}
+                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addExternalDetail(config.method)}
+                            disabled={isFormLocked}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-black text-teal-700 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40"
+                          >
+                            <Plus size={14} />
+                            Detalhar
+                          </button>
+                        </div>
+
+                        {usingDetails && (
+                          <div className="mt-3 space-y-2">
+                            {details.map((item) => (
+                              <div key={item.id} className="grid gap-2 sm:grid-cols-[1fr_120px_auto]">
+                                <input
+                                  type="text"
+                                  value={item.label}
+                                  onChange={(event) => updateExternalDetail(config.method, item.id, 'label', event.target.value)}
+                                  placeholder="Ex.: Infinite, Bradesco pessoal"
+                                  disabled={isFormLocked}
+                                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                />
+                                <input
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={item.amount}
+                                  onChange={(event) => updateExternalDetail(config.method, item.id, 'amount', event.target.value)}
+                                  placeholder="0,00"
+                                  disabled={isFormLocked}
+                                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeExternalDetail(config.method, item.id)}
+                                  disabled={isFormLocked}
+                                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                                  title="Remover detalhe"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-gray-900">
+                              <span className="text-gray-500 dark:text-gray-400">Total detalhado</span>
+                              <span className="text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(config.total)}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-2 flex items-center justify-between text-xs font-bold">
+                          <span className="text-gray-400">Esperado: {formatCurrencyPtBr(config.expected)}</span>
+                          <span className={differenceClass(config.total - config.expected)}>
+                            Dif.: {formatCurrencyPtBr(config.total - config.expected)}
+                          </span>
                         </div>
                       </div>
-                    )}
-
-                    <div className="mt-2 flex items-center justify-between text-xs font-bold">
-                      <span className="text-gray-400">Esperado: {formatCurrencyPtBr(config.expected)}</span>
-                      <span className={differenceClass(config.total - config.expected)}>
-                        Dif.: {formatCurrencyPtBr(config.total - config.expected)}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Diferenças</h3>
-            <div className="mt-4 space-y-2 text-sm font-bold">
-              {[
-                ['Dinheiro', differences.cash],
-                ['Pix', differences.pix],
-                ['Débito', differences.debit],
-                ['Crédito', differences.credit],
-                ['Outros', differences.other],
-                ['Total', differences.total],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
-                  <span className="text-gray-500 dark:text-gray-400">{String(label)}</span>
-                  <span className={`font-black ${differenceClass(Number(value))}`}>{formatCurrencyPtBr(Number(value))}</span>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+
+              <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+                <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Diferenças</h3>
+                <div className="mt-4 space-y-2 text-sm font-bold">
+                  {[
+                    ['Dinheiro', differences.cash],
+                    ['Pix', differences.pix],
+                    ['Débito', differences.debit],
+                    ['Crédito', differences.credit],
+                    ['Outros', differences.other],
+                    ['Total', differences.total],
+                  ].map(([label, value]) => (
+                    <div key={String(label)} className="flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
+                      <span className="text-gray-500 dark:text-gray-400">{String(label)}</span>
+                      <span className={`font-black ${differenceClass(Number(value))}`}>{formatCurrencyPtBr(Number(value))}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <label className="mt-5 block space-y-1">
-        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Observação</span>
-        <textarea
-          value={notes}
-          onChange={(event) => setNotes(event.target.value)}
-          rows={3}
-          placeholder="Informe observações sobre divergências, conferência das máquinas ou banco."
-          className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-        />
-      </label>
-
-      {preview?.existing_closing && (
-        <p className="mt-3 rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs font-bold text-blue-800 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-200">
-          Já existe fechamento para esta data com status {preview.existing_closing.status}. Salvar novamente atualizará o registro da mesma data.
-        </p>
+          <label className="mt-5 block space-y-1">
+            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Observação</span>
+            <textarea
+              value={notes}
+              onChange={(event) => setNotes(event.target.value)}
+              rows={3}
+              placeholder="Informe observações sobre divergências, conferência das máquinas ou banco."
+              disabled={isFormLocked}
+              className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+            />
+          </label>
+        </>
       )}
 
       {!canClose && (
@@ -650,25 +889,81 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         </p>
       )}
 
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-        <button
-          type="button"
-          onClick={() => save('draft')}
-          disabled={!canClose || saving !== null || loadingPreview}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-black text-teal-700 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40"
-        >
-          {saving === 'draft' ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
-          Salvar rascunho
-        </button>
-        <button
-          type="button"
-          onClick={() => save('closed')}
-          disabled={!canClose || saving !== null || loadingPreview}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving === 'closed' ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-          Fechar caixa
-        </button>
+      {!isClosedDate && (
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={() => save('draft')}
+            disabled={!canClose || saving !== null || loadingPreview}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-4 py-2 text-sm font-black text-teal-700 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40"
+          >
+            {saving === 'draft' ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+            Salvar rascunho
+          </button>
+          <button
+            type="button"
+            onClick={() => save('closed')}
+            disabled={!canClose || saving !== null || loadingPreview}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving === 'closed' ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+            Fechar caixa
+          </button>
+        </div>
+      )}
+
+      <div className="mt-6 rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+        <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Histórico de fechamentos</h3>
+        <p className="mt-1 text-xs font-semibold text-gray-400">
+          Consulte caixas fechados, diferenças, observações e detalhes usados na conferência.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          {recentClosings.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 p-4 text-sm font-bold text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              Nenhum fechamento registrado ainda.
+            </div>
+          ) : (
+            recentClosings.map((closing) => (
+              <div key={closing.id} className="rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/60">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-gray-900 dark:text-white">{formatDatePtBr(closing.closing_date)}</p>
+                    <p className="text-xs font-semibold text-gray-400">
+                      {closing.closed_at ? `Fechado em ${new Date(closing.closed_at).toLocaleString('pt-BR')}` : 'Sem horário de fechamento'}
+                    </p>
+                    {closing.notes && <p className="mt-2 text-xs font-bold text-gray-600 dark:text-gray-300">Obs.: {closing.notes}</p>}
+                  </div>
+                  <div className="grid gap-2 text-right sm:grid-cols-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-gray-400">Esperado</p>
+                      <p className="font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(closing.expected_total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-gray-400">Conferido</p>
+                      <p className="font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(closing.confirmed_total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase text-gray-400">Diferença</p>
+                      <p className={`font-black ${differenceClass(closing.difference_total)}`}>{formatCurrencyPtBr(closing.difference_total)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {renderExternalDetailsSummary(closing)}
+
+                <button
+                  type="button"
+                  onClick={() => setClosingDate(closing.closing_date)}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-black text-gray-600 transition hover:border-teal-200 hover:text-teal-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-teal-900 dark:hover:text-teal-300"
+                >
+                  <Eye size={14} />
+                  Ver detalhes
+                </button>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </section>
   );
