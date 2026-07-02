@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calculator, CheckCircle2, RefreshCw, Save } from 'lucide-react';
+import { Calculator, CheckCircle2, Plus, RefreshCw, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { CashbookService, type CashbookDayClosingPreview } from '@/services/cashbookService';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
@@ -20,8 +20,16 @@ const DENOMINATIONS = [
 ] as const;
 
 type DenominationValue = (typeof DENOMINATIONS)[number];
-
 type DenominationCounts = Record<string, number>;
+type ExternalMethodKey = 'pix' | 'debit' | 'credit' | 'other';
+
+type ExternalDetailItem = {
+  id: string;
+  label: string;
+  amount: string;
+};
+
+type ExternalDetails = Record<ExternalMethodKey, ExternalDetailItem[]>;
 
 interface DayClosingPanelProps {
   storeId: string | null;
@@ -44,6 +52,23 @@ function differenceClass(value: number) {
   return 'text-rose-600 dark:text-rose-300';
 }
 
+function emptyExternalDetails(): ExternalDetails {
+  return {
+    pix: [],
+    debit: [],
+    credit: [],
+    other: [],
+  };
+}
+
+function createExternalDetail(): ExternalDetailItem {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    label: '',
+    amount: '',
+  };
+}
+
 export default function DayClosingPanel({ storeId, canClose = false }: DayClosingPanelProps) {
   const [closingDate, setClosingDate] = useState(todayIsoDate());
   const [preview, setPreview] = useState<CashbookDayClosingPreview | null>(null);
@@ -54,6 +79,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
   const [confirmedDebit, setConfirmedDebit] = useState('');
   const [confirmedCredit, setConfirmedCredit] = useState('');
   const [confirmedOther, setConfirmedOther] = useState('');
+  const [externalDetails, setExternalDetails] = useState<ExternalDetails>(() => emptyExternalDetails());
   const [notes, setNotes] = useState('');
 
   const countedCashTotal = useMemo(() => {
@@ -63,10 +89,23 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
     }, 0);
   }, [counts]);
 
-  const confirmedPixTotal = normalizeNumber(confirmedPix);
-  const confirmedDebitTotal = normalizeNumber(confirmedDebit);
-  const confirmedCreditTotal = normalizeNumber(confirmedCredit);
-  const confirmedOtherTotal = normalizeNumber(confirmedOther);
+  const externalDetailTotals = useMemo(() => {
+    return {
+      pix: externalDetails.pix.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
+      debit: externalDetails.debit.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
+      credit: externalDetails.credit.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
+      other: externalDetails.other.reduce((sum, item) => sum + normalizeNumber(item.amount), 0),
+    };
+  }, [externalDetails]);
+
+  function hasExternalDetails(method: ExternalMethodKey) {
+    return externalDetails[method].length > 0;
+  }
+
+  const confirmedPixTotal = hasExternalDetails('pix') ? externalDetailTotals.pix : normalizeNumber(confirmedPix);
+  const confirmedDebitTotal = hasExternalDetails('debit') ? externalDetailTotals.debit : normalizeNumber(confirmedDebit);
+  const confirmedCreditTotal = hasExternalDetails('credit') ? externalDetailTotals.credit : normalizeNumber(confirmedCredit);
+  const confirmedOtherTotal = hasExternalDetails('other') ? externalDetailTotals.other : normalizeNumber(confirmedOther);
 
   const expected = preview?.expected;
   const confirmedTotal = countedCashTotal + confirmedPixTotal + confirmedDebitTotal + confirmedCreditTotal + confirmedOtherTotal;
@@ -95,6 +134,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         setConfirmedDebit(String(result.existing_closing.confirmed_debit_card_total || ''));
         setConfirmedCredit(String(result.existing_closing.confirmed_credit_card_total || ''));
         setConfirmedOther(String(result.existing_closing.confirmed_other_total || ''));
+        setExternalDetails(emptyExternalDetails());
         setNotes(result.existing_closing.notes || '');
       }
     } catch (error) {
@@ -113,6 +153,36 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
   function updateCount(denomination: DenominationValue, value: string) {
     const quantity = Math.max(0, Math.floor(Number(value || 0)));
     setCounts((current) => ({ ...current, [String(denomination)]: quantity }));
+  }
+
+  function clearCount(denomination: DenominationValue) {
+    setCounts((current) => ({ ...current, [String(denomination)]: 0 }));
+  }
+
+  function addExternalDetail(method: ExternalMethodKey) {
+    setExternalDetails((current) => ({
+      ...current,
+      [method]: [...current[method], createExternalDetail()],
+    }));
+  }
+
+  function updateExternalDetail(method: ExternalMethodKey, id: string, field: 'label' | 'amount', value: string) {
+    setExternalDetails((current) => ({
+      ...current,
+      [method]: current[method].map((item) => (item.id === id ? { ...item, [field]: value } : item)),
+    }));
+  }
+
+  function removeExternalDetail(method: ExternalMethodKey, id: string) {
+    setExternalDetails((current) => ({
+      ...current,
+      [method]: current[method].filter((item) => item.id !== id),
+    }));
+  }
+
+  function clearExternalMethod(method: ExternalMethodKey, setter: (value: string) => void) {
+    setter('');
+    setExternalDetails((current) => ({ ...current, [method]: [] }));
   }
 
   async function save(status: 'draft' | 'closed') {
@@ -157,6 +227,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       });
 
       toast.success(status === 'closed' ? 'Caixa fechado com sucesso.' : 'Rascunho salvo.');
+      setExternalDetails(emptyExternalDetails());
       await loadPreview();
     } catch (error) {
       console.error('Erro ao salvar fechamento:', error);
@@ -165,6 +236,53 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       setSaving(null);
     }
   }
+
+  const externalConfigs: Array<{
+    method: ExternalMethodKey;
+    label: string;
+    value: string;
+    setter: (value: string) => void;
+    hint: string;
+    total: number;
+    expected: number;
+  }> = [
+    {
+      method: 'pix',
+      label: 'Total em Pix',
+      value: confirmedPix,
+      setter: setConfirmedPix,
+      hint: 'Conferir nos bancos/extratos',
+      total: confirmedPixTotal,
+      expected: expected?.pix || 0,
+    },
+    {
+      method: 'debit',
+      label: 'Total em cartões de débito',
+      value: confirmedDebit,
+      setter: setConfirmedDebit,
+      hint: 'Conferir nas máquinas',
+      total: confirmedDebitTotal,
+      expected: expected?.debit_card || 0,
+    },
+    {
+      method: 'credit',
+      label: 'Total em cartões de crédito',
+      value: confirmedCredit,
+      setter: setConfirmedCredit,
+      hint: 'Conferir nas máquinas',
+      total: confirmedCreditTotal,
+      expected: expected?.credit_card || 0,
+    },
+    {
+      method: 'other',
+      label: 'Outros recebimentos',
+      value: confirmedOther,
+      setter: setConfirmedOther,
+      hint: 'Quando houver',
+      total: confirmedOtherTotal,
+      expected: expected?.other || 0,
+    },
+  ];
 
   return (
     <section className="rounded-3xl border border-teal-200 bg-teal-50/70 p-5 shadow-sm dark:border-teal-900/50 dark:bg-teal-950/20">
@@ -201,6 +319,10 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         </div>
       </div>
 
+      <div className="mt-5 rounded-2xl border border-teal-200 bg-white/70 p-4 text-xs font-bold text-teal-900 dark:border-teal-900/50 dark:bg-gray-900/60 dark:text-teal-200">
+        O fechamento registra o resultado final conferido, diferenças, responsável e horário. Detalhes auxiliares de conferência externa são apenas apoio visual local e não ficam salvos como extrato externo.
+      </div>
+
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {[
           ['Dinheiro esperado', expected?.cash || 0],
@@ -235,12 +357,13 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
           <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência de dinheiro</h3>
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[420px] text-sm">
+            <table className="w-full min-w-[460px] text-sm">
               <thead>
                 <tr className="text-left text-[10px] font-black uppercase tracking-widest text-gray-400">
                   <th className="py-2">Nota/moeda</th>
                   <th className="py-2">Qtde</th>
                   <th className="py-2 text-right">Total</th>
+                  <th className="py-2 text-right">Limpar</th>
                 </tr>
               </thead>
               <tbody>
@@ -262,6 +385,17 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
                         />
                       </td>
                       <td className="py-2 text-right font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(lineTotal)}</td>
+                      <td className="py-2 text-right">
+                        <button
+                          type="button"
+                          onClick={() => clearCount(denomination)}
+                          disabled={!quantity}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                          title="Limpar quantidade"
+                        >
+                          <X size={14} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -270,6 +404,17 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
                 <tr className="border-t-2 border-gray-200 dark:border-gray-700">
                   <td colSpan={2} className="py-3 text-sm font-black text-gray-500 dark:text-gray-400">Total em caixa dinheiro</td>
                   <td className="py-3 text-right text-lg font-black text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(countedCashTotal)}</td>
+                  <td className="py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setCounts({})}
+                      disabled={countedCashTotal <= 0}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                      title="Limpar dinheiro"
+                    >
+                      <X size={14} />
+                    </button>
+                  </td>
                 </tr>
               </tfoot>
             </table>
@@ -279,26 +424,94 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         <div className="space-y-4">
           <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
             <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência externa</h3>
-            <div className="mt-4 grid gap-3">
-              {[
-                ['Total em Pix', confirmedPix, setConfirmedPix, 'Conferir nos bancos/extratos'],
-                ['Total em cartões de débito', confirmedDebit, setConfirmedDebit, 'Conferir nas máquinas'],
-                ['Total em cartões de crédito', confirmedCredit, setConfirmedCredit, 'Conferir nas máquinas'],
-                ['Outros recebimentos', confirmedOther, setConfirmedOther, 'Quando houver'],
-              ].map(([label, value, setter, hint]) => (
-                <label key={String(label)} className="space-y-1">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">{String(label)}</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={String(value)}
-                    onChange={(event) => (setter as (next: string) => void)(event.target.value)}
-                    placeholder="0,00"
-                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                  />
-                  <span className="text-xs font-semibold text-gray-400">{String(hint)}</span>
-                </label>
-              ))}
+            <div className="mt-4 grid gap-4">
+              {externalConfigs.map((config) => {
+                const details = externalDetails[config.method];
+                const usingDetails = details.length > 0;
+
+                return (
+                  <div key={config.method} className="rounded-2xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-950/60">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{config.label}</p>
+                        <p className="text-xs font-semibold text-gray-400">{config.hint}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => clearExternalMethod(config.method, config.setter)}
+                        disabled={!config.value && !usingDetails}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                        title="Limpar conferência"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={usingDetails ? formatCurrencyPtBr(config.total) : config.value}
+                        onChange={(event) => config.setter(event.target.value)}
+                        placeholder="0,00"
+                        disabled={usingDetails}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addExternalDetail(config.method)}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-black text-teal-700 transition hover:bg-teal-50 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300 dark:hover:bg-teal-950/40"
+                      >
+                        <Plus size={14} />
+                        Detalhar
+                      </button>
+                    </div>
+
+                    {usingDetails && (
+                      <div className="mt-3 space-y-2">
+                        {details.map((item) => (
+                          <div key={item.id} className="grid gap-2 sm:grid-cols-[1fr_120px_auto]">
+                            <input
+                              type="text"
+                              value={item.label}
+                              onChange={(event) => updateExternalDetail(config.method, item.id, 'label', event.target.value)}
+                              placeholder="Ex.: Infinite, Bradesco pessoal"
+                              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                            />
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              value={item.amount}
+                              onChange={(event) => updateExternalDetail(config.method, item.id, 'amount', event.target.value)}
+                              placeholder="0,00"
+                              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeExternalDetail(config.method, item.id)}
+                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-gray-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                              title="Remover detalhe"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        <div className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm font-black dark:bg-gray-900">
+                          <span className="text-gray-500 dark:text-gray-400">Total detalhado</span>
+                          <span className="text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(config.total)}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-2 flex items-center justify-between text-xs font-bold">
+                      <span className="text-gray-400">Esperado: {formatCurrencyPtBr(config.expected)}</span>
+                      <span className={differenceClass(config.total - config.expected)}>
+                        Dif.: {formatCurrencyPtBr(config.total - config.expected)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
