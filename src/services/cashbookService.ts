@@ -82,6 +82,86 @@ export interface CashbookSummary {
     }>;
 }
 
+export interface CashbookDayClosingExpected {
+    cash: number;
+    pix: number;
+    debit_card: number;
+    credit_card: number;
+    other: number;
+    total: number;
+    by_method?: Array<{
+        payment_method_code: string;
+        balance: number;
+    }>;
+}
+
+export interface CashbookDayClosingPreview {
+    ok: boolean;
+    store_id: string;
+    closing_date: string;
+    expected: CashbookDayClosingExpected;
+    pending: {
+        total: number;
+        count: number;
+    };
+    cancelled: {
+        total: number;
+        count: number;
+    };
+    existing_closing?: CashbookDayClosing | null;
+}
+
+export interface CashbookDayClosing {
+    id: string;
+    store_id: string;
+    closing_date: string;
+    status: 'draft' | 'closed' | 'reopened' | 'adjusted';
+    expected_cash: number;
+    expected_pix: number;
+    expected_debit_card: number;
+    expected_credit_card: number;
+    expected_other: number;
+    expected_total: number;
+    counted_cash_total: number;
+    counted_denominations: Record<string, number>;
+    confirmed_pix_total: number;
+    confirmed_debit_card_total: number;
+    confirmed_credit_card_total: number;
+    confirmed_other_total: number;
+    confirmed_total: number;
+    difference_cash: number;
+    difference_pix: number;
+    difference_debit_card: number;
+    difference_credit_card: number;
+    difference_other: number;
+    difference_total: number;
+    pending_total: number;
+    pending_count: number;
+    cancelled_total: number;
+    cancelled_count: number;
+    notes?: string | null;
+    metadata: Record<string, unknown>;
+    closed_by?: string | null;
+    closed_at?: string | null;
+    created_by?: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SaveCashbookDayClosingInput {
+    store_id: string;
+    closing_date: string;
+    counted_denominations?: Record<string, number>;
+    counted_cash_total: number;
+    confirmed_pix_total: number;
+    confirmed_debit_card_total: number;
+    confirmed_credit_card_total: number;
+    confirmed_other_total?: number;
+    notes?: string | null;
+    status?: 'draft' | 'closed';
+    metadata?: Record<string, unknown>;
+}
+
 export const CashbookService = {
     async listByStore(storeId: string): Promise<CashbookEntry[]> {
         const { data: result, error } = await supabase.rpc('get_cashbook_entries_safe', {
@@ -160,6 +240,45 @@ export const CashbookService = {
         }
 
         return data;
+    },
+
+    async getDayClosingPreview(storeId: string, closingDate: string): Promise<CashbookDayClosingPreview> {
+        const { data, error } = await supabase.rpc('get_cashbook_day_closing_preview_safe', {
+            p_store_id: storeId,
+            p_closing_date: closingDate,
+        });
+
+        if (error) throw error;
+
+        if (!data?.ok) {
+            throw new Error(data?.message || data?.error || 'Erro ao carregar prévia do fechamento de caixa.');
+        }
+
+        return data as CashbookDayClosingPreview;
+    },
+
+    async saveDayClosing(input: SaveCashbookDayClosingInput): Promise<CashbookDayClosing> {
+        const { data, error } = await supabase.rpc('save_cashbook_day_closing_safe', {
+            p_store_id: input.store_id,
+            p_closing_date: input.closing_date,
+            p_counted_denominations: input.counted_denominations || {},
+            p_counted_cash_total: input.counted_cash_total,
+            p_confirmed_pix_total: input.confirmed_pix_total,
+            p_confirmed_debit_card_total: input.confirmed_debit_card_total,
+            p_confirmed_credit_card_total: input.confirmed_credit_card_total,
+            p_confirmed_other_total: input.confirmed_other_total || 0,
+            p_notes: input.notes || null,
+            p_status: input.status || 'closed',
+            p_metadata: input.metadata || {},
+        });
+
+        if (error) throw error;
+
+        if (!data?.ok) {
+            throw new Error(data?.message || data?.error || 'Erro ao salvar fechamento de caixa.');
+        }
+
+        return data.closing as CashbookDayClosing;
     },
 
     async cancel(storeId: string, entryId: string) {
