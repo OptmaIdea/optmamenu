@@ -148,6 +148,27 @@ export interface CashbookDayClosing {
     updated_at: string;
 }
 
+export interface CashbookOpenDayStatus {
+    entry_date: string;
+    entries_count: number;
+    realized_total: number;
+    pending_count: number;
+    pending_total: number;
+    status: string;
+    closing_id?: string | null;
+    age_days: number;
+    is_overdue: boolean;
+}
+
+export interface CashbookClosingStatusResult {
+    ok: boolean;
+    store_id: string;
+    allowed_open_days: number;
+    lookback_days: number;
+    open_days: CashbookOpenDayStatus[];
+    recent_closings: CashbookDayClosing[];
+}
+
 export interface SaveCashbookDayClosingInput {
     store_id: string;
     closing_date: string;
@@ -255,6 +276,22 @@ export const CashbookService = {
         }
 
         return data as CashbookDayClosingPreview;
+    },
+
+    async listDayClosingStatus(storeId: string, lookbackDays = 90, allowedOpenDays = 3): Promise<CashbookClosingStatusResult> {
+        const { data, error } = await supabase.rpc('list_cashbook_day_closing_status_safe', {
+            p_store_id: storeId,
+            p_lookback_days: lookbackDays,
+            p_allowed_open_days: allowedOpenDays,
+        });
+
+        if (error) throw error;
+
+        if (!data?.ok) {
+            throw new Error(data?.message || data?.error || 'Erro ao carregar status dos fechamentos de caixa.');
+        }
+
+        return data as CashbookClosingStatusResult;
     },
 
     async saveDayClosing(input: SaveCashbookDayClosingInput): Promise<CashbookDayClosing> {
