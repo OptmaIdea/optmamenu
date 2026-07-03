@@ -95,6 +95,7 @@ const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/sa
 
 // Cashbook/Payments/Financial Section
 const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
+const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/settings/financialAccounts/FinancialAccountsSettingsPage'));
 
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
@@ -204,6 +205,7 @@ export default function AppRoutes() {
 
             // Financial Section
             <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
+            <Route path="/admin/financial-accounts" element={<RequirePermission permission="cashbook.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
 
             // Products Section
             <Route
