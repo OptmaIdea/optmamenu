@@ -30,13 +30,29 @@ export interface CashbookEntry {
     customer_id?: string | null;
     status: string;
     affects_balance: boolean;
+    account_plan_code?: string | null;
+    source_financial_account_id?: string | null;
+    destination_financial_account_id?: string | null;
+    is_transfer?: boolean | null;
+    affects_cash_drawer?: boolean | null;
+    affects_financial_result?: boolean | null;
+    transfer_group_id?: string | null;
     metadata: Record<string, unknown>;
     order?: { customer_name: string | null } | null;
     created_at: string;
     updated_at: string;
 }
 
-export interface CreateCashbookEntryInput {
+export interface CashbookEntryClassificationInput {
+    account_plan_code?: string | null;
+    source_financial_account_code?: string | null;
+    destination_financial_account_code?: string | null;
+    is_transfer?: boolean | null;
+    affects_cash_drawer?: boolean | null;
+    affects_financial_result?: boolean | null;
+}
+
+export interface CreateCashbookEntryInput extends CashbookEntryClassificationInput {
     store_id: string;
     type: CashbookEntryType;
     direction: CashbookDirection;
@@ -183,6 +199,36 @@ export interface SaveCashbookDayClosingInput {
     metadata?: Record<string, unknown>;
 }
 
+function buildCashbookClassificationMetadata(input: CashbookEntryClassificationInput): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {};
+
+    if (input.account_plan_code) {
+        metadata.account_plan_code = input.account_plan_code;
+    }
+
+    if (input.source_financial_account_code) {
+        metadata.source_financial_account_code = input.source_financial_account_code;
+    }
+
+    if (input.destination_financial_account_code) {
+        metadata.destination_financial_account_code = input.destination_financial_account_code;
+    }
+
+    if (typeof input.is_transfer === 'boolean') {
+        metadata.is_transfer = input.is_transfer;
+    }
+
+    if (typeof input.affects_cash_drawer === 'boolean') {
+        metadata.affects_cash_drawer = input.affects_cash_drawer;
+    }
+
+    if (typeof input.affects_financial_result === 'boolean') {
+        metadata.affects_financial_result = input.affects_financial_result;
+    }
+
+    return metadata;
+}
+
 export const CashbookService = {
     async listByStore(storeId: string): Promise<CashbookEntry[]> {
         const { data: result, error } = await supabase.rpc('get_cashbook_entries_safe', {
@@ -200,6 +246,12 @@ export const CashbookService = {
     },
 
     async create(input: CreateCashbookEntryInput) {
+        const classificationMetadata = buildCashbookClassificationMetadata(input);
+        const metadata = {
+            ...(input.metadata || {}),
+            ...classificationMetadata,
+        };
+
         const { data, error } = await supabase.rpc('create_cashbook_entry', {
             p_store_id: input.store_id,
             p_type: input.type,
@@ -209,7 +261,7 @@ export const CashbookService = {
             p_payment_method_code: input.payment_method_code || null,
             p_notes: input.notes || null,
             p_occurred_at: input.occurred_at || new Date().toISOString(),
-            p_metadata: input.metadata || {},
+            p_metadata: metadata,
         });
 
         if (error) throw error;
