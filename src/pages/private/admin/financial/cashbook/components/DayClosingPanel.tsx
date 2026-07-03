@@ -12,6 +12,7 @@ import {
   type CashbookDiscrepancy,
 } from '@/services/cashbookDiscrepancyService';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
+import CashbookOccurrenceResolutionBox from './CashbookOccurrenceResolutionBox';
 
 const DENOMINATIONS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100, 200] as const;
 const DEFAULT_LOOKBACK_DAYS = 120;
@@ -446,6 +447,18 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       <div className="space-y-4">
         {renderDivergenceBadge(closing)}
         {renderOccurrenceCard(occurrence)}
+        {occurrence && (
+          <CashbookOccurrenceResolutionBox
+            storeId={storeId}
+            occurrence={occurrence}
+            canResolve={canClose}
+            onUpdated={(updated) => {
+              setOccurrences((current) =>
+                current.map((item) => (item.id === updated.id ? updated : item))
+              );
+            }}
+          />
+        )}
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-white p-4 dark:bg-gray-900">
             <p className="text-[10px] font-black uppercase text-gray-400">Esperado</p>
