@@ -19,6 +19,14 @@ export interface CashbookDiscrepancy {
   updated_at: string;
 }
 
+export interface ResolveCashbookDiscrepancyInput {
+  storeId: string;
+  occurrenceId: string;
+  status: string;
+  resolutionType: string;
+  resolutionNotes?: string | null;
+}
+
 export const CashbookDiscrepancyService = {
   async listByStore(storeId: string): Promise<CashbookDiscrepancy[]> {
     const { data, error } = await supabase
@@ -30,5 +38,26 @@ export const CashbookDiscrepancyService = {
     if (error) throw error;
 
     return (data || []) as CashbookDiscrepancy[];
+  },
+
+  async resolve(input: ResolveCashbookDiscrepancyInput): Promise<CashbookDiscrepancy> {
+    const { data, error } = await supabase.rpc('resolve_cashbook_closing_occurrence_safe', {
+      p_store_id: input.storeId,
+      p_occurrence_id: input.occurrenceId,
+      p_status: input.status,
+      p_resolution_type: input.resolutionType,
+      p_resolution_notes: input.resolutionNotes || null,
+      p_metadata: {
+        source: 'cashbook_day_closing_modal',
+      },
+    });
+
+    if (error) throw error;
+
+    if (!data?.ok) {
+      throw new Error(data?.message || data?.error || 'Erro ao atualizar ocorrência de fechamento.');
+    }
+
+    return data.occurrence as CashbookDiscrepancy;
   },
 };
