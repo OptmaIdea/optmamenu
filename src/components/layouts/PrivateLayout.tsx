@@ -388,6 +388,7 @@ export default function PrivateLayout() {
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
+            { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'cashbook.view' },
         ],
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
