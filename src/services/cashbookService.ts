@@ -199,6 +199,48 @@ export interface SaveCashbookDayClosingInput {
     metadata?: Record<string, unknown>;
 }
 
+function normalizePaymentMethod(value?: string | null): string {
+    return String(value || '').trim().toLowerCase();
+}
+
+function getDefaultFinancialAccountCode(paymentMethodCode?: string | null): string | null {
+    const method = normalizePaymentMethod(paymentMethodCode);
+
+    if (method === 'cash' || method === 'dinheiro') return 'cash_drawer';
+    if (method === 'pix') return 'pix_wallet';
+    if (method === 'card' || method === 'debit_card' || method === 'credit_card') return 'card_receivable';
+
+    return null;
+}
+
+function buildCashbookDefaultClassificationMetadata(input: CreateCashbookEntryInput): Record<string, unknown> {
+    const metadata: Record<string, unknown> = {};
+
+    if (input.type !== 'manual_income' && input.type !== 'manual_expense') {
+        return metadata;
+    }
+
+    const accountCode = getDefaultFinancialAccountCode(input.payment_method_code);
+    const affectsCashDrawer = accountCode === 'cash_drawer';
+
+    if (accountCode && input.direction === 'in') {
+        metadata.destination_financial_account_code = accountCode;
+    }
+
+    if (accountCode && input.direction === 'out') {
+        metadata.source_financial_account_code = accountCode;
+    }
+
+    if (accountCode) {
+        metadata.affects_cash_drawer = affectsCashDrawer;
+        metadata.affects_financial_result = true;
+        metadata.is_transfer = false;
+        metadata.default_classification_source = 'cashbook_service_payment_method_defaults';
+    }
+
+    return metadata;
+}
+
 function buildCashbookClassificationMetadata(input: CashbookEntryClassificationInput): Record<string, unknown> {
     const metadata: Record<string, unknown> = {};
 
@@ -246,8 +288,10 @@ export const CashbookService = {
     },
 
     async create(input: CreateCashbookEntryInput) {
+        const defaultClassificationMetadata = buildCashbookDefaultClassificationMetadata(input);
         const classificationMetadata = buildCashbookClassificationMetadata(input);
         const metadata = {
+            ...defaultClassificationMetadata,
             ...(input.metadata || {}),
             ...classificationMetadata,
         };
