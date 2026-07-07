@@ -601,12 +601,19 @@ export default function CashbookPage() {
             setFormState(null);
             await loadData();
         } catch (error) {
-            console.error('Erro ao salvar lançamento:', error);
-
             const message = error instanceof Error
                 ? error.message
                 : 'Erro ao salvar lançamento.';
 
+            const isExpectedBusinessRule =
+                message.includes('Saldo insuficiente no caixa físico');
+
+            if (isExpectedBusinessRule) {
+                toast.error(message);
+                return;
+            }
+
+            console.error('Erro ao salvar lançamento:', error);
             toast.error(message);
         } finally {
             setSavingForm(false);
