@@ -271,6 +271,27 @@ function buildCashbookClassificationMetadata(input: CashbookEntryClassificationI
     return metadata;
 }
 
+function isCancelledStatus(status?: string | null): boolean {
+    return status === 'cancelled' || status === 'canceled' || status === 'voided';
+}
+
+function getEntrySignedCashDrawerAmount(entry: Pick<CashbookEntry, 'amount' | 'direction' | 'status' | 'affects_balance' | 'affects_cash_drawer'>): number {
+    if (isCancelledStatus(entry.status)) return 0;
+    if (entry.affects_balance === false) return 0;
+    if (entry.affects_cash_drawer !== true) return 0;
+
+    const amount = Number(entry.amount || 0);
+    return entry.direction === 'out' ? -amount : amount;
+}
+
+function isCashDrawerOutflow(input: CreateCashbookEntryInput, metadata: Record<string, unknown>): boolean {
+    const paymentMethod = normalizePaymentMethod(input.payment_method_code);
+    const sourceCode = String(metadata.source_financial_account_code || input.source_financial_account_code || '').trim();
+    const affectsCashDrawer = metadata.affects_cash_drawer === true || input.affects_cash_drawer === true;
+
+    return input.direction === 'out' && affectsCashDrawer && (sourceCode === 'cash_drawer' || paymentMethod === 'cash' || paymentMethod === 'dinheiro');
+}
+
 export const CashbookService = {
     async listByStore(storeId: string): Promise<CashbookEntry[]> {
         const { data: result, error } = await supabase.rpc('get_cashbook_entries_safe', {
@@ -287,6 +308,27 @@ export const CashbookService = {
         return (result.entries || []) as CashbookEntry[];
     },
 
+    async getCashDrawerBalance(storeId: string): Promise<number> {
+        const entries = await this.listByStore(storeId);
+
+        return entries.reduce((total, entry) => {
+            return total + getEntrySignedCashDrawerAmount(entry);
+        }, 0);
+    },
+
+    async assertCashDrawerCanCoverOutflow(input: CreateCashbookEntryInput, metadata: Record<string, unknown>): Promise<void> {
+        if (!isCashDrawerOutflow(input, metadata)) return;
+
+        const currentBalance = await this.getCashDrawerBalance(input.store_id);
+        const amount = Number(input.amount || 0);
+
+        if (amount > currentBalance) {
+            throw new Error(
+                `Saldo insuficiente no caixa físico. Saldo disponível: ${currentBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+            );
+        }
+    },
+
     async create(input: CreateCashbookEntryInput) {
         const defaultClassificationMetadata = buildCashbookDefaultClassificationMetadata(input);
         const classificationMetadata = buildCashbookClassificationMetadata(input);
@@ -295,6 +337,8 @@ export const CashbookService = {
             ...(input.metadata || {}),
             ...classificationMetadata,
         };
+
+        await this.assertCashDrawerCanCoverOutflow(input, metadata);
 
         const { data, error } = await supabase.rpc('create_cashbook_entry', {
             p_store_id: input.store_id,
