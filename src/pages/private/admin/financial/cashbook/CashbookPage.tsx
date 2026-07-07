@@ -602,7 +602,12 @@ export default function CashbookPage() {
             await loadData();
         } catch (error) {
             console.error('Erro ao salvar lançamento:', error);
-            alert('Erro ao salvar lançamento.');
+
+            const message = error instanceof Error
+                ? error.message
+                : 'Erro ao salvar lançamento.';
+
+            toast.error(message);
         } finally {
             setSavingForm(false);
         }

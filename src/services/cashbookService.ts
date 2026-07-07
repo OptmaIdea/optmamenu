@@ -323,9 +323,17 @@ export const CashbookService = {
         const amount = Number(input.amount || 0);
 
         if (amount > currentBalance) {
-            throw new Error(
-                `Saldo insuficiente no caixa físico. Saldo disponível: ${currentBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
-            );
+            const availableBalance = Math.max(0, currentBalance);
+            const formattedAvailable = availableBalance.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            
+            let message = `Saldo insuficiente no caixa físico. Saldo disponível para saída: ${formattedAvailable}.`;
+            
+            if (currentBalance < 0) {
+                const absoluteNegative = Math.abs(currentBalance).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+                message += ` O caixa físico já está negativo em ${absoluteNegative}; regularize o caixa antes de registrar novas saídas em dinheiro.`;
+            }
+
+            throw new Error(message);
         }
     },
 
