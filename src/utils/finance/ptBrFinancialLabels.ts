@@ -163,13 +163,16 @@ export function formatFinancialAccountOptionLabel(input: {
 
 export function formatCashbookCategoryOptionLabel(input: {
   code?: string | null;
+  display_code?: string | null;
   name?: string | null;
   kind?: string | null;
 }): string {
   const name = input.name?.trim();
   const planLabel = getCashbookAccountPlanLabel(input.code, 'dash');
   const kindLabel = getCashbookKindLabel(input.kind, 'dash');
+  const displayCode = input.display_code?.trim();
+  const baseName = name || (planLabel !== '—' ? planLabel : 'Categoria sem nome');
+  const base = displayCode ? `${displayCode} - ${baseName}` : baseName;
 
-  const base = name || (planLabel !== '—' ? planLabel : 'Categoria sem nome');
   return kindLabel !== '—' ? `${base} · ${kindLabel}` : base;
 }
