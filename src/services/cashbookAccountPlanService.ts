@@ -36,15 +36,16 @@ export const CashbookAccountPlanService = {
 
   async listForDirection(direction: 'in' | 'out' | 'transfer'): Promise<CashbookAccountPlanItem[]> {
     const items = await this.list(true);
+    const postableItems = items.filter((item) => item.metadata?.system_group !== true);
 
     if (direction === 'transfer') {
-      return items.filter((item) => item.kind === 'transfer' || item.is_transfer);
+      return postableItems.filter((item) => item.kind === 'transfer' || item.is_transfer);
     }
 
     if (direction === 'in') {
-      return items.filter((item) => item.kind === 'income' || item.kind === 'adjustment');
+      return postableItems.filter((item) => item.kind === 'income' || item.kind === 'adjustment');
     }
 
-    return items.filter((item) => item.kind === 'expense' || item.kind === 'adjustment');
+    return postableItems.filter((item) => item.kind === 'expense' || item.kind === 'adjustment');
   },
 };
