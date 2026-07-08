@@ -26,6 +26,9 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import PendingReceivablesPanel from './components/PendingReceivablesPanel';
+import CashbookClassificationFields, {
+    buildManualCashbookClassification,
+} from './components/CashbookClassificationFields';
 
 function getDateInputValue(value: Date) {
     return value.toISOString().slice(0, 10);
@@ -89,6 +92,8 @@ interface CashbookFormState {
     paymentMethodCode: string;
     notes: string;
     occurredAt: string;
+    accountPlanCode: string;
+    financialAccountCode: string;
 }
 
 function getDateTimeLocalValue(value?: string | null) {
@@ -532,6 +537,8 @@ export default function CashbookPage() {
             paymentMethodCode: 'cash',
             notes: '',
             occurredAt: getDateTimeLocalValue(),
+            accountPlanCode: '',
+            financialAccountCode: 'cash_drawer',
         });
     }
 
@@ -546,6 +553,8 @@ export default function CashbookPage() {
             paymentMethodCode: entry.payment_method_code || 'cash',
             notes: entry.notes || '',
             occurredAt: getDateTimeLocalValue(entry.occurred_at),
+            accountPlanCode: entry.account_plan_code || '',
+            financialAccountCode: '',
         });
     }
 
@@ -575,6 +584,13 @@ export default function CashbookPage() {
             setSavingForm(true);
 
             if (formState.mode === 'create') {
+                const classification = buildManualCashbookClassification({
+                    direction: formState.direction,
+                    paymentMethodCode: formState.paymentMethodCode,
+                    accountPlanCode: formState.accountPlanCode,
+                    financialAccountCode: formState.financialAccountCode,
+                });
+
                 await CashbookService.create({
                     store_id: storeId,
                     type: formState.direction === 'in' ? 'manual_income' : 'manual_expense',
@@ -585,6 +601,12 @@ export default function CashbookPage() {
                     notes: formState.notes.trim() || null,
                     occurred_at: new Date(formState.occurredAt).toISOString(),
                     metadata: { origin: 'admin_cashbook' },
+                    account_plan_code: classification.account_plan_code,
+                    source_financial_account_code: classification.source_financial_account_code,
+                    destination_financial_account_code: classification.destination_financial_account_code,
+                    affects_cash_drawer: classification.affects_cash_drawer,
+                    affects_financial_result: classification.affects_financial_result,
+                    is_transfer: classification.is_transfer,
                 });
             } else if (formState.entry) {
                 await CashbookService.update({
@@ -1227,7 +1249,15 @@ export default function CashbookPage() {
                                         <span className="text-xs font-black uppercase tracking-widest text-gray-500">Forma de pagamento</span>
                                         <select
                                             value={formState.paymentMethodCode}
-                                            onChange={(event) => setFormState({ ...formState, paymentMethodCode: event.target.value })}
+                                            onChange={(event) => {
+                                                const val = event.target.value;
+                                                const defaultAcc = val === 'cash' ? 'cash_drawer' : val === 'pix' ? 'pix_wallet' : val === 'card' ? 'card_receivable' : '';
+                                                setFormState({
+                                                    ...formState,
+                                                    paymentMethodCode: val,
+                                                    financialAccountCode: defaultAcc,
+                                                });
+                                            }}
                                             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                         >
                                             <option value="cash">Dinheiro</option>
@@ -1236,6 +1266,16 @@ export default function CashbookPage() {
                                             <option value="pending">Pendente</option>
                                         </select>
                                     </label>
+
+                                    <CashbookClassificationFields
+                                        storeId={storeId}
+                                        direction={formState.direction}
+                                        paymentMethodCode={formState.paymentMethodCode}
+                                        accountPlanCode={formState.accountPlanCode}
+                                        financialAccountCode={formState.financialAccountCode}
+                                        onAccountPlanCodeChange={(value) => setFormState({ ...formState, accountPlanCode: value })}
+                                        onFinancialAccountCodeChange={(value) => setFormState({ ...formState, financialAccountCode: value })}
+                                    />
 
                                     <label className="block space-y-1">
                                         <span className="text-xs font-black uppercase tracking-widest text-gray-500">Observações</span>
