@@ -6,7 +6,6 @@ import {
   Edit2,
   FolderTree,
   Plus,
-  RefreshCw,
   Search,
   ToggleLeft,
   ToggleRight,
