@@ -148,7 +148,7 @@ export default function AccountPlanPage() {
   const [items, setItems] = useState<CashbookAccountPlanTreeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [includeInactive, setIncludeInactive] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active');
   const [searchTerm, setSearchTerm] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('all');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
@@ -157,6 +157,7 @@ export default function AccountPlanPage() {
   async function loadData() {
     try {
       setLoading(true);
+      const includeInactive = activeFilter !== 'active';
       const data = await CashbookAccountPlanTreeService.list(includeInactive);
       setItems(data);
     } catch (error) {
@@ -169,12 +170,14 @@ export default function AccountPlanPage() {
 
   useEffect(() => {
     loadData();
-  }, [includeInactive]);
+  }, [activeFilter]);
 
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
     return items.filter((item) => {
+      if (activeFilter === 'active' && !item.active) return false;
+      if (activeFilter === 'inactive' && item.active) return false;
       if (kindFilter !== 'all' && item.kind !== kindFilter) return false;
       if (!term) return true;
 
@@ -184,7 +187,7 @@ export default function AccountPlanPage() {
         .toLowerCase()
         .includes(term);
     });
-  }, [items, kindFilter, searchTerm]);
+  }, [items, kindFilter, searchTerm, activeFilter]);
 
   const childrenMap = useMemo(() => getChildrenMap(filteredItems), [filteredItems]);
   const groupsCount = items.filter((item) => item.is_group).length;
@@ -413,10 +416,15 @@ export default function AccountPlanPage() {
               <option value="transfer">Transferências</option>
               <option value="adjustment">Ajustes</option>
             </select>
-            <label className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
-              <input type="checkbox" checked={includeInactive} onChange={(event) => setIncludeInactive(event.target.checked)} />
-              Ver inativas
-            </label>
+            <select
+              value={activeFilter}
+              onChange={(event) => setActiveFilter(event.target.value as any)}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+            >
+              <option value="active">Contas Ativas</option>
+              <option value="inactive">Contas Inativas</option>
+              <option value="all">Todas as Contas</option>
+            </select>
           </div>
         </div>
 
