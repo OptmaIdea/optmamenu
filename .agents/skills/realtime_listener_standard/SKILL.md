@@ -1,3 +1,7 @@
+---
+name: realtime_listener_standard
+description: Padrão de escutas em tempo real via Supabase
+---
 # Skill: Listeners em Tempo Real (Supabase Realtime)
 
 ## Visão Geral
@@ -324,3 +328,4 @@ useRealtimeListener({ ..., onChanged: fetchData, ... });
 | `src/hooks/useRealtimeListener.ts` | **[NOVO]** Hook padrão de listener (código acima) |
 
 Após criar o hook, aplique-o progressivamente nas telas sensíveis listadas na seção "Telas que obrigatoriamente devem ter Realtime".
+

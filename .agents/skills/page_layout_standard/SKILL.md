@@ -1,3 +1,7 @@
+---
+name: page_layout_standard
+description: Padrão de layout das páginas admin e dashboard
+---
 # Skill: Padrão de Layout e Cabeçalhos de Página
 
 ## Visão Geral
@@ -50,3 +54,4 @@ export default function Users() {
   );
 }
 ```
+

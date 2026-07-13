@@ -1,3 +1,7 @@
+---
+name: page_container_header_standard
+description: Regras de uso do PageContainer e cabeçalhos
+---
 # Skill: Padrão de Cabeçalho Suave (Page Header Customization)
 
 ## Visão Geral
@@ -70,3 +74,4 @@ export default function MinhaPaginaDestaque() {
 
 * **Consistência por Seção**: Telas dentro do mesmo grupo de menu lateral (ex: todas as telas de *Configurações* ou todas de *Produtos*) devem preferencialmente seguir o mesmo padrão de cabeçalho (Flat ou Card) para evitar mudanças bruscas de layout ao navegar.
 * **Uso do `category`**: A tag de categoria deve corresponder ao grupo do menu lateral (ex: `"Configurações"`, `"Produtos"`, `"Financeiro"`) ou ao contexto operacional geral da funcionalidade.
+

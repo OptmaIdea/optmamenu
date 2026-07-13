@@ -1,3 +1,7 @@
+---
+name: refresh_frame_standard
+description: Padrão de atualização e atualização automática das tabelas e painéis
+---
 # Skill: Padrão de Atualização de Frame (Refresh Frame Logic)
 
 ## Visão Geral
@@ -34,3 +38,4 @@ Sempre que um novo componente/página de administração for criado para ser exi
 
 4. **Objetivo**:
    Isso garante que o botão **Atualizar** localizado no Acesso Rápido (na barra superior do `PrivateLayout.tsx`) atualize o conteúdo do frame atual enviando o evento customizado `optmamenu.refresh` a que o hook está inscrito.
+

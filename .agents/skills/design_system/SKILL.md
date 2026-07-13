@@ -1,3 +1,7 @@
+---
+name: design_system
+description: Diretrizes de Design e Identidade Visual - Optma
+---
 # Skill: Diretrizes de Design e Identidade Visual - Optma (v5)
 
 ## Visão Geral
@@ -189,4 +193,5 @@ As páginas públicas de entrada no sistema (Landing Page, Login, Cadastro, Term
 * **Botão CTA Principal:** Sempre que houver um botão de ação primário de destaque (ex: "Começar Agora"), utilizar a classe de utilidade `.button-primary` para aplicar o gradiente vertical e a sombra projetada laranja oficial da marca.
 * **Ícones Informativos:** Em seções informativas de funcionalidades, substituir emojis estáticos por ícones da biblioteca Lucide envolvidos em recipientes circulares translúcidos (`w-16 h-16 rounded-full bg-brand-green/10 text-brand-green`).
 * **Cards Jurídicos / Informativos:** Usar as classes de estilo `.glass-card` e `.card-hover` para criar cartões sofisticados e responsivos com elevação interativa.
+
 

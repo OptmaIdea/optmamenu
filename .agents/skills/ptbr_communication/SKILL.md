@@ -1,3 +1,7 @@
+---
+name: ptbr_communication
+description: Regra de comunicação e documentação obrigatória em Português
+---
 # Skill: Comunicação e Documentação em Português (pt-BR)
 
 ## Visão Geral
@@ -13,3 +17,4 @@ Esta skill define a regra de idioma obrigatória para a comunicação com o usu�
    - `walkthrough.md` (Passo a passo/Resumos de mudanças)
    - Outros arquivos de documentação no workspace.
 3. **Tom de Voz**: A comunicação deve ser profissional, clara, objetiva e amigável.
+

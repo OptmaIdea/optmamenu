@@ -142,10 +142,10 @@
 - docs/ADVISORS.md
 - docs/realtime_backend.json
 
-## Skills / memória do agente
-- .antigravity/skills/MEMORY.md
-- .antigravity/skills/design_system.md
-- .antigravity/skills/page_layout_standard.md
-- .antigravity/skills/page_container_header_standard.md
-- .antigravity/skills/refresh_frame_standard.md
-- .antigravity/skills/ptbr_communication.md
+## Regras e skills do agente (customizações)
+- .agents/AGENTS.md (Regras globais e contexto geral do projeto)
+- .agents/skills/design_system/SKILL.md
+- .agents/skills/page_layout_standard/SKILL.md
+- .agents/skills/page_container_header_standard/SKILL.md
+- .agents/skills/refresh_frame_standard/SKILL.md
+- .agents/skills/ptbr_communication/SKILL.md

@@ -107,8 +107,8 @@ optmamenu/
 ├── scripts/                # Scripts utilitários
 │   ├── convert-to-webp.js  # Conversão de imagens para WebP
 │   └── serve-local.cjs     # Servidor local para testes
+├── .agents/                # Regras e skills do agente de IA (AGENTS.md e skills/)
 ├── docs/                   # Documentação adicional
-├── .antigravity/skills/    # Skills e memória do agente de IA
 └── .env                    # Variáveis de ambiente (não versionado)
 ```
 
@@ -125,12 +125,11 @@ Consulte `.env.example` para um modelo completo.
 
 ## 📚 Documentação
 
-Documentação detalhada pode ser encontrada na pasta `docs/` e nas skills do agente de IA em `.antigravity/skills/`.
+Documentação detalhada pode ser encontrada na pasta `docs/` e nas regras/skills do agente de IA em `.agents/`.
 
-- `docs/ESTRUTURA.md` - Estrutura detalhada do projeto
-- `.antigravity/skills/MEMORY.md` - Contexto geral e regras do projeto
-- `.antigravity/skills/design_system.md` - Identidade visual completa
-- `.antigravity/skills/page_layout_standard.md` - Padrão de layout das páginas admin
+- `.agents/AGENTS.md` - Contexto geral e regras do projeto
+- `.agents/skills/design_system/SKILL.md` - Identidade visual completa
+- `.agents/skills/page_layout_standard/SKILL.md` - Padrão de layout das páginas admin
 
 ## 🧪 Testes
 

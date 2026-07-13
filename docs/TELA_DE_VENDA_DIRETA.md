@@ -2,7 +2,7 @@ Estamos dando sequência ao projeto OptmaMenu.
 
 Antes de alterar qualquer arquivo, leia e considere o contexto dos arquivos/documentos abaixo:
 
-- `.antigravity/skills/MEMORY.md`
+- `.agents/AGENTS.md`
 - `docs/README.md`
 - `docs/CRONOGRAMA_LANCAMENTO_2026_08_01.md`
 - `docs/POS_9_MODELO_VENDAS_PEDIDOS_MESA_BALCAO_SLUG.md`
