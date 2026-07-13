@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Building2, Edit3, Loader2, Plus, RefreshCw, Save, ToggleLeft, ToggleRight, WalletCards, X } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -9,16 +9,17 @@ import {
   type SaveFinancialAccountInput,
   type StoreFinancialAccount,
 } from '@/services/financialAccountsService';
+import { getFinancialAccountCodeLabel, getFinancialAccountTypeLabel } from '@/utils/finance/ptBrFinancialLabels';
 
 const ACCOUNT_TYPES: Array<{ value: FinancialAccountType; label: string }> = [
-  { value: 'cash_drawer', label: 'Caixa físico' },
-  { value: 'safe', label: 'Cofre' },
-  { value: 'bank', label: 'Banco' },
-  { value: 'pix_wallet', label: 'Carteira Pix' },
-  { value: 'card_acquirer', label: 'Maquininha' },
-  { value: 'card_receivable', label: 'Recebíveis de cartão' },
-  { value: 'owner', label: 'Proprietário' },
-  { value: 'other', label: 'Outro' },
+  { value: 'cash_drawer', label: getFinancialAccountTypeLabel('cash_drawer') },
+  { value: 'safe', label: getFinancialAccountTypeLabel('safe') },
+  { value: 'bank', label: getFinancialAccountTypeLabel('bank') },
+  { value: 'pix_wallet', label: getFinancialAccountTypeLabel('pix_wallet') },
+  { value: 'card_acquirer', label: getFinancialAccountTypeLabel('card_acquirer') },
+  { value: 'card_receivable', label: getFinancialAccountTypeLabel('card_receivable') },
+  { value: 'owner', label: getFinancialAccountTypeLabel('owner') },
+  { value: 'other', label: getFinancialAccountTypeLabel('other') },
 ];
 
 const EMPTY_FORM = {
@@ -32,7 +33,12 @@ const EMPTY_FORM = {
 };
 
 function accountTypeLabel(type: string) {
-  return ACCOUNT_TYPES.find((item) => item.value === type)?.label || type;
+  return getFinancialAccountTypeLabel(type, 'raw');
+}
+
+function accountCodeLabel(code: string) {
+  const label = getFinancialAccountCodeLabel(code, 'dash');
+  return label === '—' ? code : label;
 }
 
 function slugifyCode(value: string) {
@@ -81,6 +87,11 @@ export default function FinancialAccountsSettingsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId, showInactive]);
 
+  function closeForm() {
+    setForm(EMPTY_FORM);
+    setFormOpen(false);
+  }
+
   function startCreate() {
     setForm(EMPTY_FORM);
     setFormOpen(true);
@@ -99,7 +110,7 @@ export default function FinancialAccountsSettingsPage() {
     setFormOpen(true);
   }
 
-  async function saveAccount(event: React.FormEvent) {
+  async function saveAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!storeId) {
@@ -129,8 +140,7 @@ export default function FinancialAccountsSettingsPage() {
 
       await FinancialAccountsService.save(payload);
       toast.success('Conta financeira salva.');
-      setForm(EMPTY_FORM);
-      setFormOpen(false);
+      closeForm();
       await loadAccounts();
     } catch (error) {
       console.error('Erro ao salvar conta financeira:', error);
@@ -152,6 +162,8 @@ export default function FinancialAccountsSettingsPage() {
       toast.error(error instanceof Error ? error.message : 'Erro ao alterar status da conta.');
     }
   }
+
+  const formTitle = form.id ? 'Editar conta financeira' : 'Nova conta financeira';
 
   return (
     <PageContainer
@@ -202,104 +214,6 @@ export default function FinancialAccountsSettingsPage() {
           </div>
         </div>
 
-        {formOpen && (
-          <form onSubmit={saveAccount} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                  {form.id ? 'Editar conta financeira' : 'Nova conta financeira'}
-                </h3>
-                <p className="mt-1 text-xs font-semibold text-gray-400">Código pode ficar em branco para ser gerado pelo nome.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setForm(EMPTY_FORM);
-                  setFormOpen(false);
-                }}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome</span>
-                <input
-                  value={form.name}
-                  onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="Ex.: Caixa Balcão, Banco Itaú, Stone"
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                />
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</span>
-                <select
-                  value={form.accountType}
-                  onChange={(event) => setForm((current) => ({ ...current, accountType: event.target.value as FinancialAccountType }))}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                >
-                  {ACCOUNT_TYPES.map((type) => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Código</span>
-                <input
-                  value={form.code}
-                  onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
-                  placeholder="Ex.: banco_itau"
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                />
-              </label>
-
-              <label className="space-y-1">
-                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Descrição</span>
-                <input
-                  value={form.description}
-                  onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="Opcional"
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                />
-              </label>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3">
-              <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={form.isDefault}
-                  onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))}
-                />
-                Conta padrão deste tipo
-              </label>
-              <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={form.active}
-                  onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}
-                />
-                Ativa
-              </label>
-            </div>
-
-            <div className="mt-5 flex justify-end">
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-teal-700 disabled:opacity-60"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                Salvar conta
-              </button>
-            </div>
-          </form>
-        )}
-
         {loading ? (
           <div className="flex justify-center rounded-2xl bg-white p-8 dark:bg-gray-900">
             <Loader2 className="animate-spin text-teal-600" />
@@ -322,7 +236,7 @@ export default function FinancialAccountsSettingsPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-base font-black text-gray-900 dark:text-white">{account.name}</p>
-                          <p className="text-xs font-semibold text-gray-400">{account.code} · {accountTypeLabel(account.account_type)}</p>
+                          <p className="text-xs font-semibold text-gray-400">{accountCodeLabel(account.code)} · {accountTypeLabel(account.account_type)}</p>
                         </div>
                         <div className="flex flex-wrap justify-end gap-2">
                           {account.is_default && <span className="rounded-full bg-teal-50 px-3 py-1 text-[10px] font-black uppercase text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">Padrão</span>}
@@ -355,6 +269,111 @@ export default function FinancialAccountsSettingsPage() {
                 </div>
               </section>
             ))}
+          </div>
+        )}
+
+        {formOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <form onSubmit={saveAccount} className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 p-6 dark:border-gray-800">
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">{formTitle}</h3>
+                  <p className="mt-1 text-xs font-semibold text-gray-400">Código pode ficar em branco para ser gerado pelo nome.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  aria-label="Fechar formulário"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Nome</span>
+                    <input
+                      value={form.name}
+                      onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="Ex.: Caixa Balcão, Banco Itaú, Stone"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</span>
+                    <select
+                      value={form.accountType}
+                      onChange={(event) => setForm((current) => ({ ...current, accountType: event.target.value as FinancialAccountType }))}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      {ACCOUNT_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Código</span>
+                    <input
+                      value={form.code}
+                      onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))}
+                      placeholder="Ex.: banco_itau"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Descrição</span>
+                    <input
+                      value={form.description}
+                      onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                      placeholder="Opcional"
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={form.isDefault}
+                      onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))}
+                    />
+                    Conta padrão deste tipo
+                  </label>
+                  <label className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-600 dark:border-gray-700 dark:text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={form.active}
+                      onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))}
+                    />
+                    Ativa
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
+                <button
+                  type="button"
+                  onClick={closeForm}
+                  className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-5 py-2.5 text-sm font-black text-white transition hover:bg-teal-700 disabled:opacity-60"
+                >
+                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                  Salvar conta
+                </button>
+              </div>
+            </form>
           </div>
         )}
       </div>
