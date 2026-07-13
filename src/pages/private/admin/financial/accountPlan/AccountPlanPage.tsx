@@ -42,6 +42,7 @@ interface FormState {
   analysisEnabled: boolean;
   active: boolean;
   sortOrder: string;
+  identityLocked: boolean;
 }
 
 const ROOT_BY_SECTION: Record<Exclude<SectionFilter, 'all'>, string> = {
@@ -56,6 +57,9 @@ const SECTION_LABELS: Array<[SectionFilter, string]> = [
   ['transfers', 'Transferências'],
   ['all', 'Todos'],
 ];
+
+const editableInputClassName = 'w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white';
+const lockedInputClassName = `${editableInputClassName} cursor-not-allowed bg-gray-50 text-gray-500 opacity-80 dark:bg-gray-900 dark:text-gray-400`;
 
 function getNatureLabel(value?: string | null) {
   const labels: Record<string, string> = {
@@ -213,6 +217,7 @@ function createInitialForm(parent?: CashbookAccountPlanTreeItem | null): FormSta
     analysisEnabled: false,
     active: true,
     sortOrder: '0',
+    identityLocked: false,
   };
 }
 
@@ -232,6 +237,7 @@ function createEditForm(item: CashbookAccountPlanTreeItem): FormState {
     analysisEnabled: item.analysis_enabled,
     active: item.active,
     sortOrder: String(item.sort_order || 0),
+    identityLocked: item.identity_locked === true,
   };
 }
 
@@ -271,6 +277,7 @@ export default function AccountPlanPage() {
   const [formState, setFormState] = useState<FormState | null>(null);
 
   const parentMap = useMemo(() => buildParentMap(items), [items]);
+  const identityEditLocked = formState?.mode === 'edit' && formState.identityLocked;
 
   async function loadData() {
     try {
@@ -741,6 +748,12 @@ export default function AccountPlanPage() {
               </div>
 
               <div className="flex-1 space-y-4 overflow-y-auto p-6">
+                {identityEditLocked && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                    Esta conta possui lançamentos. A identidade histórica está protegida: código, nome, grupo, tipo, natureza e marcações de lançamento não podem ser alterados. Você ainda pode ajustar descrição, análise gerencial, ordem e status ativo/inativo.
+                  </div>
+                )}
+
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <label className="block space-y-1">
                     <span className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-500">
@@ -751,7 +764,9 @@ export default function AccountPlanPage() {
                       value={formState.displayCode}
                       onChange={(event) => setFormState({ ...formState, displayCode: event.target.value })}
                       placeholder="Ex.: 2.4.14"
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      disabled={identityEditLocked}
+                      title={identityEditLocked ? 'Conta com lançamentos: o código histórico não pode ser alterado.' : undefined}
+                      className={identityEditLocked ? lockedInputClassName : editableInputClassName}
                     />
                   </label>
                   <label className="block space-y-1 md:col-span-3">
@@ -759,7 +774,9 @@ export default function AccountPlanPage() {
                     <input
                       value={formState.name}
                       onChange={(event) => setFormState({ ...formState, name: event.target.value })}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      disabled={identityEditLocked}
+                      title={identityEditLocked ? 'Conta com lançamentos: o nome histórico não pode ser alterado.' : undefined}
+                      className={identityEditLocked ? lockedInputClassName : editableInputClassName}
                     />
                   </label>
                   <label className="block space-y-1 md:col-span-2">
@@ -767,7 +784,9 @@ export default function AccountPlanPage() {
                     <select
                       value={formState.parentCode}
                       onChange={(event) => void handleParentChange(event.target.value)}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      disabled={identityEditLocked}
+                      title={identityEditLocked ? 'Conta com lançamentos: o grupo histórico não pode ser alterado.' : undefined}
+                      className={identityEditLocked ? lockedInputClassName : editableInputClassName}
                     >
                       <option value="">Sem grupo pai</option>
                       {items
@@ -785,7 +804,9 @@ export default function AccountPlanPage() {
                     <select
                       value={formState.kind}
                       onChange={(event) => setFormState({ ...formState, kind: event.target.value as CashbookAccountPlanKind })}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      disabled={identityEditLocked}
+                      title={identityEditLocked ? 'Conta com lançamentos: o tipo histórico não pode ser alterado.' : undefined}
+                      className={identityEditLocked ? lockedInputClassName : editableInputClassName}
                     >
                       <option value="income">Entrada</option>
                       <option value="expense">Saída</option>
@@ -798,7 +819,9 @@ export default function AccountPlanPage() {
                     <select
                       value={formState.nature}
                       onChange={(event) => setFormState({ ...formState, nature: event.target.value as CashbookAccountPlanNature })}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      disabled={identityEditLocked}
+                      title={identityEditLocked ? 'Conta com lançamentos: a natureza histórica não pode ser alterada.' : undefined}
+                      className={identityEditLocked ? lockedInputClassName : editableInputClassName}
                     >
                       <option value="credit">Credora</option>
                       <option value="debit">Devedora</option>
@@ -810,7 +833,7 @@ export default function AccountPlanPage() {
                     <input
                       value={formState.sortOrder}
                       onChange={(event) => setFormState({ ...formState, sortOrder: event.target.value })}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      className={editableInputClassName}
                     />
                   </label>
                   <label className="block space-y-1 md:col-span-4">
@@ -819,25 +842,26 @@ export default function AccountPlanPage() {
                       value={formState.description}
                       onChange={(event) => setFormState({ ...formState, description: event.target.value })}
                       rows={2}
-                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      className={editableInputClassName}
                     />
                   </label>
                 </div>
 
                 <div className="flex flex-wrap gap-4 pt-2 text-sm font-bold text-gray-700 dark:text-gray-200">
-                  <label className="inline-flex items-center gap-2">
+                  <label className={`inline-flex items-center gap-2 ${identityEditLocked ? 'cursor-not-allowed opacity-60' : ''}`} title={identityEditLocked ? 'Conta com lançamentos: não é possível alterar se ela é grupo.' : undefined}>
                     <input
                       type="checkbox"
                       checked={formState.isGroup}
+                      disabled={identityEditLocked}
                       onChange={(event) => setFormState({ ...formState, isGroup: event.target.checked, isPostable: event.target.checked ? false : formState.isPostable })}
                     />
                     É grupo de resumo
                   </label>
-                  <label className="inline-flex items-center gap-2">
+                  <label className={`inline-flex items-center gap-2 ${identityEditLocked ? 'cursor-not-allowed opacity-60' : ''}`} title={identityEditLocked ? 'Conta com lançamentos: não é possível alterar se ela aceita lançamentos.' : undefined}>
                     <input
                       type="checkbox"
                       checked={formState.isPostable}
-                      disabled={formState.isGroup}
+                      disabled={formState.isGroup || identityEditLocked}
                       onChange={(event) => setFormState({ ...formState, isPostable: event.target.checked })}
                     />
                     Aceita lançamentos
