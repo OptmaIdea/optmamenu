@@ -86,6 +86,26 @@ function getChildrenMap(items: CashbookAccountPlanTreeItem[]) {
   return map;
 }
 
+function normalizeInternalCode(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64);
+}
+
+function createInternalCode(formState: FormState) {
+  if (formState.mode === 'edit' && formState.originalCode) return formState.originalCode;
+  if (formState.code.trim()) return formState.code.trim();
+
+  const base = formState.displayCode.trim() || formState.name.trim();
+  const normalized = normalizeInternalCode(base);
+
+  return normalized || `conta_${Date.now()}`;
+}
+
 function createInitialForm(parent?: CashbookAccountPlanTreeItem | null): FormState {
   return {
     mode: 'create',
@@ -187,7 +207,7 @@ export default function AccountPlanPage() {
     try {
       setSaving(true);
       await CashbookAccountPlanTreeService.save({
-        code: formState.code.trim(),
+        code: createInternalCode(formState),
         displayCode: formState.displayCode.trim() || null,
         parentCode: formState.parentCode || null,
         name: formState.name.trim(),
@@ -282,12 +302,11 @@ export default function AccountPlanPage() {
                 </div>
 
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{getItemSubtitle(item)}</p>
-
-                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                  Código interno: <span className="font-mono">{item.code}</span>
-                  {item.path ? <> · Caminho: {item.path.replaceAll('/', ' › ')}</> : null}
-                </p>
-
+                {item.path && (
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    Caminho: {item.path.replaceAll('/', ' › ')}
+                  </p>
+                )}
                 {item.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{item.description}</p>}
               </div>
             </div>
@@ -407,7 +426,7 @@ export default function AccountPlanPage() {
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">{formState.mode === 'create' ? 'Nova conta' : 'Editar conta'}</p>
                 <h2 className="text-xl font-black text-gray-900 dark:text-white">Dados do plano de contas</h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Use o código exibido para a árvore gerencial e o código interno apenas como identificador técnico.</p>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Use o código na árvore para organizar a visualização gerencial.</p>
               </div>
               <button type="button" onClick={() => setFormState(null)} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700">
                 Cancelar
@@ -416,14 +435,10 @@ export default function AccountPlanPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código interno</span>
-                <input value={formState.code} disabled={formState.mode === 'edit'} onChange={(event) => setFormState({ ...formState, code: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
-              </label>
-              <label className="block space-y-1">
                 <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código na árvore</span>
                 <input value={formState.displayCode} onChange={(event) => setFormState({ ...formState, displayCode: event.target.value })} placeholder="Ex.: 2.4.14" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
-              <label className="block space-y-1 md:col-span-2">
+              <label className="block space-y-1 md:col-span-3">
                 <span className="text-xs font-black uppercase tracking-widest text-gray-500">Nome exibido</span>
                 <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
