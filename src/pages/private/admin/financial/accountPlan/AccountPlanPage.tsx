@@ -21,6 +21,7 @@ import {
 } from '@/services/cashbookAccountPlanTreeService';
 import type { CashbookAccountPlanKind } from '@/services/cashbookAccountPlanService';
 import { getCashbookAccountPlanLabel, getCashbookKindLabel } from '@/utils/finance/ptBrFinancialLabels';
+import AccountPlanTrialBalancePanel from './components/AccountPlanTrialBalancePanel';
 
 type KindFilter = 'all' | CashbookAccountPlanKind;
 type FormMode = 'create' | 'edit';
@@ -394,6 +395,8 @@ export default function AccountPlanPage() {
           </div>
         </div>
 
+        <AccountPlanTrialBalancePanel includeInactive={activeFilter !== 'active'} />
+
         <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_180px]">
             <label className="relative block">
@@ -418,7 +421,7 @@ export default function AccountPlanPage() {
             </select>
             <select
               value={activeFilter}
-              onChange={(event) => setActiveFilter(event.target.value as any)}
+              onChange={(event) => setActiveFilter(event.target.value as 'active' | 'inactive' | 'all')}
               className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
             >
               <option value="active">Contas Ativas</option>
