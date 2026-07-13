@@ -24,7 +24,7 @@ import type { CashbookAccountPlanKind } from '@/services/cashbookAccountPlanServ
 import { getCashbookAccountPlanLabel, getCashbookKindLabel } from '@/utils/finance/ptBrFinancialLabels';
 import AccountPlanTrialBalancePanel from './components/AccountPlanTrialBalancePanel';
 
-type KindFilter = 'all' | CashbookAccountPlanKind;
+type SectionFilter = 'entries' | 'exits' | 'transfers' | 'all';
 type FormMode = 'create' | 'edit';
 
 interface FormState {
@@ -43,6 +43,12 @@ interface FormState {
   active: boolean;
   sortOrder: string;
 }
+
+const ROOT_BY_SECTION: Record<Exclude<SectionFilter, 'all'>, string> = {
+  entries: 'grp_revenue',
+  exits: 'grp_expense',
+  transfers: 'grp_transfers',
+};
 
 function getNatureLabel(value?: string | null) {
   const labels: Record<string, string> = {
@@ -84,25 +90,22 @@ function compareDisplayCodes(a?: string | null, b?: string | null): number {
   const partsB = b.split('.');
   const maxLen = Math.max(partsA.length, partsB.length);
 
-  for (let i = 0; i < maxLen; i++) {
+  for (let i = 0; i < maxLen; i += 1) {
     const partA = partsA[i];
     const partB = partsB[i];
 
     if (partA === undefined) return -1;
     if (partB === undefined) return 1;
 
-    const numA = parseInt(partA, 10);
-    const numB = parseInt(partB, 10);
-
-    const isNumA = !isNaN(numA);
-    const isNumB = !isNaN(numB);
+    const numA = Number.parseInt(partA, 10);
+    const numB = Number.parseInt(partB, 10);
+    const isNumA = !Number.isNaN(numA);
+    const isNumB = !Number.isNaN(numB);
 
     if (isNumA && isNumB) {
-      if (numA !== numB) {
-        return numA - numB;
-      }
+      if (numA !== numB) return numA - numB;
     } else {
-      const cmp = partA.localeCompare(partB, undefined, { numeric: true, sensitivity: 'base' });
+      const cmp = partA.localeCompare(partB, 'pt-BR', { numeric: true, sensitivity: 'base' });
       if (cmp !== 0) return cmp;
     }
   }
@@ -126,11 +129,11 @@ function getChildrenMap(items: CashbookAccountPlanTreeItem[], alphabeticalGroups
     list.sort((a, b) => {
       if (shouldSortAlphabetically) {
         return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
-      } else {
-        const cmpCode = compareDisplayCodes(a.display_code, b.display_code);
-        if (cmpCode !== 0) return cmpCode;
-        return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
       }
+
+      const cmpCode = compareDisplayCodes(a.display_code, b.display_code);
+      if (cmpCode !== 0) return cmpCode;
+      return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
     });
   });
 
@@ -160,7 +163,9 @@ function isExpectedBusinessRuleError(error: unknown) {
     message.includes('possui lançamentos') ||
     message.includes('possui contas filhas') ||
     message.includes('estrutura base') ||
-    message.includes('permissão')
+    message.includes('permissão') ||
+    message.includes('já existe uma conta ativa usando o código') ||
+    message.includes('não pode ter nome, código, grupo, tipo ou natureza alterados')
   );
 }
 
@@ -222,6 +227,28 @@ function createEditForm(item: CashbookAccountPlanTreeItem): FormState {
   };
 }
 
+function buildParentMap(items: CashbookAccountPlanTreeItem[]) {
+  return new Map(items.map((item) => [item.code, item]));
+}
+
+function belongsToRoot(item: CashbookAccountPlanTreeItem, rootCode: string, parentMap: Map<string, CashbookAccountPlanTreeItem>) {
+  if (item.code === rootCode) return true;
+
+  let currentParentCode = item.parent_code || null;
+  const visited = new Set<string>();
+
+  while (currentParentCode) {
+    if (currentParentCode === rootCode) return true;
+    if (visited.has(currentParentCode)) return false;
+    visited.add(currentParentCode);
+
+    const parent = parentMap.get(currentParentCode);
+    currentParentCode = parent?.parent_code || null;
+  }
+
+  return false;
+}
+
 export default function AccountPlanPage() {
   const [items, setItems] = useState<CashbookAccountPlanTreeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,10 +257,12 @@ export default function AccountPlanPage() {
   const [activeTab, setActiveTab] = useState<'trial_balance' | 'edit_accounts'>('trial_balance');
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active');
   const [searchTerm, setSearchTerm] = useState('');
-  const [kindFilter, setKindFilter] = useState<KindFilter>('income');
+  const [sectionFilter, setSectionFilter] = useState<SectionFilter>('entries');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
   const [alphabeticalGroups, setAlphabeticalGroups] = useState<Set<string>>(() => new Set());
   const [formState, setFormState] = useState<FormState | null>(null);
+
+  const parentMap = useMemo(() => buildParentMap(items), [items]);
 
   function toggleAlphabeticalGroup(code: string) {
     setAlphabeticalGroups((current) => {
@@ -264,11 +293,12 @@ export default function AccountPlanPage() {
 
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
+    const rootCode = sectionFilter === 'all' ? null : ROOT_BY_SECTION[sectionFilter];
 
     const baseFiltered = items.filter((item) => {
       if (activeFilter === 'active' && !item.active) return false;
       if (activeFilter === 'inactive' && item.active) return false;
-      if (kindFilter !== 'all' && item.kind !== kindFilter) return false;
+      if (rootCode && !belongsToRoot(item, rootCode, parentMap)) return false;
       return true;
     });
 
@@ -287,22 +317,19 @@ export default function AccountPlanPage() {
     });
 
     const codesToKeep = new Set<string>();
+    const baseCodes = new Set(baseFiltered.map((item) => item.code));
+
     const addNodeAndAncestors = (code: string) => {
-      if (codesToKeep.has(code)) return;
+      if (codesToKeep.has(code) || !baseCodes.has(code)) return;
       codesToKeep.add(code);
 
-      const node = items.find((x) => x.code === code);
-      if (node && node.parent_code) {
-        addNodeAndAncestors(node.parent_code);
-      }
+      const node = parentMap.get(code);
+      if (node?.parent_code) addNodeAndAncestors(node.parent_code);
     };
 
-    matchedCodes.forEach((code) => {
-      addNodeAndAncestors(code);
-    });
-
+    matchedCodes.forEach((code) => addNodeAndAncestors(code));
     return baseFiltered.filter((item) => codesToKeep.has(item.code));
-  }, [items, kindFilter, searchTerm, activeFilter]);
+  }, [items, parentMap, sectionFilter, searchTerm, activeFilter]);
 
   const childrenMap = useMemo(() => getChildrenMap(filteredItems, alphabeticalGroups), [filteredItems, alphabeticalGroups]);
   const groupsCount = items.filter((item) => item.is_group).length;
@@ -316,6 +343,11 @@ export default function AccountPlanPage() {
       else next.add(code);
       return next;
     });
+  }
+
+  function changeSectionFilter(nextFilter: SectionFilter) {
+    setSectionFilter(nextFilter);
+    setExpanded(new Set());
   }
 
   async function applySuggestedChildCode(parentCode: string) {
@@ -346,9 +378,7 @@ export default function AccountPlanPage() {
     const initialForm = createInitialForm(parent);
     setFormState(initialForm);
 
-    if (parent?.code) {
-      await applySuggestedChildCode(parent.code);
-    }
+    if (parent?.code) await applySuggestedChildCode(parent.code);
   }
 
   async function handleParentChange(parentCode: string) {
@@ -363,9 +393,7 @@ export default function AccountPlanPage() {
       };
     });
 
-    if (shouldSuggest) {
-      await applySuggestedChildCode(parentCode);
-    }
+    if (shouldSuggest) await applySuggestedChildCode(parentCode);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -401,9 +429,7 @@ export default function AccountPlanPage() {
       setFormState(null);
       await loadData();
     } catch (error) {
-      if (!isExpectedBusinessRuleError(error)) {
-        console.error('Erro ao salvar conta do plano de contas:', error);
-      }
+      if (!isExpectedBusinessRuleError(error)) console.error('Erro ao salvar conta do plano de contas:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao salvar conta do plano de contas.');
     } finally {
       setSaving(false);
@@ -416,9 +442,7 @@ export default function AccountPlanPage() {
       toast.success(item.active ? 'Conta inativada.' : 'Conta ativada.');
       await loadData();
     } catch (error) {
-      if (!isExpectedBusinessRuleError(error)) {
-        console.error('Erro ao alterar status da conta:', error);
-      }
+      if (!isExpectedBusinessRuleError(error)) console.error('Erro ao alterar status da conta:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao alterar status da conta.');
     }
   }
@@ -500,10 +524,11 @@ export default function AccountPlanPage() {
                 <button
                   type="button"
                   onClick={() => toggleAlphabeticalGroup(item.code)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${alphabeticalGroups.has(item.code)
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                    alphabeticalGroups.has(item.code)
                       ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200'
                       : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-                    }`}
+                  }`}
                   title={
                     alphabeticalGroups.has(item.code)
                       ? 'Ordenado por Nome (A-Z). Clique para ordenar por Número.'
@@ -548,6 +573,8 @@ export default function AccountPlanPage() {
     });
   }
 
+  const treeRows = renderTree();
+
   return (
     <PageContainer title="Plano de contas">
       <div className="space-y-6">
@@ -578,33 +605,26 @@ export default function AccountPlanPage() {
           </div>
         </div>
 
-        {/* Main Tabs Bar */}
-        <div className="flex border-b border-gray-200 dark:border-gray-800 gap-6">
+        <div className="flex gap-6 border-b border-gray-200 dark:border-gray-800">
           <button
             type="button"
             onClick={() => setActiveTab('trial_balance')}
-            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${activeTab === 'trial_balance'
-                ? 'text-[#19A999]'
-                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-              }`}
+            className={`relative pb-3 text-lg font-black uppercase tracking-wider transition-all ${
+              activeTab === 'trial_balance' ? 'text-[#19A999]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+            }`}
           >
             Balancete
-            {activeTab === 'trial_balance' && (
-              <span className="absolute bottom-0 left-0 right-0 h-1 bg-[#19A999] rounded-t-full" />
-            )}
+            {activeTab === 'trial_balance' && <span className="absolute bottom-0 left-0 right-0 h-1 rounded-t-full bg-[#19A999]" />}
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('edit_accounts')}
-            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${activeTab === 'edit_accounts'
-                ? 'text-[#19A999]'
-                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-              }`}
+            className={`relative pb-3 text-lg font-black uppercase tracking-wider transition-all ${
+              activeTab === 'edit_accounts' ? 'text-[#19A999]' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+            }`}
           >
             Editar contas
-            {activeTab === 'edit_accounts' && (
-              <span className="absolute bottom-0 left-0 right-0 h-1 bg-[#19A999] rounded-t-full" />
-            )}
+            {activeTab === 'edit_accounts' && <span className="absolute bottom-0 left-0 right-0 h-1 rounded-t-full bg-[#19A999]" />}
           </button>
         </div>
 
@@ -612,7 +632,6 @@ export default function AccountPlanPage() {
           <AccountPlanTrialBalancePanel includeInactive={activeFilter !== 'active'} />
         ) : (
           <>
-            {/* Stats Cards */}
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
                 <FolderTree className="mb-3 text-[#19A999]" />
@@ -631,63 +650,31 @@ export default function AccountPlanPage() {
               </div>
             </div>
 
-            {/* Subtabs for account kinds */}
-            <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-800 gap-1 p-1 bg-gray-50 dark:bg-gray-950 rounded-2xl w-fit">
-              <button
-                type="button"
-                onClick={() => {
-                  setKindFilter('income');
-                  setExpanded(new Set());
-                }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'income'
-                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+            <div className="flex w-fit flex-wrap gap-1 rounded-2xl border-b border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950">
+              {[
+                ['entries', 'Entradas'],
+                ['exits', 'Saídas'],
+                ['transfers', 'Transferências'],
+                ['all', 'Todos'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => {
+                    changeSectionFilter(value as SectionFilter);
+                    setExpanded(new Set());
+                  }}
+                  className={`rounded-xl px-4 py-2 text-sm font-extrabold uppercase tracking-wide transition-all ${
+                    sectionFilter === value
+                      ? 'bg-white text-gray-900 shadow-xs dark:bg-gray-900 dark:text-white'
+                      : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
                   }`}
-              >
-                Entradas
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setKindFilter('expense');
-                  setExpanded(new Set());
-                }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'expense'
-                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-              >
-                Saídas
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setKindFilter('transfer');
-                  setExpanded(new Set());
-                }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'transfer'
-                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-              >
-                Transferências
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setKindFilter('adjustment');
-                  setExpanded(new Set());
-                }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'adjustment'
-                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
-                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-              >
-                Ajustes
-              </button>
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
-            {/* Search and Filters */}
             <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px]">
                 <label className="relative block">
@@ -711,12 +698,13 @@ export default function AccountPlanPage() {
               </div>
             </div>
 
-            {/* Tree content */}
             <div className="space-y-3">
               {loading ? (
-                <div className="flex justify-center py-12"><LoadingSpinner /></div>
-              ) : renderTree().length ? (
-                renderTree()
+                <div className="flex justify-center py-12">
+                  <LoadingSpinner />
+                </div>
+              ) : treeRows.length ? (
+                treeRows
               ) : (
                 <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700">
                   Nenhuma conta encontrada.
@@ -726,25 +714,14 @@ export default function AccountPlanPage() {
           </>
         )}
 
-        {/* Modal Form Overlay */}
         {formState && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-            <form
-              onSubmit={handleSubmit}
-              className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl dark:bg-gray-900 flex flex-col max-h-[90vh]"
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-6 dark:border-gray-800 shrink-0">
+            <form onSubmit={handleSubmit} className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
+              <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 p-6 dark:border-gray-800">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">
-                    {formState.mode === 'create' ? 'Nova conta' : 'Editar conta'}
-                  </p>
-                  <h2 className="mt-1 text-xl font-black text-gray-900 dark:text-white">
-                    Dados do plano de contas
-                  </h2>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Use o código na árvore para organizar a visualização gerencial.
-                  </p>
+                  <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">{formState.mode === 'create' ? 'Nova conta' : 'Editar conta'}</p>
+                  <h2 className="mt-1 text-xl font-black text-gray-900 dark:text-white">Dados do plano de contas</h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use o código na árvore para organizar a visualização gerencial.</p>
                 </div>
                 <button
                   type="button"
@@ -756,15 +733,12 @@ export default function AccountPlanPage() {
                 </button>
               </div>
 
-              {/* Scrollable Form Content */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex-1 space-y-4 overflow-y-auto p-6">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <label className="block space-y-1">
                     <span className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-500">
                       Código na árvore
-                      {suggestingCode && formState.mode === 'create' && (
-                        <span className="normal-case tracking-normal text-[#19A999]">sugerindo...</span>
-                      )}
+                      {suggestingCode && formState.mode === 'create' && <span className="normal-case tracking-normal text-[#19A999]">sugerindo...</span>}
                     </span>
                     <input
                       value={formState.displayCode}
@@ -791,6 +765,7 @@ export default function AccountPlanPage() {
                       <option value="">Sem grupo pai</option>
                       {items
                         .filter((item) => item.code !== formState.originalCode)
+                        .sort((a, b) => compareDisplayCodes(a.display_code, b.display_code) || a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' }))
                         .map((item) => (
                           <option key={item.code} value={item.code}>
                             {getItemLabel(item)}
@@ -842,18 +817,12 @@ export default function AccountPlanPage() {
                   </label>
                 </div>
 
-                <div className="flex flex-wrap gap-4 text-sm font-bold text-gray-700 dark:text-gray-200 pt-2">
+                <div className="flex flex-wrap gap-4 pt-2 text-sm font-bold text-gray-700 dark:text-gray-200">
                   <label className="inline-flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={formState.isGroup}
-                      onChange={(event) =>
-                        setFormState({
-                          ...formState,
-                          isGroup: event.target.checked,
-                          isPostable: event.target.checked ? false : formState.isPostable,
-                        })
-                      }
+                      onChange={(event) => setFormState({ ...formState, isGroup: event.target.checked, isPostable: event.target.checked ? false : formState.isPostable })}
                     />
                     É grupo de resumo
                   </label>
@@ -885,8 +854,7 @@ export default function AccountPlanPage() {
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="flex justify-end gap-2 border-t border-gray-100 p-6 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 shrink-0">
+              <div className="flex shrink-0 justify-end gap-2 border-t border-gray-100 bg-gray-50/50 p-6 dark:border-gray-800 dark:bg-gray-900/50">
                 <button
                   type="button"
                   onClick={() => setFormState(null)}
@@ -897,7 +865,7 @@ export default function AccountPlanPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-[#19A999] px-5 py-2 font-black text-white disabled:opacity-60 transition hover:bg-[#14887B]"
+                  className="rounded-xl bg-[#19A999] px-5 py-2 font-black text-white transition hover:bg-[#14887B] disabled:opacity-60"
                 >
                   {saving ? 'Salvando...' : 'Salvar conta'}
                 </button>
