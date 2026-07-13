@@ -434,13 +434,12 @@ export default function AccountPlanPage() {
       const row = (
         <div
           key={item.code}
-          className={`rounded-2xl border p-4 transition ${
-            item.active
+          className={`rounded-2xl border p-4 transition ${item.active
               ? isTopGroup
                 ? 'border-[#19A999]/30 bg-[#19A999]/5 hover:border-[#19A999]/60 dark:border-[#19A999]/40 dark:bg-[#19A999]/10'
                 : 'border-gray-200 bg-white hover:border-[#19A999]/40 dark:border-gray-800 dark:bg-gray-900'
               : 'border-gray-200 bg-gray-50 opacity-70 dark:border-gray-800 dark:bg-gray-950'
-          }`}
+            }`}
           style={{ marginLeft: `${Math.min(depth * 18, 72)}px` }}
         >
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -501,11 +500,10 @@ export default function AccountPlanPage() {
                 <button
                   type="button"
                   onClick={() => toggleAlphabeticalGroup(item.code)}
-                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${
-                    alphabeticalGroups.has(item.code)
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${alphabeticalGroups.has(item.code)
                       ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200'
                       : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
-                  }`}
+                    }`}
                   title={
                     alphabeticalGroups.has(item.code)
                       ? 'Ordenado por Nome (A-Z). Clique para ordenar por Número.'
@@ -563,7 +561,7 @@ export default function AccountPlanPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
+            {/*<button
               type="button"
               onClick={loadData}
               className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -576,7 +574,7 @@ export default function AccountPlanPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 font-bold text-white hover:bg-[#14887B]"
             >
               <Plus size={18} /> Nova conta
-            </button>
+            </button>*/}
           </div>
         </div>
 
@@ -585,11 +583,10 @@ export default function AccountPlanPage() {
           <button
             type="button"
             onClick={() => setActiveTab('trial_balance')}
-            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${
-              activeTab === 'trial_balance'
+            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${activeTab === 'trial_balance'
                 ? 'text-[#19A999]'
                 : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-            }`}
+              }`}
           >
             Balancete
             {activeTab === 'trial_balance' && (
@@ -599,11 +596,10 @@ export default function AccountPlanPage() {
           <button
             type="button"
             onClick={() => setActiveTab('edit_accounts')}
-            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${
-              activeTab === 'edit_accounts'
+            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${activeTab === 'edit_accounts'
                 ? 'text-[#19A999]'
                 : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
-            }`}
+              }`}
           >
             Editar contas
             {activeTab === 'edit_accounts' && (
@@ -643,11 +639,10 @@ export default function AccountPlanPage() {
                   setKindFilter('income');
                   setExpanded(new Set());
                 }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
-                  kindFilter === 'income'
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'income'
                     ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
                     : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Entradas
               </button>
@@ -657,11 +652,10 @@ export default function AccountPlanPage() {
                   setKindFilter('expense');
                   setExpanded(new Set());
                 }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
-                  kindFilter === 'expense'
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'expense'
                     ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
                     : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Saídas
               </button>
@@ -671,11 +665,10 @@ export default function AccountPlanPage() {
                   setKindFilter('transfer');
                   setExpanded(new Set());
                 }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
-                  kindFilter === 'transfer'
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'transfer'
                     ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
                     : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Transferências
               </button>
@@ -685,11 +678,10 @@ export default function AccountPlanPage() {
                   setKindFilter('adjustment');
                   setExpanded(new Set());
                 }}
-                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
-                  kindFilter === 'adjustment'
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${kindFilter === 'adjustment'
                     ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
                     : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
-                }`}
+                  }`}
               >
                 Ajustes
               </button>
