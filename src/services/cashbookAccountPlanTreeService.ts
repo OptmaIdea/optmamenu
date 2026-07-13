@@ -46,6 +46,14 @@ export interface SaveCashbookAccountPlanInput {
   metadata?: Record<string, unknown>;
 }
 
+export interface CashbookAccountPlanNextChildCodeResult {
+  parent_code: string;
+  parent_display_code: string;
+  parent_name: string;
+  next_number: number;
+  suggested_display_code: string;
+}
+
 export const CashbookAccountPlanTreeService = {
   async list(includeInactive = false): Promise<CashbookAccountPlanTreeItem[]> {
     const { data, error } = await supabase.rpc('list_cashbook_account_plan_tree_safe', {
@@ -59,6 +67,20 @@ export const CashbookAccountPlanTreeService = {
     }
 
     return (data.items || []) as CashbookAccountPlanTreeItem[];
+  },
+
+  async getNextChildCode(parentCode: string): Promise<CashbookAccountPlanNextChildCodeResult> {
+    const { data, error } = await supabase.rpc('get_cashbook_account_plan_next_child_code_safe', {
+      p_parent_code: parentCode,
+    });
+
+    if (error) throw error;
+
+    if (!data?.ok) {
+      throw new Error(data?.message || data?.error || 'Erro ao sugerir próximo código do plano de contas.');
+    }
+
+    return data as CashbookAccountPlanNextChildCodeResult;
   },
 
   async save(input: SaveCashbookAccountPlanInput): Promise<CashbookAccountPlanTreeItem> {
@@ -103,5 +125,17 @@ export const CashbookAccountPlanTreeService = {
     }
 
     return data.item as CashbookAccountPlanTreeItem;
+  },
+
+  async deleteSafe(code: string): Promise<void> {
+    const { data, error } = await supabase.rpc('delete_cashbook_account_plan_safe', {
+      p_code: code,
+    });
+
+    if (error) throw error;
+
+    if (!data?.ok) {
+      throw new Error(data?.message || data?.error || 'Erro ao apagar conta do plano de contas.');
+    }
   },
 };
