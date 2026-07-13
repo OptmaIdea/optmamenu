@@ -7,6 +7,7 @@ import {
   FolderTree,
   Plus,
   Search,
+  Trash2,
   ToggleLeft,
   ToggleRight,
   X,
@@ -48,6 +49,13 @@ const ROOT_BY_SECTION: Record<Exclude<SectionFilter, 'all'>, string> = {
   exits: 'grp_expense',
   transfers: 'grp_transfers',
 };
+
+const SECTION_LABELS: Array<[SectionFilter, string]> = [
+  ['entries', 'Entradas'],
+  ['exits', 'Saídas'],
+  ['transfers', 'Transferências'],
+  ['all', 'Todos'],
+];
 
 function getNatureLabel(value?: string | null) {
   const labels: Record<string, string> = {
@@ -145,6 +153,7 @@ function getMetadataBoolean(item: CashbookAccountPlanTreeItem, key: string) {
 
 function isSystemProtectedItem(item: CashbookAccountPlanTreeItem) {
   return (
+    item.is_system_protected === true ||
     ['grp_revenue', 'grp_expense', 'grp_transfers'].includes(item.code) ||
     getMetadataBoolean(item, 'system_group') ||
     getMetadataBoolean(item, 'protected_account') ||
@@ -263,15 +272,6 @@ export default function AccountPlanPage() {
 
   const parentMap = useMemo(() => buildParentMap(items), [items]);
 
-  function toggleAlphabeticalGroup(code: string) {
-    setAlphabeticalGroups((current) => {
-      const next = new Set(current);
-      if (next.has(code)) next.delete(code);
-      else next.add(code);
-      return next;
-    });
-  }
-
   async function loadData() {
     try {
       setLoading(true);
@@ -287,7 +287,7 @@ export default function AccountPlanPage() {
   }
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [activeFilter]);
 
   const filteredItems = useMemo(() => {
@@ -334,6 +334,15 @@ export default function AccountPlanPage() {
   const groupsCount = items.filter((item) => item.is_group).length;
   const postableCount = items.filter((item) => item.is_postable && !item.is_group).length;
   const analysisCount = items.filter((item) => item.analysis_enabled).length;
+
+  function toggleAlphabeticalGroup(code: string) {
+    setAlphabeticalGroups((current) => {
+      const next = new Set(current);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
 
   function toggleExpanded(code: string) {
     setExpanded((current) => {
@@ -446,6 +455,20 @@ export default function AccountPlanPage() {
     }
   }
 
+  async function handleDeleteSafe(item: CashbookAccountPlanTreeItem) {
+    const confirmed = window.confirm(`Apagar "${getItemLabel(item)}"?\n\nEsta ação só é permitida para contas criadas pelo usuário, sem lançamentos e sem contas filhas.`);
+    if (!confirmed) return;
+
+    try {
+      await CashbookAccountPlanTreeService.deleteSafe(item.code);
+      toast.success('Conta apagada com segurança.');
+      await loadData();
+    } catch (error) {
+      if (!isExpectedBusinessRuleError(error)) console.error('Erro ao apagar conta do plano de contas:', error);
+      toast.error(error instanceof Error ? error.message : 'Erro ao apagar conta do plano de contas.');
+    }
+  }
+
   function renderTree(parentCode: string | null = null, depth = 0): ReactElement[] {
     return (childrenMap.get(parentCode) || []).flatMap((item) => {
       const children = childrenMap.get(item.code) || [];
@@ -453,16 +476,18 @@ export default function AccountPlanPage() {
       const isOpen = expanded.has(item.code) || searchTerm.trim().length > 0;
       const isTopGroup = item.is_group && depth === 0;
       const isProtected = isSystemProtectedItem(item);
+      const canDelete = item.can_delete_safe === true;
 
       const row = (
         <div
           key={item.code}
-          className={`rounded-2xl border p-4 transition ${item.active
+          className={`rounded-2xl border p-4 transition ${
+            item.active
               ? isTopGroup
                 ? 'border-[#19A999]/30 bg-[#19A999]/5 hover:border-[#19A999]/60 dark:border-[#19A999]/40 dark:bg-[#19A999]/10'
                 : 'border-gray-200 bg-white hover:border-[#19A999]/40 dark:border-gray-800 dark:bg-gray-900'
               : 'border-gray-200 bg-gray-50 opacity-70 dark:border-gray-800 dark:bg-gray-950'
-            }`}
+          }`}
           style={{ marginLeft: `${Math.min(depth * 18, 72)}px` }}
         >
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -494,6 +519,11 @@ export default function AccountPlanPage() {
                   {isProtected && (
                     <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-200">
                       Estrutura base
+                    </span>
+                  )}
+                  {item.identity_locked && (
+                    <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-bold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+                      Histórico protegido
                     </span>
                   )}
                   {item.analysis_enabled && (
@@ -528,11 +558,7 @@ export default function AccountPlanPage() {
                       ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200'
                       : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
                   }`}
-                  title={
-                    alphabeticalGroups.has(item.code)
-                      ? 'Ordenado por Nome (A-Z). Clique para ordenar por Número.'
-                      : 'Ordenado por Número. Clique para ordenar por Nome (A-Z).'
-                  }
+                  title={alphabeticalGroups.has(item.code) ? 'Ordenado por Nome (A-Z). Clique para ordenar por Número.' : 'Ordenado por Número. Clique para ordenar por Nome (A-Z).'}
                 >
                   {alphabeticalGroups.has(item.code) ? 'Ordenado A-Z' : 'Ordenar A-Z'}
                 </button>
@@ -555,12 +581,21 @@ export default function AccountPlanPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleToggleActive(item)}
+                    onClick={() => void handleToggleActive(item)}
                     className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
                     {item.active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
                     {item.active ? 'Inativar' : 'Ativar'}
                   </button>
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteSafe(item)}
+                      className="inline-flex items-center gap-2 rounded-xl border border-rose-200 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-200 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 size={16} /> Apagar
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -577,31 +612,12 @@ export default function AccountPlanPage() {
   return (
     <PageContainer title="Plano de contas">
       <div className="space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <span className="text-sm font-black uppercase tracking-widest text-[#19A999]">Financeiro</span>
-            <h1 className="mt-2 text-3xl font-black text-gray-900 dark:text-white">Plano de contas</h1>
-            <p className="mt-1 max-w-3xl text-gray-600 dark:text-gray-300">
-              Organize receitas, despesas, ajustes e transferências em uma árvore gerencial para balancete e tomada de decisão.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {/*<button
-              type="button"
-              onClick={loadData}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <RefreshCw size={18} /> Atualizar
-            </button>
-            <button
-              type="button"
-              onClick={() => void openCreateForm(null)}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 font-bold text-white hover:bg-[#14887B]"
-            >
-              <Plus size={18} /> Nova conta
-            </button>*/}
-          </div>
+        <div>
+          <span className="text-sm font-black uppercase tracking-widest text-[#19A999]">Financeiro</span>
+          <h1 className="mt-2 text-3xl font-black text-gray-900 dark:text-white">Plano de contas</h1>
+          <p className="mt-1 max-w-3xl text-gray-600 dark:text-gray-300">
+            Organize receitas, despesas, ajustes e transferências em uma árvore gerencial para balancete e tomada de decisão.
+          </p>
         </div>
 
         <div className="flex gap-6 border-b border-gray-200 dark:border-gray-800">
@@ -650,19 +666,11 @@ export default function AccountPlanPage() {
             </div>
 
             <div className="flex w-fit flex-wrap gap-1 rounded-2xl border-b border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950">
-              {[
-                ['entries', 'Entradas'],
-                ['exits', 'Saídas'],
-                ['transfers', 'Transferências'],
-                ['all', 'Todos'],
-              ].map(([value, label]) => (
+              {SECTION_LABELS.map(([value, label]) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => {
-                    changeSectionFilter(value as SectionFilter);
-                    setExpanded(new Set());
-                  }}
+                  onClick={() => changeSectionFilter(value)}
                   className={`rounded-xl px-4 py-2 text-sm font-extrabold uppercase tracking-wide transition-all ${
                     sectionFilter === value
                       ? 'bg-white text-gray-900 shadow-xs dark:bg-gray-900 dark:text-white'
