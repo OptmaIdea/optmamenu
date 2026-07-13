@@ -61,6 +61,7 @@ import {
     Building,
     ScrollText,
     BadgeDollarSign,
+    FolderTree,
 } from 'lucide-react';
 
 type MenuItem = {
@@ -388,6 +389,7 @@ export default function PrivateLayout() {
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
+            { path: '/admin/account-plan', icon: FolderTree, label: 'Plano de contas', permission: 'cashbook.view' },
             { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'cashbook.view' },
         ],
         products: [
