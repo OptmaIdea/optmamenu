@@ -177,6 +177,7 @@ export default function AccountPlanPage() {
   const [items, setItems] = useState<CashbookAccountPlanTreeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [suggestingCode, setSuggestingCode] = useState(false);
   const [activeTab, setActiveTab] = useState<'trial_balance' | 'edit_accounts'>('trial_balance');
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active');
   const [searchTerm, setSearchTerm] = useState('');
@@ -233,6 +234,56 @@ export default function AccountPlanPage() {
     });
   }
 
+  async function applySuggestedChildCode(parentCode: string) {
+    try {
+      setSuggestingCode(true);
+      const suggestion = await CashbookAccountPlanTreeService.getNextChildCode(parentCode);
+
+      setFormState((current) => {
+        if (!current || current.mode !== 'create' || current.parentCode !== parentCode) return current;
+
+        return {
+          ...current,
+          displayCode: suggestion.suggested_display_code,
+          sortOrder: String((suggestion.next_number || 0) * 10),
+        };
+      });
+    } catch (error) {
+      if (!isExpectedBusinessRuleError(error)) {
+        console.error('Erro ao sugerir próximo código do plano de contas:', error);
+      }
+      toast.warning(error instanceof Error ? error.message : 'Não foi possível sugerir o próximo código automaticamente.');
+    } finally {
+      setSuggestingCode(false);
+    }
+  }
+
+  async function openCreateForm(parent?: CashbookAccountPlanTreeItem | null) {
+    const initialForm = createInitialForm(parent);
+    setFormState(initialForm);
+
+    if (parent?.code) {
+      await applySuggestedChildCode(parent.code);
+    }
+  }
+
+  async function handleParentChange(parentCode: string) {
+    const shouldSuggest = formState?.mode === 'create' && Boolean(parentCode);
+
+    setFormState((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        parentCode,
+        displayCode: current.mode === 'create' ? '' : current.displayCode,
+      };
+    });
+
+    if (shouldSuggest) {
+      await applySuggestedChildCode(parentCode);
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!formState) return;
@@ -258,6 +309,7 @@ export default function AccountPlanPage() {
         metadata: {
           origin: 'account_plan_admin',
           edited_from_ui: true,
+          user_created: formState.mode === 'create',
         },
       });
 
@@ -357,7 +409,7 @@ export default function AccountPlanPage() {
             <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setFormState(createInitialForm(item))}
+                onClick={() => void openCreateForm(item)}
                 className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
                 <Plus size={16} /> Conta filha
@@ -412,7 +464,7 @@ export default function AccountPlanPage() {
             </button>
             <button
               type="button"
-              onClick={() => setFormState(createInitialForm(null))}
+              onClick={() => void openCreateForm(null)}
               className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 font-bold text-white hover:bg-[#14887B]"
             >
               <Plus size={18} /> Nova conta
@@ -608,7 +660,12 @@ export default function AccountPlanPage() {
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
                   <label className="block space-y-1">
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código na árvore</span>
+                    <span className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-500">
+                      Código na árvore
+                      {suggestingCode && formState.mode === 'create' && (
+                        <span className="normal-case tracking-normal text-[#19A999]">sugerindo...</span>
+                      )}
+                    </span>
                     <input
                       value={formState.displayCode}
                       onChange={(event) => setFormState({ ...formState, displayCode: event.target.value })}
@@ -628,7 +685,7 @@ export default function AccountPlanPage() {
                     <span className="text-xs font-black uppercase tracking-widest text-gray-500">Fica dentro de</span>
                     <select
                       value={formState.parentCode}
-                      onChange={(event) => setFormState({ ...formState, parentCode: event.target.value })}
+                      onChange={(event) => void handleParentChange(event.target.value)}
                       className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     >
                       <option value="">Sem grupo pai</option>
