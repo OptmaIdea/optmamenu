@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactElement } from 'react';
 import {
   BarChart3,
   ChevronDown,
@@ -163,7 +163,7 @@ export default function AccountPlanPage() {
     });
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!formState) return;
 
@@ -213,7 +213,7 @@ export default function AccountPlanPage() {
     }
   }
 
-  function renderTree(parentCode: string | null = null, depth = 0): JSX.Element[] {
+  function renderTree(parentCode: string | null = null, depth = 0): ReactElement[] {
     return (childrenMap.get(parentCode) || []).flatMap((item) => {
       const children = childrenMap.get(item.code) || [];
       const hasChildren = children.length > 0;
@@ -300,7 +300,7 @@ export default function AccountPlanPage() {
   }
 
   return (
-    <PageContainer>
+    <PageContainer title="Plano de contas">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
