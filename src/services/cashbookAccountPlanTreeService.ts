@@ -25,6 +25,10 @@ export interface CashbookAccountPlanTreeItem {
   created_at?: string;
   updated_at?: string;
   has_entries?: boolean;
+  children_count?: number;
+  is_system_protected?: boolean;
+  identity_locked?: boolean;
+  can_delete_safe?: boolean;
 }
 
 export interface SaveCashbookAccountPlanInput {
