@@ -31,6 +31,61 @@ function getMonthEnd() {
   return getDateInputValue(new Date(now.getFullYear(), now.getMonth() + 1, 0));
 }
 
+type PresetPeriod =
+  | 'custom'
+  | 'current_month'
+  | 'previous_month'
+  | 't1' | 't2' | 't3' | 't4'
+  | 's1' | 's2'
+  | 'b1' | 'b2' | 'b3' | 'b4' | 'b5' | 'b6';
+
+function getPresetDates(preset: PresetPeriod): { start: string; end: string } | null {
+  const now = new Date();
+  const year = now.getFullYear();
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  switch (preset) {
+    case 'current_month':
+      return {
+        start: `${year}-${pad(now.getMonth() + 1)}-01`,
+        end: getDateInputValue(new Date(year, now.getMonth() + 1, 0)),
+      };
+    case 'previous_month': {
+      const prev = new Date(year, now.getMonth() - 1, 1);
+      return {
+        start: getDateInputValue(prev),
+        end: getDateInputValue(new Date(prev.getFullYear(), prev.getMonth() + 1, 0)),
+      };
+    }
+    case 't1':
+      return { start: `${year}-01-01`, end: `${year}-03-31` };
+    case 't2':
+      return { start: `${year}-04-01`, end: `${year}-06-30` };
+    case 't3':
+      return { start: `${year}-07-01`, end: `${year}-09-30` };
+    case 't4':
+      return { start: `${year}-10-01`, end: `${year}-12-31` };
+    case 's1':
+      return { start: `${year}-01-01`, end: `${year}-06-30` };
+    case 's2':
+      return { start: `${year}-07-01`, end: `${year}-12-31` };
+    case 'b1':
+      return { start: `${year}-01-01`, end: getDateInputValue(new Date(year, 2, 0)) };
+    case 'b2':
+      return { start: `${year}-03-01`, end: `${year}-04-30` };
+    case 'b3':
+      return { start: `${year}-05-01`, end: `${year}-06-30` };
+    case 'b4':
+      return { start: `${year}-07-01`, end: `${year}-08-31` };
+    case 'b5':
+      return { start: `${year}-09-01`, end: `${year}-10-31` };
+    case 'b6':
+      return { start: `${year}-11-01`, end: `${year}-12-31` };
+    default:
+      return null;
+  }
+}
+
 function getFriendlyName(item: CashbookAccountPlanTrialBalanceItem) {
   const mappedLabel = getCashbookAccountPlanLabel(item.code, 'dash');
   if (mappedLabel !== '—') return mappedLabel;
@@ -106,6 +161,16 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
   const [startDate, setStartDate] = useState(getMonthStart);
   const [endDate, setEndDate] = useState(getMonthEnd);
   const [loading, setLoading] = useState(false);
+  const [periodPreset, setPeriodPreset] = useState<PresetPeriod>('current_month');
+
+  function handlePresetChange(preset: PresetPeriod) {
+    setPeriodPreset(preset);
+    const dates = getPresetDates(preset);
+    if (dates) {
+      setStartDate(dates.start);
+      setEndDate(dates.end);
+    }
+  }
   const [result, setResult] = useState<CashbookAccountPlanTrialBalanceResult | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
   const [hideEmpty, setHideEmpty] = useState(false);
@@ -217,16 +282,44 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={periodPreset}
+            onChange={(event) => handlePresetChange(event.target.value as PresetPeriod)}
+            className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white cursor-pointer"
+          >
+            <option value="custom">Período personalizado</option>
+            <option value="current_month">Mês atual</option>
+            <option value="previous_month">Mês anterior</option>
+            <option value="t1">1º Trimestre</option>
+            <option value="t2">2º Trimestre</option>
+            <option value="t3">3º Trimestre</option>
+            <option value="t4">4º Trimestre</option>
+            <option value="s1">1º Semestre</option>
+            <option value="s2">2º Semestre</option>
+            <option value="b1">1º Bimestre</option>
+            <option value="b2">2º Bimestre</option>
+            <option value="b3">3º Bimestre</option>
+            <option value="b4">4º Bimestre</option>
+            <option value="b5">5º Bimestre</option>
+            <option value="b6">6º Bimestre</option>
+          </select>
+
           <input
             type="date"
             value={startDate}
-            onChange={(event) => setStartDate(event.target.value)}
+            onChange={(event) => {
+              setStartDate(event.target.value);
+              setPeriodPreset('custom');
+            }}
             className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           />
           <input
             type="date"
             value={endDate}
-            onChange={(event) => setEndDate(event.target.value)}
+            onChange={(event) => {
+              setEndDate(event.target.value);
+              setPeriodPreset('custom');
+            }}
             className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           />
           <label className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200 cursor-pointer select-none">
