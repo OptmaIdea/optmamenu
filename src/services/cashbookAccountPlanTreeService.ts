@@ -58,6 +58,31 @@ export interface CashbookAccountPlanNextChildCodeResult {
   suggested_display_code: string;
 }
 
+export interface CashbookAccountPlanGovernanceSummary {
+  total_accounts: number;
+  active_accounts: number;
+  inactive_accounts: number;
+  group_accounts: number;
+  postable_accounts: number;
+  accounts_with_entries: number;
+  accounts_with_children: number;
+  protected_accounts: number;
+  identity_locked_accounts: number;
+  safe_delete_candidates: number;
+  flag_consistency_errors: number;
+}
+
+export interface CashbookAccountPlanGovernanceHighlights {
+  safe_delete_candidates: CashbookAccountPlanTreeItem[];
+  identity_locked_accounts: CashbookAccountPlanTreeItem[];
+  protected_accounts: CashbookAccountPlanTreeItem[];
+}
+
+export interface CashbookAccountPlanGovernanceSummaryResult {
+  summary: CashbookAccountPlanGovernanceSummary;
+  highlights: CashbookAccountPlanGovernanceHighlights;
+}
+
 export const CashbookAccountPlanTreeService = {
   async list(includeInactive = false): Promise<CashbookAccountPlanTreeItem[]> {
     const { data, error } = await supabase.rpc('list_cashbook_account_plan_tree_safe', {
@@ -71,6 +96,25 @@ export const CashbookAccountPlanTreeService = {
     }
 
     return (data.items || []) as CashbookAccountPlanTreeItem[];
+  },
+
+  async getGovernanceSummary(): Promise<CashbookAccountPlanGovernanceSummaryResult> {
+    const { data, error } = await supabase.rpc('get_cashbook_account_plan_governance_summary_safe');
+
+    if (error) throw error;
+
+    if (!data?.ok) {
+      throw new Error(data?.message || data?.error || 'Erro ao carregar resumo de governança do plano de contas.');
+    }
+
+    return {
+      summary: data.summary as CashbookAccountPlanGovernanceSummary,
+      highlights: {
+        safe_delete_candidates: (data.highlights?.safe_delete_candidates || []) as CashbookAccountPlanTreeItem[],
+        identity_locked_accounts: (data.highlights?.identity_locked_accounts || []) as CashbookAccountPlanTreeItem[],
+        protected_accounts: (data.highlights?.protected_accounts || []) as CashbookAccountPlanTreeItem[],
+      },
+    };
   },
 
   async getNextChildCode(parentCode: string): Promise<CashbookAccountPlanNextChildCodeResult> {
