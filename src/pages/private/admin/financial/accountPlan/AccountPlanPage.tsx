@@ -23,6 +23,8 @@ import {
 import type { CashbookAccountPlanKind } from '@/services/cashbookAccountPlanService';
 import { getCashbookAccountPlanLabel, getCashbookKindLabel } from '@/utils/finance/ptBrFinancialLabels';
 import AccountPlanTrialBalancePanel from './components/AccountPlanTrialBalancePanel';
+import AccountPlanGovernanceSummaryCard from './components/AccountPlanGovernanceSummaryCard';
+import type { CashbookAccountPlanGovernanceSummaryResult } from '@/services/cashbookAccountPlanTreeService';
 
 type SectionFilter = 'entries' | 'exits' | 'transfers' | 'all';
 type FormMode = 'create' | 'edit';
@@ -275,6 +277,8 @@ export default function AccountPlanPage() {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
   const [alphabeticalGroups, setAlphabeticalGroups] = useState<Set<string>>(() => new Set());
   const [formState, setFormState] = useState<FormState | null>(null);
+  const [governanceSummary, setGovernanceSummary] = useState<CashbookAccountPlanGovernanceSummaryResult | null>(null);
+  const [loadingGovernanceSummary, setLoadingGovernanceSummary] = useState(false);
 
   const parentMap = useMemo(() => buildParentMap(items), [items]);
   const identityEditLocked = formState?.mode === 'edit' && formState.identityLocked;
@@ -285,6 +289,14 @@ export default function AccountPlanPage() {
       const includeInactive = activeFilter !== 'active';
       const data = await CashbookAccountPlanTreeService.list(includeInactive);
       setItems(data);
+
+      setLoadingGovernanceSummary(true);
+      try {
+        const governance = await CashbookAccountPlanTreeService.getGovernanceSummary();
+        setGovernanceSummary(governance);
+      } finally {
+        setLoadingGovernanceSummary(false);
+      }
     } catch (error) {
       console.error('Erro ao carregar plano de contas:', error);
       toast.error(error instanceof Error ? error.message : 'Erro ao carregar plano de contas.');
@@ -654,6 +666,11 @@ export default function AccountPlanPage() {
           <AccountPlanTrialBalancePanel includeInactive={activeFilter !== 'active'} />
         ) : (
           <>
+            <AccountPlanGovernanceSummaryCard
+              data={governanceSummary}
+              loading={loadingGovernanceSummary}
+            />
+
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
                 <FolderTree className="mb-3 text-[#19A999]" />
