@@ -75,7 +75,42 @@ function getItemSubtitle(item: CashbookAccountPlanTreeItem) {
   return parts.filter(Boolean).join(' · ');
 }
 
-function getChildrenMap(items: CashbookAccountPlanTreeItem[]) {
+function compareDisplayCodes(a?: string | null, b?: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const partsA = a.split('.');
+  const partsB = b.split('.');
+  const maxLen = Math.max(partsA.length, partsB.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    const partA = partsA[i];
+    const partB = partsB[i];
+
+    if (partA === undefined) return -1;
+    if (partB === undefined) return 1;
+
+    const numA = parseInt(partA, 10);
+    const numB = parseInt(partB, 10);
+
+    const isNumA = !isNaN(numA);
+    const isNumB = !isNaN(numB);
+
+    if (isNumA && isNumB) {
+      if (numA !== numB) {
+        return numA - numB;
+      }
+    } else {
+      const cmp = partA.localeCompare(partB, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+    }
+  }
+
+  return 0;
+}
+
+function getChildrenMap(items: CashbookAccountPlanTreeItem[], alphabeticalGroups?: Set<string>) {
   const map = new Map<string | null, CashbookAccountPlanTreeItem[]>();
 
   items.forEach((item) => {
@@ -83,6 +118,20 @@ function getChildrenMap(items: CashbookAccountPlanTreeItem[]) {
     const current = map.get(parent) || [];
     current.push(item);
     map.set(parent, current);
+  });
+
+  map.forEach((list, parentCode) => {
+    const shouldSortAlphabetically = parentCode !== null && alphabeticalGroups?.has(parentCode);
+
+    list.sort((a, b) => {
+      if (shouldSortAlphabetically) {
+        return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+      } else {
+        const cmpCode = compareDisplayCodes(a.display_code, b.display_code);
+        if (cmpCode !== 0) return cmpCode;
+        return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+      }
+    });
   });
 
   return map;
@@ -183,7 +232,17 @@ export default function AccountPlanPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [kindFilter, setKindFilter] = useState<KindFilter>('income');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
+  const [alphabeticalGroups, setAlphabeticalGroups] = useState<Set<string>>(() => new Set());
   const [formState, setFormState] = useState<FormState | null>(null);
+
+  function toggleAlphabeticalGroup(code: string) {
+    setAlphabeticalGroups((current) => {
+      const next = new Set(current);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
 
   async function loadData() {
     try {
@@ -206,21 +265,46 @@ export default function AccountPlanPage() {
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
 
-    return items.filter((item) => {
+    const baseFiltered = items.filter((item) => {
       if (activeFilter === 'active' && !item.active) return false;
       if (activeFilter === 'inactive' && item.active) return false;
       if (kindFilter !== 'all' && item.kind !== kindFilter) return false;
-      if (!term) return true;
-
-      return [item.code, item.display_code, item.name, getFriendlyName(item), item.description, item.path]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-        .includes(term);
+      return true;
     });
+
+    if (!term) return baseFiltered;
+
+    const matchedCodes = new Set<string>();
+    baseFiltered.forEach((item) => {
+      const displayCodeMatch = item.display_code?.toLowerCase().includes(term);
+      const nameMatch = item.name.toLowerCase().includes(term);
+      const friendlyNameMatch = getFriendlyName(item).toLowerCase().includes(term);
+      const descMatch = item.description?.toLowerCase().includes(term);
+
+      if (displayCodeMatch || nameMatch || friendlyNameMatch || descMatch) {
+        matchedCodes.add(item.code);
+      }
+    });
+
+    const codesToKeep = new Set<string>();
+    const addNodeAndAncestors = (code: string) => {
+      if (codesToKeep.has(code)) return;
+      codesToKeep.add(code);
+
+      const node = items.find((x) => x.code === code);
+      if (node && node.parent_code) {
+        addNodeAndAncestors(node.parent_code);
+      }
+    };
+
+    matchedCodes.forEach((code) => {
+      addNodeAndAncestors(code);
+    });
+
+    return baseFiltered.filter((item) => codesToKeep.has(item.code));
   }, [items, kindFilter, searchTerm, activeFilter]);
 
-  const childrenMap = useMemo(() => getChildrenMap(filteredItems), [filteredItems]);
+  const childrenMap = useMemo(() => getChildrenMap(filteredItems, alphabeticalGroups), [filteredItems, alphabeticalGroups]);
   const groupsCount = items.filter((item) => item.is_group).length;
   const postableCount = items.filter((item) => item.is_postable && !item.is_group).length;
   const analysisCount = items.filter((item) => item.analysis_enabled).length;
@@ -361,14 +445,20 @@ export default function AccountPlanPage() {
         >
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="flex min-w-0 gap-3">
-              <button
-                type="button"
-                onClick={() => hasChildren && toggleExpanded(item.code)}
-                className="mt-1 rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                aria-label={isOpen ? 'Recolher' : 'Expandir'}
-              >
-                {hasChildren ? (isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />) : <span className="block h-[18px] w-[18px]" />}
-              </button>
+              {hasChildren ? (
+                <button
+                  type="button"
+                  onClick={() => toggleExpanded(item.code)}
+                  className="mt-1 rounded-lg p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  aria-label={isOpen ? 'Recolher' : 'Expandir'}
+                >
+                  {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                </button>
+              ) : (
+                <div className="mt-1 p-1">
+                  <span className="block h-[18px] w-[18px]" />
+                </div>
+              )}
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -407,6 +497,24 @@ export default function AccountPlanPage() {
             </div>
 
             <div className="flex shrink-0 flex-wrap gap-2">
+              {item.is_group && (
+                <button
+                  type="button"
+                  onClick={() => toggleAlphabeticalGroup(item.code)}
+                  className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition ${
+                    alphabeticalGroups.has(item.code)
+                      ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200'
+                      : 'border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800'
+                  }`}
+                  title={
+                    alphabeticalGroups.has(item.code)
+                      ? 'Ordenado por Nome (A-Z). Clique para ordenar por Número.'
+                      : 'Ordenado por Número. Clique para ordenar por Nome (A-Z).'
+                  }
+                >
+                  {alphabeticalGroups.has(item.code) ? 'Ordenado A-Z' : 'Ordenar A-Z'}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => void openCreateForm(item)}

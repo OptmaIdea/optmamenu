@@ -42,6 +42,41 @@ function getItemLabel(item: CashbookAccountPlanTrialBalanceItem) {
   return item.display_code ? `${item.display_code} - ${name}` : name;
 }
 
+function compareDisplayCodes(a?: string | null, b?: string | null): number {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+
+  const partsA = a.split('.');
+  const partsB = b.split('.');
+  const maxLen = Math.max(partsA.length, partsB.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    const partA = partsA[i];
+    const partB = partsB[i];
+
+    if (partA === undefined) return -1;
+    if (partB === undefined) return 1;
+
+    const numA = parseInt(partA, 10);
+    const numB = parseInt(partB, 10);
+
+    const isNumA = !isNaN(numA);
+    const isNumB = !isNaN(numB);
+
+    if (isNumA && isNumB) {
+      if (numA !== numB) {
+        return numA - numB;
+      }
+    } else {
+      const cmp = partA.localeCompare(partB, undefined, { numeric: true, sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+    }
+  }
+
+  return 0;
+}
+
 function getChildrenMap(items: CashbookAccountPlanTrialBalanceItem[]) {
   const map = new Map<string | null, CashbookAccountPlanTrialBalanceItem[]>();
 
@@ -50,6 +85,14 @@ function getChildrenMap(items: CashbookAccountPlanTrialBalanceItem[]) {
     const current = map.get(parent) || [];
     current.push(item);
     map.set(parent, current);
+  });
+
+  map.forEach((list) => {
+    list.sort((a, b) => {
+      const cmpCode = compareDisplayCodes(a.display_code, b.display_code);
+      if (cmpCode !== 0) return cmpCode;
+      return a.name.localeCompare(b.name, 'pt-BR', { sensitivity: 'base' });
+    });
   });
 
   return map;
@@ -126,14 +169,20 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
           <tr key={item.code} className={hasMovement ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/60 text-gray-500 dark:bg-gray-950/40'}>
             <td className="px-4 py-3 align-top">
               <div className="flex items-start gap-2" style={{ paddingLeft: `${Math.min(depth * 18, 72)}px` }}>
-                <button
-                  type="button"
-                  onClick={() => hasChildren && toggleExpanded(item.code)}
-                  className="mt-0.5 rounded-md p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
-                  aria-label={isOpen ? 'Recolher' : 'Expandir'}
-                >
-                  {hasChildren ? (isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <span className="block h-4 w-4" />}
-                </button>
+                {hasChildren ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(item.code)}
+                    className="mt-0.5 rounded-md p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    aria-label={isOpen ? 'Recolher' : 'Expandir'}
+                  >
+                    {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+                ) : (
+                  <div className="mt-0.5 p-1">
+                    <span className="block h-4 w-4" />
+                  </div>
+                )}
                 <div>
                   <p className="font-black text-gray-900 dark:text-white">{getItemLabel(item)}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
