@@ -87,6 +87,33 @@ function getChildrenMap(items: CashbookAccountPlanTreeItem[]) {
   return map;
 }
 
+function getMetadataBoolean(item: CashbookAccountPlanTreeItem, key: string) {
+  return item.metadata?.[key] === true || item.metadata?.[key] === 'true';
+}
+
+function isSystemProtectedItem(item: CashbookAccountPlanTreeItem) {
+  return (
+    ['grp_revenue', 'grp_expense', 'grp_transfers'].includes(item.code) ||
+    getMetadataBoolean(item, 'system_group') ||
+    getMetadataBoolean(item, 'protected_account') ||
+    getMetadataBoolean(item, 'protected_base_structure')
+  );
+}
+
+function isExpectedBusinessRuleError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('não pode ser inativada') ||
+    message.includes('não pode ser apagada') ||
+    message.includes('possui lançamentos') ||
+    message.includes('possui contas filhas') ||
+    message.includes('estrutura base') ||
+    message.includes('permissão')
+  );
+}
+
 function normalizeInternalCode(value: string) {
   return value
     .normalize('NFD')
@@ -236,7 +263,9 @@ export default function AccountPlanPage() {
       setFormState(null);
       await loadData();
     } catch (error) {
-      console.error('Erro ao salvar conta do plano de contas:', error);
+      if (!isExpectedBusinessRuleError(error)) {
+        console.error('Erro ao salvar conta do plano de contas:', error);
+      }
       toast.error(error instanceof Error ? error.message : 'Erro ao salvar conta do plano de contas.');
     } finally {
       setSaving(false);
@@ -249,7 +278,9 @@ export default function AccountPlanPage() {
       toast.success(item.active ? 'Conta inativada.' : 'Conta ativada.');
       await loadData();
     } catch (error) {
-      console.error('Erro ao alterar status da conta:', error);
+      if (!isExpectedBusinessRuleError(error)) {
+        console.error('Erro ao alterar status da conta:', error);
+      }
       toast.error(error instanceof Error ? error.message : 'Erro ao alterar status da conta.');
     }
   }
@@ -260,6 +291,7 @@ export default function AccountPlanPage() {
       const hasChildren = children.length > 0;
       const isOpen = expanded.has(item.code) || searchTerm.trim().length > 0;
       const isTopGroup = item.is_group && depth === 0;
+      const isProtected = isSystemProtectedItem(item);
 
       const row = (
         <div
@@ -293,6 +325,11 @@ export default function AccountPlanPage() {
                   <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
                     {item.is_group ? 'Grupo de resumo' : 'Aceita lançamentos'}
                   </span>
+                  {isProtected && (
+                    <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                      Estrutura base
+                    </span>
+                  )}
                   {item.analysis_enabled && (
                     <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
                       Análise gerencial
@@ -323,21 +360,25 @@ export default function AccountPlanPage() {
               >
                 <Plus size={16} /> Conta filha
               </button>
-              <button
-                type="button"
-                onClick={() => setFormState(createEditForm(item))}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                <Edit2 size={16} /> Editar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleToggleActive(item)}
-                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-              >
-                {item.active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
-                {item.active ? 'Inativar' : 'Ativar'}
-              </button>
+              {!isProtected && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setFormState(createEditForm(item))}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    <Edit2 size={16} /> Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleActive(item)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                  >
+                    {item.active ? <ToggleRight size={16} /> : <ToggleLeft size={16} />}
+                    {item.active ? 'Inativar' : 'Ativar'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
