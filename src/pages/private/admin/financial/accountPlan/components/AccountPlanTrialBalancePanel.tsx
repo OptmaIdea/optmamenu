@@ -65,6 +65,7 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<CashbookAccountPlanTrialBalanceResult | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
+  const [hideEmpty, setHideEmpty] = useState(false);
 
   const childrenMap = useMemo(() => getChildrenMap(result?.items || []), [result?.items]);
 
@@ -109,6 +110,12 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
   function renderRows(parentCode: string | null = null, depth = 0): ReactElement[] {
     return (childrenMap.get(parentCode) || [])
       .filter((item) => includeInactive || item.active)
+      .filter((item) => {
+        if (!hideEmpty) return true;
+        if (depth === 0) return true; // Nunca ocultar os grupos principais (primeiro nível)
+        const hasMovement = Number(item.total_in || 0) !== 0 || Number(item.total_out || 0) !== 0 || Number(item.total_entries_count || 0) > 0;
+        return hasMovement;
+      })
       .flatMap((item) => {
         const children = childrenMap.get(item.code) || [];
         const hasChildren = children.length > 0;
@@ -160,7 +167,7 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[160px_160px_auto]">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             type="date"
             value={startDate}
@@ -173,6 +180,15 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
             onChange={(event) => setEndDate(event.target.value)}
             className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           />
+          <label className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={hideEmpty}
+              onChange={(event) => setHideEmpty(event.target.checked)}
+              className="rounded border-gray-300 text-[#19A999] focus:ring-[#19A999]"
+            />
+            <span>Ocultar sem movimento</span>
+          </label>
           <button
             type="button"
             onClick={loadTrialBalance}

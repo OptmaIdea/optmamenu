@@ -10,6 +10,7 @@ import {
   Search,
   ToggleLeft,
   ToggleRight,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -176,9 +177,10 @@ export default function AccountPlanPage() {
   const [items, setItems] = useState<CashbookAccountPlanTreeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'trial_balance' | 'edit_accounts'>('trial_balance');
   const [activeFilter, setActiveFilter] = useState<'active' | 'inactive' | 'all'>('active');
   const [searchTerm, setSearchTerm] = useState('');
-  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [kindFilter, setKindFilter] = useState<KindFilter>('income');
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
   const [formState, setFormState] = useState<FormState | null>(null);
 
@@ -418,144 +420,334 @@ export default function AccountPlanPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-            <FolderTree className="mb-3 text-[#19A999]" />
-            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Grupos de resumo</p>
-            <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{groupsCount}</strong>
-          </div>
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-            <Plus className="mb-3 text-[#19A999]" />
-            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas que recebem lançamento</p>
-            <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{postableCount}</strong>
-          </div>
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-            <BarChart3 className="mb-3 text-[#19A999]" />
-            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas com análise</p>
-            <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{analysisCount}</strong>
-          </div>
+        {/* Main Tabs Bar */}
+        <div className="flex border-b border-gray-200 dark:border-gray-800 gap-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab('trial_balance')}
+            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${
+              activeTab === 'trial_balance'
+                ? 'text-[#19A999]'
+                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+            }`}
+          >
+            Balancete
+            {activeTab === 'trial_balance' && (
+              <span className="absolute bottom-0 left-0 right-0 h-1 bg-[#19A999] rounded-t-full" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('edit_accounts')}
+            className={`pb-3 text-lg font-black uppercase tracking-wider transition-all relative ${
+              activeTab === 'edit_accounts'
+                ? 'text-[#19A999]'
+                : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+            }`}
+          >
+            Editar contas
+            {activeTab === 'edit_accounts' && (
+              <span className="absolute bottom-0 left-0 right-0 h-1 bg-[#19A999] rounded-t-full" />
+            )}
+          </button>
         </div>
 
-        <AccountPlanTrialBalancePanel includeInactive={activeFilter !== 'active'} />
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_220px_180px]">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Buscar por código, nome ou caminho"
-                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-              />
-            </label>
-            <select
-              value={kindFilter}
-              onChange={(event) => setKindFilter(event.target.value as KindFilter)}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-            >
-              <option value="all">Todos os tipos</option>
-              <option value="income">Entradas</option>
-              <option value="expense">Saídas</option>
-              <option value="transfer">Transferências</option>
-              <option value="adjustment">Ajustes</option>
-            </select>
-            <select
-              value={activeFilter}
-              onChange={(event) => setActiveFilter(event.target.value as 'active' | 'inactive' | 'all')}
-              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-            >
-              <option value="active">Contas Ativas</option>
-              <option value="inactive">Contas Inativas</option>
-              <option value="all">Todas as Contas</option>
-            </select>
-          </div>
-        </div>
-
-        {formState && (
-          <form onSubmit={handleSubmit} className="rounded-3xl border border-[#19A999]/30 bg-white p-5 shadow-lg dark:border-[#19A999]/20 dark:bg-gray-900">
-            <div className="mb-4 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">{formState.mode === 'create' ? 'Nova conta' : 'Editar conta'}</p>
-                <h2 className="text-xl font-black text-gray-900 dark:text-white">Dados do plano de contas</h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Use o código na árvore para organizar a visualização gerencial.</p>
+        {activeTab === 'trial_balance' ? (
+          <AccountPlanTrialBalancePanel includeInactive={activeFilter !== 'active'} />
+        ) : (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                <FolderTree className="mb-3 text-[#19A999]" />
+                <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Grupos de resumo</p>
+                <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{groupsCount}</strong>
               </div>
-              <button type="button" onClick={() => setFormState(null)} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700">
-                Cancelar
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                <Plus className="mb-3 text-[#19A999]" />
+                <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas que recebem lançamento</p>
+                <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{postableCount}</strong>
+              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                <BarChart3 className="mb-3 text-[#19A999]" />
+                <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas com análise</p>
+                <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{analysisCount}</strong>
+              </div>
+            </div>
+
+            {/* Subtabs for account kinds */}
+            <div className="flex flex-wrap border-b border-gray-200 dark:border-gray-800 gap-1 p-1 bg-gray-50 dark:bg-gray-950 rounded-2xl w-fit">
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter('income');
+                  setExpanded(new Set());
+                }}
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
+                  kindFilter === 'income'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                Entradas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter('expense');
+                  setExpanded(new Set());
+                }}
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
+                  kindFilter === 'expense'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                Saídas
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter('transfer');
+                  setExpanded(new Set());
+                }}
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
+                  kindFilter === 'transfer'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                Transferências
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setKindFilter('adjustment');
+                  setExpanded(new Set());
+                }}
+                className={`px-4 py-2 text-sm font-extrabold uppercase tracking-wide rounded-xl transition-all ${
+                  kindFilter === 'adjustment'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-xs'
+                    : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'
+                }`}
+              >
+                Ajustes
               </button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-              <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código na árvore</span>
-                <input value={formState.displayCode} onChange={(event) => setFormState({ ...formState, displayCode: event.target.value })} placeholder="Ex.: 2.4.14" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
-              </label>
-              <label className="block space-y-1 md:col-span-3">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Nome exibido</span>
-                <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
-              </label>
-              <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Fica dentro de</span>
-                <select value={formState.parentCode} onChange={(event) => setFormState({ ...formState, parentCode: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                  <option value="">Sem grupo pai</option>
-                  {items.filter((item) => item.code !== formState.originalCode).map((item) => (
-                    <option key={item.code} value={item.code}>{getItemLabel(item)}</option>
-                  ))}
+            {/* Search and Filters */}
+            <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px]">
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Buscar por código, nome ou caminho"
+                    className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-10 pr-3 text-sm font-semibold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  />
+                </label>
+                <select
+                  value={activeFilter}
+                  onChange={(event) => setActiveFilter(event.target.value as 'active' | 'inactive' | 'all')}
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                >
+                  <option value="active">Contas Ativas</option>
+                  <option value="inactive">Contas Inativas</option>
+                  <option value="all">Todas as Contas</option>
                 </select>
-              </label>
-              <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Tipo</span>
-                <select value={formState.kind} onChange={(event) => setFormState({ ...formState, kind: event.target.value as CashbookAccountPlanKind })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                  <option value="income">Entrada</option>
-                  <option value="expense">Saída</option>
-                  <option value="transfer">Transferência</option>
-                  <option value="adjustment">Ajuste</option>
-                </select>
-              </label>
-              <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Natureza</span>
-                <select value={formState.nature} onChange={(event) => setFormState({ ...formState, nature: event.target.value as CashbookAccountPlanNature })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                  <option value="credit">Credora</option>
-                  <option value="debit">Devedora</option>
-                  <option value="neutral">Neutra</option>
-                </select>
-              </label>
-              <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Ordem</span>
-                <input value={formState.sortOrder} onChange={(event) => setFormState({ ...formState, sortOrder: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
-              </label>
-              <label className="block space-y-1 md:col-span-4">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Descrição para a equipe</span>
-                <textarea value={formState.description} onChange={(event) => setFormState({ ...formState, description: event.target.value })} rows={2} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
-              </label>
+              </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-4 text-sm font-bold text-gray-700 dark:text-gray-200">
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.isGroup} onChange={(event) => setFormState({ ...formState, isGroup: event.target.checked, isPostable: event.target.checked ? false : formState.isPostable })} /> É grupo de resumo</label>
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.isPostable} disabled={formState.isGroup} onChange={(event) => setFormState({ ...formState, isPostable: event.target.checked })} /> Aceita lançamentos</label>
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.analysisEnabled} onChange={(event) => setFormState({ ...formState, analysisEnabled: event.target.checked })} /> Habilitar análise gerencial</label>
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.active} onChange={(event) => setFormState({ ...formState, active: event.target.checked })} /> Ativa</label>
+            {/* Tree content */}
+            <div className="space-y-3">
+              {loading ? (
+                <div className="flex justify-center py-12"><LoadingSpinner /></div>
+              ) : renderTree().length ? (
+                renderTree()
+              ) : (
+                <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700">
+                  Nenhuma conta encontrada.
+                </div>
+              )}
             </div>
-
-            <div className="mt-5 flex justify-end">
-              <button type="submit" disabled={saving} className="rounded-xl bg-[#19A999] px-5 py-2 font-black text-white disabled:opacity-60">
-                {saving ? 'Salvando...' : 'Salvar conta'}
-              </button>
-            </div>
-          </form>
+          </>
         )}
 
-        <div className="space-y-3">
-          {loading ? (
-            <div className="flex justify-center py-12"><LoadingSpinner /></div>
-          ) : renderTree().length ? (
-            renderTree()
-          ) : (
-            <div className="rounded-2xl border border-dashed border-gray-300 p-8 text-center text-gray-500 dark:border-gray-700">
-              Nenhuma conta encontrada.
-            </div>
-          )}
-        </div>
+        {/* Modal Form Overlay */}
+        {formState && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <form
+              onSubmit={handleSubmit}
+              className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl dark:bg-gray-900 flex flex-col max-h-[90vh]"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-6 dark:border-gray-800 shrink-0">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">
+                    {formState.mode === 'create' ? 'Nova conta' : 'Editar conta'}
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-gray-900 dark:text-white">
+                    Dados do plano de contas
+                  </h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Use o código na árvore para organizar a visualização gerencial.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFormState(null)}
+                  className="rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  aria-label="Fechar formulário"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Scrollable Form Content */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                  <label className="block space-y-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código na árvore</span>
+                    <input
+                      value={formState.displayCode}
+                      onChange={(event) => setFormState({ ...formState, displayCode: event.target.value })}
+                      placeholder="Ex.: 2.4.14"
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+                  <label className="block space-y-1 md:col-span-3">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Nome exibido</span>
+                    <input
+                      value={formState.name}
+                      onChange={(event) => setFormState({ ...formState, name: event.target.value })}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+                  <label className="block space-y-1 md:col-span-2">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Fica dentro de</span>
+                    <select
+                      value={formState.parentCode}
+                      onChange={(event) => setFormState({ ...formState, parentCode: event.target.value })}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      <option value="">Sem grupo pai</option>
+                      {items
+                        .filter((item) => item.code !== formState.originalCode)
+                        .map((item) => (
+                          <option key={item.code} value={item.code}>
+                            {getItemLabel(item)}
+                          </option>
+                        ))}
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Tipo</span>
+                    <select
+                      value={formState.kind}
+                      onChange={(event) => setFormState({ ...formState, kind: event.target.value as CashbookAccountPlanKind })}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      <option value="income">Entrada</option>
+                      <option value="expense">Saída</option>
+                      <option value="transfer">Transferência</option>
+                      <option value="adjustment">Ajuste</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Natureza</span>
+                    <select
+                      value={formState.nature}
+                      onChange={(event) => setFormState({ ...formState, nature: event.target.value as CashbookAccountPlanNature })}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      <option value="credit">Credora</option>
+                      <option value="debit">Devedora</option>
+                      <option value="neutral">Neutra</option>
+                    </select>
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Ordem</span>
+                    <input
+                      value={formState.sortOrder}
+                      onChange={(event) => setFormState({ ...formState, sortOrder: event.target.value })}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+                  <label className="block space-y-1 md:col-span-4">
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Descrição para a equipe</span>
+                    <textarea
+                      value={formState.description}
+                      onChange={(event) => setFormState({ ...formState, description: event.target.value })}
+                      rows={2}
+                      className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-4 text-sm font-bold text-gray-700 dark:text-gray-200 pt-2">
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.isGroup}
+                      onChange={(event) =>
+                        setFormState({
+                          ...formState,
+                          isGroup: event.target.checked,
+                          isPostable: event.target.checked ? false : formState.isPostable,
+                        })
+                      }
+                    />
+                    É grupo de resumo
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.isPostable}
+                      disabled={formState.isGroup}
+                      onChange={(event) => setFormState({ ...formState, isPostable: event.target.checked })}
+                    />
+                    Aceita lançamentos
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.analysisEnabled}
+                      onChange={(event) => setFormState({ ...formState, analysisEnabled: event.target.checked })}
+                    />
+                    Habilitar análise gerencial
+                  </label>
+                  <label className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formState.active}
+                      onChange={(event) => setFormState({ ...formState, active: event.target.checked })}
+                    />
+                    Ativa
+                  </label>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-end gap-2 border-t border-gray-100 p-6 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setFormState(null)}
+                  className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-[#19A999] px-5 py-2 font-black text-white disabled:opacity-60 transition hover:bg-[#14887B]"
+                >
+                  {saving ? 'Salvando...' : 'Salvar conta'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </PageContainer>
   );
