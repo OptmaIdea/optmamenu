@@ -121,33 +121,35 @@ WHERE NOT EXISTS (
   AND COALESCE((p.metadata->>'user_created')::boolean, false) = true
 ORDER BY p.display_code, p.name;
 
--- 7) Sugestão manual de próximo número por grupo, para conferência antes da RPC
-WITH child_numbers AS (
-  SELECT
-    parent.code AS parent_code,
-    parent.display_code AS parent_display_code,
-    parent.name AS parent_name,
-    child.display_code AS child_display_code,
-    NULLIF(regexp_replace(child.display_code, '^' || regexp_replace(parent.display_code, '\\.', '\\.', 'g') || '\\.', ''), '') AS suffix
-  FROM public.cashbook_account_plan parent
-  JOIN public.cashbook_account_plan child ON child.parent_code = parent.code
-  WHERE parent.display_code IS NOT NULL
-    AND child.display_code LIKE parent.display_code || '.%'
-), numeric_suffix AS (
-  SELECT
-    parent_code,
-    parent_display_code,
-    parent_name,
-    CASE WHEN suffix ~ '^[0-9]+$' THEN suffix::integer ELSE NULL END AS child_number
-  FROM child_numbers
-)
+-- 7) Sugestão manual de próximo número por grupo, para conferência antes da RPC.
+-- Considera apenas filhos DIRETOS e usa a parte final do display_code.
+-- Exemplo: pai 2.3, filhos 2.3.1 e 2.3.2 => próximo 2.3.3.
 SELECT
   'next_child_number_preview' AS section,
-  parent_code,
-  parent_display_code,
-  parent_name,
-  COALESCE(MAX(child_number), 0) + 1 AS next_number,
-  parent_display_code || '.' || (COALESCE(MAX(child_number), 0) + 1)::text AS suggested_display_code
-FROM numeric_suffix
-GROUP BY parent_code, parent_display_code, parent_name
-ORDER BY parent_display_code, parent_name;
+  parent.code AS parent_code,
+  parent.display_code AS parent_display_code,
+  parent.name AS parent_name,
+  COALESCE(MAX(
+    CASE
+      WHEN child.display_code ~ ('^' || replace(parent.display_code, '.', '\\.') || '\\.[0-9]+$')
+      THEN split_part(child.display_code, '.', array_length(string_to_array(child.display_code, '.'), 1))::integer
+      ELSE NULL
+    END
+  ), 0) + 1 AS next_number,
+  parent.display_code || '.' || (
+    COALESCE(MAX(
+      CASE
+        WHEN child.display_code ~ ('^' || replace(parent.display_code, '.', '\\.') || '\\.[0-9]+$')
+        THEN split_part(child.display_code, '.', array_length(string_to_array(child.display_code, '.'), 1))::integer
+        ELSE NULL
+      END
+    ), 0) + 1
+  )::text AS suggested_display_code
+FROM public.cashbook_account_plan parent
+LEFT JOIN public.cashbook_account_plan child
+  ON child.parent_code = parent.code
+WHERE parent.active = true
+  AND parent.is_group = true
+  AND parent.display_code IS NOT NULL
+GROUP BY parent.code, parent.display_code, parent.name
+ORDER BY string_to_array(parent.display_code, '.')::int[], parent.name;
