@@ -20,7 +20,7 @@ import {
   type CashbookAccountPlanNature,
 } from '@/services/cashbookAccountPlanTreeService';
 import type { CashbookAccountPlanKind } from '@/services/cashbookAccountPlanService';
-import { getCashbookKindLabel, getBooleanPtBrLabel } from '@/utils/finance/ptBrFinancialLabels';
+import { getCashbookAccountPlanLabel, getCashbookKindLabel } from '@/utils/finance/ptBrFinancialLabels';
 
 type KindFilter = 'all' | CashbookAccountPlanKind;
 type FormMode = 'create' | 'edit';
@@ -52,8 +52,25 @@ function getNatureLabel(value?: string | null) {
   return value ? labels[value] || value : '—';
 }
 
+function getFriendlyName(item: CashbookAccountPlanTreeItem) {
+  const mappedLabel = getCashbookAccountPlanLabel(item.code, 'dash');
+  if (mappedLabel !== '—') return mappedLabel;
+  return item.name;
+}
+
 function getItemLabel(item: CashbookAccountPlanTreeItem) {
-  return item.display_code ? `${item.display_code} - ${item.name}` : item.name;
+  const name = getFriendlyName(item);
+  return item.display_code ? `${item.display_code} - ${name}` : name;
+}
+
+function getItemSubtitle(item: CashbookAccountPlanTreeItem) {
+  const parts = [getCashbookKindLabel(item.kind), getNatureLabel(item.nature)];
+
+  if (item.is_group) parts.push('Grupo de resumo');
+  else if (item.is_postable) parts.push('Aceita lançamentos');
+  else parts.push('Não recebe lançamentos');
+
+  return parts.filter(Boolean).join(' · ');
 }
 
 function getChildrenMap(items: CashbookAccountPlanTreeItem[]) {
@@ -141,7 +158,7 @@ export default function AccountPlanPage() {
       if (kindFilter !== 'all' && item.kind !== kindFilter) return false;
       if (!term) return true;
 
-      return [item.code, item.display_code, item.name, item.description, item.path]
+      return [item.code, item.display_code, item.name, getFriendlyName(item), item.description, item.path]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -218,13 +235,16 @@ export default function AccountPlanPage() {
       const children = childrenMap.get(item.code) || [];
       const hasChildren = children.length > 0;
       const isOpen = expanded.has(item.code) || searchTerm.trim().length > 0;
+      const isTopGroup = item.is_group && depth === 0;
 
       const row = (
         <div
           key={item.code}
           className={`rounded-2xl border p-4 transition ${
             item.active
-              ? 'border-gray-200 bg-white hover:border-[#19A999]/40 dark:border-gray-800 dark:bg-gray-900'
+              ? isTopGroup
+                ? 'border-[#19A999]/30 bg-[#19A999]/5 hover:border-[#19A999]/60 dark:border-[#19A999]/40 dark:bg-[#19A999]/10'
+                : 'border-gray-200 bg-white hover:border-[#19A999]/40 dark:border-gray-800 dark:bg-gray-900'
               : 'border-gray-200 bg-gray-50 opacity-70 dark:border-gray-800 dark:bg-gray-950'
           }`}
           style={{ marginLeft: `${Math.min(depth * 18, 72)}px` }}
@@ -242,16 +262,16 @@ export default function AccountPlanPage() {
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <strong className="text-base text-gray-900 dark:text-white">{getItemLabel(item)}</strong>
+                  <strong className={`${isTopGroup ? 'text-lg' : 'text-base'} text-gray-900 dark:text-white`}>{getItemLabel(item)}</strong>
                   <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                     {getCashbookKindLabel(item.kind)}
                   </span>
                   <span className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 dark:bg-blue-950/40 dark:text-blue-200">
-                    {item.is_group ? 'Grupo' : 'Lançável'}
+                    {item.is_group ? 'Grupo de resumo' : 'Aceita lançamentos'}
                   </span>
                   {item.analysis_enabled && (
                     <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-200">
-                      Análise
+                      Análise gerencial
                     </span>
                   )}
                   {!item.active && (
@@ -260,9 +280,14 @@ export default function AccountPlanPage() {
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Código técnico: <span className="font-mono">{item.code}</span> · Natureza: {getNatureLabel(item.nature)} · Lançável: {getBooleanPtBrLabel(item.is_postable)}
+
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{getItemSubtitle(item)}</p>
+
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  Código interno: <span className="font-mono">{item.code}</span>
+                  {item.path ? <> · Caminho: {item.path.replaceAll('/', ' › ')}</> : null}
                 </p>
+
                 {item.description && <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">{item.description}</p>}
               </div>
             </div>
@@ -273,7 +298,7 @@ export default function AccountPlanPage() {
                 onClick={() => setFormState(createInitialForm(item))}
                 className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
               >
-                <Plus size={16} /> Filho
+                <Plus size={16} /> Conta filha
               </button>
               <button
                 type="button"
@@ -332,17 +357,17 @@ export default function AccountPlanPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
             <FolderTree className="mb-3 text-[#19A999]" />
-            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Grupos</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Grupos de resumo</p>
             <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{groupsCount}</strong>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
             <Plus className="mb-3 text-[#19A999]" />
-            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas lançáveis</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas que recebem lançamento</p>
             <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{postableCount}</strong>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
             <BarChart3 className="mb-3 text-[#19A999]" />
-            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Com análise</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-gray-500">Contas com análise</p>
             <strong className="mt-1 block text-2xl text-gray-900 dark:text-white">{analysisCount}</strong>
           </div>
         </div>
@@ -382,6 +407,7 @@ export default function AccountPlanPage() {
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">{formState.mode === 'create' ? 'Nova conta' : 'Editar conta'}</p>
                 <h2 className="text-xl font-black text-gray-900 dark:text-white">Dados do plano de contas</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Use o código exibido para a árvore gerencial e o código interno apenas como identificador técnico.</p>
               </div>
               <button type="button" onClick={() => setFormState(null)} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700">
                 Cancelar
@@ -390,21 +416,21 @@ export default function AccountPlanPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
               <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código técnico</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código interno</span>
                 <input value={formState.code} disabled={formState.mode === 'edit'} onChange={(event) => setFormState({ ...formState, code: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
               <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código exibido</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Código na árvore</span>
                 <input value={formState.displayCode} onChange={(event) => setFormState({ ...formState, displayCode: event.target.value })} placeholder="Ex.: 2.4.14" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
               <label className="block space-y-1 md:col-span-2">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Nome</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Nome exibido</span>
                 <input value={formState.name} onChange={(event) => setFormState({ ...formState, name: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
               <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Conta pai</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Fica dentro de</span>
                 <select value={formState.parentCode} onChange={(event) => setFormState({ ...formState, parentCode: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-                  <option value="">Sem conta pai</option>
+                  <option value="">Sem grupo pai</option>
                   {items.filter((item) => item.code !== formState.originalCode).map((item) => (
                     <option key={item.code} value={item.code}>{getItemLabel(item)}</option>
                   ))}
@@ -428,19 +454,19 @@ export default function AccountPlanPage() {
                 </select>
               </label>
               <label className="block space-y-1">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Ordenação</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Ordem</span>
                 <input value={formState.sortOrder} onChange={(event) => setFormState({ ...formState, sortOrder: event.target.value })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
               <label className="block space-y-1 md:col-span-4">
-                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Descrição</span>
+                <span className="text-xs font-black uppercase tracking-widest text-gray-500">Descrição para a equipe</span>
                 <textarea value={formState.description} onChange={(event) => setFormState({ ...formState, description: event.target.value })} rows={2} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-4 text-sm font-bold text-gray-700 dark:text-gray-200">
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.isGroup} onChange={(event) => setFormState({ ...formState, isGroup: event.target.checked, isPostable: event.target.checked ? false : formState.isPostable })} /> Grupo</label>
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.isPostable} disabled={formState.isGroup} onChange={(event) => setFormState({ ...formState, isPostable: event.target.checked })} /> Aceita lançamento</label>
-              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.analysisEnabled} onChange={(event) => setFormState({ ...formState, analysisEnabled: event.target.checked })} /> Habilitar análise</label>
+              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.isGroup} onChange={(event) => setFormState({ ...formState, isGroup: event.target.checked, isPostable: event.target.checked ? false : formState.isPostable })} /> É grupo de resumo</label>
+              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.isPostable} disabled={formState.isGroup} onChange={(event) => setFormState({ ...formState, isPostable: event.target.checked })} /> Aceita lançamentos</label>
+              <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.analysisEnabled} onChange={(event) => setFormState({ ...formState, analysisEnabled: event.target.checked })} /> Habilitar análise gerencial</label>
               <label className="inline-flex items-center gap-2"><input type="checkbox" checked={formState.active} onChange={(event) => setFormState({ ...formState, active: event.target.checked })} /> Ativa</label>
             </div>
 
