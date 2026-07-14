@@ -11,6 +11,10 @@ interface CashbookClassificationFieldsProps {
     onFinancialAccountCodeChange: (value: string) => void;
 }
 
+function isPendingPaymentMethod(value?: string | null) {
+    return String(value || '').trim().toLowerCase() === 'pending';
+}
+
 export default function CashbookClassificationFields({
     storeId,
     direction,
@@ -28,18 +32,27 @@ export default function CashbookClassificationFields({
         getDefaultFinancialAccountCode,
     } = useCashbookClassificationOptions(storeId, direction);
 
-    const suggestedFinancialAccountCode = getDefaultFinancialAccountCode(paymentMethodCode);
+    const isPending = isPendingPaymentMethod(paymentMethodCode);
+    const suggestedFinancialAccountCode = isPending ? '' : getDefaultFinancialAccountCode(paymentMethodCode);
     const currentFinancialAccountCode = financialAccountCode || suggestedFinancialAccountCode || '';
+    const financialAccountRequired = !isPending;
 
     return (
         <div className="space-y-3">
+            <div className="rounded-2xl border border-[#19A999]/20 bg-[#19A999]/5 p-3 text-xs font-bold text-gray-700 dark:border-[#19A999]/30 dark:bg-[#19A999]/10 dark:text-gray-200">
+                Informe a categoria do Plano de Contas para dizer o motivo do lançamento. A conta financeira indica onde o dinheiro entrou ou saiu.
+            </div>
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block space-y-1">
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Categoria</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">
+                        Categoria <span className="text-rose-500">*</span>
+                    </span>
                     <select
                         value={accountPlanCode}
                         onChange={(event) => onAccountPlanCodeChange(event.target.value)}
                         disabled={loading}
+                        required
                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     >
                         <option value="">Selecionar categoria</option>
@@ -49,23 +62,34 @@ export default function CashbookClassificationFields({
                             </option>
                         ))}
                     </select>
+                    <p className="text-[11px] font-semibold text-gray-400">
+                        Obrigatória para entradas e saídas manuais.
+                    </p>
                 </label>
 
                 <label className="block space-y-1">
-                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">Conta financeira</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-gray-500">
+                        Conta financeira {financialAccountRequired && <span className="text-rose-500">*</span>}
+                    </span>
                     <select
                         value={currentFinancialAccountCode}
                         onChange={(event) => onFinancialAccountCodeChange(event.target.value)}
-                        disabled={loading}
+                        disabled={loading || isPending}
+                        required={financialAccountRequired}
                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     >
-                        <option value="">Selecionar conta</option>
+                        <option value="">{isPending ? 'Sem movimentação financeira imediata' : 'Selecionar conta'}</option>
                         {financialAccounts.map((option) => (
                             <option key={option.value} value={option.value}>
                                 {option.label}
                             </option>
                         ))}
                     </select>
+                    <p className="text-[11px] font-semibold text-gray-400">
+                        {isPending
+                            ? 'Pagamento pendente não movimenta conta financeira agora.'
+                            : 'Usada para identificar onde o dinheiro entrou ou saiu.'}
+                    </p>
                 </label>
             </div>
 
