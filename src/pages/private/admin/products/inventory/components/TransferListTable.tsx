@@ -17,9 +17,9 @@ export default function TransferListTable({ rows, onClearFilters }: Props) {
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow-sm rounded-2xl">
-      <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
+      <div className="overflow-auto max-h-[calc(100vh-450px)] min-h-[320px] rounded-2xl border border-gray-100 dark:border-gray-700 custom-scrollbar">
         <table className="min-w-[1050px] w-full text-sm">
-          <thead className="bg-gray-50 dark:bg-gray-900/40">
+          <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-gray-900 shadow-[0_1px_0_0_rgba(229,231,235,1)] dark:shadow-[0_1px_0_0_rgba(55,65,81,1)]">
             <tr>
               <th className="text-left px-4 py-3">Código</th>
               <th className="text-left px-4 py-3">Origem</th>
