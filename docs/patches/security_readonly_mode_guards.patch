@@ -1,0 +1,135 @@
+diff --git a/src/pages/private/admin/settings/security/Security.tsx b/src/pages/private/admin/settings/security/Security.tsx
+--- a/src/pages/private/admin/settings/security/Security.tsx
++++ b/src/pages/private/admin/settings/security/Security.tsx
+@@
+ import { notifyPermissionsChanged } from '@/utils/permissionEvents';
++import PermissionReadOnlyNotice from '@/components/security/PermissionReadOnlyNotice';
+@@
+-    // const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);
++    const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);
+     const canManageCustomRoles = useMemo(() => canManageSecurityTab('custom_roles'), [canManageSecurityTab]);
+-    // const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);
++    const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);
+     const canManagePinToken = useMemo(() => canManageSecurityTab('pin_token'), [canManageSecurityTab]);
+-    // const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);
++    const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);
+     const canManageSessions = useMemo(() => canManageSecurityTab('session_inactive'), [canManageSecurityTab]);
+@@
+     const canManageSecurity = useMemo(() => {
+         return activeTab ? canManageSecurityTab(activeTab as keyof typeof securityTabPermissions) : false;
+     }, [activeTab, canManageSecurityTab]);
++
++    const isActiveSecurityTabReadOnly = useMemo(() => {
++        if (!activeTab || !(activeTab in securityTabPermissions)) return false;
++        const tab = activeTab as keyof typeof securityTabPermissions;
++        return canViewSecurityTab(tab) && !canManageSecurityTab(tab);
++    }, [activeTab, canViewSecurityTab, canManageSecurityTab]);
+@@
+     async function saveSelectedCustomRole(reason?: string) {
+         if (!selectedCustomRole) return;
++        if (!canManageCustomRoles) {
++            toast.error('Você não tem permissão para alterar funções personalizadas.');
++            return;
++        }
+         setSaving(true);
+@@
+     const handleCreateCustomRoleSubmit = async (e: React.FormEvent) => {
+         e.preventDefault();
++        if (!canManageCustomRoles) {
++            toast.error('Você não tem permissão para alterar funções personalizadas.');
++            return;
++        }
+         if (!newCustomRoleName.trim()) {
+@@
+         if (!canManageSessions) {
+-            toast.error('Você não tem permissão para alterar configurações de sessão.');
++            toast.error('Você não tem permissão para alterar sessões e inatividade.');
+             return;
+         }
+@@
+-        if (!canManageSecurity) {
+-            toast.error('Você não tem permissão para alterar permissões.');
++        if (!canManageRoles) {
++            toast.error('Você não tem permissão para alterar permissões por papel.');
+             return;
+         }
+@@
+-        if (!canManageSecurity) {
+-            toast.error('Você não tem permissão para alterar permissões.');
++        if (!canManageRoles) {
++            toast.error('Você não tem permissão para alterar permissões por papel.');
+             return;
+         }
+@@
+-        if (!canManageSecurity) {
++        if (!canManageSensitiveActions) {
+             toast.error('Você não tem permissão para alterar ações sensíveis.');
+             return;
+         }
+@@
+     const saveSelectedMemberPermissions = async () => {
+         if (!selectedMember) return;
++        if (!canManageUserPermissions) {
++            toast.error('Você não tem permissão para alterar permissões por usuário.');
++            return;
++        }
+         setSaving(true);
+@@
++                            {isActiveSecurityTabReadOnly && (
++                                <PermissionReadOnlyNotice className="mb-4" />
++                            )}
++
+                             {activeTab === 'roles' && canViewRolesTab && (
+@@
+-                                    <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
+-                                        <button
+-                                            type="button"
+-                                            onClick={async () => {
+-                                                toast.success('Configurações de permissões salvas com sucesso!');
+-                                                await refreshAdmin();
+-                                            }}
+-                                            className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition"
+-                                        >
+-                                            <Save size={14} />
+-                                            Salvar Alterações
+-                                        </button>
+-                                    </div>
++                                    {canManageRoles && (
++                                        <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
++                                            <button
++                                                type="button"
++                                                onClick={async () => {
++                                                    toast.success('Configurações de permissões salvas com sucesso!');
++                                                    await refreshAdmin();
++                                                }}
++                                                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-4 py-2.5 text-xs font-bold text-white hover:bg-green-700 transition"
++                                            >
++                                                <Save size={14} />
++                                                Salvar Alterações
++                                            </button>
++                                        </div>
++                                    )}
+@@
+-                                                        const itemDisabled = !canManageSecurity || adminLoading.saving;
++                                                        const itemDisabled = !canManageUserPermissions || adminLoading.saving;
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
+@@
+-                                                        disabled={!canManageSecurity || adminLoading.saving}
++                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
