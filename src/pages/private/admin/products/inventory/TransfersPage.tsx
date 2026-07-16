@@ -791,6 +791,7 @@ export default function TransfersPage() {
                       const value = Number(event.target.value);
                       setDraftQty(Number.isFinite(value) && value > 0 ? value : 1);
                     }}
+                    disabled={!canCreateTransfers || creatingDraft}
                     className="mt-1 w-full rounded-lg border border-blue-100 bg-white px-2 py-1 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-200 dark:border-blue-900 dark:bg-gray-950"
                   />
                 </div>
@@ -818,8 +819,8 @@ export default function TransfersPage() {
               <button
                 type="button"
                 onClick={handleCreateDraftFromPrefill}
-                disabled={creatingDraft}
-                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
+                disabled={!canCreateTransfers || creatingDraft}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <CheckCircle2 size={15} />
                 {creatingDraft ? 'Criando...' : 'Criar rascunho'}
@@ -855,6 +856,11 @@ export default function TransfersPage() {
 
           {showSuggestionsPanel && (
             <div className="mt-4 space-y-4">
+              {!canCreateTransfers && (
+                <p className="rounded-xl border border-emerald-200 bg-white/70 p-3 text-xs font-bold text-emerald-800 dark:border-emerald-900/50 dark:bg-gray-900/50 dark:text-emerald-200">
+                  Você pode visualizar as sugestões, mas não tem permissão para criar rascunhos de transferência.
+                </p>
+              )}
               {suggestionsLoading && (
                 <div className="rounded-xl bg-white/70 p-3 text-sm text-gray-500 dark:bg-gray-900/40">
                   Carregando sugestões...
@@ -898,8 +904,8 @@ export default function TransfersPage() {
                             items: group.items,
                           })
                         }
-                        disabled={creatingBatchDraft || selectedCount === 0}
-                        className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                        disabled={!canCreateTransfers || creatingBatchDraft || selectedCount === 0}
+                        className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {creatingBatchDraft ? 'Criando...' : 'Criar rascunho com selecionados'}
                       </button>
@@ -914,6 +920,7 @@ export default function TransfersPage() {
                                 type="checkbox"
                                 checked={allSelected}
                                 onChange={() => toggleGroupSelection(group.items)}
+                                disabled={!canCreateTransfers || creatingBatchDraft}
                                 title={allSelected ? "Desmarcar todos" : "Marcar todos"}
                                 className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                               />
@@ -981,8 +988,8 @@ export default function TransfersPage() {
                                         Number(event.target.value)
                                       )
                                     }
-                                    disabled={!selected}
-                                    className="w-20 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                    disabled={!canCreateTransfers || creatingBatchDraft || !selected}
+                                    className="w-20 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950"
                                   />
                                 </td>
 
@@ -1140,6 +1147,7 @@ export default function TransfersPage() {
                     <select
                       value={manualSourceLocationId}
                       onChange={(event) => setManualSourceLocationId(event.target.value)}
+                      disabled={!canCreateTransfers || creatingManualBatchDraft}
                       className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     >
                       <option value="">Selecione a origem</option>
@@ -1156,6 +1164,7 @@ export default function TransfersPage() {
                     <select
                       value={manualDestinationLocationId}
                       onChange={(event) => setManualDestinationLocationId(event.target.value)}
+                      disabled={!canCreateTransfers || creatingManualBatchDraft}
                       className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     >
                       <option value="">Selecione o destino</option>
@@ -1178,6 +1187,7 @@ export default function TransfersPage() {
                     <button
                       type="button"
                       onClick={addManualBatchItem}
+                      disabled={!canCreateTransfers || creatingManualBatchDraft}
                       className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
                       <Plus size={14} />
@@ -1199,6 +1209,7 @@ export default function TransfersPage() {
                             <select
                               value={item.productId}
                               onChange={(event) => updateManualBatchItem(index, { productId: event.target.value })}
+                              disabled={!canCreateTransfers || creatingManualBatchDraft}
                               className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             >
                               <option value="">Selecione um produto</option>
@@ -1218,6 +1229,7 @@ export default function TransfersPage() {
                                 const value = Number(event.target.value);
                                 updateManualBatchItem(index, { quantity: Number.isFinite(value) && value > 0 ? value : 1 });
                               }}
+                              disabled={!canCreateTransfers || creatingManualBatchDraft}
                               className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                             />
                           </div>
@@ -1232,6 +1244,7 @@ export default function TransfersPage() {
                           <button
                             type="button"
                             onClick={() => removeManualBatchItem(index)}
+                            disabled={!canCreateTransfers || creatingManualBatchDraft}
                             className="inline-flex h-10 items-center justify-center rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"
                             aria-label="Remover item"
                           >
@@ -1248,6 +1261,7 @@ export default function TransfersPage() {
                   <textarea
                     value={manualBatchNotes}
                     onChange={(event) => setManualBatchNotes(event.target.value)}
+                    disabled={!canCreateTransfers || creatingManualBatchDraft}
                     rows={3}
                     placeholder="Ex.: transferência preventiva para abastecimento da loja."
                     className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
@@ -1267,7 +1281,7 @@ export default function TransfersPage() {
                   <button
                     type="button"
                     onClick={handleCreateManualBatchDraft}
-                    disabled={creatingManualBatchDraft || loadingManualInventory}
+                    disabled={!canCreateTransfers || creatingManualBatchDraft || loadingManualInventory}
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1b8f80] disabled:opacity-60"
                   >
                     <CheckCircle2 size={15} />
