@@ -47,8 +47,7 @@ export default function TransferDetailPage() {
     // Permissões
     const { storeId } = useCurrentStore();
     const { hasPermission } = usePermissions(storeId ?? null);
-    const canConfirmTransfers = hasPermission('transfers.confirm');
-    const canCancelTransfers = hasPermission('transfers.cancel');
+    const canManageTransfers = hasPermission('transfers.manage');
 
     const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -120,7 +119,7 @@ export default function TransferDetailPage() {
     const handleShipTransfer = async () => {
         if (!transfer?.id) return;
 
-        if (!canConfirmTransfers) {
+        if (!canManageTransfers) {
             toast.error('Você não tem permissão para enviar transferências.');
             return;
         }
@@ -148,7 +147,7 @@ export default function TransferDetailPage() {
     const handleCancelTransfer = async () => {
         if (!transfer?.id) return;
 
-        if (!canCancelTransfers) {
+        if (!canManageTransfers) {
             toast.error('Você não tem permissão para cancelar transferências.');
             return;
         }
@@ -177,7 +176,7 @@ export default function TransferDetailPage() {
     const handleReceiveTransfer = async () => {
         if (!transfer?.id || !items.length) return;
 
-        if (!canConfirmTransfers) {
+        if (!canManageTransfers) {
             toast.error('Você não tem permissão para receber transferências.');
             return;
         }
@@ -269,7 +268,7 @@ export default function TransferDetailPage() {
 
                     {transfer.status === 'draft' && (
                         <>
-                            {canConfirmTransfers && (
+                            {canManageTransfers && (
                                 <button
                                     type="button"
                                     onClick={handleShipTransfer}
@@ -281,7 +280,7 @@ export default function TransferDetailPage() {
                                 </button>
                             )}
 
-                            {canCancelTransfers && (
+                            {canManageTransfers && (
                                 <button
                                     type="button"
                                     onClick={handleCancelTransfer}
@@ -295,7 +294,7 @@ export default function TransferDetailPage() {
                         </>
                     )}
 
-                    {transfer.status === 'shipped' && canConfirmTransfers && (
+                    {transfer.status === 'shipped' && canManageTransfers && (
                         <button
                             type="button"
                             onClick={() => setShowReceiveForm((v) => !v)}
@@ -338,7 +337,7 @@ export default function TransferDetailPage() {
             />
 
             {/* Receive form */}
-            {showReceiveForm && transfer.status === 'shipped' && (
+            {showReceiveForm && transfer.status === 'shipped' && canManageTransfers && (
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 shadow-sm dark:border-emerald-900/40 dark:bg-emerald-950/20">
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                         <div>
@@ -352,8 +351,8 @@ export default function TransferDetailPage() {
                         <button
                             type="button"
                             onClick={handleReceiveTransfer}
-                            disabled={actionLoading}
-                            className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            disabled={!canManageTransfers || actionLoading}
+                            className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {actionLoading ? 'Recebendo...' : 'Confirmar recebimento'}
                         </button>
@@ -391,6 +390,7 @@ export default function TransferDetailPage() {
                                                     min={0}
                                                     max={shippedQty}
                                                     value={receivedQty}
+                                                    disabled={!canManageTransfers || actionLoading}
                                                     onChange={(e) => {
                                                         const value = Number(e.target.value);
                                                         const safe = Math.max(0, Math.min(shippedQty, Number.isFinite(value) ? value : 0));
@@ -411,13 +411,13 @@ export default function TransferDetailPage() {
                                             <td className="py-2 pr-3">
                                                 <select
                                                     value={row?.divergenceResolution ?? ''}
-                                                    disabled={!hasDivergence}
+                                                    disabled={!canManageTransfers || actionLoading || !hasDivergence}
                                                     onChange={(e) =>
                                                         updateRow(item.id, {
                                                             divergenceResolution: e.target.value as ReceiveRowState['divergenceResolution'],
                                                         })
                                                     }
-                                                    className="w-44 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-sm disabled:opacity-50 dark:border-emerald-900 dark:bg-gray-950"
+                                                    className="w-44 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900 dark:bg-gray-950"
                                                 >
                                                     <option value="">Selecione</option>
                                                     <option value="loss">Perda/Avaria</option>
@@ -428,9 +428,9 @@ export default function TransferDetailPage() {
                                             <td className="py-2 pr-3">
                                                 <select
                                                     value={row?.divergenceReason ?? ''}
-                                                    disabled={!hasDivergence}
+                                                    disabled={!canManageTransfers || actionLoading || !hasDivergence}
                                                     onChange={(e) => updateRow(item.id, { divergenceReason: e.target.value })}
-                                                    className="w-40 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-sm disabled:opacity-50 dark:border-emerald-900 dark:bg-gray-950"
+                                                    className="w-40 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900 dark:bg-gray-950"
                                                 >
                                                     <option value="">Selecione</option>
                                                     <option value="derretimento">Derretimento</option>
@@ -444,10 +444,10 @@ export default function TransferDetailPage() {
                                             <td className="py-2 pr-3">
                                                 <input
                                                     value={row?.divergenceNotes ?? ''}
-                                                    disabled={!hasDivergence}
+                                                    disabled={!canManageTransfers || actionLoading || !hasDivergence}
                                                     onChange={(e) => updateRow(item.id, { divergenceNotes: e.target.value })}
                                                     placeholder="Observação"
-                                                    className="w-56 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-sm disabled:opacity-50 dark:border-emerald-900 dark:bg-gray-950"
+                                                    className="w-56 rounded-lg border border-emerald-200 bg-white px-2 py-1 text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900 dark:bg-gray-950"
                                                 />
                                             </td>
                                         </tr>
@@ -463,6 +463,12 @@ export default function TransferDetailPage() {
                         "Retornar para origem" devolve a diferença ao estoque da origem.
                     </div>
                 </div>
+            )}
+
+            {!canManageTransfers && transfer.status && ['draft', 'shipped'].includes(transfer.status) && (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                    Você pode visualizar esta transferência, mas não tem permissão para enviar, receber, cancelar ou tratar divergências.
+                </p>
             )}
 
             <TransferItemsTable items={items} />
