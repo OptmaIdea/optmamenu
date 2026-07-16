@@ -27,10 +27,13 @@ if (!fs.existsSync(targetPath)) {
 }
 
 let source = fs.readFileSync(targetPath, 'utf8');
+
+// Normaliza quebras de linha para evitar falhas em Windows/PowerShell.
+source = source.replace(/\r\n/g, '\n');
 let changed = false;
 
-function replaceOnce(search, replacement, label) {
-  if (source.includes(replacement)) {
+function replaceOnce(search, replacement, label, alreadyAppliedNeedle = replacement) {
+  if (source.includes(alreadyAppliedNeedle)) {
     return;
   }
 
@@ -42,7 +45,7 @@ function replaceOnce(search, replacement, label) {
   changed = true;
 }
 
-function replaceAllRequired(search, replacement, label) {
+function replaceAllExact(search, replacement, label) {
   if (!source.includes(search)) {
     if (source.includes(replacement)) {
       return;
@@ -55,44 +58,59 @@ function replaceAllRequired(search, replacement, label) {
   changed = changed || before !== source;
 }
 
+function insertAfter(search, insertion, label, alreadyAppliedNeedle = insertion.trim()) {
+  if (source.includes(alreadyAppliedNeedle)) {
+    return;
+  }
+
+  if (!source.includes(search)) {
+    fail(`Ponto de inserção não encontrado para: ${label}`);
+  }
+
+  source = source.replace(search, `${search}\n${insertion}`);
+  changed = true;
+}
+
 replaceOnce(
   "import { notifyPermissionsChanged } from '@/utils/permissionEvents';",
   "import { notifyPermissionsChanged } from '@/utils/permissionEvents';\nimport PermissionReadOnlyNotice from '@/components/security/PermissionReadOnlyNotice';",
-  'import PermissionReadOnlyNotice'
+  'import PermissionReadOnlyNotice',
+  "import PermissionReadOnlyNotice from '@/components/security/PermissionReadOnlyNotice';"
 );
 
 replaceOnce(
   "    // const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);",
   "    const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);",
-  'canManageRoles'
+  'canManageRoles',
+  "const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);"
 );
 
 replaceOnce(
   "    // const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);",
   "    const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);",
-  'canManageUserPermissions'
+  'canManageUserPermissions',
+  "const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);"
 );
 
 replaceOnce(
   "    // const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);",
   "    const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);",
-  'canManageSensitiveActions'
+  'canManageSensitiveActions',
+  "const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);"
 );
 
-replaceOnce(
+insertAfter(
   `    const canManageSecurity = useMemo(() => {
         return activeTab ? canManageSecurityTab(activeTab as keyof typeof securityTabPermissions) : false;
     }, [activeTab, canManageSecurityTab]);`,
-  `    const canManageSecurity = useMemo(() => {
-        return activeTab ? canManageSecurityTab(activeTab as keyof typeof securityTabPermissions) : false;
-    }, [activeTab, canManageSecurityTab]);
-
+  `
     const isActiveSecurityTabReadOnly = useMemo(() => {
         if (!activeTab || !(activeTab in securityTabPermissions)) return false;
         const tab = activeTab as keyof typeof securityTabPermissions;
         return canViewSecurityTab(tab) && !canManageSecurityTab(tab);
     }, [activeTab, canViewSecurityTab, canManageSecurityTab]);`,
-  'isActiveSecurityTabReadOnly'
+  'isActiveSecurityTabReadOnly',
+  'const isActiveSecurityTabReadOnly = useMemo(() => {'
 );
 
 replaceOnce(
@@ -106,7 +124,8 @@ replaceOnce(
             return;
         }
         setSaving(true);`,
-  'guard saveSelectedCustomRole'
+  'guard saveSelectedCustomRole',
+  "toast.error('Você não tem permissão para alterar funções personalizadas.');"
 );
 
 replaceOnce(
@@ -120,16 +139,20 @@ replaceOnce(
             return;
         }
         if (!newCustomRoleName.trim()) {`,
-  'guard handleCreateCustomRoleSubmit'
+  'guard handleCreateCustomRoleSubmit',
+  `const handleCreateCustomRoleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!canManageCustomRoles) {`
 );
 
 replaceOnce(
   "            toast.error('Você não tem permissão para alterar configurações de sessão.');",
   "            toast.error('Você não tem permissão para alterar sessões e inatividade.');",
-  'mensagem sessões'
+  'mensagem sessões',
+  "toast.error('Você não tem permissão para alterar sessões e inatividade.');"
 );
 
-replaceOnce(
+replaceAllExact(
   `        if (!canManageSecurity) {
             toast.error('Você não tem permissão para alterar permissões.');
             return;
@@ -138,19 +161,7 @@ replaceOnce(
             toast.error('Você não tem permissão para alterar permissões por papel.');
             return;
         }`,
-  'guard permissões por papel 1'
-);
-
-replaceOnce(
-  `        if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar permissões.');
-            return;
-        }`,
-  `        if (!canManageRoles) {
-            toast.error('Você não tem permissão para alterar permissões por papel.');
-            return;
-        }`,
-  'guard permissões por papel 2'
+  'guards permissões por papel'
 );
 
 replaceOnce(
@@ -162,7 +173,9 @@ replaceOnce(
             toast.error('Você não tem permissão para alterar ações sensíveis.');
             return;
         }`,
-  'guard ações sensíveis'
+  'guard ações sensíveis',
+  `if (!canManageSensitiveActions) {
+            toast.error('Você não tem permissão para alterar ações sensíveis.');`
 );
 
 replaceOnce(
@@ -176,7 +189,8 @@ replaceOnce(
             return;
         }
         setSaving(true);`,
-  'guard permissões por usuário'
+  'guard permissões por usuário',
+  "toast.error('Você não tem permissão para alterar permissões por usuário.');"
 );
 
 replaceOnce(
@@ -186,7 +200,8 @@ replaceOnce(
                             )}
 
                             {activeTab === 'roles' && canViewRolesTab && (`,
-  'aviso modo leitura antes das abas'
+  'aviso modo leitura antes das abas',
+  '<PermissionReadOnlyNotice className="mb-4" />'
 );
 
 replaceOnce(
@@ -218,16 +233,18 @@ replaceOnce(
                                             </button>
                                         </div>
                                     )}`,
-  'ocultar salvar permissões por papel'
+  'ocultar salvar permissões por papel',
+  '{canManageRoles && ('
 );
 
 replaceOnce(
   'const itemDisabled = !canManageSecurity || adminLoading.saving;',
   'const itemDisabled = !canManageUserPermissions || adminLoading.saving;',
-  'desabilitar permissões por usuário'
+  'desabilitar permissões por usuário',
+  'const itemDisabled = !canManageUserPermissions || adminLoading.saving;'
 );
 
-replaceAllRequired(
+replaceAllExact(
   'disabled={!canManageSecurity || adminLoading.saving}',
   'disabled={!canManageSensitiveActions || adminLoading.saving}',
   'desabilitar ações sensíveis'
