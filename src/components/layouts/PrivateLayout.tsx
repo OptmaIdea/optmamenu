@@ -1627,8 +1627,8 @@ export default function PrivateLayout() {
                 </div>
 
                 {/* Main Content Area Scrollable */}
-                <div id="main-scroll-container" className="flex-1 overflow-y-auto custom-scrollbar flex flex-col bg-[#F8F6F2] dark:bg-gray-950">
-                    <main className="flex-1 p-4 md:p-8">
+                <div id="main-scroll-container" className="flex-1 min-w-0 overflow-y-auto custom-scrollbar flex flex-col bg-[#F8F6F2] dark:bg-gray-950">
+                    <main className="flex-1 min-w-0 p-4 md:p-8">
                         <MyStoreInvitesBanner />
                         <Outlet />
                     </main>
