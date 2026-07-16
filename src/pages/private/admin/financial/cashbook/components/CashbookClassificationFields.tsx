@@ -15,6 +15,10 @@ function isPendingPaymentMethod(value?: string | null) {
     return String(value || '').trim().toLowerCase() === 'pending';
 }
 
+function requiresDetailedNotes(metadata?: Record<string, unknown> | null) {
+    return metadata?.requires_notes === true || metadata?.requires_detailed_notes === true;
+}
+
 export default function CashbookClassificationFields({
     storeId,
     direction,
@@ -36,6 +40,8 @@ export default function CashbookClassificationFields({
     const suggestedFinancialAccountCode = isPending ? '' : getDefaultFinancialAccountCode(paymentMethodCode);
     const currentFinancialAccountCode = financialAccountCode || suggestedFinancialAccountCode || '';
     const financialAccountRequired = !isPending;
+    const selectedCategory = categories.find((option) => option.value === accountPlanCode);
+    const selectedCategoryRequiresNotes = requiresDetailedNotes(selectedCategory?.item.metadata);
 
     return (
         <div className="space-y-3">
@@ -88,10 +94,18 @@ export default function CashbookClassificationFields({
                     <p className="text-[11px] font-semibold text-gray-400">
                         {isPending
                             ? 'Pagamento pendente não movimenta conta financeira agora.'
-                            : 'Usada para identificar onde o dinheiro entrou ou saiu.'}
+                            : currentFinancialAccountCode === suggestedFinancialAccountCode && suggestedFinancialAccountCode
+                                ? 'Conta sugerida automaticamente pela forma de pagamento.'
+                                : 'Usada para identificar onde o dinheiro entrou ou saiu.'}
                     </p>
                 </label>
             </div>
+
+            {selectedCategoryRequiresNotes && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+                    Esta categoria exige descrição clara e observações detalhadas antes de salvar o lançamento.
+                </div>
+            )}
 
             {error && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
