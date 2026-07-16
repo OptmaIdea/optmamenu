@@ -1528,11 +1528,11 @@ export default function Security() {
         tabFromUrl && VALID_TAB_IDS.includes(tabFromUrl) ? tabFromUrl : 'context'
     );
 
-    // const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);
     const canManageCustomRoles = useMemo(() => canManageSecurityTab('custom_roles'), [canManageSecurityTab]);
-    // const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);
+    const canManageRoles = useMemo(() => canManageSecurityTab('roles'), [canManageSecurityTab]);
+    const canManageUserPermissions = useMemo(() => canManageSecurityTab('user_permissions'), [canManageSecurityTab]);
+    const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);
     const canManagePinToken = useMemo(() => canManageSecurityTab('pin_token'), [canManageSecurityTab]);
-    // const canManageSensitiveActions = useMemo(() => canManageSecurityTab('sensitive_actions'), [canManageSecurityTab]);
     const canManageSessions = useMemo(() => canManageSecurityTab('session_inactive'), [canManageSecurityTab]);
 
     const canManageSecurity = useMemo(() => {
@@ -1681,6 +1681,10 @@ export default function Security() {
 
     async function saveSelectedCustomRole(reason?: string) {
         if (!selectedCustomRole) return;
+        if (!canManageCustomRoles) {
+            toast.error('Você não tem permissão para alterar funções personalizadas.');
+            return;
+        }
         setSaving(true);
         const { error } = await supabase.rpc('update_store_custom_role', {
             p_custom_role_id: selectedCustomRole.id,
@@ -1738,6 +1742,10 @@ export default function Security() {
 
     const handleCreateCustomRoleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!canManageCustomRoles) {
+            toast.error('Você não tem permissão para alterar funções personalizadas.');
+            return;
+        }
         if (!newCustomRoleName.trim()) {
             toast.error('Informe o nome da função.');
             return;
@@ -2457,7 +2465,7 @@ export default function Security() {
         }
 
         if (!canManageSessions) {
-            toast.error('Você não tem permissão para alterar configurações de sessão.');
+            toast.error('Você não tem permissão para alterar sessões e inatividade.');
             return;
         }
 
@@ -2775,8 +2783,8 @@ export default function Security() {
     ) {
         const normalizedRole = normalizeRoleCode(selectedRole);
 
-        if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar permissões.');
+        if (!canManageRoles) {
+            toast.error('Você não tem permissão para alterar permissões por papel.');
             return;
         }
 
@@ -2814,8 +2822,8 @@ export default function Security() {
         },
         nextAllowed: boolean
     ) {
-        if (!canManageSecurity) {
-            toast.error('Você não tem permissão para alterar permissões.');
+        if (!canManageRoles) {
+            toast.error('Você não tem permissão para alterar permissões por papel.');
             return;
         }
 
@@ -2874,7 +2882,7 @@ export default function Security() {
             require_reason: boolean;
         }>
     ) => {
-        if (!canManageSecurity) {
+        if (!canManageSensitiveActions) {
             toast.error('Você não tem permissão para alterar ações sensíveis.');
             return;
         }
@@ -2949,6 +2957,10 @@ export default function Security() {
 
     const saveSelectedMemberPermissions = async () => {
         if (!selectedMember) return;
+        if (!canManageUserPermissions) {
+            toast.error('Você não tem permissão para alterar permissões por usuário.');
+            return;
+        }
         setSaving(true);
 
         const { error } = await supabase.rpc('update_store_member_permissions', {
@@ -4194,7 +4206,7 @@ export default function Security() {
                                                         const overrideValue = getIndividualPermissionState(selectedMemberPermissions, code);
                                                         const effectiveValue = row.effective_allowed;
                                                         const sourceLabel = getPermissionSourceLabel(row.source);
-                                                        const itemDisabled = !canManageSecurity || adminLoading.saving;
+                                                        const itemDisabled = !canManageUserPermissions || adminLoading.saving;
 
                                                         return (
                                                             <div key={code} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-105 dark:border-gray-850 space-y-3">
@@ -4401,7 +4413,7 @@ export default function Security() {
                                                 <td className="p-3">
                                                     <select
                                                         value={row.requirement}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 requirement: event.target.value,
@@ -4420,7 +4432,7 @@ export default function Security() {
                                                 <td className="p-3">
                                                     <select
                                                         value={row.min_role}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 min_role: event.target.value,
@@ -4440,7 +4452,7 @@ export default function Security() {
                                                     <input
                                                         type="checkbox"
                                                         checked={row.enabled}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 enabled: event.target.checked,
@@ -4454,7 +4466,7 @@ export default function Security() {
                                                     <input
                                                         type="checkbox"
                                                         checked={row.token_enabled}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 token_enabled: event.target.checked,
@@ -4470,7 +4482,7 @@ export default function Security() {
                                                         min={15}
                                                         max={300}
                                                         value={row.token_expiry_seconds}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 token_expiry_seconds: Number(event.target.value),
@@ -4486,7 +4498,7 @@ export default function Security() {
                                                         min={1}
                                                         max={10}
                                                         value={row.max_attempts}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 max_attempts: Number(event.target.value),
@@ -4500,7 +4512,7 @@ export default function Security() {
                                                     <input
                                                         type="checkbox"
                                                         checked={row.require_reason}
-                                                        disabled={!canManageSecurity || adminLoading.saving}
+                                                        disabled={!canManageSensitiveActions || adminLoading.saving}
                                                         onChange={(event) =>
                                                             handleUpdateSensitiveAction(row, {
                                                                 require_reason: event.target.checked,
