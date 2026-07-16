@@ -30,7 +30,7 @@ export default function PageContainer({
   icon
 }: PageContainerProps) {
   return (
-    <div className={`max-w-7xl mx-auto animate-fadeIn ${className}`}>
+    <div className={`w-full max-w-7xl mx-auto animate-fadeIn ${className}`}>
       {/* Header */}
       {!withoutHeader && (
         flat ? (
@@ -138,7 +138,7 @@ export default function PageContainer({
         )
       )}
 
-      <div className="space-y-6 md:space-y-8">
+      <div className="w-full min-w-0 space-y-6 md:space-y-8">
         {children}
       </div>
     </div>
