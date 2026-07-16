@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 export type CashbookAccountPlanKind = 'income' | 'expense' | 'transfer' | 'adjustment';
 export type CashbookAccountPlanNature = 'debit' | 'credit' | 'neutral';
+export type ManualCashbookDirection = 'in' | 'out' | 'transfer';
 
 export interface CashbookAccountPlanItem {
   code: string;
@@ -33,18 +34,26 @@ function isHiddenFromManualCashbook(item: CashbookAccountPlanItem): boolean {
   return item.code.startsWith('sale_');
 }
 
-function matchesManualDirection(item: CashbookAccountPlanItem, direction: 'in' | 'out' | 'transfer'): boolean {
+function getManualCashbookDirection(item: CashbookAccountPlanItem): ManualCashbookDirection | null {
+  const value = item.metadata?.manual_cashbook_direction;
+  return value === 'in' || value === 'out' || value === 'transfer' ? value : null;
+}
+
+function matchesManualDirection(item: CashbookAccountPlanItem, direction: ManualCashbookDirection): boolean {
+  const explicitDirection = getManualCashbookDirection(item);
+  if (explicitDirection) return explicitDirection === direction;
+
   if (direction === 'transfer') return item.kind === 'transfer' || item.is_transfer;
 
   if (item.is_transfer || item.kind === 'transfer') return false;
 
   if (direction === 'in') {
     if (item.kind === 'income') return true;
-    return item.kind === 'adjustment' && item.nature !== 'debit';
+    return item.kind === 'adjustment' && item.nature === 'credit';
   }
 
   if (item.kind === 'expense') return true;
-  return item.kind === 'adjustment' && item.nature !== 'credit';
+  return item.kind === 'adjustment' && item.nature === 'debit';
 }
 
 export const CashbookAccountPlanService = {
@@ -67,7 +76,7 @@ export const CashbookAccountPlanService = {
     return (data || []) as CashbookAccountPlanItem[];
   },
 
-  async listForDirection(direction: 'in' | 'out' | 'transfer'): Promise<CashbookAccountPlanItem[]> {
+  async listForDirection(direction: ManualCashbookDirection): Promise<CashbookAccountPlanItem[]> {
     const items = await this.list(true);
     const postableItems = items.filter((item) => (
       item.is_group !== true
