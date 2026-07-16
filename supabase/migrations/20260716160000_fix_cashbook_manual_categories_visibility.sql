@@ -3,6 +3,7 @@
 -- - Garantir que "Outras entradas" e "Outras saídas" existam e apareçam no modal correto.
 -- - Esconder devoluções/cancelamentos de venda do fluxo manual simples.
 -- - Não altera lançamentos existentes.
+-- Observação: não usa unaccent(), para funcionar em bancos sem a extensão habilitada.
 
 -- 1) Garante as categorias genéricas, mesmo se a migration anterior não tiver sido aplicada.
 INSERT INTO public.cashbook_account_plan (
@@ -101,7 +102,7 @@ ON CONFLICT (code) DO UPDATE SET
   updated_at = now();
 
 -- 2) Esconde categorias que pertencem a fluxos próprios de venda, não a lançamento manual.
--- Usa code, display_code e nome para cobrir variações legadas.
+-- Usa code, display_code e nome para cobrir variações legadas, sem depender de unaccent().
 UPDATE public.cashbook_account_plan
 SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
       'manual_cashbook_hidden', true,
@@ -117,9 +118,12 @@ WHERE code IN (
     'sales_refund'
   )
   OR display_code IN ('1.1.3', '1.1.4', '2.7.3')
-  OR lower(unaccent(name)) LIKE '%devolu%venda%'
-  OR lower(unaccent(name)) LIKE '%cancelamento%venda%'
-  OR lower(unaccent(name)) LIKE '%cancelamentos%sobre%venda%';
+  OR lower(name) LIKE '%devolu%venda%'
+  OR lower(name) LIKE '%devolução%venda%'
+  OR lower(name) LIKE '%devolucao%venda%'
+  OR lower(name) LIKE '%cancelamento%venda%'
+  OR lower(name) LIKE '%cancelamentos%sobre%venda%'
+  OR lower(name) LIKE '%cancelamento%sobre%venda%';
 
 -- 3) Remove direção manual de qualquer categoria que foi marcada como fluxo próprio.
 UPDATE public.cashbook_account_plan
@@ -148,6 +152,10 @@ SELECT
 FROM public.cashbook_account_plan
 WHERE code IN ('other_income', 'other_expense', 'refund', 'sales_cancellation', 'sale_cancellation')
    OR display_code IN ('1.1.3', '1.1.4', '2.7.3', '1.9.9', '2.9.9')
-   OR lower(unaccent(name)) LIKE '%devolu%venda%'
-   OR lower(unaccent(name)) LIKE '%cancelamento%venda%'
+   OR lower(name) LIKE '%devolu%venda%'
+   OR lower(name) LIKE '%devolução%venda%'
+   OR lower(name) LIKE '%devolucao%venda%'
+   OR lower(name) LIKE '%cancelamento%venda%'
+   OR lower(name) LIKE '%cancelamentos%sobre%venda%'
+   OR lower(name) LIKE '%cancelamento%sobre%venda%'
 ORDER BY display_code NULLS LAST, sort_order, name;
