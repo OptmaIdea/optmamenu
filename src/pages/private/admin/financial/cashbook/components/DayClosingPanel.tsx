@@ -495,7 +495,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
               setter('');
               setExternalDetails((current) => ({ ...current, [method]: [] }));
             }}
-            disabled={!value && !usingDetails}
+            disabled={!canClose || (!value && !usingDetails)}
             className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700"
           >
             <X size={14} />
@@ -508,13 +508,14 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
             value={usingDetails ? formatCurrencyPtBr(total) : value}
             onChange={(event) => setter(event.target.value)}
             placeholder="0,00"
-            disabled={usingDetails}
+            disabled={!canClose || usingDetails}
             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 disabled:opacity-70 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
           />
           <button
             type="button"
             onClick={() => addExternalDetail(method)}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-black text-teal-700 transition hover:bg-teal-50 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300"
+            disabled={!canClose}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-3 py-2 text-xs font-black text-teal-700 transition hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-teal-900/60 dark:bg-gray-900 dark:text-teal-300"
           >
             <Plus size={14} />
             Detalhar
@@ -528,6 +529,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
                   type="text"
                   value={item.label}
                   onChange={(event) => updateExternalDetail(method, item.id, 'label', event.target.value)}
+                  disabled={!canClose}
                   placeholder="Ex.: Infinite, Bradesco pessoal"
                   className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 />
@@ -536,13 +538,15 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
                   inputMode="decimal"
                   value={item.amount}
                   onChange={(event) => updateExternalDetail(method, item.id, 'amount', event.target.value)}
+                  disabled={!canClose}
                   placeholder="0,00"
                   className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                 />
                 <button
                   type="button"
                   onClick={() => removeExternalDetail(method, item.id)}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 dark:border-gray-700"
+                  disabled={!canClose}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-30 dark:border-gray-700"
                 >
                   <X size={16} />
                 </button>
@@ -693,11 +697,11 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
                             <tr key={denomination} className="border-t border-gray-100 dark:border-gray-800">
                               <td className="py-2 font-black text-gray-700 dark:text-gray-200">{formatCurrencyPtBr(denomination)}</td>
                               <td className="py-2">
-                                <input type="number" min="0" step="1" value={quantity || ''} onChange={(event) => updateCount(denomination, event.target.value)} className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                                <input type="number" min="0" step="1" value={quantity || ''} onChange={(event) => updateCount(denomination, event.target.value)} disabled={!canClose} className="w-24 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
                               </td>
                               <td className="py-2 text-right font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(quantity * denomination)}</td>
                               <td className="py-2 text-right">
-                                <button type="button" onClick={() => setCounts((current) => ({ ...current, [String(denomination)]: 0 }))} disabled={!quantity} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 disabled:opacity-30"><X size={14} /></button>
+                                <button type="button" onClick={() => setCounts((current) => ({ ...current, [String(denomination)]: 0 }))} disabled={!canClose || !quantity} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 disabled:opacity-30"><X size={14} /></button>
                               </td>
                             </tr>
                           );
@@ -708,7 +712,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
                           <td colSpan={2} className="py-3 text-sm font-black text-gray-500 dark:text-gray-400">Total em caixa dinheiro</td>
                           <td className="py-3 text-right text-lg font-black text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(countedCashTotal)}</td>
                           <td className="py-3 text-right">
-                            <button type="button" onClick={() => setCounts({})} disabled={countedCashTotal <= 0} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 disabled:opacity-30"><X size={14} /></button>
+                            <button type="button" onClick={() => setCounts({})} disabled={!canClose || countedCashTotal <= 0} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-400 disabled:opacity-30"><X size={14} /></button>
                           </td>
                         </tr>
                       </tfoot>
@@ -749,7 +753,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
 
               <label className="mt-5 block space-y-1">
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Observação</span>
-                <textarea value={notes} onChange={(event) => setNotes(event.target.value)} rows={3} placeholder="Informe observações sobre divergências, conferência das máquinas ou banco." className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                <textarea value={notes} onChange={(event) => setNotes(event.target.value)} disabled={!canClose} rows={3} placeholder="Informe observações sobre divergências, conferência das máquinas ou banco." className="w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
               </label>
             </>
           )}
