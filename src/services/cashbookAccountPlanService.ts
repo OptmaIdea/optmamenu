@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
 export type CashbookAccountPlanKind = 'income' | 'expense' | 'transfer' | 'adjustment';
+export type CashbookAccountPlanNature = 'debit' | 'credit' | 'neutral';
 
 export interface CashbookAccountPlanItem {
   code: string;
@@ -18,15 +19,39 @@ export interface CashbookAccountPlanItem {
   path?: string | null;
   is_group?: boolean | null;
   is_postable?: boolean | null;
+  nature?: CashbookAccountPlanNature | null;
   analysis_enabled?: boolean | null;
   metadata: Record<string, unknown>;
+}
+
+function isHiddenFromManualCashbook(item: CashbookAccountPlanItem): boolean {
+  if (item.metadata?.system_group === true) return true;
+  if (item.metadata?.manual_cashbook_hidden === true) return true;
+
+  // Vendas são classificadas automaticamente pelos pedidos. No lançamento manual,
+  // elas confundem o usuário e podem distorcer a origem operacional da receita.
+  return item.code.startsWith('sale_');
+}
+
+function matchesManualDirection(item: CashbookAccountPlanItem, direction: 'in' | 'out' | 'transfer'): boolean {
+  if (direction === 'transfer') return item.kind === 'transfer' || item.is_transfer;
+
+  if (item.is_transfer || item.kind === 'transfer') return false;
+
+  if (direction === 'in') {
+    if (item.kind === 'income') return true;
+    return item.kind === 'adjustment' && item.nature !== 'debit';
+  }
+
+  if (item.kind === 'expense') return true;
+  return item.kind === 'adjustment' && item.nature !== 'credit';
 }
 
 export const CashbookAccountPlanService = {
   async list(activeOnly = true): Promise<CashbookAccountPlanItem[]> {
     let query = supabase
       .from('cashbook_account_plan')
-      .select('code, display_code, parent_code, name, kind, description, affects_cash_drawer, affects_financial_result, is_transfer, active, sort_order, level, path, is_group, is_postable, analysis_enabled, metadata')
+      .select('code, display_code, parent_code, name, kind, description, affects_cash_drawer, affects_financial_result, is_transfer, active, sort_order, level, path, is_group, is_postable, nature, analysis_enabled, metadata')
       .order('sort_order', { ascending: true })
       .order('display_code', { ascending: true })
       .order('name', { ascending: true });
@@ -44,16 +69,12 @@ export const CashbookAccountPlanService = {
 
   async listForDirection(direction: 'in' | 'out' | 'transfer'): Promise<CashbookAccountPlanItem[]> {
     const items = await this.list(true);
-    const postableItems = items.filter((item) => item.is_group !== true && item.is_postable !== false && item.metadata?.system_group !== true);
+    const postableItems = items.filter((item) => (
+      item.is_group !== true
+      && item.is_postable !== false
+      && !isHiddenFromManualCashbook(item)
+    ));
 
-    if (direction === 'transfer') {
-      return postableItems.filter((item) => item.kind === 'transfer' || item.is_transfer);
-    }
-
-    if (direction === 'in') {
-      return postableItems.filter((item) => item.kind === 'income' || item.kind === 'adjustment');
-    }
-
-    return postableItems.filter((item) => item.kind === 'expense' || item.kind === 'adjustment');
+    return postableItems.filter((item) => matchesManualDirection(item, direction));
   },
 };
