@@ -1,7 +1,8 @@
-﻿import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { notifyPermissionsChanged } from '@/utils/permissionEvents';
+import { filterPermissionsVisibleInPermissionUi } from '@/utils/security/permissionCatalogVisibility';
 import type {
   StoreMemberForPermissionsRow,
   StoreMemberPermissionDetailRow,
@@ -72,6 +73,14 @@ function normalizePermissionMatrixRows(data: unknown): StorePermissionMatrixRow[
   }));
 }
 
+function filterPermissionMatrixRows(rows: StorePermissionMatrixRow[]) {
+  return filterPermissionsVisibleInPermissionUi(rows, (item) => item.permission_code);
+}
+
+function filterMemberPermissionDetailRows(rows: StoreMemberPermissionDetailRow[]) {
+  return filterPermissionsVisibleInPermissionUi(rows, (item) => item.permission_code);
+}
+
 type UseSecurityPermissionsAdminOptions =
   | boolean
   | {
@@ -137,7 +146,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
         setPermissionMatrix([]);
       }
     } else {
-      const rows = normalizePermissionMatrixRows(data);
+      const rows = filterPermissionMatrixRows(normalizePermissionMatrixRows(data));
       rows.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'pt-BR'));
       setPermissionMatrix(rows);
     }
@@ -266,7 +275,7 @@ export function useSecurityPermissionsAdmin(options: UseSecurityPermissionsAdmin
       throw rpcError;
     }
 
-    const rows = (data ?? []) as StoreMemberPermissionDetailRow[];
+    const rows = filterMemberPermissionDetailRows((data ?? []) as StoreMemberPermissionDetailRow[]);
     rows.sort((a, b) => (a.label || '').localeCompare(b.label || '', 'pt-BR'));
     setMemberPermissionDetail(rows);
     return rows;
