@@ -29,9 +29,20 @@
 - envio manual seguro via WhatsApp
 - campanhas agendadas como lembrete visual, sem envio automático
 
-## Próxima evolução sugerida — Fase 9
-- usuários e papéis
-- permissões por módulo/ação
-- ações sensíveis com senha/PIN/aprovação
-- logs de segurança
-- preparação para multilojas e superadmin
+## Fase 9 / Versão 0.9.14 — Concluída (16/07/2026)
+- Governança de Usuários e colaboradores por loja
+- Sistema de permissões hierárquico com realtime (`view`/`manage`)
+- Módulo Segurança separado do módulo Configurações
+- Registro de ações sensíveis e Meu Histórico de atividades
+- Configurações da Loja unificadas por abas (Pedido Online, Mensagens, Aparência, etc.)
+- Auditoria e hardening completo com Supabase Advisors (RLS, revogação de grants desnecessários)
+- Estabilidade operacional e preparação para lançamento oficial
+
+## Próxima evolução sugerida / Lançamento (01/08/2026)
+- Homologação de testes reais assistidos (Marco 5/6)
+- Reconciliação completa de ocorrências de divergência no fechamento do caixa do dia
+- Refinamento das abas de Recebíveis Pendentes no Livro Diário
+- Venda Direta / PDV rápido com regras de descontos de atacado
+- Geração/impressão de QR Code por mesa/comanda
+- Fechamento da versão estável v1.0.0 no lançamento oficial
+

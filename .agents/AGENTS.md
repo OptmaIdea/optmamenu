@@ -32,6 +32,7 @@
 | Ecossistema | Optma (OptmaMenu + OptmaIdea) |
 | Tipo | SaaS — painel administrativo para estabelecimentos alimentícios |
 | Idioma do Produto | Português (Brasil) |
+| Versão Atual | `0.9.14` (Pós-Fase 9.14 Hardening) |
 | Repositório local | `d:\optmamenu` |
 
 O OptmaMenu oferece cardápio digital, gestão de pedidos, controle de estoque, compras, transferências, fornecedores, clientes, fidelidade, marketing, financeiro e configurações.
@@ -345,14 +346,13 @@ Arquivo:
 
 ## Pendências estratégicas atuais
 
-1. `9.13.1G — Histórico pessoal e auditoria de alterações`.
-2. Registrar alteração de função/papel no Meu Histórico do usuário afetado.
-3. Registrar andamento de solicitações cadastrais no Meu Histórico.
-4. Implementar Configurações reais de Mensagens.
-5. Implementar Pedido Online: slug, layout básico e regras.
-6. Rodada dedicada de hardening dos Advisors/RLS.
-7. Futura área de superusuário/global admin.
+1. Registrar alteração de função/papel no Meu Histórico do usuário afetado.
+2. Registrar andamento de solicitações cadastrais no Meu Histórico.
+3. Consolidar fluxo de caixa (reconciliação de ocorrências de divergência no fechamento do caixa do dia).
+4. Refinar abas de Recebíveis Pendentes no Livro Diário.
+5. Evoluir interface de Venda Direta / PDV rápido com regras de descontos.
+6. Preparação final, testes reais assistidos e homologação para lançamento oficial em 01/08/2026.
 
 ---
 
-*Última atualização: 2026-06-23 | Fechamento técnico da frente 9.13.1E/9.13.1F — permissões, realtime, Segurança, Configurações e padrão manage=false.*
+*Última atualização: 2026-07-16 | Definição da versão 0.9.14 (pós-Fase 9 e 9.14 hardening), atualização do package.json/package-lock.json e consolidação das pendências para o lançamento.*
