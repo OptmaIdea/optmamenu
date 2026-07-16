@@ -6,7 +6,9 @@
  *   node scripts/apply_security_readonly_mode_guards.cjs
  *
  * O script é idempotente: pode ser executado mais de uma vez.
- * Ele interrompe com erro se encontrar um trecho inesperado, evitando alterar o arquivo parcialmente.
+ * Ele interrompe com erro em guards críticos se encontrar um trecho inesperado,
+ * evitando alterar o arquivo parcialmente. O aviso visual de modo leitura é
+ * tratado como opcional porque o bloco JSX pode variar entre versões locais.
  */
 
 const fs = require('fs');
@@ -20,6 +22,10 @@ const targetPath = path.join(
 function fail(message) {
   console.error(`\n[security-readonly-mode] ${message}\n`);
   process.exit(1);
+}
+
+function warn(message) {
+  console.warn(`[security-readonly-mode] Aviso: ${message}`);
 }
 
 if (!fs.existsSync(targetPath)) {
@@ -60,7 +66,7 @@ function replaceAllExact(search, replacement, label) {
 
 function insertAfter(search, insertion, label, alreadyAppliedNeedle = insertion.trim()) {
   if (source.includes(alreadyAppliedNeedle)) {
-    return;
+    return true;
   }
 
   if (!source.includes(search)) {
@@ -69,6 +75,22 @@ function insertAfter(search, insertion, label, alreadyAppliedNeedle = insertion.
 
   source = source.replace(search, `${search}\n${insertion}`);
   changed = true;
+  return true;
+}
+
+function replaceOnceOptional(search, replacement, label, alreadyAppliedNeedle = replacement) {
+  if (source.includes(alreadyAppliedNeedle)) {
+    return true;
+  }
+
+  if (!source.includes(search)) {
+    warn(`trecho opcional não encontrado para: ${label}. O script continuará sem inserir esse bloco visual.`);
+    return false;
+  }
+
+  source = source.replace(search, replacement);
+  changed = true;
+  return true;
 }
 
 replaceOnce(
@@ -193,7 +215,7 @@ replaceOnce(
   "toast.error('Você não tem permissão para alterar permissões por usuário.');"
 );
 
-replaceOnce(
+replaceOnceOptional(
   `                            {activeTab === 'roles' && canViewRolesTab && (`,
   `                            {isActiveSecurityTabReadOnly && (
                                 <PermissionReadOnlyNotice className="mb-4" />
