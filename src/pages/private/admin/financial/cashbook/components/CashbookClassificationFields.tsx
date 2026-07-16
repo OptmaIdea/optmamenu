@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import type { CashbookDirection } from '@/services/cashbookService';
 import { useCashbookClassificationOptions } from '@/hooks/financial/useCashbookClassificationOptions';
 
@@ -43,16 +44,52 @@ export default function CashbookClassificationFields({
     const selectedCategory = categories.find((option) => option.value === accountPlanCode);
     const selectedCategoryRequiresNotes = requiresDetailedNotes(selectedCategory?.item.metadata);
 
+    useEffect(() => {
+        const notesField = document.querySelector<HTMLTextAreaElement>('textarea[placeholder="Detalhes internos opcionais"]');
+        if (!notesField) return;
+
+        if (selectedCategoryRequiresNotes) {
+            notesField.required = true;
+            notesField.placeholder = 'Explique o motivo desta entrada/saída';
+            notesField.setAttribute('aria-required', 'true');
+            notesField.setCustomValidity(notesField.value.trim() ? '' : 'Informe observações detalhadas para esta categoria.');
+        } else {
+            notesField.required = false;
+            notesField.placeholder = 'Detalhes internos opcionais';
+            notesField.removeAttribute('aria-required');
+            notesField.setCustomValidity('');
+        }
+
+        const handleInput = () => {
+            if (!selectedCategoryRequiresNotes) {
+                notesField.setCustomValidity('');
+                return;
+            }
+
+            notesField.setCustomValidity(notesField.value.trim() ? '' : 'Informe observações detalhadas para esta categoria.');
+        };
+
+        notesField.addEventListener('input', handleInput);
+
+        return () => {
+            notesField.removeEventListener('input', handleInput);
+            notesField.required = false;
+            notesField.placeholder = 'Detalhes internos opcionais';
+            notesField.removeAttribute('aria-required');
+            notesField.setCustomValidity('');
+        };
+    }, [selectedCategoryRequiresNotes]);
+
     return (
         <div className="space-y-3">
             <div className="rounded-2xl border border-[#19A999]/20 bg-[#19A999]/5 p-3 text-xs font-bold text-gray-700 dark:border-[#19A999]/30 dark:bg-[#19A999]/10 dark:text-gray-200">
-                Informe a categoria do Plano de Contas para dizer o motivo do lançamento. A conta financeira indica onde o dinheiro entrou ou saiu.
+                Informe o motivo do lançamento e a conta financeira onde o dinheiro entrou ou saiu. O Plano de Contas continua técnico, mas aqui mostramos apenas as opções úteis para a operação.
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block space-y-1">
                     <span className="text-xs font-black uppercase tracking-widest text-gray-500">
-                        Categoria <span className="text-rose-500">*</span>
+                        Motivo do lançamento <span className="text-rose-500">*</span>
                     </span>
                     <select
                         value={accountPlanCode}
@@ -61,7 +98,7 @@ export default function CashbookClassificationFields({
                         required
                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                     >
-                        <option value="">Selecionar categoria</option>
+                        <option value="">Selecionar motivo</option>
                         {categories.map((option) => (
                             <option key={option.value} value={option.value}>
                                 {option.label}
@@ -69,7 +106,7 @@ export default function CashbookClassificationFields({
                         ))}
                     </select>
                     <p className="text-[11px] font-semibold text-gray-400">
-                        Obrigatória para entradas e saídas manuais.
+                        Obrigatório para entradas e saídas manuais.
                     </p>
                 </label>
 
@@ -103,7 +140,7 @@ export default function CashbookClassificationFields({
 
             {selectedCategoryRequiresNotes && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-                    Esta categoria exige descrição clara e observações detalhadas antes de salvar o lançamento.
+                    Esta opção exige descrição clara e observações detalhadas antes de salvar o lançamento.
                 </div>
             )}
 
