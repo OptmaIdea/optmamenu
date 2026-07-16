@@ -9,7 +9,7 @@ import PageContainer from '@/components/common/PageContainer';
 import TransferDetailHeader from './components/TransferDetailHeader';
 import TransferItemsTable from './components/TransferItemsTable';
 import { useStockTransferDetail } from './hooks/useStockTransferDetail';
-import { stockService } from '@/services/stockService';
+import { stockService, reverseReceivedStockTransfer } from '@/services/stockService';
 import { downloadCsv } from '@/utils/export/csv';
 import OperationalTimeline from './components/OperationalTimeline';
 import { useOperationalTimeline } from './hooks/useOperationalTimeline';
@@ -195,7 +195,7 @@ export default function TransferDetailPage() {
 
         try {
             setActionLoading(true);
-            const result = await stockService.reverseReceivedStockTransfer({
+            const result = await reverseReceivedStockTransfer({
                 transferId: transfer.id,
                 reason: reason.trim(),
             });

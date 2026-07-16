@@ -430,6 +430,20 @@ export async function adjustStockToPhysicalCount(
   return normalizeRows<AdjustStockToPhysicalCountResult>(data);
 }
 
+export async function reverseReceivedStockTransfer(input: {
+  transferId: string;
+  reason: string;
+}): Promise<ReverseReceivedStockTransferResult> {
+  const { data, error } = await supabase.rpc('reverse_received_stock_transfer', {
+    p_transfer_id: input.transferId,
+    p_reason: input.reason,
+  });
+  if (error) throw error;
+  const rows = normalizeRows<ReverseReceivedStockTransferResult>(data);
+  if (!rows[0]) throw new Error('A transferência recebida não foi estornada.');
+  return rows[0];
+}
+
 export const stockService = {
   async getInventoryPositionByStore(storeId: string): Promise<InventoryPositionRow[]> {
     const { data, error } = await supabase.rpc('get_inventory_position_by_store', {
