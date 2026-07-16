@@ -206,8 +206,8 @@ export default function AppRoutes() {
 
             // Financial Section
             <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
-            <Route path="/admin/account-plan" element={<RequirePermission permission="cashbook.view"><AccountPlanPage /></RequirePermission>} />
-            <Route path="/admin/financial-accounts" element={<RequirePermission permission="cashbook.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
+            <Route path="/admin/account-plan" element={<RequirePermission permission="financial.account_plan.view"><AccountPlanPage /></RequirePermission>} />
+            <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
 
             // Products Section
             <Route
