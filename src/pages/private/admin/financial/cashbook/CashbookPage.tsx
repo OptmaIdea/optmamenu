@@ -563,7 +563,7 @@ export default function CashbookPage() {
         if (!storeId || !formState) return;
 
         if (!canCreateCashbookEntry) {
-            alert('Você não tem permissão para lançar no Livro Diário.');
+            toast.error('Você não tem permissão para lançar no Livro Diário.');
             return;
         }
 
@@ -646,7 +646,7 @@ export default function CashbookPage() {
         if (!storeId || entry.type === 'sale') return;
 
         if (!canCancelCashbookEntry) {
-            alert('Você não tem permissão para cancelar lançamentos do Livro Diário.');
+            toast.error('Você não tem permissão para cancelar lançamentos do Livro Diário.');
             return;
         }
 
@@ -657,7 +657,7 @@ export default function CashbookPage() {
             await loadData();
         } catch (error) {
             console.error('Erro ao cancelar lançamento:', error);
-            alert('Erro ao cancelar lançamento.');
+            toast.error('Erro ao cancelar lançamento.');
         }
     }
 
@@ -993,15 +993,17 @@ export default function CashbookPage() {
                                                     >
                                                         <Eye size={15} />
                                                     </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => openEditForm(entry)}
-                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                        title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                        aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                    >
-                                                        <Edit2 size={15} />
-                                                    </button>
+                                                    {canCreateCashbookEntry && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openEditForm(entry)}
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                            title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
+                                                            aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
+                                                        >
+                                                            <Edit2 size={15} />
+                                                        </button>
+                                                    )}
                                                     {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
                                                         <button
                                                             type="button"
@@ -1139,14 +1141,16 @@ export default function CashbookPage() {
                                                                         >
                                                                             <Eye size={13} />
                                                                         </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => openEditForm(entry)}
-                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                                            title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                                        >
-                                                                            <Edit2 size={13} />
-                                                                        </button>
+                                                                        {canCreateCashbookEntry && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => openEditForm(entry)}
+                                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                                                title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
+                                                                            >
+                                                                                <Edit2 size={13} />
+                                                                            </button>
+                                                                        )}
                                                                         {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
                                                                             <button
                                                                                 type="button"
