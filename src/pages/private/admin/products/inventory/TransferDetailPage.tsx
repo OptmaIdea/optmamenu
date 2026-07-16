@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, CheckCircle2, Send, XCircle } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, RotateCcw, Send, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -174,6 +174,41 @@ export default function TransferDetailPage() {
         }
     };
 
+    const handleReverseReceivedTransfer = async () => {
+        if (!transfer?.id) return;
+
+        if (!canCancelTransfers) {
+            toast.error('Você não tem permissão para estornar transferências recebidas.');
+            return;
+        }
+
+        const reason = window.prompt('Informe o motivo do estorno do recebimento:');
+        if (!reason?.trim()) {
+            toast.warning('Informe o motivo do estorno.');
+            return;
+        }
+
+        const confirmed = window.confirm(
+            'Estornar o recebimento desta transferência? O sistema vai retirar o saldo do destino e devolver para a origem, mantendo o histórico.'
+        );
+        if (!confirmed) return;
+
+        try {
+            setActionLoading(true);
+            const result = await stockService.reverseReceivedStockTransfer({
+                transferId: transfer.id,
+                reason: reason.trim(),
+            });
+            toast.success(`Transferência ${result.transfer_code ?? transfer.transfer_code ?? ''} estornada com sucesso.`);
+            await Promise.all([refresh(), refetchTransferTimeline()]);
+        } catch (error: any) {
+            console.error('Erro ao estornar transferência recebida:', error);
+            toast.error(error?.message ?? 'Não foi possível estornar a transferência recebida.');
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     const handleReceiveTransfer = async () => {
         if (!transfer?.id || !items.length) return;
 
@@ -304,6 +339,18 @@ export default function TransferDetailPage() {
                         >
                             <CheckCircle2 size={13} />
                             <span>Receber</span>
+                        </button>
+                    )}
+
+                    {transfer.status === 'received' && canCancelTransfers && (
+                        <button
+                            type="button"
+                            onClick={handleReverseReceivedTransfer}
+                            disabled={actionLoading}
+                            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border border-amber-200 bg-amber-50 text-xs font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-300"
+                        >
+                            <RotateCcw size={13} />
+                            <span>Estornar recebimento</span>
                         </button>
                     )}
 
@@ -475,6 +522,12 @@ export default function TransferDetailPage() {
             {transfer.status === 'shipped' && !canConfirmTransfers && (
                 <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
                     Você pode visualizar esta transferência, mas não tem permissão para receber ou tratar divergências.
+                </p>
+            )}
+
+            {transfer.status === 'received' && !canCancelTransfers && (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                    Você pode visualizar esta transferência recebida, mas não tem permissão para estornar o recebimento.
                 </p>
             )}
 

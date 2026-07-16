@@ -595,6 +595,20 @@ export const stockService = {
     return rows[0];
   },
 
+  async reverseReceivedStockTransfer(input: {
+    transferId: string;
+    reason: string;
+  }): Promise<ReverseReceivedStockTransferResult> {
+    const { data, error } = await supabase.rpc('reverse_received_stock_transfer', {
+      p_transfer_id: input.transferId,
+      p_reason: input.reason,
+    });
+    if (error) throw error;
+    const rows = normalizeRows<ReverseReceivedStockTransferResult>(data);
+    if (!rows[0]) throw new Error('A transferência não foi estornada.');
+    return rows[0];
+  },
+
   async getPurchaseSuggestionsByStore(
     storeId: string
   ): Promise<PurchaseSuggestionRow[]> {
@@ -669,6 +683,14 @@ export type CancelStockTransferResult = {
   transfer_code: string;
   status: string;
   cancelled_at: string;
+};
+
+export type ReverseReceivedStockTransferResult = {
+  transfer_id: string;
+  transfer_code: string | null;
+  status: string;
+  reversed_at: string;
+  total_reversed: number;
 };
 
 export type PurchaseSuggestionRow = {
