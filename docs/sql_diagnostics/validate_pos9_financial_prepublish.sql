@@ -80,7 +80,7 @@ account_plan_gaps AS (
   SELECT
     s.name AS store_name,
     s.slug AS store_slug,
-    COUNT(*)::integer AS issue_count,
+    COUNT(e.id)::integer AS issue_count,
     jsonb_agg(
       jsonb_build_object(
         'entry_code', e.entry_code,
@@ -105,7 +105,7 @@ required_notes_violations AS (
   SELECT
     s.name AS store_name,
     s.slug AS store_slug,
-    COUNT(*)::integer AS issue_count,
+    COUNT(e.id)::integer AS issue_count,
     jsonb_agg(
       jsonb_build_object(
         'entry_code', e.entry_code,
@@ -138,7 +138,7 @@ financial_account_gaps AS (
   SELECT
     s.name AS store_name,
     s.slug AS store_slug,
-    COUNT(*)::integer AS issue_count,
+    COUNT(e.id)::integer AS issue_count,
     jsonb_agg(
       jsonb_build_object(
         'entry_code', e.entry_code,
@@ -171,7 +171,7 @@ cash_drawer_flag_gaps AS (
   SELECT
     s.name AS store_name,
     s.slug AS store_slug,
-    COUNT(*)::integer AS issue_count,
+    COUNT(e.id)::integer AS issue_count,
     jsonb_agg(
       jsonb_build_object(
         'entry_code', e.entry_code,
@@ -226,7 +226,7 @@ entry_reference_gaps AS (
   SELECT
     s.name AS store_name,
     s.slug AS store_slug,
-    COUNT(*)::integer AS issue_count,
+    COUNT(e.id)::integer AS issue_count,
     jsonb_agg(
       jsonb_build_object(
         'entry_code', e.entry_code,
@@ -257,106 +257,115 @@ entry_reference_gaps AS (
        OR (e.destination_financial_account_id IS NOT NULL AND dst.id IS NULL)
      )
   GROUP BY s.name, s.slug
+),
+result_rows AS (
+  SELECT
+    'manual_categories_expected' AS section,
+    CASE WHEN COUNT(*) FILTER (WHERE status <> 'ok') = 0 THEN 'ok' ELSE 'error' END AS severity,
+    NULL::text AS store_name,
+    NULL::text AS store_slug,
+    COUNT(*) FILTER (WHERE status <> 'ok')::integer AS issue_count,
+    jsonb_agg(to_jsonb(manual_expected_status) ORDER BY code) AS details
+  FROM manual_expected_status
+
+  UNION ALL
+
+  SELECT
+    'sale_flow_categories_hidden' AS section,
+    CASE WHEN COUNT(*) FILTER (WHERE status <> 'ok') = 0 THEN 'ok' ELSE 'error' END AS severity,
+    NULL::text AS store_name,
+    NULL::text AS store_slug,
+    COUNT(*) FILTER (WHERE status <> 'ok')::integer AS issue_count,
+    jsonb_agg(to_jsonb(sale_flow_categories) ORDER BY display_code NULLS LAST, code) AS details
+  FROM sale_flow_categories
+
+  UNION ALL
+
+  SELECT
+    'cashbook_missing_account_plan' AS section,
+    CASE WHEN issue_count = 0 THEN 'ok' ELSE 'warning' END AS severity,
+    store_name,
+    store_slug,
+    issue_count,
+    COALESCE(samples, '[]'::jsonb) AS details
+  FROM account_plan_gaps
+
+  UNION ALL
+
+  SELECT
+    'cashbook_required_notes_violations' AS section,
+    CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
+    store_name,
+    store_slug,
+    issue_count,
+    COALESCE(samples, '[]'::jsonb) AS details
+  FROM required_notes_violations
+
+  UNION ALL
+
+  SELECT
+    'cashbook_missing_financial_account' AS section,
+    CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
+    store_name,
+    store_slug,
+    issue_count,
+    COALESCE(samples, '[]'::jsonb) AS details
+  FROM financial_account_gaps
+
+  UNION ALL
+
+  SELECT
+    'cashbook_cash_drawer_flag_gaps' AS section,
+    CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
+    store_name,
+    store_slug,
+    issue_count,
+    COALESCE(samples, '[]'::jsonb) AS details
+  FROM cash_drawer_flag_gaps
+
+  UNION ALL
+
+  SELECT
+    'financial_default_accounts' AS section,
+    CASE
+      WHEN active_count = 0 THEN 'error'
+      WHEN active_default_count <> 1 THEN 'warning'
+      ELSE 'ok'
+    END AS severity,
+    store_name,
+    store_slug,
+    CASE
+      WHEN active_count = 0 THEN 1
+      WHEN active_default_count <> 1 THEN 1
+      ELSE 0
+    END AS issue_count,
+    jsonb_build_object(
+      'account_type', account_type,
+      'active_count', active_count,
+      'active_default_count', active_default_count,
+      'accounts', COALESCE(accounts, '[]'::jsonb)
+    ) AS details
+  FROM default_account_health
+
+  UNION ALL
+
+  SELECT
+    'cashbook_reference_gaps' AS section,
+    CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
+    store_name,
+    store_slug,
+    issue_count,
+    COALESCE(samples, '[]'::jsonb) AS details
+  FROM entry_reference_gaps
 )
 SELECT
-  'manual_categories_expected' AS section,
-  CASE WHEN COUNT(*) FILTER (WHERE status <> 'ok') = 0 THEN 'ok' ELSE 'error' END AS severity,
-  NULL::text AS store_name,
-  NULL::text AS store_slug,
-  COUNT(*) FILTER (WHERE status <> 'ok')::integer AS issue_count,
-  jsonb_agg(to_jsonb(manual_expected_status) ORDER BY code) AS details
-FROM manual_expected_status
-
-UNION ALL
-
-SELECT
-  'sale_flow_categories_hidden' AS section,
-  CASE WHEN COUNT(*) FILTER (WHERE status <> 'ok') = 0 THEN 'ok' ELSE 'error' END AS severity,
-  NULL::text AS store_name,
-  NULL::text AS store_slug,
-  COUNT(*) FILTER (WHERE status <> 'ok')::integer AS issue_count,
-  jsonb_agg(to_jsonb(sale_flow_categories) ORDER BY display_code NULLS LAST, code) AS details
-FROM sale_flow_categories
-
-UNION ALL
-
-SELECT
-  'cashbook_missing_account_plan' AS section,
-  CASE WHEN issue_count = 0 THEN 'ok' ELSE 'warning' END AS severity,
+  section,
+  severity,
   store_name,
   store_slug,
   issue_count,
-  COALESCE(samples, '[]'::jsonb) AS details
-FROM account_plan_gaps
-
-UNION ALL
-
-SELECT
-  'cashbook_required_notes_violations' AS section,
-  CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
-  store_name,
-  store_slug,
-  issue_count,
-  COALESCE(samples, '[]'::jsonb) AS details
-FROM required_notes_violations
-
-UNION ALL
-
-SELECT
-  'cashbook_missing_financial_account' AS section,
-  CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
-  store_name,
-  store_slug,
-  issue_count,
-  COALESCE(samples, '[]'::jsonb) AS details
-FROM financial_account_gaps
-
-UNION ALL
-
-SELECT
-  'cashbook_cash_drawer_flag_gaps' AS section,
-  CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
-  store_name,
-  store_slug,
-  issue_count,
-  COALESCE(samples, '[]'::jsonb) AS details
-FROM cash_drawer_flag_gaps
-
-UNION ALL
-
-SELECT
-  'financial_default_accounts' AS section,
-  CASE
-    WHEN active_count = 0 THEN 'error'
-    WHEN active_default_count <> 1 THEN 'warning'
-    ELSE 'ok'
-  END AS severity,
-  store_name,
-  store_slug,
-  CASE
-    WHEN active_count = 0 THEN 1
-    WHEN active_default_count <> 1 THEN 1
-    ELSE 0
-  END AS issue_count,
-  jsonb_build_object(
-    'account_type', account_type,
-    'active_count', active_count,
-    'active_default_count', active_default_count,
-    'accounts', COALESCE(accounts, '[]'::jsonb)
-  ) AS details
-FROM default_account_health
-
-UNION ALL
-
-SELECT
-  'cashbook_reference_gaps' AS section,
-  CASE WHEN issue_count = 0 THEN 'ok' ELSE 'error' END AS severity,
-  store_name,
-  store_slug,
-  issue_count,
-  COALESCE(samples, '[]'::jsonb) AS details
-FROM entry_reference_gaps
-
+  details
+FROM result_rows
 ORDER BY
   CASE severity
     WHEN 'error' THEN 1
