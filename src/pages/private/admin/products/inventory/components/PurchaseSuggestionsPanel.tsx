@@ -49,6 +49,7 @@ type EligibleSupplierOption = {
 
 type PurchaseSuggestionsPanelProps = {
     storeId: string | null;
+    canCreatePurchase?: boolean;
     onDraftCreated?: (purchaseDocumentId: string) => Promise<void> | void;
 };
 
@@ -111,6 +112,7 @@ function getSupplierEmailForQuotation(supplier?: EligibleSupplierOption | null) 
 
 export function PurchaseSuggestionsPanel({
     storeId,
+    canCreatePurchase = true,
     onDraftCreated,
 }: PurchaseSuggestionsPanelProps) {
     const {
@@ -306,6 +308,11 @@ export function PurchaseSuggestionsPanel({
         rows: PurchaseSuggestionRow[];
         canCreateDraft: boolean;
     }) => {
+        if (!canCreatePurchase) {
+            toast.error('Você não tem permissão para criar rascunhos de compra.');
+            return;
+        }
+
         if (!group.canCreateDraft || group.supplierId === 'without_supplier') {
             toast.error('Escolha um fornecedor antes de criar o rascunho.');
             return;

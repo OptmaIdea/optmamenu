@@ -452,9 +452,14 @@ export default function PurchaseDocumentsPage() {
   );
 
   const openNewDraft = useCallback(() => {
+    if (!canCreatePurchase) {
+      toast.error('Você não tem permissão para criar compras.');
+      return;
+    }
+
     resetDraft();
     setDraftOpen(true);
-  }, [resetDraft]);
+  }, [canCreatePurchase, resetDraft]);
 
   const openCancelModal = useCallback((doc: PurchaseDocument) => {
     setCancelTarget(doc);
@@ -728,6 +733,11 @@ export default function PurchaseDocumentsPage() {
   const cancelConfirmedDocument = useCallback(async () => {
     if (!cancelTarget) return;
 
+    if (!canCancelPurchase) {
+      toast.error('Você não tem permissão para cancelar compras.');
+      return;
+    }
+
     if (!cancelReason.trim() || cancelReason.trim().length < 3) {
       toast.error('Informe um motivo com pelo menos 3 caracteres');
       return;
@@ -763,10 +773,15 @@ export default function PurchaseDocumentsPage() {
     } finally {
       setSaving(false);
     }
-  }, [cancelReason, cancelTarget, fetchAll, resetDraft, refetchPurchaseDocumentTimeline]);
+  }, [canCancelPurchase, cancelReason, cancelTarget, fetchAll, resetDraft, refetchPurchaseDocumentTimeline]);
 
   const deleteDraft = useCallback(
     async (docId: string) => {
+      if (!canCancelPurchase) {
+        toast.error('Você não tem permissão para excluir rascunhos de compra.');
+        return;
+      }
+
       const confirmed = window.confirm(
         'Excluir este rascunho é uma operação irreversível.\n\nSe ele tiver sido criado a partir de uma cotação, o vínculo será desfeito e a cotação voltará ao status anterior.\n\nDeseja continuar?',
       );
@@ -798,7 +813,7 @@ export default function PurchaseDocumentsPage() {
         setSaving(false);
       }
     },
-    [editingDocId, fetchAll, resetDraft, refetchPurchaseDocumentTimeline],
+    [canCancelPurchase, editingDocId, fetchAll, resetDraft, refetchPurchaseDocumentTimeline],
   );
 
   return (
@@ -833,6 +848,7 @@ export default function PurchaseDocumentsPage() {
         <div className="space-y-6">
           <PurchaseSuggestionsPanel
             storeId={storeId}
+            canCreatePurchase={canCreatePurchase}
             onDraftCreated={async (purchaseDocumentId) => {
               await fetchAll();
 
