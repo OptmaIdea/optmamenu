@@ -27,8 +27,6 @@ export default defineConfig({
           includeAssets: [
             'OptmaMenuLogo.ico',
             'apple-touch-icon.png',
-            'favicon-16x16.png',
-            'favicon-32x32.png',
           ],
           manifest: {
             name: 'OptmaMenu',

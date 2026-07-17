@@ -5,7 +5,7 @@ const supabaseUrl =
     'https://lgkkfmqzaorrutuoqeax.supabase.co';
 
 const supabaseAnonKey =
-    import.meta.env.VITE_SUPABASE_ANON_KEY || 'SEU_ANON_KEY_AQUI';
+    import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_8Rmb1cfmYZmHLp8uTBdnBw_0ZzemBzt';
 
 const CUSTOMER_TOKEN_KEY = 'auth_token';
 
