@@ -1303,6 +1303,8 @@ export const ROLE_PERMISSION_TREE = [
                     'purchases.create',
                     'purchases.confirm',
                     'purchases.cancel',
+                    'quotes.view',
+                    'quotes.manage',
                     'transfers.view',
                     'transfers.create',
                     'transfers.confirm',
