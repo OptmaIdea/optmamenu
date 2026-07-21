@@ -7,7 +7,7 @@
  *
  * Ajustes:
  * - Menu Produtos e Vida do Produto passam a usar products.manage.
- * - Rotas /admin/products e /admin/products/*/lifecycle passam a usar products.manage.
+ * - Rotas de Produtos e Vida do Produto passam a usar products.manage.
  * - Links de produto em Movimentações usam products.manage.
  * - Remove dependência runtime de products.view nesses pontos.
  */
