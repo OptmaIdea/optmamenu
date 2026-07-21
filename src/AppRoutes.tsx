@@ -237,7 +237,7 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook/purchases" element={<RequirePermission permission="purchases.view"><PurchasesLedger /></RequirePermission>} />
             <Route path="/admin/stock/purchase-documents" element={<RequirePermission permission="purchases.view"><PurchaseDocumentsPage /></RequirePermission>} />
             <Route path="/admin/stock/purchase-insights" element={<RequirePermission permission="purchases.view"><PurchaseInsightsPage /></RequirePermission>} />
-            <Route path="/admin/stock/quotations" element={<RequirePermission permission="purchases.view"><PurchaseQuotationsPage /></RequirePermission>} />
+            <Route path="/admin/stock/quotations" element={<RequirePermission permission="quotes.view"><PurchaseQuotationsPage /></RequirePermission>} />
             <Route path="/admin/stock/movements" element={<RequirePermission permission="stock.view"><StockMovements /></RequirePermission>} />
             <Route path="/admin/stock-movements" element={<Navigate to="/admin/stock/movements" replace />} />
             <Route path="/admin/stock/entries" element={<Navigate to="/admin/stock-movements?type=entry" replace />} />
