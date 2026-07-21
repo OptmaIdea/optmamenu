@@ -1343,7 +1343,7 @@ export default function PrivateLayout() {
                                 <p className="text-[10px] text-gray-400 font-candara">
                                     © {new Date().getFullYear()}{' '}
                                     <a
-                                        href="https://optmaidea2.vercel.app/"
+                                        href="https://www.optmaidea.com.br/"
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="hover:underline"

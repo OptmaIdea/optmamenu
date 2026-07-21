@@ -223,7 +223,7 @@ export default function PublicLayout() {
       {/* Footer - SIMPLIFICADO: apenas copyright no mobile, completo no desktop */}
       <footer className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-[#6B6375]/10 dark:border-gray-800 p-4 text-center z-[900]">
         <div className="flex flex-col md:flex-row justify-center items-center gap-4 text-sm text-[#6B6375] dark:text-gray-400 font-candara">
-          <p>© {new Date().getFullYear()} OptmaIdea. Todos os direitos reservados.</p>
+          <p>© {new Date().getFullYear()} <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="hover:underline">OptmaIdea</a>. Todos os direitos reservados.</p>
 
           {/* Links de termos - APENAS NO DESKTOP */}
           <div className="hidden md:flex gap-4">

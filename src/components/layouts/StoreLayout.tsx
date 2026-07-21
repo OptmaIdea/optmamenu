@@ -48,7 +48,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
             {/* Desktop Footer */}
             <footer className="hidden sm:block mt-12 text-center text-gray-400 text-sm pb-8">
-                <p>© 2026 OptmaIdea. Todos os direitos reservados.</p>
+                <p>© {new Date().getFullYear()} <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="hover:underline">OptmaIdea</a>. Todos os direitos reservados.</p>
             </footer>
         </div>
     );
