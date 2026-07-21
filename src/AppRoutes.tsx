@@ -213,15 +213,15 @@ export default function AppRoutes() {
             <Route
               path="/admin/products"
               element={
-                <RequirePermission permission="products.view">
+                <RequirePermission permission="products.manage">
                   <Products />
                 </RequirePermission>
               }
             />
             <Route path="/admin/categories" element={<RequirePermission permission="categories.view"><Categories /></RequirePermission>} />
             <Route path="/admin/inventory" element={<RequirePermission permission="stock.view"><InventoryByLocationPage /></RequirePermission>} />
-            <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.view"><ProductLifecycleSelectorPage /></RequirePermission>} />
-            <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.view"><ProductLifecyclePage /></RequirePermission>} />
+            <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecycleSelectorPage /></RequirePermission>} />
+            <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecyclePage /></RequirePermission>} />
             <Route
               path="/admin/transfers"
               element={

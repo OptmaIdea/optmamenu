@@ -268,7 +268,7 @@ export default function PrivateLayout() {
         dashboard: 'dashboard.view',
         commercial: 'commercial.view',
         financial: 'financial.view',
-        products: 'products.view',
+        products: 'products.manage',
         security: 'security.view',
         settings: 'settings.view',
         support: 'support.view',
@@ -399,9 +399,9 @@ export default function PrivateLayout() {
             { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
-            { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.view' },
+            { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.manage' },
             { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
-            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.view' },
+            { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.manage' },
         ],
         team: [
             {

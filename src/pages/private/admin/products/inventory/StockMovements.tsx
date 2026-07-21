@@ -78,7 +78,7 @@ export default function StockMovementsPage() {
   const { hasPermission } = usePermissions(storeId ?? null);
   const canAdjustStock = hasPermission('stock.adjust');
   const canExportReports = hasPermission('reports.export');
-  const canViewProducts = hasPermission('products.view');
+  const canViewProducts = hasPermission('products.manage');
   const canViewTransfers = hasPermission('transfers.view');
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
