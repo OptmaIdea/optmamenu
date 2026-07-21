@@ -358,6 +358,7 @@ export default function PurchaseQuotationsPage() {
     const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
     const canViewQuotes = hasEffectivePermission(permissions, 'quotes.view');
     const canManageQuotes = hasEffectivePermission(permissions, 'quotes.manage');
+    const canViewPurchases = hasEffectivePermission(permissions, 'purchases.view');
     const [loading, setLoading] = useState(true);
     const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -1103,7 +1104,7 @@ export default function PurchaseQuotationsPage() {
                                                     </button>
                                                 )}
 
-                                                {quotation.status === 'converted' && quotation.converted_purchase_document_id && (
+                                                {canViewPurchases && quotation.status === 'converted' && quotation.converted_purchase_document_id && (
                                                     <button
                                                         type="button"
                                                         onClick={() =>
