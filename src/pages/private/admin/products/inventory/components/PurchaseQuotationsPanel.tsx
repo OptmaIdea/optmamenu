@@ -28,6 +28,7 @@ import { formatDateTimePtBr } from '@/utils/dateTime';
 
 type PurchaseQuotationsPanelProps = {
   storeId: string;
+  canManageQuotations?: boolean;
 };
 
 type QuotationEditableStatus =
@@ -325,7 +326,10 @@ async function copyTextToClipboard(text: string) {
   }
 }
 
-export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProps) {
+export function PurchaseQuotationsPanel({
+  storeId,
+  canManageQuotations = true,
+}: PurchaseQuotationsPanelProps) {
   const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -509,6 +513,11 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
   async function handleSaveResponse() {
     if (!detailDraft) return;
 
+    if (!canManageQuotations) {
+      toast.error('Você não tem permissão para alterar cotações.');
+      return;
+    }
+
     try {
       setSavingResponse(true);
 
@@ -573,6 +582,11 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
   async function handleConvertToDraft() {
     if (!detailDraft) return;
 
+    if (!canManageQuotations) {
+      toast.error('Você não tem permissão para converter cotações.');
+      return;
+    }
+
     try {
       setConvertingToDraft(true);
 
@@ -611,6 +625,11 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
   }
 
   async function handleConvertToDraftFromList(quotationId: string) {
+    if (!canManageQuotations) {
+      toast.error('Você não tem permissão para converter cotações.');
+      return;
+    }
+
     const confirmed = window.confirm(
       'Deseja converter esta cotação aprovada em rascunho de compra agora?',
     );
@@ -717,7 +736,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                             <Eye className="h-4 w-4" />
                           </button>
 
-                          {quotation.status === 'approved' && (
+                          {canManageQuotations && quotation.status === 'approved' && (
                             <button
                               type="button"
                               onClick={() => void handleConvertToDraftFromList(quotation.id)}
@@ -799,7 +818,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                   <select
                     value={responseStatus}
                     onChange={(event) => setResponseStatus(event.target.value as QuotationEditableStatus)}
-                    disabled={detail.status === 'converted'}
+                    disabled={!canManageQuotations || detail.status === 'converted'}
                     className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   >
                     <option value="draft">Rascunho</option>
@@ -816,7 +835,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                   <select
                     value={sentChannel}
                     onChange={(event) => setSentChannel(event.target.value as QuotationChannel)}
-                    disabled={detail.status === 'converted'}
+                    disabled={!canManageQuotations || detail.status === 'converted'}
                     className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   >
                     <option value="">Não informado</option>
@@ -832,7 +851,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                   <input
                     value={responsibleName}
                     onChange={(event) => setResponsibleName(event.target.value)}
-                    disabled={detail.status === 'converted'}
+                    disabled={!canManageQuotations || detail.status === 'converted'}
                     className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                     placeholder="Responsável pela cotação"
                   />
@@ -962,7 +981,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                                     quoted_unit_cost: event.target.value === '' ? null : Number(event.target.value),
                                   })
                                 }
-                                disabled={detail.status === 'converted'}
+                                disabled={!canManageQuotations || detail.status === 'converted'}
                                 className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 placeholder="0,00"
                               />
@@ -978,7 +997,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                                     approved_qty: event.target.value === '' ? 0 : Number(event.target.value),
                                   })
                                 }
-                                disabled={detail.status === 'converted'}
+                                disabled={!canManageQuotations || detail.status === 'converted'}
                                 className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                               />
                             </td>
@@ -990,7 +1009,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                                     supplier_notes: event.target.value,
                                   })
                                 }
-                                disabled={detail.status === 'converted'}
+                                disabled={!canManageQuotations || detail.status === 'converted'}
                                 className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                 placeholder="Ex.: sem estoque, entrega parcial..."
                               />
@@ -1009,7 +1028,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                 <textarea
                   value={quotationNotes}
                   onChange={(event) => setQuotationNotes(event.target.value)}
-                  disabled={detail.status === 'converted'}
+                  disabled={!canManageQuotations || detail.status === 'converted'}
                   className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                   placeholder="Ex.: fornecedor confirmou entrega para sexta-feira..."
                 />
@@ -1036,7 +1055,7 @@ export function PurchaseQuotationsPanel({ storeId }: PurchaseQuotationsPanelProp
                 Fechar
               </button>
 
-              {detail.status !== 'converted' && (
+              {canManageQuotations && detail.status !== 'converted' && (
                 <button
                   type="button"
                   onClick={() => void handleSaveResponse()}

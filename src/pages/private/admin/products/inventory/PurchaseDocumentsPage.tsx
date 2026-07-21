@@ -180,6 +180,8 @@ export default function PurchaseDocumentsPage() {
   const canCreatePurchase = hasPermission('purchases.create');
   const canConfirmPurchase = hasPermission('purchases.confirm');
   const canCancelPurchase = hasPermission('purchases.cancel');
+  const canViewQuotations = hasPermission('quotes.view');
+  const canManageQuotations = hasPermission('quotes.manage');
 
   const {
     events: purchaseDocumentTimelineEvents,
@@ -849,6 +851,7 @@ export default function PurchaseDocumentsPage() {
           <PurchaseSuggestionsPanel
             storeId={storeId}
             canCreatePurchase={canCreatePurchase}
+            canManageQuotations={canManageQuotations}
             onDraftCreated={async (purchaseDocumentId) => {
               await fetchAll();
 
@@ -862,7 +865,12 @@ export default function PurchaseDocumentsPage() {
             }}
           />
 
-          {storeId && <PurchaseQuotationsPanel storeId={storeId} />}
+          {storeId && canViewQuotations ? (
+            <PurchaseQuotationsPanel
+              storeId={storeId}
+              canManageQuotations={canManageQuotations}
+            />
+          ) : null}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatsCard

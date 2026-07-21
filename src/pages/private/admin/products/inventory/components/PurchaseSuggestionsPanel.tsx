@@ -50,6 +50,7 @@ type EligibleSupplierOption = {
 type PurchaseSuggestionsPanelProps = {
     storeId: string | null;
     canCreatePurchase?: boolean;
+    canManageQuotations?: boolean;
     onDraftCreated?: (purchaseDocumentId: string) => Promise<void> | void;
 };
 
@@ -113,6 +114,7 @@ function getSupplierEmailForQuotation(supplier?: EligibleSupplierOption | null) 
 export function PurchaseSuggestionsPanel({
     storeId,
     canCreatePurchase = true,
+    canManageQuotations = true,
     onDraftCreated,
 }: PurchaseSuggestionsPanelProps) {
     const {
@@ -360,6 +362,11 @@ export function PurchaseSuggestionsPanel({
         rows: PurchaseSuggestionRow[];
         canCreateDraft: boolean;
     }) {
+        if (!canManageQuotations) {
+            toast.error('Você não tem permissão para gerar cotações.');
+            return;
+        }
+
         if (!group.canCreateDraft || group.supplierId === 'without_supplier') {
             toast.error('Escolha um fornecedor antes de gerar a cotação.');
             return;
@@ -421,6 +428,11 @@ export function PurchaseSuggestionsPanel({
         sentChannel: 'whatsapp' | 'email' | 'pdf' | 'manual' | 'other' | null;
     }) {
         if (!quotationPreview) return;
+
+        if (!canManageQuotations) {
+            toast.error('Você não tem permissão para salvar cotações.');
+            return;
+        }
 
         try {
             setSavingQuotation(true);
