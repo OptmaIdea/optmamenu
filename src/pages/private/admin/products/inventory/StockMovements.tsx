@@ -78,6 +78,8 @@ export default function StockMovementsPage() {
   const { hasPermission } = usePermissions(storeId ?? null);
   const canAdjustStock = hasPermission('stock.adjust');
   const canExportReports = hasPermission('reports.export');
+  const canViewProducts = hasPermission('products.view');
+  const canViewTransfers = hasPermission('transfers.view');
 
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [total, setTotal] = useState(0);
@@ -829,13 +831,17 @@ export default function StockMovementsPage() {
                         <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors print:hover:bg-transparent">
                           <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">{formatDate(movement.created_at, movement.created_at_display)}</td>
                           <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 font-medium text-gray-900 dark:text-white">
-                            <button
-                              type="button"
-                              onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
-                              className="font-medium text-[#19A999] hover:underline text-left"
-                            >
-                              {movement.product_name || 'Produto removido'}
-                            </button>
+                            {canViewProducts ? (
+                              <button
+                                type="button"
+                                onClick={() => navigate(`/admin/products/${movement.product_id}/lifecycle`)}
+                                className="font-medium text-[#19A999] hover:underline text-left"
+                              >
+                                {movement.product_name || 'Produto removido'}
+                              </button>
+                            ) : (
+                              <span>{movement.product_name || 'Produto removido'}</span>
+                            )}
                           </td>
                           <td className="px-3 py-3 md:px-4 md:py-4 print:p-2 text-sm text-gray-600 dark:text-gray-400">
                             {movement.location_name ? (
@@ -888,7 +894,7 @@ export default function StockMovementsPage() {
                                 {getTransferDivergenceReasonLabel(movement.divergence_reason)}.
                               </div>
                             )}
-                            {movement.transfer_id && (
+                            {canViewTransfers && movement.transfer_id && (
                               <button
                                 type="button"
                                 onClick={() => navigate(`/admin/transfers/${movement.transfer_id}`)}
@@ -945,16 +951,18 @@ export default function StockMovementsPage() {
           filters={{ startDate: filters.startDate, endDate: filters.endDate, type: filters.type }}
         />
       </div>
-      <ManualStockAdjustmentModal
-        open={adjustmentModalOpen}
-        onClose={() => setAdjustmentModalOpen(false)}
-        onSuccess={() => {
-          void loadMovements();
-          refreshInventory();
-        }}
-        products={availableProducts}
-        locations={adjustmentLocations.length > 0 ? adjustmentLocations : locationOptions}
-      />
+      {canAdjustStock && (
+        <ManualStockAdjustmentModal
+          open={adjustmentModalOpen}
+          onClose={() => setAdjustmentModalOpen(false)}
+          onSuccess={() => {
+            void loadMovements();
+            refreshInventory();
+          }}
+          products={availableProducts}
+          locations={adjustmentLocations.length > 0 ? adjustmentLocations : locationOptions}
+        />
+      )}
       </PageContainer>
     </>
   );
