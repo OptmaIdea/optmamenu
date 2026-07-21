@@ -24,6 +24,7 @@ type ProductStockManagementCardsProps = {
   locationRows: ProductStockManagementRow[];
   loading?: boolean;
   error?: string | null;
+  canCreateTransfers?: boolean;
 };
 
 // ─── Mapas de rótulos e estilos ───────────────────────────────────────────────
@@ -128,6 +129,7 @@ export function ProductStockManagementCards({
   locationRows,
   loading,
   error,
+  canCreateTransfers = false,
 }: ProductStockManagementCardsProps) {
   const navigate = useNavigate();
   const [manualTransferDraft, setManualTransferDraft] =
@@ -151,6 +153,10 @@ export function ProductStockManagementCards({
     row: ProductStockManagementRow,
     source: ProductLifecycleSourceLocation
   ) => {
+    if (!canCreateTransfers) {
+      toast.error('Você não tem permissão para criar transferências.');
+      return;
+    }
     const destinationNeed = Math.max(
       1,
       Number(row.provisional_location_min_stock ?? 0) - Number(row.available ?? 0)
@@ -177,6 +183,10 @@ export function ProductStockManagementCards({
   };
 
   const openManualTransferDraft = (row: ProductStockManagementRow) => {
+    if (!canCreateTransfers) {
+      toast.error('Você não tem permissão para criar transferências.');
+      return;
+    }
     const hasAvailableAtCurrentLocation = Number(row.available ?? 0) > 0;
     const fallbackSource = activeLocationRows
       .filter((location) => location.location_id !== row.location_id)
@@ -203,6 +213,11 @@ export function ProductStockManagementCards({
   };
 
   const handleCreateManualTransferDraft = async () => {
+    if (!canCreateTransfers) {
+      toast.error('Você não tem permissão para criar transferências.');
+      return;
+    }
+
     if (!globalSummary || !manualTransferDraft) return;
 
     if (!manualTransferDraft.sourceLocationId || !manualTransferDraft.destinationLocationId) {
@@ -412,7 +427,7 @@ export function ProductStockManagementCards({
                   Máx. local: {formatNumberPtBr(row.provisional_location_max_stock ?? 0)}
                 </span>
 
-                {activeLocationRows.length > 1 && (
+                {canCreateTransfers && activeLocationRows.length > 1 && (
                   <button
                     type="button"
                     onClick={() => openManualTransferDraft(row)}
@@ -424,7 +439,7 @@ export function ProductStockManagementCards({
               </div>
 
               {/* Origem sugerida para transferência */}
-              {action === 'transfer' && bestSource && (
+              {canCreateTransfers && action === 'transfer' && bestSource && (
                 <div className="mt-3 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 p-3">
                   <div className="flex items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
                     <ArrowRightLeft size={14} />
@@ -463,7 +478,7 @@ export function ProductStockManagementCards({
         })}
       </div>
 
-      {manualTransferDraft && globalSummary && (
+      {canCreateTransfers && manualTransferDraft && globalSummary && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-2xl rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
             <div className="flex items-start justify-between gap-4">

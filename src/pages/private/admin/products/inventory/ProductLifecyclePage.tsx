@@ -18,6 +18,8 @@ import { ProductTransitPanel } from './components/ProductTransitPanel';
 import { downloadCsv } from '@/utils/export/csv';
 import { formatCurrencyPtBr, formatNumberPtBr } from '@/utils/export/formatters';
 import { formatDateTimePtBr } from '@/utils/dateTime';
+import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import { usePermissions } from '@/hooks/usePermissions';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import { ArrowLeft, History, MapPinned } from 'lucide-react';
@@ -90,6 +92,9 @@ const stockStatusClassMap: Record<string, string> = {
 export default function ProductLifecyclePage() {
   const { id } = useParams();
   const [product, setProduct] = useState<any>(null);
+  const { storeId } = useCurrentStore();
+  const { hasPermission } = usePermissions(storeId ?? null);
+  const canCreateTransfers = hasPermission('transfers.create');
 
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -598,6 +603,7 @@ export default function ProductLifecyclePage() {
         locationRows={managementRows}
         loading={loadingManagement}
         error={managementError}
+        canCreateTransfers={canCreateTransfers}
       />
 
       {/* ── Fornecedores e Custos ── */}
