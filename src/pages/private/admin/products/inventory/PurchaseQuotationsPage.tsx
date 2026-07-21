@@ -37,6 +37,8 @@ import { useInventory } from '@/pages/private/admin/products/inventory/hooks/use
 import { buildCsv, downloadCsv, formatCsvNumberBR } from '@/utils/csv';
 import { isSupplierPurchaseEligible } from './utils/supplierStatusUtils';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { usePermissions } from '@/hooks/usePermissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 
 /* type StoreLike = { id: string }; */
 
@@ -226,6 +228,30 @@ function buildQuotationText(detail: PurchaseQuotationDetail) {
     ].join('\n');
 }
 
+function QuotationsAccessDenied() {
+    return (
+        <PageContainer
+            title="Acesso Restrito"
+            subtitle="Você não tem permissão para visualizar cotações de compra."
+            category="Produtos"
+            icon={<XCircle className="text-[#DC2626]" size={28} />}
+            flat
+        >
+            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="mb-4 rounded-full bg-red-50 p-4 text-red-500 dark:bg-red-950/30">
+                    <XCircle size={48} />
+                </div>
+                <h3 className="mb-2 text-xl font-bold text-gray-800 dark:text-white">
+                    Acesso restrito
+                </h3>
+                <p className="max-w-md text-sm text-gray-500 dark:text-gray-400">
+                    Seu perfil não possui a permissão quotes.view para acessar esta tela.
+                </p>
+            </div>
+        </PageContainer>
+    );
+}
+
 function buildQuotationPrintHtml(
     detail: PurchaseQuotationDetail,
     contact: SupplierContact | null,
@@ -329,6 +355,9 @@ export default function PurchaseQuotationsPage() {
 
     const { products: inventoryProducts } = useInventory();
     const [storeId, setStoreId] = useState<string | null>(null);
+    const { permissions, loading: loadingPermissions } = usePermissions(storeId ?? null);
+    const canViewQuotes = hasEffectivePermission(permissions, 'quotes.view');
+    const canManageQuotes = hasEffectivePermission(permissions, 'quotes.manage');
     const [loading, setLoading] = useState(true);
     const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([]);
     const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -412,6 +441,7 @@ export default function PurchaseQuotationsPage() {
             setStoreId(activeStoreId);
 
             if (activeStoreId) {
+                // O bloqueio visual acontece após o carregamento das permissões.
                 await loadQuotations(activeStoreId);
             } else {
                 setLoading(false);
@@ -854,11 +884,15 @@ export default function PurchaseQuotationsPage() {
     const email = getSupplierEmail(supplierContact);
     const whatsapp = normalizePhone(getSupplierPhone(supplierContact));
 
-    if (loading) return <LoadingSpinner />;
+    if (loading || loadingPermissions) return <LoadingSpinner />;
+
+    if (!canViewQuotes) {
+        return <QuotationsAccessDenied />;
+    }
 
     return (
         <>
-            {portalContainer && createPortal(
+            {portalContainer && canManageQuotes && createPortal(
                 <button
                     type="button"
                     onClick={() => setManualQuotationOpen(true)}
@@ -899,14 +933,16 @@ export default function PurchaseQuotationsPage() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                    <button
-                        type="button"
-                        onClick={() => setManualQuotationOpen(true)}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Nova cotação
-                    </button>
+                    {canManageQuotes && (
+                        <button
+                            type="button"
+                            onClick={() => setManualQuotationOpen(true)}
+                            className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                        >
+                            <Plus className="h-4 w-4" />
+                            Nova cotação
+                        </button>
+                    )}
 
                     <button
                         type="button"
@@ -1056,8 +1092,8 @@ export default function PurchaseQuotationsPage() {
                                                     <Eye className="h-4 w-4" />
                                                 </button>
 
-                                                {quotation.status === 'approved' && (
-                                                    <button
+                                                {canManageQuotes && quotation.status === 'approved' && (
+                            <button
                                                         type="button"
                                                         onClick={() => void convertQuotationToPurchase(quotation.id)}
                                                         className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
@@ -1297,7 +1333,7 @@ export default function PurchaseQuotationsPage() {
                                     <select
                                         value={responseStatus}
                                         onChange={(event) => setResponseStatus(event.target.value as QuotationEditableStatus)}
-                                        disabled={detail.status === 'converted'}
+                                        disabled={!canManageQuotes || detail.status === 'converted'}
                                         className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     >
                                         <option value="draft">Rascunho</option>
@@ -1314,7 +1350,7 @@ export default function PurchaseQuotationsPage() {
                                     <select
                                         value={sentChannel}
                                         onChange={(event) => setSentChannel(event.target.value as QuotationChannel)}
-                                        disabled={detail.status === 'converted'}
+                                        disabled={!canManageQuotes || detail.status === 'converted'}
                                         className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                     >
                                         <option value="">Não informado</option>
@@ -1331,7 +1367,7 @@ export default function PurchaseQuotationsPage() {
                                     <input
                                         value={responsibleName}
                                         onChange={(event) => setResponsibleName(event.target.value)}
-                                        disabled={detail.status === 'converted'}
+                                        disabled={!canManageQuotes || detail.status === 'converted'}
                                         className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                                         placeholder="Responsável pela cotação"
                                     />
@@ -1464,7 +1500,7 @@ export default function PurchaseQuotationsPage() {
                                                                             event.target.value === '' ? null : Number(event.target.value),
                                                                     })
                                                                 }
-                                                                disabled={detail.status === 'converted'}
+                                                                disabled={!canManageQuotes || detail.status === 'converted'}
                                                                 className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950"
                                                                 placeholder="0,00"
                                                             />
@@ -1480,7 +1516,7 @@ export default function PurchaseQuotationsPage() {
                                                                         approved_qty: event.target.value === '' ? 0 : Number(event.target.value),
                                                                     })
                                                                 }
-                                                                disabled={detail.status === 'converted'}
+                                                                disabled={!canManageQuotes || detail.status === 'converted'}
                                                                 className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950"
                                                             />
                                                         </td>
@@ -1492,7 +1528,7 @@ export default function PurchaseQuotationsPage() {
                                                                         supplier_notes: event.target.value,
                                                                     })
                                                                 }
-                                                                disabled={detail.status === 'converted'}
+                                                                disabled={!canManageQuotes || detail.status === 'converted'}
                                                                 className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950"
                                                                 placeholder="Ex.: sem estoque, entrega parcial..."
                                                             />
@@ -1511,7 +1547,7 @@ export default function PurchaseQuotationsPage() {
                                 <textarea
                                     value={quotationNotes}
                                     onChange={(event) => setQuotationNotes(event.target.value)}
-                                    disabled={detail.status === 'converted'}
+                                    disabled={!canManageQuotes || detail.status === 'converted'}
                                     className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                                     placeholder="Ex.: fornecedor confirmou entrega para sexta-feira..."
                                 />
@@ -1538,7 +1574,7 @@ export default function PurchaseQuotationsPage() {
                                 Fechar
                             </button>
 
-                            {detail.status !== 'converted' && (
+                            {canManageQuotes && detail.status !== 'converted' && (
                                 <>
                                     <button
                                         type="button"

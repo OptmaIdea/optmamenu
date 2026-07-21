@@ -395,7 +395,7 @@ export default function PrivateLayout() {
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
-            { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'purchases.view' },
+            { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'quotes.view' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
