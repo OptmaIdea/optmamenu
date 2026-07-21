@@ -268,7 +268,7 @@ export default function PrivateLayout() {
         dashboard: 'dashboard.view',
         commercial: 'commercial.view',
         financial: 'financial.view',
-        products: 'products.manage',
+        products: null,
         security: 'security.view',
         settings: 'settings.view',
         support: 'support.view',
