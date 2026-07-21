@@ -11,6 +11,8 @@ import EmptyState from '@/components/common/empty-state/EmptyState';
 import EmptyTableState from '@/components/common/empty-state/EmptyTableState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 import PageContainer from '@/components/common/PageContainer';
+import { usePermissions } from '@/hooks/usePermissions';
+import { hasEffectivePermission } from '@/utils/permissions';
 import {
   PackageSearch,
   ArrowRightLeft,
@@ -97,6 +99,8 @@ export default function InventoryByLocationPage() {
   const navigate = useNavigate();
   const { rows: rawRows, loading, storeId } = useInventoryByLocation();
   const { rows: transitRows } = useInventoryTransit(storeId);
+  const { permissions } = usePermissions(storeId ?? null);
+  const canCreateTransfers = hasEffectivePermission(permissions, 'transfers.create');
 
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -355,6 +359,10 @@ export default function InventoryByLocationPage() {
   const isFilteredEmpty = hasAnyData && !hasFilteredData;
 
   const handleCreateTransferFromRow = (row: any) => {
+    if (!canCreateTransfers) {
+      return;
+    }
+
     const sourceLocations = Array.isArray(row.source_locations)
       ? row.source_locations
       : [];
@@ -828,7 +836,7 @@ export default function InventoryByLocationPage() {
                       </td>
 
                       <td className="px-4 py-3">
-                        {row.recommended_action === 'transfer' && bestSource ? (
+                        {row.recommended_action === 'transfer' && bestSource && canCreateTransfers ? (
                           <div className="text-xs space-y-1">
                             <div className="font-medium text-blue-600 dark:text-blue-300">
                               {bestSource.location_name}
