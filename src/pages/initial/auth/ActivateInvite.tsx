@@ -7,12 +7,15 @@ import { acceptStoreMemberInvite } from '@/services/myStoreInviteService';
 import { setActiveStoreId } from '@/utils/activeStore';
 import { markSessionAsActive } from '@/utils/sessionSecurity';
 
-function clearAuthHash() {
-  if (!window.location.hash) return;
-  window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+function clearSensitiveAuthParams() {
+  const url = new URL(window.location.href);
+  url.hash = '';
+  url.searchParams.delete('token_hash');
+  url.searchParams.delete('type');
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}`);
 }
 
-function readAuthTokensFromHash() {
+function getHashTokens() {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
   return {
     accessToken: hash.get('access_token'),
@@ -20,21 +23,13 @@ function readAuthTokensFromHash() {
   };
 }
 
-async function waitForPersistedSession(maxAttempts = 40, delayMs = 150): Promise<boolean> {
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    const { data } = await supabase.auth.getSession();
-    if (data.session) return true;
-    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
-  }
-
-  return false;
-}
-
 export default function ActivateInvite() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const storeId = searchParams.get('store_id') ?? '';
   const mode = searchParams.get('mode') ?? 'invite';
+  const tokenHash = searchParams.get('token_hash');
+  const tokenType = searchParams.get('type');
   const requiresPassword = mode === 'invite';
 
   const [checking, setChecking] = useState(true);
@@ -52,63 +47,82 @@ export default function ActivateInvite() {
 
   useEffect(() => {
     let mounted = true;
-    let resolvedByListener = false;
-    const tokens = readAuthTokensFromHash();
 
-    const markReady = () => {
-      if (!mounted) return;
-      resolvedByListener = true;
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted || !session) return;
       setSessionReady(true);
       setError('');
       setChecking(false);
-      clearAuthHash();
-    };
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) markReady();
+      clearSensitiveAuthParams();
     });
 
     const resolveSession = async () => {
       try {
-        const existing = await supabase.auth.getSession();
-        if (existing.data.session) {
-          markReady();
+        const current = await supabase.auth.getSession();
+        if (current.data.session) {
+          if (!mounted) return;
+          setSessionReady(true);
+          clearSensitiveAuthParams();
           return;
         }
 
-        if (tokens.accessToken && tokens.refreshToken) {
-          const { data, error: setSessionError } = await supabase.auth.setSession({
-            access_token: tokens.accessToken,
-            refresh_token: tokens.refreshToken,
+        if (tokenHash) {
+          const verifyType = tokenType === 'magiclink' ? 'magiclink' : 'invite';
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type: verifyType,
           });
 
-          if (setSessionError) throw setSessionError;
+          if (verifyError) throw verifyError;
           if (data.session) {
-            markReady();
+            if (!mounted) return;
+            setSessionReady(true);
+            clearSensitiveAuthParams();
             return;
           }
         }
 
-        const restored = await waitForPersistedSession();
-        if (!mounted || resolvedByListener) return;
+        const { accessToken, refreshToken } = getHashTokens();
+        if (accessToken && refreshToken) {
+          const { data, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
 
-        if (restored) {
-          markReady();
-          return;
+          if (sessionError) throw sessionError;
+          if (data.session) {
+            if (!mounted) return;
+            setSessionReady(true);
+            clearSensitiveAuthParams();
+            return;
+          }
         }
 
-        setSessionReady(false);
-        setError('O link não pôde ser validado. Solicite ao responsável o reenvio do convite.');
+        for (let attempt = 0; attempt < 12; attempt += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+          const retry = await supabase.auth.getSession();
+          if (retry.data.session) {
+            if (!mounted) return;
+            setSessionReady(true);
+            clearSensitiveAuthParams();
+            return;
+          }
+        }
+
+        if (mounted) {
+          setSessionReady(false);
+          setError('O link não pôde ser validado. Solicite um novo convite.');
+        }
       } catch (sessionError) {
-        if (!mounted || resolvedByListener) return;
+        if (!mounted) return;
         setSessionReady(false);
         setError(
           sessionError instanceof Error
             ? sessionError.message
-            : 'Não foi possível validar a sessão do convite.',
+            : 'Não foi possível validar o convite.',
         );
       } finally {
-        if (mounted && !resolvedByListener) setChecking(false);
+        if (mounted) setChecking(false);
       }
     };
 
@@ -118,7 +132,7 @@ export default function ActivateInvite() {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [tokenHash, tokenType]);
 
   const finishActivation = async (event: FormEvent) => {
     event.preventDefault();
