@@ -1292,7 +1292,6 @@ export const ROLE_PERMISSION_TREE = [
                 label: 'Produtos e Estoque',
                 accessPermission: 'products.manage',
                 permissions: [
-                    'products.view',
                     'products.manage',
                     'categories.view',
                     'categories.manage',
@@ -1800,6 +1799,12 @@ export default function Security() {
 
     const [permissionSearch, setPermissionSearch] = useState('');
     const [userPermissionSearch, setUserPermissionSearch] = useState('');
+
+    useEffect(() => {
+        if (activeTab === 'user_permissions') {
+            setUserPermissionSearch('');
+        }
+    }, [activeTab]);
 
 
 
@@ -4061,7 +4066,11 @@ export default function Security() {
 
                                 <div className="relative mb-4">
                                     <input
-                                        type="text"
+                                        type="search"
+                                        name="optmamenu-permission-filter"
+                                        autoComplete="off"
+                                        data-lpignore="true"
+                                        data-1p-ignore="true"
                                         placeholder="Pesquisar permissões..."
                                         value={userPermissionSearch}
                                         onChange={(e) => setUserPermissionSearch(e.target.value)}
@@ -4217,9 +4226,7 @@ export default function Security() {
                                                                         <span className="text-xs font-bold text-gray-850 dark:text-gray-200">
                                                                             {row.label || code}
                                                                         </span>
-                                                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 truncate max-w-[240px]" title={code}>
-                                                                            {code}
-                                                                        </span>
+
                                                                     </div>
                                                                     {row.risk_level && renderRiskBadge(row.risk_level)}
                                                                 </div>
