@@ -26,14 +26,6 @@ type UseRealtimeListenerOptions = {
  * Hook padrão para escuta de mudanças em tempo real via Supabase Realtime.
  * Registra um canal WebSocket e chama `onChanged` quando detecta alterações
  * nas tabelas especificadas. Realiza limpeza automática ao desmontar.
- *
- * @example
- * useRealtimeListener({
- *   channelName: 'orders_realtime',
- *   tables: [{ table: 'orders', filter: `store_id=eq.${storeId}` }],
- *   onChanged: fetchOrders,
- *   enabled: !!storeId,
- * });
  */
 export function useRealtimeListener({
   channelName,
@@ -41,9 +33,30 @@ export function useRealtimeListener({
   onChanged,
   enabled = true,
 }: UseRealtimeListenerOptions) {
-  // Ref para evitar closure stale no callback
   const onChangedRef = useRef(onChanged);
-  useEffect(() => { onChangedRef.current = onChanged; }, [onChanged]);
+  const sessionActiveRef = useRef(false);
+
+  useEffect(() => {
+    onChangedRef.current = onChanged;
+  }, [onChanged]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (mounted) sessionActiveRef.current = Boolean(data.session);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      sessionActiveRef.current = event !== 'SIGNED_OUT' && Boolean(session);
+    });
+
+    return () => {
+      mounted = false;
+      sessionActiveRef.current = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!enabled || tables.length === 0) return;
@@ -60,7 +73,10 @@ export function useRealtimeListener({
             table,
             ...(filter ? { filter } : {}),
           } as any,
-          () => onChangedRef.current()
+          () => {
+            if (!sessionActiveRef.current) return;
+            onChangedRef.current();
+          }
         );
       }
     }
@@ -71,5 +87,5 @@ export function useRealtimeListener({
       supabase.removeChannel(channel);
     };
   }, [channelName, enabled, JSON.stringify(tables)]);
-  // Nota: JSON.stringify(tables) é intencional para comparação de valor profundo.
+  // JSON.stringify(tables) é intencional para comparação de valor profundo.
 }
