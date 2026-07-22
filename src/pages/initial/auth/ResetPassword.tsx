@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CheckCircle, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';

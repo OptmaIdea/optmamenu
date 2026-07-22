@@ -66,6 +66,9 @@ const PrivateLayout = lazy(() => import('@/components/layouts/PrivateLayout'));
 const Landing = lazy(() => import('@/pages/initial/home/Landing'));
 const Login = lazy(() => import('@/pages/initial/auth/Login'));
 const Signup = lazy(() => import('@/pages/initial/auth/SignUp'));
+const ActivateInvite = lazy(() => import('@/pages/initial/auth/ActivateInvite'));
+const ForgotPassword = lazy(() => import('@/pages/initial/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('@/pages/initial/auth/ResetPassword'));
 const Terms = lazy(() => import('@/pages/initial/legal/Terms'));
 const PrivacyPolicy = lazy(() => import('@/pages/initial/legal/PrivacyPolicy'));
 
@@ -146,6 +149,9 @@ export default function AppRoutes() {
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/activate-invite" element={<ActivateInvite />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/politica-privacidade" element={<PrivacyPolicy />} />
         </Route>
