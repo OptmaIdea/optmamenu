@@ -19,6 +19,7 @@ export interface ProfileData {
     whatsapp_phone: string;
     whatsapp_same_as_mobile: boolean;
     birthdate: string;
+    blood_type: string;
     zip_code: string;
     address: string;
     address_number: string;
@@ -263,6 +264,26 @@ export default function MyProfileIdentityTab({
                                 >
                                     Solicitar alteração.
                                 </button>
+                            </span>
+                        )}
+                    </div>
+
+                    <div>
+                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Tipo sanguíneo</label>
+                        <select
+                            className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#19A999] outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition disabled:opacity-60 disabled:cursor-not-allowed"
+                            value={profile.blood_type}
+                            onChange={(e) => setProfile({ ...profile, blood_type: e.target.value })}
+                            disabled={!canEditGlobalProfile}
+                        >
+                            <option value="">Selecione...</option>
+                            {['A+','A-','B+','B-','AB+','AB-','O+','O-'].map((type) => (
+                                <option key={type} value={type}>{type}</option>
+                            ))}
+                        </select>
+                        {!canEditGlobalProfile && (
+                            <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-1 block">
+                                Alterações posteriores devem ser solicitadas ao responsável.
                             </span>
                         )}
                     </div>

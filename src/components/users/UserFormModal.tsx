@@ -111,7 +111,7 @@ export function UserFormModal({
                     {/* Header */}
                     <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            {mode === 'create' ? 'Vincular ou Convidar Usuário' : 'Editar Permissão'}
+                            {mode === 'create' ? 'Acesso para novo usuário' : 'Editar cargo'}
                         </h2>
                         <button
                             onClick={handleClose}
@@ -147,7 +147,7 @@ export function UserFormModal({
                             </div>
                         )}
 
-                        {/* Nome */}
+                        {/* Nome ou apelido */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Nome *
@@ -162,7 +162,7 @@ export function UserFormModal({
                                     },
                                 })}
                                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
-                                placeholder="João Silva"
+                                placeholder="Ex: João"
                             />
                             {errors.full_name && (
                                 <p className="mt-1 text-xs text-red-500">{errors.full_name.message}</p>
@@ -195,7 +195,7 @@ export function UserFormModal({
                             </div>
                         </div>
 
-                        {/* Cargo/Permissão */}
+                        {/* Cargo/Cargo do usuário */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                                 Permissão *
@@ -219,19 +219,6 @@ export function UserFormModal({
                             </select>
                         </div>
 
-                        {/* Observações Internas */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Observações Internas
-                            </label>
-                            <textarea
-                                {...register('internal_notes')}
-                                rows={3}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent resize-none"
-                                placeholder="Adicione observações sobre este usuário..."
-                            />
-                        </div>
-
                         {/* Actions */}
                         <div className="flex gap-3 pt-4">
                             <button
@@ -246,7 +233,7 @@ export function UserFormModal({
                                 disabled={isSubmitting}
                                 className="flex-1 px-4 py-2 rounded-lg bg-[#19A999] text-white hover:bg-[#14887B] font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {isSubmitting ? 'Salvando...' : mode === 'create' ? 'Vincular/Convidar' : 'Salvar'}
+                                {isSubmitting ? 'Enviando...' : mode === 'create' ? 'Enviar convite' : 'Salvar'}
                             </button>
                         </div>
                     </form>

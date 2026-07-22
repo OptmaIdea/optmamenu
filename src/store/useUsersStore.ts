@@ -329,10 +329,7 @@ export const useUsersStore = create<UsersState>((set, get) => ({
                 storeId,
                 email: data.email,
                 role: role as Exclude<StoreMemberRole, 'owner'>,
-                fullName: data.full_name,
-                phone: data.phone,
-                cpf: data.cpf,
-                internalNotes: data.internal_notes,
+                inviteAlias: data.full_name,
                 expiresInDays: 3,
             });
 

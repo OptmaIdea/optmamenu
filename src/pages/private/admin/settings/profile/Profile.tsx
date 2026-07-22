@@ -18,7 +18,7 @@ import PageContainer from '@/components/common/PageContainer';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import {
     updateMyStoreMemberProfile,
-    updateMyProfileDetails,
+    updateMyProfileSocialLinks,
     completeMyStoreMemberOnboarding,
     createMyProfileChangeRequest,
     cancelMyProfileChangeRequest,
@@ -67,6 +67,7 @@ interface ProfileData {
     whatsapp_phone: string;
     whatsapp_same_as_mobile: boolean;
     birthdate: string;
+    blood_type: string;
     zip_code: string;
     address: string;
     address_number: string;
@@ -380,13 +381,13 @@ export default function Profile() {
     const isOwnerInCurrentStore = selectedMembership?.role === 'owner';
     const canRequestProfileChanges = !isOwnerInCurrentStore;
 
-    const canEditGlobalProfile =
-        isOwnerInCurrentStore;
-    // depois podemos sofisticar para owner de empresa própria etc.
-
     const isOnboardingPending =
         selectedMembership?.onboarding_required === true ||
         !selectedMembership?.onboarding_completed_at;
+
+    // Nome completo, CPF, nascimento e tipo sanguíneo são preenchidos diretamente
+    // apenas no primeiro acesso. Depois disso, passam pelo fluxo de solicitação.
+    const canEditGlobalProfile = isOnboardingPending;
 
     // States & Cities from IBGE
     const [states, setStates] = useState<IBGEState[]>([]);
@@ -402,6 +403,7 @@ export default function Profile() {
         whatsapp_phone: '',
         whatsapp_same_as_mobile: false,
         birthdate: '',
+        blood_type: '',
         zip_code: '',
         address: '',
         address_number: '',
@@ -505,6 +507,7 @@ export default function Profile() {
                     name: profileData.name || '',
                     cpf: profileData.cpf || '',
                     birthdate: profileData.birthdata || profileData.birthdate || '',
+                    blood_type: profileData.blood_type || '',
 
                     internal_alias: memberRow?.internal_alias || '',
                     phone: formattedPhone,
@@ -718,19 +721,6 @@ export default function Profile() {
             // FIX.2 & 9.9H.10: Salva dados pessoais (profiles) e dados do vínculo (store_members)
             const activeStoreId = getActiveStoreId();
 
-            if (canEditGlobalProfile) {
-                // Apenas dados verdadeiramente globais do perfil (tabela profiles).
-                // Campos de contato/endereço são gerenciados por store_members abaixo.
-                await updateMyProfileDetails({
-                    name: profile.name,
-                    cpf: profile.cpf || null,
-                    birthdate: profile.birthdate || null,
-                    instagramUrl: profile.instagram_url || null,
-                    facebookUrl: profile.facebook_url || null,
-                    websiteUrl: profile.website_url || null,
-                });
-            }
-
             if (activeStoreId) {
                 // Processar informações adicionais
                 const memberAdditionalInfo = profile.additionalInfo
@@ -747,6 +737,13 @@ export default function Profile() {
                     await completeMyStoreMemberOnboarding({
                         storeId: activeStoreId,
                         internalAlias: profile.internal_alias || null,
+                        profileName: profile.name,
+                        profileCpf: profile.cpf,
+                        profileBirthdate: profile.birthdate,
+                        profileBloodType: profile.blood_type || null,
+                        instagramUrl: profile.instagram_url || null,
+                        facebookUrl: profile.facebook_url || null,
+                        websiteUrl: profile.website_url || null,
                         memberEmail: profile.member_email || null,
                         memberPhone: phoneDigits || null,
                         memberMobilePhone: mobileDigits || null,
@@ -776,6 +773,12 @@ export default function Profile() {
                         memberCity: profile.city || null,
                         memberState: profile.state || null,
                         memberAdditionalInfo,
+                    });
+
+                    await updateMyProfileSocialLinks({
+                        instagramUrl: profile.instagram_url || null,
+                        facebookUrl: profile.facebook_url || null,
+                        websiteUrl: profile.website_url || null,
                     });
                 }
             }
@@ -1007,7 +1010,6 @@ export default function Profile() {
                             loadingCities={loadingCities}
                             searchingCep={searchingCep}
                             handleZipLookup={handleZipLookup}
-                            canEditGlobalProfile={canEditGlobalProfile}
                             handleSave={handleSave}
                         />
                     )}

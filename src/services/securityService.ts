@@ -414,6 +414,13 @@ export async function updateMyProfileDetails(
 export type CompleteMyStoreMemberOnboardingInput = {
     storeId: string;
     internalAlias?: string | null;
+    profileName: string;
+    profileCpf: string;
+    profileBirthdate: string;
+    profileBloodType?: string | null;
+    instagramUrl?: string | null;
+    facebookUrl?: string | null;
+    websiteUrl?: string | null;
     memberEmail?: string | null;
     memberPhone?: string | null;
     memberMobilePhone?: string | null;
@@ -434,6 +441,13 @@ export async function completeMyStoreMemberOnboarding(
     const { data, error } = await supabase.rpc('complete_my_store_member_onboarding', {
         p_store_id: input.storeId,
         p_internal_alias: input.internalAlias ?? null,
+        p_profile_name: input.profileName,
+        p_profile_cpf: input.profileCpf,
+        p_profile_birthdate: input.profileBirthdate || null,
+        p_profile_blood_type: input.profileBloodType ?? null,
+        p_instagram_url: input.instagramUrl ?? null,
+        p_facebook_url: input.facebookUrl ?? null,
+        p_website_url: input.websiteUrl ?? null,
         p_member_email: input.memberEmail ?? null,
         p_member_phone: input.memberPhone ?? null,
         p_member_mobile_phone: input.memberMobilePhone ?? null,
@@ -454,6 +468,25 @@ export async function completeMyStoreMemberOnboarding(
     }
 
     return data;
+}
+
+export async function updateMyProfileSocialLinks(input: {
+  instagramUrl?: string | null;
+  facebookUrl?: string | null;
+  websiteUrl?: string | null;
+}) {
+  const { data, error } = await supabase.rpc('update_my_profile_social_links', {
+    p_instagram_url: input.instagramUrl ?? null,
+    p_facebook_url: input.facebookUrl ?? null,
+    p_website_url: input.websiteUrl ?? null,
+  });
+
+  if (error) {
+    console.error('Erro ao atualizar redes sociais do prÃ³prio perfil:', error);
+    throw error;
+  }
+
+  return Array.isArray(data) ? data[0] ?? null : data;
 }
 
 export type ProfileChangeRequestType =
@@ -682,7 +715,7 @@ export async function cancelMyProfileChangeRequest(params: {
   });
 
   if (error) {
-    console.error('Erro ao cancelar solicitação cadastral:', error);
+    console.error('Erro ao cancelar solicitaï¿½ï¿½o cadastral:', error);
     throw error;
   }
 

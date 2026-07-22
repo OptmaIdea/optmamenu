@@ -50,6 +50,13 @@ export function useStoreMemberInvites(storeId: string | null) {
         async (params: {
             email: string;
             role: Exclude<StoreMemberRole, 'owner'>;
+            inviteAlias?: string;
+            fullName?: string;
+            phone?: string;
+            cpf?: string;
+            internalNotes?: string;
+            permissions?: Record<string, unknown>;
+            sensitiveActions?: Record<string, unknown>;
             expiresInDays?: number;
         }): Promise<CreateStoreMemberInviteResult> => {
             if (!storeId) {
@@ -64,6 +71,13 @@ export function useStoreMemberInvites(storeId: string | null) {
                     storeId,
                     email: params.email,
                     role: params.role,
+                    inviteAlias: params.inviteAlias,
+                    fullName: params.fullName,
+                    phone: params.phone,
+                    cpf: params.cpf,
+                    internalNotes: params.internalNotes,
+                    permissions: params.permissions,
+                    sensitiveActions: params.sensitiveActions,
                     expiresInDays: params.expiresInDays ?? 7,
                 });
 

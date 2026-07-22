@@ -9,6 +9,7 @@ export async function createStoreMemberInvite(params: {
     storeId: string;
     email: string;
     role: Exclude<StoreMemberRole, 'owner'>;
+    inviteAlias?: string;
     fullName?: string;
     phone?: string;
     cpf?: string;
@@ -24,6 +25,7 @@ export async function createStoreMemberInvite(params: {
                 storeId: params.storeId,
                 email: params.email,
                 role: params.role,
+                inviteAlias: params.inviteAlias?.trim() || undefined,
                 fullName: params.fullName?.trim() || undefined,
                 phone: params.phone?.trim() || undefined,
                 cpf: params.cpf?.trim() || undefined,

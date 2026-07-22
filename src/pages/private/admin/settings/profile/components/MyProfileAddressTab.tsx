@@ -18,6 +18,7 @@ export interface ProfileData {
     whatsapp_phone: string;
     whatsapp_same_as_mobile: boolean;
     birthdate: string;
+    blood_type: string;
     zip_code: string;
     address: string;
     address_number: string;
@@ -54,7 +55,6 @@ interface MyProfileAddressTabProps {
     loadingCities: boolean;
     searchingCep: boolean;
     handleZipLookup: () => Promise<void>;
-    canEditGlobalProfile: boolean;
     handleSave: (e?: React.SyntheticEvent) => Promise<void>;
 }
 
@@ -77,7 +77,6 @@ export default function MyProfileAddressTab({
     loadingCities,
     searchingCep,
     handleZipLookup,
-    canEditGlobalProfile,
     handleSave,
 }: MyProfileAddressTabProps) {
     return (
@@ -238,7 +237,6 @@ export default function MyProfileAddressTab({
                                 value={profile.instagram_url}
                                 onChange={(e) => setProfile({ ...profile, instagram_url: e.target.value })}
                                 placeholder="Ex: @seuusername"
-                                disabled={!canEditGlobalProfile}
                             />
                             <Instagram size={18} className="absolute right-3 top-3.5 text-gray-400" />
                         </div>
@@ -253,7 +251,6 @@ export default function MyProfileAddressTab({
                                 value={profile.facebook_url}
                                 onChange={(e) => setProfile({ ...profile, facebook_url: e.target.value })}
                                 placeholder="Ex: facebook.com/perfil"
-                                disabled={!canEditGlobalProfile}
                             />
                             <Facebook size={18} className="absolute right-3 top-3.5 text-gray-400" />
                         </div>
@@ -268,7 +265,6 @@ export default function MyProfileAddressTab({
                                 value={profile.website_url}
                                 onChange={(e) => setProfile({ ...profile, website_url: e.target.value })}
                                 placeholder="Ex: www.seusite.com"
-                                disabled={!canEditGlobalProfile}
                             />
                             <Globe size={18} className="absolute right-3 top-3.5 text-gray-400" />
                         </div>
