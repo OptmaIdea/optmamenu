@@ -813,19 +813,6 @@ export default function Users() {
                                     <Filter size={18} />
                                     Filtros
                                 </button>
-                                <button
-                                    onClick={handleCreateUser}
-                                    disabled={!canManageUsers}
-                                    title={
-                                        canManageUsers
-                                            ? 'Vincular usuário existente'
-                                            : 'Você não tem permissão para gerenciar usuários'
-                                    }
-                                    className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                >
-                                    <Plus size={18} />
-                                    Novo Usuário
-                                </button>
                             </div>
                         </div>
 
@@ -911,23 +898,18 @@ export default function Users() {
                             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
                                 Nenhum usuário encontrado
                             </h3>
-                            <p className="text-gray-600 dark:text-gray-400 mb-4">
+                            <p className="text-gray-600 dark:text-gray-400 mb-4 font-candara">
                                 {searchTerm
-                                    ? 'Tente ajustar os filtros de busca'
-                                    : 'Comece criando um novo usuário'}
+                                    ? 'Tente ajustar os filtros de busca.'
+                                    : 'Nenhum usuário cadastrado neste estabelecimento.'}
                             </p>
-                            {!searchTerm && (
+                            {!searchTerm && canManageUsers && (
                                 <button
-                                    onClick={handleCreateUser}
-                                    disabled={!canManageUsers}
-                                    title={
-                                        canManageUsers
-                                            ? 'Vincular usuário existente'
-                                            : 'Você não tem permissão para gerenciar usuários'
-                                    }
-                                    className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    onClick={() => handleTabChange('invites')}
+                                    className="px-4 py-2 rounded-lg bg-[#19A999] text-white font-bold hover:bg-[#14887B] transition-colors inline-flex items-center gap-2 cursor-pointer shadow-xs"
                                 >
-                                    Criar Primeiro Usuário
+                                    <UserPlus size={18} />
+                                    Ir para Novos Usuários / Convites
                                 </button>
                             )}
                         </div>
