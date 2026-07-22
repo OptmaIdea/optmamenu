@@ -1288,9 +1288,9 @@ export const ROLE_PERMISSION_TREE = [
                 ],
             },
             {
-                id: 'products_stock',
+                id: 'products',
                 label: 'Produtos e Estoque',
-                accessPermission: 'products.view',
+                accessPermission: 'products.manage',
                 permissions: [
                     'products.view',
                     'products.manage',
@@ -4294,12 +4294,23 @@ export default function Security() {
                                                         }`}
                                                 >
                                                     {/* Avatar */}
-                                                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isSelected
-                                                        ? 'bg-green-200 text-green-850 dark:bg-green-800 dark:text-green-100'
-                                                        : 'bg-gray-100 text-gray-650 dark:bg-gray-700 dark:text-gray-300'
-                                                        }`}>
-                                                        {initials}
-                                                    </div>
+                                                    {member.avatar_url || member.profile_avatar_url ? (
+                                                        <img
+                                                            src={member.avatar_url || member.profile_avatar_url || ''}
+                                                            alt={name}
+                                                            className={`h-8 w-8 shrink-0 rounded-full object-cover border ${isSelected
+                                                                ? 'border-green-500'
+                                                                : 'border-gray-200 dark:border-gray-700'
+                                                                }`}
+                                                        />
+                                                    ) : (
+                                                        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${isSelected
+                                                            ? 'bg-green-200 text-green-850 dark:bg-green-800 dark:text-green-100'
+                                                            : 'bg-gray-100 text-gray-650 dark:bg-gray-700 dark:text-gray-300'
+                                                            }`}>
+                                                            {initials}
+                                                        </div>
+                                                    )}
 
                                                     <div className="flex-1 min-w-0 space-y-1">
                                                         <p className="text-xs font-bold truncate">
