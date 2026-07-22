@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useUsersStore } from '@/store/useUsersStore';
 import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
@@ -9,7 +10,7 @@ import { useStoreMemberInvites } from '@/hooks/useStoreMemberInvites';
 import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { toast } from 'sonner';
-import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter, ChevronDown, ChevronUp, X, FileText, Mail, UserPlus, RefreshCw } from 'lucide-react';
 import { useStoreMemberSessionSummary } from '@/hooks/security/useStoreMemberSessionSummary';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { supabase } from '@/lib/supabase';
@@ -152,6 +153,32 @@ export default function Users() {
         hasPermission('users.profile_requests.review') ||
         hasPermission('users.profile_requests.manage');
 
+    const [searchParams, setSearchParams] = useSearchParams();
+    const tabParam = searchParams.get('tab');
+    const [activeTab, setActiveTab] = useState<'users' | 'requests' | 'invites'>(() => {
+        if (tabParam === 'requests' || tabParam === 'invites' || tabParam === 'users') {
+            return tabParam;
+        }
+        return 'users';
+    });
+
+    const handleTabChange = (newTab: 'users' | 'requests' | 'invites') => {
+        setActiveTab(newTab);
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('tab', newTab);
+            return next;
+        }, { replace: true });
+    };
+
+    useEffect(() => {
+        if (activeTab === 'requests' && !canViewProfileRequests) {
+            setActiveTab('users');
+        } else if (activeTab === 'invites' && !canManageUsers) {
+            setActiveTab('users');
+        }
+    }, [activeTab, canViewProfileRequests, canManageUsers]);
+
     const [profileRequests, setProfileRequests] = useState<ProfileChangeRequest[]>([]);
     const [loadingProfileRequests, setLoadingProfileRequests] = useState(false);
 
@@ -172,6 +199,14 @@ export default function Users() {
         });
         return Array.from(names).sort();
     }, [profileRequests]);
+
+    const pendingProfileRequestsCount = useMemo(() => {
+        return profileRequests.filter((r) => r.status === 'pending').length;
+    }, [profileRequests]);
+
+    const pendingInvitesCount = useMemo(() => {
+        return invites.filter((i) => i.status === 'pending').length;
+    }, [invites]);
 
     const toggleRequestCollapse = (requestId: string) => {
         setCollapsedRequests((prev) => ({
@@ -672,8 +707,622 @@ export default function Users() {
                 />
             </div>
 
-            {canManageUsers && (
-                <div className="mb-6">
+            {/* Navegação por Abas */}
+            <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+                <nav className="-mb-px flex space-x-6 overflow-x-auto scrollbar-none" aria-label="Abas de Gestão de Usuários">
+                    <button
+                        type="button"
+                        onClick={() => handleTabChange('users')}
+                        className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                            activeTab === 'users'
+                                ? 'border-[#19A999] text-[#19A999]'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        <UsersIcon size={18} />
+                        <span>Usuários</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                            activeTab === 'users'
+                                ? 'bg-[#19A999]/10 text-[#19A999]'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                        }`}>
+                            {users.length}
+                        </span>
+                    </button>
+
+                    {canViewProfileRequests && (
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('requests')}
+                            className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                                activeTab === 'requests'
+                                    ? 'border-[#19A999] text-[#19A999]'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                        >
+                            <FileText size={18} />
+                            <span>Alterações cadastrais</span>
+                            {pendingProfileRequestsCount > 0 ? (
+                                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                                    {pendingProfileRequestsCount}
+                                </span>
+                            ) : (
+                                <span className="rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-bold text-gray-600 dark:text-gray-300">
+                                    {profileRequests.length}
+                                </span>
+                            )}
+                        </button>
+                    )}
+
+                    {canManageUsers && (
+                        <button
+                            type="button"
+                            onClick={() => handleTabChange('invites')}
+                            className={`flex items-center gap-2 py-3 px-1 border-b-2 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                                activeTab === 'invites'
+                                    ? 'border-[#19A999] text-[#19A999]'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-200'
+                            }`}
+                        >
+                            <Mail size={18} />
+                            <span>Novos usuários</span>
+                            {pendingInvitesCount > 0 ? (
+                                <span className="rounded-full bg-[#19A999]/15 px-2 py-0.5 text-xs font-bold text-[#19A999]">
+                                    {pendingInvitesCount}
+                                </span>
+                            ) : (
+                                <span className="rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-bold text-gray-600 dark:text-gray-300">
+                                    {invites.length}
+                                </span>
+                            )}
+                        </button>
+                    )}
+                </nav>
+            </div>
+
+            {/* ABA 1: USUÁRIOS */}
+            {activeTab === 'users' && (
+                <div className="space-y-6 animate-fadeIn">
+                    {/* Toolbar */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4">
+                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                            {/* Search */}
+                            <div className="relative flex-1 w-full">
+                                <Search
+                                    size={20}
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="Buscar por nome, telefone ou CPF..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
+                                />
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={() => setShowFilters(!showFilters)}
+                                    className={`px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${showFilters
+                                        ? 'border-[#19A999] bg-[#19A999]/10 text-[#19A999]'
+                                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                        }`}
+                                >
+                                    <Filter size={18} />
+                                    Filtros
+                                </button>
+                                <button
+                                    onClick={handleCreateUser}
+                                    disabled={!canManageUsers}
+                                    title={
+                                        canManageUsers
+                                            ? 'Vincular usuário existente'
+                                            : 'Você não tem permissão para gerenciar usuários'
+                                    }
+                                    className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    <Plus size={18} />
+                                    Novo Usuário
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filters Panel */}
+                        {showFilters && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Status
+                                    </label>
+                                    <select
+                                        value={filters.status || ''}
+                                        onChange={(e) =>
+                                            handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
+                                        }
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
+                                    >
+                                        <option value="">Todos</option>
+                                        <option value="active">Ativo</option>
+                                        <option value="inactive">Inativo</option>
+                                        <option value="suspended">Suspenso</option>
+                                        <option value="invited">Convidado</option>
+                                        <option value="pending">Pendente</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Permissão
+                                    </label>
+                                    <select
+                                        value={filters.role || ''}
+                                        onChange={(e) =>
+                                            handleFilterChange('role', e.target.value as UserRole | undefined)
+                                        }
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
+                                    >
+                                        <option value="">Todas</option>
+                                        <option value="owner">Proprietário</option>
+                                        <option value="admin">Admin</option>
+                                        <option value="manager">Gerente</option>
+                                        <option value="stock_operator">Operador de estoque</option>
+                                        <option value="cashier">Caixa</option>
+                                        <option value="sales">Vendas</option>
+                                        <option value="staff">Equipe</option>
+                                        <option value="viewer">Visualizador</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Ordenar por
+                                    </label>
+                                    <select
+                                        value={filters.sort_by || 'created_at'}
+                                        onChange={(e) =>
+                                            handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
+                                        }
+                                        className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
+                                    >
+                                        <option value="created_at">Data de Criação</option>
+                                        <option value="full_name">Nome</option>
+                                        <option value="email">Email</option>
+                                    </select>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Users List */}
+                    {loading ? (
+                        <div className="min-h-[40vh] flex items-center justify-center">
+                            <div className="text-center">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999] mx-auto mb-4"></div>
+                                <p className="text-gray-600 dark:text-gray-300 font-candara">
+                                    Carregando usuários...
+                                </p>
+                            </div>
+                        </div>
+                    ) : users.length === 0 ? (
+                        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+                            <UsersIcon size={48} className="mx-auto text-gray-400 mb-4" />
+                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                                Nenhum usuário encontrado
+                            </h3>
+                            <p className="text-gray-600 dark:text-gray-400 mb-4">
+                                {searchTerm
+                                    ? 'Tente ajustar os filtros de busca'
+                                    : 'Comece criando um novo usuário'}
+                            </p>
+                            {!searchTerm && (
+                                <button
+                                    onClick={handleCreateUser}
+                                    disabled={!canManageUsers}
+                                    title={
+                                        canManageUsers
+                                            ? 'Vincular usuário existente'
+                                            : 'Você não tem permissão para gerenciar usuários'
+                                    }
+                                    className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                >
+                                    Criar Primeiro Usuário
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {filteredUsers.map((user) => (
+                                <UserCard
+                                    key={user.id}
+                                    user={user}
+                                    onView={handleViewUser}
+                                    canManageUsers={canManageUsers}
+                                    canViewSensitiveUserData={canViewSensitiveUsers}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Pagination Info */}
+                    {!loading && users.length > 0 && (
+                        <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                            <p>
+                                Mostrando <span className="font-medium">{users.length}</span> de{' '}
+                                <span className="font-medium">{total}</span> usuário(s)
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* ABA 2: ALTERAÇÕES CADASTRAIS */}
+            {activeTab === 'requests' && canViewProfileRequests && (
+                <div className="animate-fadeIn">
+                    <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 shadow-sm">
+                        <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900 dark:text-white font-candara-bold">
+                                    Alterações cadastrais
+                                </h2>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 font-candara">
+                                    Analise pedidos de alteração ou remoção feitos pelos colaboradores.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-2 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={loadProfileRequests}
+                                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 transition cursor-pointer flex items-center gap-1.5 bg-white dark:bg-gray-800"
+                                >
+                                    <RefreshCw size={14} className={loadingProfileRequests ? 'animate-spin' : ''} />
+                                    Atualizar
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Filtros e Busca */}
+                        {!loadingProfileRequests && profileRequests.length > 0 && (
+                            <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-xs space-y-3">
+                                <div className="flex flex-col sm:flex-row gap-3">
+                                    {/* Campo de busca */}
+                                    <div className="relative flex-1">
+                                        <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Localizar alteração específica (tipo, motivo, valor)..."
+                                            value={profileRequestSearch}
+                                            onChange={(e) => setProfileRequestSearch(e.target.value)}
+                                            className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
+                                        />
+                                        {profileRequestSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setProfileRequestSearch('')}
+                                                className="absolute right-3 top-2 text-gray-400 hover:text-[#F1613A] transition cursor-pointer"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Seletor de Status */}
+                                    <div className="w-full sm:w-48">
+                                        <select
+                                            value={profileRequestStatusFilter}
+                                            onChange={(e) => setProfileRequestStatusFilter(e.target.value as any)}
+                                            className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
+                                        >
+                                            <option value="all">Todos os status</option>
+                                            <option value="pending">Pendente</option>
+                                            <option value="applied">Aplicada</option>
+                                            <option value="rejected">Rejeitada</option>
+                                            <option value="cancelled">Cancelada</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                    {/* Data De */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                            De (Data de solicitação)
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={profileRequestDateFrom}
+                                            onChange={(e) => setProfileRequestDateFrom(e.target.value)}
+                                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
+                                        />
+                                    </div>
+
+                                    {/* Data Até */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                            Até (Data de solicitação)
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={profileRequestDateTo}
+                                            onChange={(e) => setProfileRequestDateTo(e.target.value)}
+                                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
+                                        />
+                                    </div>
+
+                                    {/* Solicitante */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                            Solicitante
+                                        </label>
+                                        <select
+                                            value={profileRequestRequesterFilter}
+                                            onChange={(e) => setProfileRequestRequesterFilter(e.target.value)}
+                                            className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
+                                        >
+                                            <option value="all">Todos os solicitantes</option>
+                                            {uniqueRequesters.map((name) => (
+                                                <option key={name} value={name}>
+                                                    {name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* Ordenação */}
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
+                                            Ordenar por data
+                                        </label>
+                                        <select
+                                            value={profileRequestSortOrder}
+                                            onChange={(e) => setProfileRequestSortOrder(e.target.value)}
+                                            className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
+                                        >
+                                            <option value="created_desc">Mais recente primeiro (Criação)</option>
+                                            <option value="created_asc">Mais antigo primeiro (Criação)</option>
+                                            <option value="reviewed_desc">Mais recente primeiro (Resposta)</option>
+                                            <option value="reviewed_asc">Mais antigo primeiro (Resposta)</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {/* Botão de limpar filtros se houver filtros ativos */}
+                                {(profileRequestSearch || profileRequestStatusFilter !== 'all' || profileRequestDateFrom || profileRequestDateTo || profileRequestRequesterFilter !== 'all' || profileRequestSortOrder !== 'created_desc') && (
+                                    <div className="flex justify-end pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setProfileRequestSearch('');
+                                                setProfileRequestStatusFilter('all');
+                                                setProfileRequestDateFrom('');
+                                                setProfileRequestDateTo('');
+                                                setProfileRequestRequesterFilter('all');
+                                                setProfileRequestSortOrder('created_desc');
+                                            }}
+                                            className="text-[11px] font-bold text-gray-500 hover:text-[#F1613A] transition cursor-pointer"
+                                        >
+                                            Limpar filtros
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {loadingProfileRequests ? (
+                            <p className="text-sm text-gray-500">Carregando alterações...</p>
+                        ) : profileRequests.length === 0 ? (
+                            <p className="text-sm text-gray-500">
+                                Nenhuma alteração cadastral encontrada.
+                            </p>
+                        ) : filteredProfileRequests.length === 0 ? (
+                            <p className="text-sm text-gray-500 py-4">
+                                Nenhuma solicitação corresponde aos filtros aplicados.
+                            </p>
+                        ) : (
+                            <div className="space-y-3">
+                                {filteredProfileRequests.map((request) => (
+                                    <div
+                                        key={request.request_id}
+                                        className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40"
+                                    >
+                                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between font-candara">
+                                            <div className="flex-1">
+                                                <p className="font-bold text-gray-900 dark:text-white text-base">
+                                                    {getRequestTitle(request)}
+                                                </p>
+
+                                                {collapsedRequests[request.request_id] && (
+                                                    <>
+                                                        <p className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                                                            {request.profile_name || request.internal_alias || request.user_email || 'Usuário'}
+                                                        </p>
+
+                                                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                                            <strong>Motivo:</strong> {request.reason}
+                                                        </p>
+
+                                                        {request.request_type === 'additional_info_remove' && (
+                                                            <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                                    Item solicitado para remoção
+                                                                </p>
+                                                                <p className="mt-1 font-bold text-gray-900 dark:text-white">
+                                                                    {String(request.requested_changes?.title ?? 'Sem título')}
+                                                                </p>
+                                                                <p className="text-gray-600 dark:text-gray-300">
+                                                                    {String(request.requested_changes?.text ?? '')}
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {/* Exibição campo a campo */}
+                                                        {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
+                                                            <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
+                                                                <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
+                                                                    Alterações solicitadas
+                                                                </p>
+
+                                                                <div className="mt-2 space-y-2">
+                                                                    {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
+                                                                        const change = rawChange as any;
+
+                                                                        if (field === 'member_additional_info' || field === 'additional_info') {
+                                                                            const infoChange = formatAdditionalInfoChange(change);
+
+                                                                            return (
+                                                                                <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
+                                                                                    <p className="text-xs font-bold text-gray-500">
+                                                                                        {infoChange.title}
+                                                                                    </p>
+
+                                                                                    <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                                                                                        <p>
+                                                                                            <strong>Atual:</strong> {infoChange.oldText}
+                                                                                        </p>
+                                                                                        <p>
+                                                                                            <strong>Novo:</strong> {infoChange.newText}
+                                                                                        </p>
+                                                                                        <p>
+                                                                                            <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
+                                                                                        </p>
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        }
+
+                                                                        if (typeof change !== 'object' || change === null || !('new' in change)) {
+                                                                            return (
+                                                                                <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                                    <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
+                                                                                    <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
+                                                                                </div>
+                                                                            );
+                                                                        }
+
+                                                                        return (
+                                                                            <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
+                                                                                <p className="text-xs font-bold text-gray-500">
+                                                                                    {change.label || FIELD_LABELS[field] || field}
+                                                                                </p>
+                                                                                <p className="text-xs text-gray-400">
+                                                                                    Atual: {formatChangeValue(change.old)}
+                                                                                </p>
+                                                                                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                                                                    Novo: {formatChangeValue(change.new)}
+                                                                                </p>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <p className="mt-2 text-xs text-gray-400">
+                                                            Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
+                                                        </p>
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                                                        {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => toggleRequestCollapse(request.request_id)}
+                                                        className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition cursor-pointer flex items-center justify-center"
+                                                        title={collapsedRequests[request.request_id] ? "Recolher" : "Expandir"}
+                                                    >
+                                                        {collapsedRequests[request.request_id] ? (
+                                                            <ChevronUp size={14} />
+                                                        ) : (
+                                                            <ChevronDown size={14} />
+                                                        )}
+                                                    </button>
+                                                </div>
+
+                                                {collapsedRequests[request.request_id] && (
+                                                    <>
+                                                        {request.sensitive && (
+                                                            <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/40">
+                                                                Sensível
+                                                            </span>
+                                                        )}
+
+                                                        {request.status === 'pending' && canReviewProfileRequests && (
+                                                            <div className="mt-2 flex gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setReviewModal({
+                                                                            isOpen: true,
+                                                                            request,
+                                                                            decision: 'approve',
+                                                                            adminNotes: '',
+                                                                            saving: false,
+                                                                        })
+                                                                    }
+                                                                    className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                                                                >
+                                                                    Aprovar
+                                                                </button>
+
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        setReviewModal({
+                                                                            isOpen: true,
+                                                                            request,
+                                                                            decision: 'reject',
+                                                                            adminNotes: '',
+                                                                            saving: false,
+                                                                        })
+                                                                    }
+                                                                    className="rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
+                                                                >
+                                                                    Rejeitar
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                </div>
+            )}
+
+            {/* ABA 3: NOVOS USUÁRIOS */}
+            {activeTab === 'invites' && canManageUsers && (
+                <div className="space-y-4 animate-fadeIn">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-xs">
+                        <div>
+                            <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2 font-candara-bold">
+                                <UserPlus size={18} className="text-[#19A999]" />
+                                Gestão de Convites
+                            </h2>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 font-candara">
+                                Envie convites por e-mail para vincular novos usuários ao estabelecimento.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={handleCreateUser}
+                            className="px-4 py-2 rounded-lg bg-[#19A999] text-white text-sm font-bold hover:bg-[#14887B] transition-colors flex items-center gap-2 cursor-pointer shrink-0"
+                        >
+                            <Plus size={18} />
+                            Novo Convite / Usuário
+                        </button>
+                    </div>
+
                     <UserInvitesPanel
                         invites={invites}
                         loading={loadingInvites}
@@ -682,522 +1331,9 @@ export default function Users() {
                         onCancel={async (inviteId) => {
                             await cancelInvite(inviteId, 'Cancelado pela tela de usuários');
                         }}
+                        onInviteUser={handleCreateUser}
                     />
                 </div>
-            )}
-
-            {/* Toolbar */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                    {/* Search */}
-                    <div className="relative flex-1 w-full">
-                        <Search
-                            size={20}
-                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                        />
-                        <input
-                            type="text"
-                            placeholder="Buscar por nome, telefone ou CPF..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
-                        />
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2 w-full sm:w-auto">
-                        <button
-                            onClick={() => setShowFilters(!showFilters)}
-                            className={`px-4 py-2 rounded-lg border font-medium transition-colors flex items-center gap-2 ${showFilters
-                                ? 'border-[#19A999] bg-[#19A999]/10 text-[#19A999]'
-                                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                }`}
-                        >
-                            <Filter size={18} />
-                            Filtros
-                        </button>
-                        <button
-                            onClick={handleCreateUser}
-                            disabled={!canManageUsers}
-                            title={
-                                canManageUsers
-                                    ? 'Vincular usuário existente'
-                                    : 'Você não tem permissão para gerenciar usuários'
-                            }
-                            className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors flex items-center gap-2 ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            <Plus size={18} />
-                            Novo Usuário
-                        </button>
-                    </div>
-                </div>
-
-                {/* Filters Panel */}
-                {showFilters && (
-                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Status
-                            </label>
-                            <select
-                                value={filters.status || ''}
-                                onChange={(e) =>
-                                    handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
-                                }
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
-                            >
-                                <option value="">Todos</option>
-                                <option value="active">Ativo</option>
-                                <option value="inactive">Inativo</option>
-                                <option value="suspended">Suspenso</option>
-                                <option value="invited">Convidado</option>
-                                <option value="pending">Pendente</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Permissão
-                            </label>
-                            <select
-                                value={filters.role || ''}
-                                onChange={(e) =>
-                                    handleFilterChange('role', e.target.value as UserRole | undefined)
-                                }
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
-                            >
-                                <option value="">Todas</option>
-                                <option value="owner">Proprietário</option>
-                                <option value="admin">Admin</option>
-                                <option value="manager">Gerente</option>
-                                <option value="stock_operator">Operador de estoque</option>
-                                <option value="cashier">Caixa</option>
-                                <option value="sales">Vendas</option>
-                                <option value="staff">Equipe</option>
-                                <option value="viewer">Visualizador</option>
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Ordenar por
-                            </label>
-                            <select
-                                value={filters.sort_by || 'created_at'}
-                                onChange={(e) =>
-                                    handleFilterChange('sort_by', e.target.value as UserFilters['sort_by'])
-                                }
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
-                            >
-                                <option value="created_at">Data de Criação</option>
-                                <option value="full_name">Nome</option>
-                                <option value="email">Email</option>
-                            </select>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Users List */}
-            {loading ? (
-                <div className="min-h-[40vh] flex items-center justify-center">
-                    <div className="text-center">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999] mx-auto mb-4"></div>
-                        <p className="text-gray-600 dark:text-gray-300 font-candara">
-                            Carregando usuários...
-                        </p>
-                    </div>
-                </div>
-            ) : users.length === 0 ? (
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-12 text-center">
-                    <UsersIcon size={48} className="mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                        Nenhum usuário encontrado
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
-                        {searchTerm
-                            ? 'Tente ajustar os filtros de busca'
-                            : 'Comece criando um novo usuário'}
-                    </p>
-                    {!searchTerm && (
-                        <button
-                            onClick={handleCreateUser}
-                            disabled={!canManageUsers}
-                            title={
-                                canManageUsers
-                                    ? 'Vincular usuário existente'
-                                    : 'Você não tem permissão para gerenciar usuários'
-                            }
-                            className={`px-4 py-2 rounded-lg bg-[#19A999] text-white font-medium hover:bg-[#14887B] transition-colors ${!canManageUsers ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        >
-                            Criar Primeiro Usuário
-                        </button>
-                    )}
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {filteredUsers.map((user) => (
-                        <UserCard
-                            key={user.id}
-                            user={user}
-                            onView={handleViewUser}
-                            canManageUsers={canManageUsers}
-                            canViewSensitiveUserData={canViewSensitiveUsers}
-                        />
-                    ))}
-                </div>
-            )}
-
-            {/* Pagination Info */}
-            {!loading && users.length > 0 && (
-                <div className="mt-4 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                    <p>
-                        Mostrando <span className="font-medium">{users.length}</span> de{' '}
-                        <span className="font-medium">{total}</span> usuário(s)
-                    </p>
-                    {/* TODO: Implementar paginação completa quando necessário */}
-                </div>
-            )}
-
-            {/* Seção de solicitações cadastrais */}
-            {canViewProfileRequests && (
-                <section className="mt-8 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800 shadow-sm">
-                    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                                Solicitações cadastrais
-                            </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                                Analise pedidos de alteração ou remoção feitos pelos colaboradores.
-                            </p>
-                        </div>
-
-                        <div className="flex gap-2 shrink-0">
-                            <button
-                                type="button"
-                                onClick={loadProfileRequests}
-                                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 transition cursor-pointer flex items-center gap-1 bg-white dark:bg-gray-800"
-                            >
-                                Atualizar
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Filtros e Busca */}
-                    {!loadingProfileRequests && profileRequests.length > 0 && (
-                        <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl p-4 shadow-xs space-y-3">
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                {/* Campo de busca */}
-                                <div className="relative flex-1">
-                                    <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Localizar alteração específica (tipo, motivo, valor)..."
-                                        value={profileRequestSearch}
-                                        onChange={(e) => setProfileRequestSearch(e.target.value)}
-                                        className="w-full text-xs pl-9 pr-8 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
-                                    />
-                                    {profileRequestSearch && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setProfileRequestSearch('')}
-                                            className="absolute right-3 top-2 text-gray-400 hover:text-[#F1613A] transition cursor-pointer"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                    )}
-                                </div>
-
-                                {/* Seletor de Status */}
-                                <div className="w-full sm:w-48">
-                                    <select
-                                        value={profileRequestStatusFilter}
-                                        onChange={(e) => setProfileRequestStatusFilter(e.target.value as any)}
-                                        className="w-full text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
-                                    >
-                                        <option value="all">Todos os status</option>
-                                        <option value="pending">Pendente</option>
-                                        <option value="applied">Aplicada</option>
-                                        <option value="rejected">Rejeitada</option>
-                                        <option value="cancelled">Cancelada</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                                {/* Data De */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        De (Data de solicitação)
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={profileRequestDateFrom}
-                                        onChange={(e) => setProfileRequestDateFrom(e.target.value)}
-                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
-                                    />
-                                </div>
-
-                                {/* Data Até */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        Até (Data de solicitação)
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={profileRequestDateTo}
-                                        onChange={(e) => setProfileRequestDateTo(e.target.value)}
-                                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
-                                    />
-                                </div>
-
-                                {/* Solicitante */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        Solicitante
-                                    </label>
-                                    <select
-                                        value={profileRequestRequesterFilter}
-                                        onChange={(e) => setProfileRequestRequesterFilter(e.target.value)}
-                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
-                                    >
-                                        <option value="all">Todos os solicitantes</option>
-                                        {uniqueRequesters.map((name) => (
-                                            <option key={name} value={name}>
-                                                {name}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-
-                                {/* Ordenação */}
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-400 dark:text-gray-500 mb-1 uppercase tracking-wider">
-                                        Ordenar por data
-                                    </label>
-                                    <select
-                                        value={profileRequestSortOrder}
-                                        onChange={(e) => setProfileRequestSortOrder(e.target.value)}
-                                        className="w-full text-xs px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 focus:outline-none focus:border-[#19A999] focus:ring-1 focus:ring-[#19A999]/30 transition"
-                                    >
-                                        <option value="created_desc">Mais recente primeiro (Criação)</option>
-                                        <option value="created_asc">Mais antigo primeiro (Criação)</option>
-                                        <option value="reviewed_desc">Mais recente primeiro (Resposta)</option>
-                                        <option value="reviewed_asc">Mais antigo primeiro (Resposta)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* Botão de limpar filtros se houver filtros ativos */}
-                            {(profileRequestSearch || profileRequestStatusFilter !== 'all' || profileRequestDateFrom || profileRequestDateTo || profileRequestRequesterFilter !== 'all' || profileRequestSortOrder !== 'created_desc') && (
-                                <div className="flex justify-end pt-1">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setProfileRequestSearch('');
-                                            setProfileRequestStatusFilter('all');
-                                            setProfileRequestDateFrom('');
-                                            setProfileRequestDateTo('');
-                                            setProfileRequestRequesterFilter('all');
-                                            setProfileRequestSortOrder('created_desc');
-                                        }}
-                                        className="text-[11px] font-bold text-gray-500 hover:text-[#F1613A] transition cursor-pointer"
-                                    >
-                                        Limpar filtros
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {loadingProfileRequests ? (
-                        <p className="text-sm text-gray-500">Carregando solicitações...</p>
-                    ) : profileRequests.length === 0 ? (
-                        <p className="text-sm text-gray-500">
-                            Nenhuma solicitação encontrada.
-                        </p>
-                    ) : filteredProfileRequests.length === 0 ? (
-                        <p className="text-sm text-gray-500 py-4">
-                            Nenhuma solicitação corresponde aos filtros aplicados.
-                        </p>
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredProfileRequests.map((request) => (
-                                <div
-                                    key={request.request_id}
-                                    className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40"
-                                >
-                                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between font-candara">
-                                        <div className="flex-1">
-                                            <p className="font-bold text-gray-900 dark:text-white text-base">
-                                                {getRequestTitle(request)}
-                                            </p>
-
-                                            {collapsedRequests[request.request_id] && (
-                                                <>
-                                                    <p className="mt-1 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                                                        {request.profile_name || request.internal_alias || request.user_email || 'Usuário'}
-                                                    </p>
-
-                                                    <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                                        <strong>Motivo:</strong> {request.reason}
-                                                    </p>
-
-                                                    {request.request_type === 'additional_info_remove' && (
-                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                                Item solicitado para remoção
-                                                            </p>
-                                                            <p className="mt-1 font-bold text-gray-900 dark:text-white">
-                                                                {String(request.requested_changes?.title ?? 'Sem título')}
-                                                            </p>
-                                                            <p className="text-gray-600 dark:text-gray-300">
-                                                                {String(request.requested_changes?.text ?? '')}
-                                                            </p>
-                                                        </div>
-                                                    )}
-
-                                                    {/* Correção 6 — exibição campo a campo */}
-                                                    {request.request_type !== 'additional_info_remove' && Object.keys(request.requested_changes ?? {}).length > 0 && (
-                                                        <div className="mt-3 rounded-lg bg-white p-3 text-sm dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                                            <p className="text-[10px] font-black uppercase text-gray-400 tracking-wider">
-                                                                Alterações solicitadas
-                                                            </p>
-
-                                                            <div className="mt-2 space-y-2">
-                                                                {Object.entries(request.requested_changes ?? {}).map(([field, rawChange]) => {
-                                                                    const change = rawChange as any;
-
-                                                                    if (field === 'member_additional_info' || field === 'additional_info') {
-                                                                        const infoChange = formatAdditionalInfoChange(change);
-
-                                                                        return (
-                                                                            <div key={field} className="rounded-lg bg-gray-50 p-3 dark:bg-gray-900">
-                                                                                <p className="text-xs font-bold text-gray-500">
-                                                                                    {infoChange.title}
-                                                                                </p>
-
-                                                                                <div className="mt-2 space-y-1 text-xs text-gray-600 dark:text-gray-300">
-                                                                                    <p>
-                                                                                        <strong>Atual:</strong> {infoChange.oldText}
-                                                                                    </p>
-                                                                                    <p>
-                                                                                        <strong>Novo:</strong> {infoChange.newText}
-                                                                                    </p>
-                                                                                    <p>
-                                                                                        <strong>Sensível:</strong> {infoChange.oldSensitive} → {infoChange.newSensitive}
-                                                                                    </p>
-                                                                                </div>
-                                                                            </div>
-                                                                        );
-                                                                    }
-
-                                                                    // Pular campos legados sem estrutura {old, new}
-                                                                    if (typeof change !== 'object' || change === null || !('new' in change)) {
-                                                                        return (
-                                                                            <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                                <p className="text-xs font-bold text-gray-500">{FIELD_LABELS[field] || field}</p>
-                                                                                <p className="text-sm font-bold text-gray-900 dark:text-white">{formatChangeValue(change)}</p>
-                                                                            </div>
-                                                                        );
-                                                                    }
-
-                                                                    return (
-                                                                        <div key={field} className="rounded-lg bg-gray-50 p-2 dark:bg-gray-900">
-                                                                            <p className="text-xs font-bold text-gray-500">
-                                                                                {change.label || FIELD_LABELS[field] || field}
-                                                                            </p>
-                                                                            <p className="text-xs text-gray-400">
-                                                                                Atual: {formatChangeValue(change.old)}
-                                                                            </p>
-                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white">
-                                                                                Novo: {formatChangeValue(change.new)}
-                                                                            </p>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    )}
-
-                                                    <p className="mt-2 text-xs text-gray-400">
-                                                        Criada em {new Date(request.created_at).toLocaleString('pt-BR')}
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
-
-                                        <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
-                                            <div className="flex items-center gap-2">
-                                                <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                                                    {PROFILE_REQUEST_STATUS_LABELS[request.status] ?? request.status}
-                                                </span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => toggleRequestCollapse(request.request_id)}
-                                                    className="p-1 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition cursor-pointer flex items-center justify-center"
-                                                    title={collapsedRequests[request.request_id] ? "Recolher" : "Expandir"}
-                                                >
-                                                    {collapsedRequests[request.request_id] ? (
-                                                        <ChevronUp size={14} />
-                                                    ) : (
-                                                        <ChevronDown size={14} />
-                                                    )}
-                                                </button>
-                                            </div>
-
-                                            {collapsedRequests[request.request_id] && (
-                                                <>
-                                                    {request.sensitive && (
-                                                        <span className="inline-flex rounded-full bg-red-100 px-2 py-1 text-xs font-bold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-900/40">
-                                                            Sensível
-                                                        </span>
-                                                    )}
-
-                                                    {request.status === 'pending' && canReviewProfileRequests && (
-                                                        <div className="mt-2 flex gap-2">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    setReviewModal({
-                                                                        isOpen: true,
-                                                                        request,
-                                                                        decision: 'approve',
-                                                                        adminNotes: '',
-                                                                        saving: false,
-                                                                    })
-                                                                }
-                                                                className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
-                                                            >
-                                                                Aprovar
-                                                            </button>
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    setReviewModal({
-                                                                        isOpen: true,
-                                                                        request,
-                                                                        decision: 'reject',
-                                                                        adminNotes: '',
-                                                                        saving: false,
-                                                                    })
-                                                                }
-                                                                className="rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-bold text-white transition cursor-pointer"
-                                                            >
-                                                                Rejeitar
-                                                            </button>
-                                                        </div>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </section>
             )}
 
             {/* Modals */}
