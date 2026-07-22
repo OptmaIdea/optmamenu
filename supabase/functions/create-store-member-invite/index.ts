@@ -17,10 +17,7 @@ type InviteBody = {
   storeId?: string;
   email?: string;
   role?: string;
-  fullName?: string;
-  phone?: string;
-  cpf?: string;
-  internalNotes?: string;
+  inviteAlias?: string;
   permissions?: Record<string, unknown>;
   sensitiveActions?: Record<string, unknown>;
   expiresInDays?: number;
@@ -35,8 +32,6 @@ const roleLabels: Record<string, string> = {
   viewer: "Visualizador",
   staff: "Equipe",
 };
-
-const clean = (value?: string) => value?.trim() || null;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -73,14 +68,11 @@ Deno.serve(async (req: Request) => {
     const storeId = body.storeId?.trim();
     const email = body.email?.trim().toLowerCase();
     const role = body.role?.trim();
-    const fullName = clean(body.fullName);
-    const phone = clean(body.phone);
-    const cpf = clean(body.cpf);
-    const internalNotes = clean(body.internalNotes);
+    const inviteAlias = body.inviteAlias?.trim();
     const expiresInDays = body.expiresInDays ?? 7;
 
-    if (!storeId || !email || !role || !fullName) {
-      return json({ error: "Loja, e-mail, nome e papel são obrigatórios." }, 400);
+    if (!storeId || !email || !role || !inviteAlias) {
+      return json({ error: "Loja, e-mail, nome de uso e cargo são obrigatórios." }, 400);
     }
 
     const { data: storeData } = await adminClient
@@ -131,9 +123,8 @@ Deno.serve(async (req: Request) => {
     const redirectTo = `${appUrl.replace(/\/$/, "")}/activate-invite?store_invite=${encodeURIComponent(inviteId)}&store_id=${encodeURIComponent(storeId)}&mode=${encodeURIComponent(emailMode)}`;
 
     const authMetadata = {
-      full_name: fullName,
-      name: fullName,
-      display_name: fullName,
+      invite_name: inviteAlias,
+      invite_alias: inviteAlias,
       invite_store_name: storeName,
       invite_role: role,
       invite_role_label: roleLabel,
@@ -147,10 +138,8 @@ Deno.serve(async (req: Request) => {
       .update({
         metadata: {
           ...currentMetadata,
-          full_name: fullName,
-          phone,
-          cpf,
-          internal_notes: internalNotes,
+          invite_alias: inviteAlias,
+          invite_name: inviteAlias,
           invite_store_name: storeName,
           invite_role: role,
           invite_role_label: roleLabel,
@@ -169,21 +158,8 @@ Deno.serve(async (req: Request) => {
       if (targetUserId) {
         const { data: existingUserData } = await adminClient.auth.admin.getUserById(targetUserId);
         const existingMetadata = existingUserData.user?.user_metadata ?? {};
-        const existingName =
-          existingMetadata.full_name || existingMetadata.name || existingMetadata.display_name;
-
         await adminClient.auth.admin.updateUserById(targetUserId, {
-          user_metadata: {
-            ...existingMetadata,
-            ...authMetadata,
-            ...(existingName
-              ? {
-                  full_name: existingMetadata.full_name ?? existingName,
-                  name: existingMetadata.name ?? existingName,
-                  display_name: existingMetadata.display_name ?? existingName,
-                }
-              : {}),
-          },
+          user_metadata: { ...existingMetadata, ...authMetadata },
         });
       }
 
@@ -229,7 +205,7 @@ Deno.serve(async (req: Request) => {
 
     return json({
       ...invite,
-      full_name: fullName,
+      invite_alias: inviteAlias,
       store_name: storeName,
       role_label: roleLabel,
       email_status: "sent",
