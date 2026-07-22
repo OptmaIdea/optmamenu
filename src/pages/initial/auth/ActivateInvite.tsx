@@ -7,6 +7,31 @@ import { acceptStoreMemberInvite } from '@/services/myStoreInviteService';
 import { setActiveStoreId } from '@/utils/activeStore';
 import { markSessionAsActive } from '@/utils/sessionSecurity';
 
+function clearAuthHash() {
+  if (!window.location.hash) return;
+  window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
+}
+
+async function restoreInviteSessionFromUrl(): Promise<boolean> {
+  const currentSession = await supabase.auth.getSession();
+  if (currentSession.data.session) return true;
+
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const accessToken = hash.get('access_token');
+  const refreshToken = hash.get('refresh_token');
+
+  if (!accessToken || !refreshToken) return false;
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (error) throw error;
+  clearAuthHash();
+  return Boolean(data.session);
+}
+
 export default function ActivateInvite() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -31,29 +56,38 @@ export default function ActivateInvite() {
     let mounted = true;
 
     const resolveSession = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSessionReady(Boolean(data.session));
-      setChecking(false);
+      try {
+        const ready = await restoreInviteSessionFromUrl();
+        if (!mounted) return;
+        setSessionReady(ready);
+        if (!ready) {
+          setError('O link expirou ou a sessão do convite não pôde ser criada. Solicite um novo convite.');
+        }
+      } catch (sessionError) {
+        if (!mounted) return;
+        setSessionReady(false);
+        setError(
+          sessionError instanceof Error
+            ? sessionError.message
+            : 'Não foi possível validar a sessão do convite.',
+        );
+      } finally {
+        if (mounted) setChecking(false);
+      }
     };
 
     void resolveSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-      if (session) {
-        setSessionReady(true);
-        setChecking(false);
-      }
+      if (!mounted || !session) return;
+      setSessionReady(true);
+      setError('');
+      setChecking(false);
+      clearAuthHash();
     });
-
-    const fallback = window.setTimeout(() => {
-      if (mounted) setChecking(false);
-    }, 5000);
 
     return () => {
       mounted = false;
-      window.clearTimeout(fallback);
       authListener.subscription.unsubscribe();
     };
   }, []);
@@ -67,8 +101,10 @@ export default function ActivateInvite() {
       return;
     }
 
-    if (!sessionReady) {
-      setError('O link expirou ou a sessão do convite não foi reconhecida. Solicite um novo convite.');
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      setSessionReady(false);
+      setError('A sessão do convite expirou. Solicite um novo convite.');
       return;
     }
 
@@ -138,9 +174,7 @@ export default function ActivateInvite() {
           {requiresPassword && (
             <>
               <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Nova senha
-                </label>
+                <label className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-300">Nova senha</label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -163,9 +197,7 @@ export default function ActivateInvite() {
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  Confirmar senha
-                </label>
+                <label className="mb-1 block text-sm font-semibold text-gray-700 dark:text-gray-300">Confirmar senha</label>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
@@ -197,9 +229,7 @@ export default function ActivateInvite() {
 
         <p className="mt-5 text-center text-sm text-gray-500 dark:text-gray-400">
           Já concluiu a ativação?{' '}
-          <Link to="/login" className="font-bold text-[#19A999] hover:underline">
-            Ir para o login
-          </Link>
+          <Link to="/login" className="font-bold text-[#19A999] hover:underline">Ir para o login</Link>
         </p>
       </div>
     </div>
