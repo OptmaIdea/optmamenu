@@ -13,18 +13,34 @@ export async function createStoreMemberInvite(params: {
     sensitiveActions?: Record<string, unknown>;
     expiresInDays?: number;
 }): Promise<CreateStoreMemberInviteResult> {
-    const { data, error } = await supabase.rpc('create_store_member_invite', {
-        p_store_id: params.storeId,
-        p_email: params.email,
-        p_role: params.role,
-        p_permissions: params.permissions ?? {},
-        p_sensitive_actions: params.sensitiveActions ?? {},
-        p_expires_in_days: params.expiresInDays ?? 7,
-    });
+    const { data, error } = await supabase.functions.invoke(
+        'create-store-member-invite',
+        {
+            body: {
+                storeId: params.storeId,
+                email: params.email,
+                role: params.role,
+                permissions: params.permissions ?? {},
+                sensitiveActions: params.sensitiveActions ?? {},
+                expiresInDays: params.expiresInDays ?? 7,
+            },
+        },
+    );
 
     if (error) {
-        console.error('Erro ao criar convite de membro:', error);
-        throw error;
+        console.error('Erro ao criar e enviar convite de membro:', error);
+        throw new Error(
+            error.message ||
+            'Não foi possível criar e enviar o convite do usuário.',
+        );
+    }
+
+    if (!data || typeof data !== 'object') {
+        throw new Error('A função de convite retornou uma resposta inválida.');
+    }
+
+    if ('error' in data && typeof data.error === 'string') {
+        throw new Error(data.error);
     }
 
     return data as CreateStoreMemberInviteResult;
