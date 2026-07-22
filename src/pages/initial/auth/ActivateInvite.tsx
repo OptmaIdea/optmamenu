@@ -12,24 +12,22 @@ function clearAuthHash() {
   window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`);
 }
 
-async function restoreInviteSessionFromUrl(): Promise<boolean> {
-  const currentSession = await supabase.auth.getSession();
-  if (currentSession.data.session) return true;
-
+function readAuthTokensFromHash() {
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const accessToken = hash.get('access_token');
-  const refreshToken = hash.get('refresh_token');
+  return {
+    accessToken: hash.get('access_token'),
+    refreshToken: hash.get('refresh_token'),
+  };
+}
 
-  if (!accessToken || !refreshToken) return false;
+async function waitForPersistedSession(maxAttempts = 40, delayMs = 150): Promise<boolean> {
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const { data } = await supabase.auth.getSession();
+    if (data.session) return true;
+    await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+  }
 
-  const { data, error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-
-  if (error) throw error;
-  clearAuthHash();
-  return Boolean(data.session);
+  return false;
 }
 
 export default function ActivateInvite() {
@@ -54,17 +52,55 @@ export default function ActivateInvite() {
 
   useEffect(() => {
     let mounted = true;
+    let resolvedByListener = false;
+    const tokens = readAuthTokensFromHash();
+
+    const markReady = () => {
+      if (!mounted) return;
+      resolvedByListener = true;
+      setSessionReady(true);
+      setError('');
+      setChecking(false);
+      clearAuthHash();
+    };
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) markReady();
+    });
 
     const resolveSession = async () => {
       try {
-        const ready = await restoreInviteSessionFromUrl();
-        if (!mounted) return;
-        setSessionReady(ready);
-        if (!ready) {
-          setError('O link expirou ou a sessão do convite não pôde ser criada. Solicite um novo convite.');
+        const existing = await supabase.auth.getSession();
+        if (existing.data.session) {
+          markReady();
+          return;
         }
+
+        if (tokens.accessToken && tokens.refreshToken) {
+          const { data, error: setSessionError } = await supabase.auth.setSession({
+            access_token: tokens.accessToken,
+            refresh_token: tokens.refreshToken,
+          });
+
+          if (setSessionError) throw setSessionError;
+          if (data.session) {
+            markReady();
+            return;
+          }
+        }
+
+        const restored = await waitForPersistedSession();
+        if (!mounted || resolvedByListener) return;
+
+        if (restored) {
+          markReady();
+          return;
+        }
+
+        setSessionReady(false);
+        setError('O link não pôde ser validado. Solicite ao responsável o reenvio do convite.');
       } catch (sessionError) {
-        if (!mounted) return;
+        if (!mounted || resolvedByListener) return;
         setSessionReady(false);
         setError(
           sessionError instanceof Error
@@ -72,19 +108,11 @@ export default function ActivateInvite() {
             : 'Não foi possível validar a sessão do convite.',
         );
       } finally {
-        if (mounted) setChecking(false);
+        if (mounted && !resolvedByListener) setChecking(false);
       }
     };
 
     void resolveSession();
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted || !session) return;
-      setSessionReady(true);
-      setError('');
-      setChecking(false);
-      clearAuthHash();
-    });
 
     return () => {
       mounted = false;
@@ -104,7 +132,7 @@ export default function ActivateInvite() {
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) {
       setSessionReady(false);
-      setError('A sessão do convite expirou. Solicite um novo convite.');
+      setError('A sessão do convite não está disponível. Solicite um novo convite.');
       return;
     }
 
@@ -166,7 +194,7 @@ export default function ActivateInvite() {
 
         {!sessionReady && (
           <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
-            Este link não possui mais uma sessão válida. Solicite ao responsável o reenvio do convite.
+            Este link não possui uma sessão válida. Solicite ao responsável o reenvio do convite.
           </div>
         )}
 
