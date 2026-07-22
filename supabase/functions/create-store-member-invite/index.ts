@@ -36,10 +36,7 @@ const roleLabels: Record<string, string> = {
   staff: "Equipe",
 };
 
-const cleanOptional = (value?: string) => {
-  const cleaned = value?.trim();
-  return cleaned ? cleaned : null;
-};
+const clean = (value?: string) => value?.trim() || null;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -67,30 +64,30 @@ Deno.serve(async (req: Request) => {
   });
 
   try {
-    const { data: userData, error: userError } = await userClient.auth.getUser();
-    if (userError || !userData.user) return json({ error: "Sessão inválida ou expirada." }, 401);
+    const { data: actorData, error: actorError } = await userClient.auth.getUser();
+    if (actorError || !actorData.user) {
+      return json({ error: "Sessão inválida ou expirada." }, 401);
+    }
 
     const body = (await req.json()) as InviteBody;
     const storeId = body.storeId?.trim();
     const email = body.email?.trim().toLowerCase();
     const role = body.role?.trim();
-    const fullName = cleanOptional(body.fullName);
-    const phone = cleanOptional(body.phone);
-    const cpf = cleanOptional(body.cpf);
-    const internalNotes = cleanOptional(body.internalNotes);
+    const fullName = clean(body.fullName);
+    const phone = clean(body.phone);
+    const cpf = clean(body.cpf);
+    const internalNotes = clean(body.internalNotes);
     const expiresInDays = body.expiresInDays ?? 7;
 
     if (!storeId || !email || !role || !fullName) {
       return json({ error: "Loja, e-mail, nome e papel são obrigatórios." }, 400);
     }
 
-    const { data: storeData, error: storeError } = await adminClient
+    const { data: storeData } = await adminClient
       .from("stores")
       .select("name")
       .eq("id", storeId)
       .maybeSingle();
-
-    if (storeError) console.error("Erro ao buscar nome da loja:", storeError);
 
     const storeName = storeData?.name?.trim() || "uma loja no OptmaMenu";
     const roleLabel = roleLabels[role] ?? role;
@@ -124,34 +121,14 @@ Deno.serve(async (req: Request) => {
       inviteRow?.metadata && typeof inviteRow.metadata === "object"
         ? inviteRow.metadata as Record<string, unknown>
         : {};
-
     const targetUserId =
       typeof currentMetadata.target_user_id === "string"
         ? currentMetadata.target_user_id
         : null;
 
-    const inviteMetadata = {
-      ...currentMetadata,
-      full_name: fullName,
-      phone,
-      cpf,
-      internal_notes: internalNotes,
-      invite_store_name: storeName,
-      invite_role: role,
-      invite_role_label: roleLabel,
-    };
-
-    const redirectBase = Deno.env.get("OPTMAMENU_APP_URL") || "https://optmamenu.optmaidea.com.br";
-    const redirectTo = `${redirectBase.replace(/\/$/, "")}/login?store_invite=${encodeURIComponent(inviteId)}`;
     const emailMode = targetUserExists ? "magic_link" : "invite";
-
-    await adminClient.from("store_member_invites").update({
-      metadata: inviteMetadata,
-      email_status: "sending",
-      email_error: null,
-      email_attempts: 1,
-      email_mode: emailMode,
-    }).eq("id", inviteId);
+    const appUrl = Deno.env.get("OPTMAMENU_APP_URL") || "https://optmamenu.optmaidea.com.br";
+    const redirectTo = `${appUrl.replace(/\/$/, "")}/activate-invite?store_invite=${encodeURIComponent(inviteId)}&store_id=${encodeURIComponent(storeId)}&mode=${encodeURIComponent(emailMode)}`;
 
     const authMetadata = {
       full_name: fullName,
@@ -162,7 +139,28 @@ Deno.serve(async (req: Request) => {
       invite_role_label: roleLabel,
       store_invite_id: inviteId,
       store_id: storeId,
+      invite_mode: emailMode,
     };
+
+    await adminClient
+      .from("store_member_invites")
+      .update({
+        metadata: {
+          ...currentMetadata,
+          full_name: fullName,
+          phone,
+          cpf,
+          internal_notes: internalNotes,
+          invite_store_name: storeName,
+          invite_role: role,
+          invite_role_label: roleLabel,
+        },
+        email_status: "sending",
+        email_error: null,
+        email_attempts: 1,
+        email_mode: emailMode,
+      })
+      .eq("id", inviteId);
 
     let authUserId: string | null = targetUserId;
     let sendError: { message?: string } | null = null;
@@ -174,26 +172,19 @@ Deno.serve(async (req: Request) => {
         const existingName =
           existingMetadata.full_name || existingMetadata.name || existingMetadata.display_name;
 
-        const { error: updateError } = await adminClient.auth.admin.updateUserById(
-          targetUserId,
-          {
-            user_metadata: {
-              ...existingMetadata,
-              ...authMetadata,
-              ...(existingName
-                ? {
-                    full_name: existingMetadata.full_name ?? existingName,
-                    name: existingMetadata.name ?? existingName,
-                    display_name: existingMetadata.display_name ?? existingName,
-                  }
-                : {}),
-            },
+        await adminClient.auth.admin.updateUserById(targetUserId, {
+          user_metadata: {
+            ...existingMetadata,
+            ...authMetadata,
+            ...(existingName
+              ? {
+                  full_name: existingMetadata.full_name ?? existingName,
+                  name: existingMetadata.name ?? existingName,
+                  display_name: existingMetadata.display_name ?? existingName,
+                }
+              : {}),
           },
-        );
-
-        if (updateError) {
-          console.error("Não foi possível enriquecer metadata do usuário existente:", updateError);
-        }
+        });
       }
 
       const { error } = await publicAuthClient.auth.signInWithOtp({
@@ -211,27 +202,30 @@ Deno.serve(async (req: Request) => {
     }
 
     if (sendError) {
-      await adminClient.from("store_member_invites").update({
-        email_status: "failed",
-        email_error: sendError.message ?? "Falha desconhecida no envio.",
-        email_mode: emailMode,
-        auth_user_id: authUserId,
-      }).eq("id", inviteId);
+      await adminClient
+        .from("store_member_invites")
+        .update({
+          email_status: "failed",
+          email_error: sendError.message ?? "Falha desconhecida no envio.",
+          email_mode: emailMode,
+          auth_user_id: authUserId,
+        })
+        .eq("id", inviteId);
 
-      return json({
-        error: "O convite foi registrado, mas o e-mail não pôde ser enviado.",
-        invite: { ...invite, email_status: "failed", email_mode: emailMode },
-      }, 502);
+      return json({ error: "O convite foi registrado, mas o e-mail não pôde ser enviado." }, 502);
     }
 
     const sentAt = new Date().toISOString();
-    await adminClient.from("store_member_invites").update({
-      email_status: "sent",
-      email_sent_at: sentAt,
-      email_error: null,
-      email_mode: emailMode,
-      auth_user_id: authUserId,
-    }).eq("id", inviteId);
+    await adminClient
+      .from("store_member_invites")
+      .update({
+        email_status: "sent",
+        email_sent_at: sentAt,
+        email_error: null,
+        email_mode: emailMode,
+        auth_user_id: authUserId,
+      })
+      .eq("id", inviteId);
 
     return json({
       ...invite,
@@ -245,8 +239,9 @@ Deno.serve(async (req: Request) => {
     });
   } catch (error) {
     console.error("Erro inesperado em create-store-member-invite:", error);
-    return json({
-      error: error instanceof Error ? error.message : "Erro inesperado ao criar convite.",
-    }, 500);
+    return json(
+      { error: error instanceof Error ? error.message : "Erro inesperado ao criar convite." },
+      500,
+    );
   }
 });
