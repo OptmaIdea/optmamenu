@@ -147,10 +147,10 @@ export function UserFormModal({
                             </div>
                         )}
 
-                        {/* Nome Completo */}
+                        {/* Nome */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Nome Completo *
+                                Nome *
                             </label>
                             <input
                                 type="text"
