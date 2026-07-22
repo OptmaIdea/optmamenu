@@ -6,6 +6,15 @@ export type StoreMemberInviteStatus =
     | 'cancelled'
     | 'expired';
 
+export type StoreMemberInviteEmailStatus =
+    | 'pending'
+    | 'sending'
+    | 'sent'
+    | 'failed'
+    | 'not_required';
+
+export type StoreMemberInviteEmailMode = 'invite' | 'magic_link';
+
 export interface StoreMemberInvite {
     invite_id: string;
     store_id: string;
@@ -26,6 +35,12 @@ export interface StoreMemberInvite {
     metadata: Record<string, unknown>;
     created_at: string;
     updated_at: string;
+    email_status?: StoreMemberInviteEmailStatus;
+    email_sent_at?: string | null;
+    email_error?: string | null;
+    email_attempts?: number;
+    auth_user_id?: string | null;
+    email_mode?: StoreMemberInviteEmailMode | null;
 }
 
 export interface CreateStoreMemberInviteResult {
@@ -38,4 +53,9 @@ export interface CreateStoreMemberInviteResult {
     role: Exclude<StoreMemberRole, 'owner'>;
     status: 'active' | 'pending';
     expires_at?: string;
+    target_user_exists_in_auth?: boolean;
+    email_status?: StoreMemberInviteEmailStatus;
+    email_sent_at?: string | null;
+    email_mode?: StoreMemberInviteEmailMode;
+    auth_user_id?: string | null;
 }
