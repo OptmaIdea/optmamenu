@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
     const targetUserExists = invite.target_user_exists_in_auth === true;
     if (!inviteId) return json({ error: "Convite criado sem identificador válido." }, 500);
 
-    const redirectBase = Deno.env.get("OPTMAMENU_APP_URL") || "https://optmamenu.vercel.app";
+    const redirectBase = Deno.env.get("OPTMAMENU_APP_URL") || "https://optmamenu.optmaidea.com.br";
     const redirectTo = `${redirectBase.replace(/\/$/, "")}/login?store_invite=${encodeURIComponent(inviteId)}`;
     const emailMode = targetUserExists ? "magic_link" : "invite";
 
