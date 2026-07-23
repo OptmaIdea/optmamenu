@@ -31,6 +31,9 @@ const DEFAULT_TEMPLATES: Record<OrderMessageEventCode, string> = {
     'Olá *{customerName}*! Bom ter você conosco 😊',
     '',
     'Seu pedido nº *{orderCode}* foi aceito e já estamos cuidando dele.',
+    'A reserva ficará disponível até *{expiresAt}*.',
+    '',
+    'Caso precise de mais tempo, fale conosco para verificarmos a prorrogação.',
     '',
     'Acompanhe o andamento:',
     '{trackingUrl}',
@@ -138,6 +141,7 @@ export const OrderCommunicationService = {
         tracking_url: data.trackingUrl,
         catalog_url: data.catalogUrl,
         fulfillment_type: data.fulfillmentType ?? null,
+        expires_at: data.expiresAt ?? null,
       },
     });
 
