@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { clearSessionSecurity } from '@/utils/sessionSecurity';
 import { getCurrentUserSecurityContext } from '@/services/securityService';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
+import { useActiveOrderCount } from '@/hooks/useActiveOrderCount';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import PendingOrdersFloatingAlert from '@/components/orders/PendingOrdersFloatingAlert';
@@ -193,6 +194,12 @@ export default function PrivateLayout() {
 
         return hasEffectivePermission(permissions, key);
     }, [permissions, activeMembership?.role]);
+
+    const { count: activeOrderCount } = useActiveOrderCount({
+        storeId,
+        enabled: hasPermission('orders.view'),
+        intervalMs: 15_000,
+    });
 
     const hasRootPermission = useCallback((key: string) => {
         if (activeMembership?.role === 'owner') return true;
@@ -1437,6 +1444,20 @@ export default function PrivateLayout() {
                             )
                         )}
 
+                        {hasPermission('orders.view') && (
+                            <Link
+                                to="/admin/orders"
+                                title={activeOrderCount > 0 ? `${activeOrderCount} pedidos ativos` : 'Abrir pedidos'}
+                                className={`relative p-2 rounded-lg transition shrink-0 ${activeOrderCount > 0 ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                            >
+                                <ShoppingBag size={19} className={activeOrderCount > 0 ? 'animate-pulse' : ''} />
+                                {activeOrderCount > 0 && (
+                                    <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-white bg-red-600 px-1 text-[10px] font-black text-white dark:border-gray-800">
+                                        {activeOrderCount > 99 ? '99+' : activeOrderCount}
+                                    </span>
+                                )}
+                            </Link>
+                        )}
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
 
                         {/* Mensagens Sininho Relógio */}

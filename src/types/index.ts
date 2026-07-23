@@ -73,7 +73,12 @@ export interface Customer {
 export interface StoreConfig {
     timer_duration_minutes?: number;
     extension_minutes?: number;
+    ready_hold_minutes?: number;
     expiration_grace_minutes?: number;
+    payment_timing?: {
+        pay_now_enabled?: boolean;
+        pay_on_pickup_enabled?: boolean;
+    };
     visual_title?: string;
     visual_icon_url?: string;
     visual_color_primary?: string;

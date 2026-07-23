@@ -17,6 +17,7 @@ export interface OrderMessageData {
   catalogUrl: string;
   expiresAt?: string | null;
   fulfillmentType?: string | null;
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'refunded' | null;
 }
 
 export interface PreparedOrderMessage {
@@ -42,6 +43,7 @@ const DEFAULT_TEMPLATES: Record<OrderMessageEventCode, string> = {
     'Ótimas notícias, *{customerName}*! 🥳',
     '',
     '{readyText}',
+    '{readyDeadlineText}',
     '',
     'Acompanhe aqui:',
     '{trackingUrl}',
@@ -98,6 +100,11 @@ function readyText(fulfillmentType?: string | null): string {
   return 'Seu pedido está pronto para retirada. Aguardamos você!';
 }
 
+function readyDeadlineText(data: OrderMessageData): string {
+  if (data.paymentStatus === 'paid' || !data.expiresAt) return '';
+  return `Retire até às *${formatTime(data.expiresAt)}*.`;
+}
+
 function renderTemplate(template: string, data: OrderMessageData): string {
   const variables: Record<string, string> = {
     '{customerName}': firstName(data.customerName),
@@ -106,6 +113,7 @@ function renderTemplate(template: string, data: OrderMessageData): string {
     '{catalogUrl}': data.catalogUrl,
     '{expiresAt}': formatTime(data.expiresAt),
     '{readyText}': readyText(data.fulfillmentType),
+    '{readyDeadlineText}': readyDeadlineText(data),
   };
 
   return Object.entries(variables).reduce(

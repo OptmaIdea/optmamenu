@@ -7,7 +7,7 @@ import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
 
-type PaymentChoice = 'pix' | 'pending';
+type PaymentChoice = 'pending';
 
 function compactOrderCode(orderCode: string) {
     const suffix = orderCode.split('-').pop();
@@ -21,7 +21,7 @@ export default function Checkout() {
 
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>('pix');
+    const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>('pending');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -197,14 +197,19 @@ export default function Checkout() {
 
                 <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-3">
                     <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Pagamento</h2>
-                    <button type="button" onClick={() => setPaymentMethod('pix')} className={`w-full flex items-center p-4 rounded-2xl border-2 ${paymentMethod === 'pix' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}>
-                        <Wallet className="w-5 h-5 mr-3 text-green-600" />
-                        <span className="font-bold text-gray-700">PIX</span>
-                        {paymentMethod === 'pix' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
+                    <button type="button" disabled className="w-full flex items-center p-4 rounded-2xl border-2 border-gray-100 bg-gray-50 opacity-70 cursor-not-allowed">
+                        <Wallet className="w-5 h-5 mr-3 text-gray-400" />
+                        <span className="text-left">
+                            <span className="block font-bold text-gray-600">Pagar aqui</span>
+                            <span className="block text-xs text-gray-400">PIX e cartão serão habilitados quando a integração online estiver configurada.</span>
+                        </span>
                     </button>
                     <button type="button" onClick={() => setPaymentMethod('pending')} className={`w-full flex items-center p-4 rounded-2xl border-2 ${paymentMethod === 'pending' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}>
                         <Store className="w-5 h-5 mr-3 text-gray-500" />
-                        <span className="font-bold text-gray-700">Pagar na retirada</span>
+                        <span className="text-left">
+                            <span className="block font-bold text-gray-700">Pagar na retirada</span>
+                            <span className="block text-xs text-gray-500">A forma real será informada ao finalizar: PIX, dinheiro ou cartão.</span>
+                        </span>
                         {paymentMethod === 'pending' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
                     </button>
                 </section>

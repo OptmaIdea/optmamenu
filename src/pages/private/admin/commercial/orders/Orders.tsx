@@ -218,6 +218,7 @@ export default function Orders() {
                 order.stock_reservations?.[0]?.expires_at ||
                 null,
             fulfillmentType: publicOrder.fulfillment_type || null,
+            paymentStatus: publicOrder.payment_status || null,
         });
 
         if (!opened) alert('Não foi possível abrir o WhatsApp para este cliente.');
@@ -474,13 +475,6 @@ export default function Orders() {
                                                         >
                                                             <MessageCircle size={16} /> Contatar no WhatsApp
                                                         </a>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => markOrderReady(order)}
-                                                            className="flex items-center justify-center gap-2 w-full p-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition text-sm font-bold mt-2"
-                                                        >
-                                                            <MessageCircle size={16} /> Avisar que está pronto
-                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
