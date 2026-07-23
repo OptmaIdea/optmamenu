@@ -111,6 +111,15 @@ function isSaleMovement(movement: ProductMovementNarrativeInput) {
   return ['order', 'public_order', 'direct_sale'].includes(source) || Boolean(movement.order_id);
 }
 
+function getSaleChannelLabel(movement: ProductMovementNarrativeInput) {
+  const source = String(movement.source ?? '').toLowerCase();
+  const channel = String(movement.metadata?.sales_channel ?? '').toLowerCase();
+  if (channel === 'qr_table') return 'Venda por mesa';
+  if (source === 'direct_sale' || channel === 'direct' || channel === 'in_person') return 'Venda direta';
+  if (source === 'public_order' || channel === 'public_store' || channel === 'whatsapp') return 'Venda online';
+  return 'Venda';
+}
+
 function getSaleCustomerLabel(movement: ProductMovementNarrativeInput) {
   return (
     getMetadataText(movement.metadata, 'customer_name') ??
@@ -180,6 +189,10 @@ export function getMovementOperationLabel(movement: ProductMovementNarrativeInpu
 
   if (source === 'purchase_document' && type === 'entry') {
     return 'Compra confirmada';
+  }
+
+  if (type === 'exit' && isSaleMovement(movement)) {
+    return getSaleChannelLabel(movement);
   }
 
   if (type === 'clearance') {

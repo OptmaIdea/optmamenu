@@ -187,7 +187,7 @@ if (!narrative.includes('order_id?: string | null;')) {
   );
 }
 
-if (!narrative.includes('function isSaleMovement')) {
+if (!narrative.includes('function getSaleChannelLabel')) {
   narrative = replaceOnce(
     narrative,
     `export function getMovementDestinationLabel(movement: ProductMovementNarrativeInput) {`,
