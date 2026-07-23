@@ -48,6 +48,7 @@ interface StockMovementRpcItem {
     divergence_qty?: number | null;
     divergence_resolution?: string | null;
     divergence_reason?: string | null;
+    metadata?: Record<string, unknown> | null;
     products?: { name?: string | null };
 }
 
@@ -619,6 +620,7 @@ export const useStockMovement = () => {
                     divergence_qty: item.divergence_qty ?? null,
                     divergence_resolution: item.divergence_resolution ?? null,
                     divergence_reason: item.divergence_reason ?? null,
+                    metadata: item.metadata ?? {},
                 };
             });
 

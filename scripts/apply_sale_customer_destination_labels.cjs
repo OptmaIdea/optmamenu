@@ -80,7 +80,7 @@ narrative = replaceOnce(
 narrative = replaceOnce(
   narrative,
   `  if (type === 'exit') {\n    return \`${'${location}'} teve saída de ${'${qty}'} un. do estoque.\`;\n  }`,
-  `  if (type === 'exit' && isSaleMovement(movement)) {\n    const customer = getSaleCustomerLabel(movement);\n    const reference = getMovementReferenceLabel(movement);\n    return \`${'${location}'} teve saída de ${'${qty}'} un. por venda para ${'${customer}'} (${reference}).\`;\n  }\n\n  if (type === 'exit') {\n    return \`${'${location}'} teve saída de ${'${qty}'} un. do estoque.\`;\n  }`,
+  `  if (type === 'exit' && isSaleMovement(movement)) {\n    const customer = getSaleCustomerLabel(movement);\n    const reference = getMovementReferenceLabel(movement);\n    return \`${'${location}'} teve saída de ${'${qty}'} un. por venda para ${'${customer}'} (${'${reference}'}).\`;\n  }\n\n  if (type === 'exit') {\n    return \`${'${location}'} teve saída de ${'${qty}'} un. do estoque.\`;\n  }`,
   'descrição da venda',
 );
 

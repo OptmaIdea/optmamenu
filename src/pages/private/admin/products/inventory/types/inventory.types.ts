@@ -77,6 +77,7 @@ export interface StockMovement {
     divergence_qty?: number | null;
     divergence_resolution?: string | null;
     divergence_reason?: string | null;
+    metadata?: Record<string, unknown> | null;
 }
 
 export interface StockMovementFilters {

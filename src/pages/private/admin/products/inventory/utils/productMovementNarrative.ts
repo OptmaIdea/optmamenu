@@ -5,6 +5,7 @@ export type ProductMovementNarrativeInput = {
   type?: string | null;
   source?: string | null;
   source_id?: string | null;
+  order_id?: string | null;
   transfer_id?: string | null;
   transfer_code?: string | null;
   quantity?: number | string | null;
@@ -105,6 +106,21 @@ export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) 
   return asText(movement.from_location_name ?? movement.location_name, '—');
 }
 
+function isSaleMovement(movement: ProductMovementNarrativeInput) {
+  const source = String(movement.source ?? '').toLowerCase();
+  return ['order', 'public_order', 'direct_sale'].includes(source) || Boolean(movement.order_id);
+}
+
+function getSaleCustomerLabel(movement: ProductMovementNarrativeInput) {
+  return (
+    getMetadataText(movement.metadata, 'customer_name') ??
+    getMetadataText(movement.metadata, 'customer_full_name') ??
+    getMetadataText(movement.metadata, 'order_customer_name') ??
+    getMetadataText(movement.metadata, 'destination_label') ??
+    'Cliente não identificado'
+  );
+}
+
 export function getMovementDestinationLabel(movement: ProductMovementNarrativeInput) {
   const source = String(movement.source ?? '').toLowerCase();
 
@@ -121,6 +137,10 @@ export function getMovementDestinationLabel(movement: ProductMovementNarrativeIn
 
   if (source === 'stock_transfer') {
     return asText(movement.to_location_name, 'Destino não identificado');
+  }
+
+  if (isSaleMovement(movement)) {
+    return getSaleCustomerLabel(movement);
   }
 
   return asText(movement.to_location_name ?? movement.location_name, '—');
@@ -232,6 +252,13 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
     );
   }
 
+  if (isSaleMovement(movement)) {
+    return (
+      getMetadataText(movement.metadata, 'order_code') ??
+      shortReference(movement.order_id ?? movement.source_id, 'Pedido')
+    );
+  }
+
   if (source === 'purchase_document') {
     const metadata = movement.metadata ?? {};
     const documentCode =
@@ -319,6 +346,12 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
 
   if (type === 'entry') {
     return `${location} recebeu ${qty} un. no estoque.`;
+  }
+
+  if (type === 'exit' && isSaleMovement(movement)) {
+    const customer = getSaleCustomerLabel(movement);
+    const reference = getMovementReferenceLabel(movement);
+    return `${location} teve saída de ${qty} un. por venda para ${customer} (${reference}).`;
   }
 
   if (type === 'exit') {
