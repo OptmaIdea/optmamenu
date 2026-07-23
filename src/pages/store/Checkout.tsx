@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Send, ShoppingBag, Store, Trash2, Wallet } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Minus, Plus, Send, ShoppingBag, Store, Trash2, Wallet } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 import { PublicOrderService } from '@/services/publicOrderService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
@@ -17,7 +17,7 @@ function compactOrderCode(orderCode: string) {
 export default function Checkout() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { items, total, clearCart } = useCartStore();
+    const { items, total, clearCart, updateQuantity, removeFromCart } = useCartStore();
 
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
@@ -37,6 +37,15 @@ export default function Checkout() {
         if (!window.confirm('Deseja realmente limpar seu carrinho?')) return;
         clearCart();
         navigate(storePath, { replace: true });
+    };
+
+    const changeQuantity = (productId: string, currentQuantity: number, delta: number) => {
+        const nextQuantity = currentQuantity + delta;
+        if (nextQuantity <= 0) {
+            removeFromCart(productId);
+            return;
+        }
+        updateQuantity(productId, nextQuantity);
     };
 
     const finishOrder = async () => {
@@ -168,9 +177,33 @@ export default function Checkout() {
                     </div>
                     <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
                         {items.map((item, index) => (
-                            <div key={item.id} className={`flex justify-between items-center text-sm ${index !== items.length - 1 ? 'border-b border-gray-100 pb-3 mb-3' : ''}`}>
-                                <span className="text-gray-600 font-medium">{item.quantity}x {item.name}</span>
-                                <span className="font-bold">R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</span>
+                            <div key={item.id} className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${index !== items.length - 1 ? 'border-b border-gray-100 pb-4 mb-4' : ''}`}>
+                                <div className="min-w-0">
+                                    <p className="truncate text-sm font-semibold text-gray-700">{item.name}</p>
+                                    <p className="mt-1 text-xs text-gray-400">R$ {item.price.toFixed(2).replace('.', ',')} cada</p>
+                                </div>
+                                <div className="flex items-center justify-between gap-4 sm:justify-end">
+                                    <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => changeQuantity(item.id, item.quantity, -1)}
+                                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition hover:bg-white hover:text-red-600"
+                                            aria-label={`Diminuir quantidade de ${item.name}`}
+                                        >
+                                            <Minus size={16} />
+                                        </button>
+                                        <span className="min-w-10 text-center text-sm font-black text-gray-800">{item.quantity}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => changeQuantity(item.id, item.quantity, 1)}
+                                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition hover:bg-white hover:text-green-700"
+                                            aria-label={`Aumentar quantidade de ${item.name}`}
+                                        >
+                                            <Plus size={16} />
+                                        </button>
+                                    </div>
+                                    <span className="min-w-24 text-right font-bold">R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</span>
+                                </div>
                             </div>
                         ))}
                     </div>
