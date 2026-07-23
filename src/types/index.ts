@@ -42,7 +42,7 @@ export interface CartItem extends Product {
 }
 
 export type PaymentMethod = 'pix' | 'cash' | 'card' | 'pending';
-export type OrderStatus = 'reserved' | 'confirmed' | 'completed' | 'cancelled';
+export type OrderStatus = 'reserved' | 'confirmed' | 'ready' | 'completed' | 'cancelled';
 
 export interface Profile {
     id: string;
@@ -73,6 +73,7 @@ export interface Customer {
 export interface StoreConfig {
     timer_duration_minutes?: number;
     extension_minutes?: number;
+    expiration_grace_minutes?: number;
     visual_title?: string;
     visual_icon_url?: string;
     visual_color_primary?: string;
