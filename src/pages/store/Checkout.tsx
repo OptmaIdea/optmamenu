@@ -1,61 +1,67 @@
-
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, QrCode, Store, Copy, CheckCircle2, Send, ShoppingBag, Trash2 } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 
+const DEFAULT_STORE_SLUG = 'gelinharessjn';
+
 export default function Checkout() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { items, total, clearCart } = useCartStore();
     const [clientName, setClientName] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<'pix' | 'retirada'>('pix');
     const [loading, setLoading] = useState(false);
 
+    const storeSlug = useMemo(() => {
+        const querySlug = new URLSearchParams(location.search).get('store')?.trim();
+        return querySlug || DEFAULT_STORE_SLUG;
+    }, [location.search]);
+
+    const storePath = `/s/${encodeURIComponent(storeSlug)}`;
+
     const handleClearCart = () => {
-        if (window.confirm("Deseja realmente limpar seu carrinho?")) {
+        if (window.confirm('Deseja realmente limpar seu carrinho?')) {
             clearCart();
-            alert("Carrinho limpo com sucesso!");
-            navigate('/s/gelinharessjn');
+            alert('Carrinho limpo com sucesso!');
+            navigate(storePath, { replace: true });
         }
     };
 
-    // Redirect if cart is empty
     useEffect(() => {
         if (items.length === 0) {
-            // Optional: Auto-redirect after a few seconds if you want
-            // const timer = setTimeout(() => navigate('/'), 3000);
-            // return () => clearTimeout(timer);
+            // O usuário pode voltar manualmente ao cardápio pelo botão abaixo.
         }
-    }, [items, navigate]);
+    }, [items]);
 
     const totalValue = total();
 
     const handleCopyPix = async () => {
-        const pixCode = "00020126360014BR.GOV.BCB.PIX011400000000000000520400005303986540528.505802BR5910GELINHARES6008LINHARES62070503***6304";
+        const pixCode = '00020126360014BR.GOV.BCB.PIX011400000000000000520400005303986540528.505802BR5910GELINHARES6008LINHARES62070503***6304';
         try {
             await navigator.clipboard.writeText(pixCode);
-            alert("Código Pix Copiado! Agora pague no seu App de banco e anexe o comprovante no WhatsApp.");
-        } catch (err) {
-            const textArea = document.createElement("textarea");
+            alert('Código Pix Copiado! Agora pague no seu App de banco e anexe o comprovante no WhatsApp.');
+        } catch {
+            const textArea = document.createElement('textarea');
             textArea.value = pixCode;
             document.body.appendChild(textArea);
             textArea.select();
             document.execCommand('copy');
             document.body.removeChild(textArea);
-            alert("Código Pix Copiado! Agora pague no seu App de banco e anexe o comprovante no WhatsApp.");
+            alert('Código Pix Copiado! Agora pague no seu App de banco e anexe o comprovante no WhatsApp.');
         }
     };
 
     const finishOrder = () => {
         if (!clientName.trim()) {
-            alert("Por favor, informe seu nome para o pedido.");
+            alert('Por favor, informe seu nome para o pedido.');
             return;
         }
 
         setLoading(true);
 
         const itemsList = items.map(item => `- ${item.quantity}x ${item.name}`).join('\n');
-        const paymentText = paymentMethod === 'pix' ? "✅ PIX ANTECIPADO (Copia e Cola)" : "🏧 PAGAR NA RETIRADA";
+        const paymentText = paymentMethod === 'pix' ? '✅ PIX ANTECIPADO (Copia e Cola)' : '🏧 PAGAR NA RETIRADA';
 
         const texto = encodeURIComponent(
             `*NOVO PEDIDO - GeLINHARES*\n` +
@@ -65,17 +71,20 @@ export default function Checkout() {
             `💰 *Total:* R$ ${totalValue.toFixed(2).replace('.', ',')}\n` +
             `------------------------------\n` +
             `💳 *Pagamento:* ${paymentText}\n\n` +
-            (paymentMethod === 'pix' ? `_Estou enviando o comprovante abaixo..._` : `_Vou pagar ao retirar o pedido._`)
+            (paymentMethod === 'pix' ? '_Estou enviando o comprovante abaixo..._' : '_Vou pagar ao retirar o pedido._')
         );
 
-        // 1. Abre o WhatsApp
         window.open(`https://wa.me/5562999944838?text=${texto}`, '_blank');
 
-        // 2. Aguarda um momento e limpa o carrinho/volta ao início
         setTimeout(() => {
             clearCart();
-            alert("Pedido enviado! Redirecionando para a página inicial...");
-            navigate('/');
+            navigate(storePath, {
+                replace: true,
+                state: {
+                    orderSubmitted: true,
+                    customerName: clientName.trim(),
+                },
+            });
         }, 1000);
     };
 
@@ -84,7 +93,7 @@ export default function Checkout() {
             <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
                 <ShoppingBag size={64} className="text-gray-300 mb-4" />
                 <p className="text-gray-500 mb-6 font-medium">Seu carrinho está vazio.</p>
-                <Link to="/s/gelinharessjn" className="bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-green-700 transition uppercase text-sm tracking-wide">
+                <Link to={storePath} className="bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-green-700 transition uppercase text-sm tracking-wide">
                     Voltar ao Cardápio
                 </Link>
             </div>
@@ -94,14 +103,13 @@ export default function Checkout() {
     return (
         <div className="min-h-screen bg-gray-50 pb-32 font-sans">
             <header className="bg-white p-4 sticky top-0 z-40 border-b flex items-center gap-4">
-                <Link to="/s/gelinharessjn" className="p-2 hover:bg-gray-100 rounded-full transition">
+                <Link to={storePath} className="p-2 hover:bg-gray-100 rounded-full transition">
                     <ArrowLeft className="w-6 h-6 text-gray-700" />
                 </Link>
                 <h1 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Finalizar Pedido</h1>
             </header>
 
             <main className="max-w-2xl mx-auto px-4 mt-6">
-
                 <section className="mb-8">
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest italic">Seu Carrinho</h2>
@@ -134,7 +142,7 @@ export default function Checkout() {
                             type="text"
                             placeholder="Seu Nome"
                             value={clientName}
-                            onChange={(e) => setClientName(e.target.value)}
+                            onChange={(event) => setClientName(event.target.value)}
                             className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-green-400 outline-none text-sm font-medium"
                         />
                     </div>
@@ -143,13 +151,9 @@ export default function Checkout() {
                 <section className="space-y-4 mb-8">
                     <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3 italic">Forma de Pagamento</h2>
                     <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
-
                         <div className="grid grid-cols-1 gap-3">
                             <label
-                                className={`relative flex items-center p-4 rounded-2xl border-2 cursor-pointer transition ${paymentMethod === 'pix'
-                                    ? 'border-green-500 bg-green-50'
-                                    : 'border-gray-100'
-                                    }`}
+                                className={`relative flex items-center p-4 rounded-2xl border-2 cursor-pointer transition ${paymentMethod === 'pix' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}
                                 onClick={() => setPaymentMethod('pix')}
                             >
                                 <input type="radio" name="pay-method" value="pix" className="hidden" checked={paymentMethod === 'pix'} readOnly />
@@ -159,15 +163,13 @@ export default function Checkout() {
                             </label>
 
                             <label
-                                className={`relative flex items-center p-4 rounded-2xl border-2 cursor-pointer transition ${paymentMethod === 'retirada'
-                                    ? 'border-green-500 bg-green-50'
-                                    : 'border-gray-100'
-                                    }`}
+                                className={`relative flex items-center p-4 rounded-2xl border-2 cursor-pointer transition ${paymentMethod === 'retirada' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}
                                 onClick={() => setPaymentMethod('retirada')}
                             >
                                 <input type="radio" name="pay-method" value="retirada" className="hidden" checked={paymentMethod === 'retirada'} readOnly />
                                 <Store className="w-5 h-5 mr-3 text-gray-400" />
                                 <span className="font-bold text-gray-700 text-sm">Pagar na Retirada</span>
+                                {paymentMethod === 'retirada' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
                             </label>
                         </div>
 
@@ -195,6 +197,7 @@ export default function Checkout() {
                                                 className="w-full bg-white/60 p-3 pr-12 rounded-xl text-[10px] text-gray-500 border border-green-200 focus:outline-none"
                                             />
                                             <button
+                                                type="button"
                                                 onClick={handleCopyPix}
                                                 className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-green-600 text-white rounded-lg active:scale-90 transition"
                                             >
@@ -228,7 +231,6 @@ export default function Checkout() {
                         </button>
                     </div>
                 </div>
-
             </main>
         </div>
     );
