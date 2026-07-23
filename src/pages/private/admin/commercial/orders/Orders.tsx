@@ -19,7 +19,7 @@ export default function Orders() {
     // Filter displayed orders locally if 'current' is selected
     const displayedOrders = useMemo(() => {
         if (filterStatus === 'current') {
-            return orders.filter(o => o.status === 'reserved' || o.status === 'confirmed');
+            return orders.filter(o => o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready');
         }
         return orders;
     }, [orders, filterStatus]);
@@ -120,12 +120,15 @@ export default function Orders() {
         if (!storeData) return;
 
         const expiredOrders = orders.filter((order) => {
-            if (order.status !== 'reserved' || !order.stock_reservations?.[0]) return false;
-            return new Date(order.stock_reservations[0].expires_at).getTime() <= Date.now();
+            const publicOrder = getPublicOrderFields(order);
+            if (!['reserved', 'confirmed', 'ready'].includes(order.status) || !order.stock_reservations?.[0]) return false;
+            if (publicOrder.payment_status === 'paid') return false;
+            const cancellationAt = publicOrder.cancellation_grace_until || order.stock_reservations[0].expires_at;
+            return new Date(cancellationAt).getTime() <= Date.now();
         });
 
         const warningOrders = orders.filter((order) => {
-            if (order.status !== 'reserved' || !order.stock_reservations?.[0]) return false;
+            if (!['reserved', 'confirmed', 'ready'].includes(order.status) || !order.stock_reservations?.[0]) return false;
             const remaining = new Date(order.stock_reservations[0].expires_at).getTime() - Date.now();
             return remaining > 120000 && remaining <= 180000;
         });
@@ -171,6 +174,9 @@ export default function Orders() {
             order_code?: string;
             public_order_token?: string;
             fulfillment_type?: string;
+            payment_status?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'refunded';
+            available_until?: string | null;
+            cancellation_grace_until?: string | null;
         };
     }
 
@@ -203,7 +209,7 @@ export default function Orders() {
             catalogUrl: storeSlug
                 ? `${window.location.origin}/s/${encodeURIComponent(storeSlug)}`
                 : window.location.origin,
-            expiresAt: order.stock_reservations?.[0]?.expires_at || null,
+            expiresAt: publicOrder.available_until || order.stock_reservations?.[0]?.expires_at || null,
             fulfillmentType: publicOrder.fulfillment_type || null,
         });
 
@@ -211,14 +217,58 @@ export default function Orders() {
         return opened;
     }
 
+    async function acceptOrder(order: Order) {
+        try {
+            const { data, error } = await supabase.rpc('admin_accept_public_order_safe', {
+                p_order_id: order.id,
+            });
+            if (error) throw error;
+            if (data?.ok === false) throw new Error(data?.error || 'Erro ao aceitar pedido.');
+
+            const updatedOrder = {
+                ...order,
+                status: 'confirmed' as OrderStatus,
+                available_until: data.available_until,
+                cancellation_grace_until: data.cancellation_grace_until,
+                stock_reservations: [{ expires_at: data.available_until }],
+            } as Order;
+
+            setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
+
+            if (window.confirm('Pedido aceito. Deseja abrir a mensagem para o cliente?')) {
+                await openOrderMessage(updatedOrder, 'order_accepted');
+            }
+            return true;
+        } catch (error) {
+            console.error('Erro ao aceitar pedido:', error);
+            alert('Erro ao aceitar pedido.');
+            return false;
+        }
+    }
+
+    async function markOrderReady(order: Order) {
+        try {
+            const { data, error } = await supabase.rpc('admin_mark_public_order_ready_safe', {
+                p_order_id: order.id,
+            });
+            if (error) throw error;
+            if (data?.ok === false) throw new Error(data?.error || 'Erro ao marcar pedido como pronto.');
+
+            const updatedOrder = { ...order, status: 'ready' as OrderStatus };
+            setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
+            await openOrderMessage(updatedOrder, 'order_ready');
+            return true;
+        } catch (error) {
+            console.error('Erro ao marcar pedido como pronto:', error);
+            alert('Erro ao marcar pedido como pronto.');
+            return false;
+        }
+    }
+
     // Update Status
     async function updateStatus(orderId: string, newStatus: OrderStatus) {
         try {
-            if (newStatus === 'confirmed') {
-                const { data, error } = await supabase.rpc('confirm_order_payment', { p_order_id: orderId });
-                if (error) throw error;
-                if (data?.ok === false) throw new Error(data?.error || 'Erro ao confirmar pedido.');
-            } else if (newStatus === 'cancelled') {
+            if (newStatus === 'cancelled') {
                 const { data, error } = await supabase.rpc('admin_cancel_public_order_safe', {
                     p_order_id: orderId,
                     p_reason: 'Cancelado pelo painel administrativo',
@@ -234,8 +284,7 @@ export default function Orders() {
             } else {
                 throw new Error(`Status não suportado: ${newStatus}`);
             }
-            // Optimistic update
-            setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+            setOrders((current) => current.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
             return true;
         } catch (error) {
             console.error('Error updating status:', error);
@@ -263,6 +312,7 @@ export default function Orders() {
     const statusColors: Record<string, string> = {
         reserved: 'bg-yellow-100 text-yellow-800 border-yellow-200',
         confirmed: 'bg-blue-100 text-blue-800 border-blue-200',
+        ready: 'bg-emerald-100 text-emerald-800 border-emerald-200',
         completed: 'bg-green-100 text-green-800 border-green-200',
         cancelled: 'bg-red-100 text-red-800 border-red-200',
     };
@@ -270,7 +320,8 @@ export default function Orders() {
     const statusLabels: Record<string, string> = {
         reserved: 'Novo / Pendente',
         confirmed: 'Em Preparo',
-        completed: 'Entregue / Pronto',
+        ready: 'Pronto para retirada',
+        completed: 'Concluído',
         cancelled: 'Cancelado',
     };
 
@@ -298,7 +349,7 @@ export default function Orders() {
                         let timerDisplay = null;
                         let isExpiring = false;
 
-                        if (order.status === 'reserved' && order.stock_reservations?.[0]) {
+                        if (['reserved', 'confirmed', 'ready'].includes(order.status) && order.stock_reservations?.[0]) {
                             const expiresAt = new Date(order.stock_reservations[0].expires_at).getTime();
                             const diff = expiresAt - now.getTime();
                             if (diff > 0) {
@@ -316,6 +367,7 @@ export default function Orders() {
                             <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${
                                 order.status === 'reserved' ? 'border-l-yellow-400' :
                                 order.status === 'confirmed' ? 'border-l-blue-400' :
+                                order.status === 'ready' ? 'border-l-emerald-400' :
                                 order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'
                             }`}>
                                 {/* Card Header */}
@@ -328,6 +380,7 @@ export default function Orders() {
                                         <div className={`p-3 rounded-full ${statusColors[order.status]} bg-opacity-20`}>
                                             {order.status === 'reserved' ? <AlertCircle size={24} /> :
                                              order.status === 'confirmed' ? <Clock size={24} /> :
+                                             order.status === 'ready' ? <CheckCircle size={24} /> :
                                              order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
                                         </div>
                                         <div>
@@ -337,7 +390,7 @@ export default function Orders() {
                                                     {statusLabels[order.status]}
                                                 </span>
                                                 {/* Timer Badge */}
-                                                {order.status === 'reserved' && timerDisplay && (
+                                                {['reserved', 'confirmed', 'ready'].includes(order.status) && timerDisplay && (
                                                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}>
                                                         <Clock size={12} /> {timerDisplay}
                                                     </span>
@@ -394,7 +447,7 @@ export default function Orders() {
                                                         </button>
                                                         <button
                                                             type="button"
-                                                            onClick={() => openOrderMessage(order, 'order_ready')}
+                                                            onClick={() => markOrderReady(order)}
                                                             className="flex items-center justify-center gap-2 w-full p-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition text-sm font-bold mt-2"
                                                         >
                                                             <MessageCircle size={16} /> Avisar que está pronto
@@ -453,10 +506,7 @@ export default function Orders() {
 
                                                         <button
                                                             onClick={async () => {
-                                                                const changed = await updateStatus(order.id, 'confirmed');
-                                                                if (changed && window.confirm('Pedido aceito. Deseja abrir a mensagem para o cliente?')) {
-                                                                    await openOrderMessage(order, 'order_accepted');
-                                                                }
+                                                                await acceptOrder(order)
                                                             }}
                                                             className="px-6 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg font-bold text-sm transition shadow-lg shadow-teal-200 flex items-center gap-2"
                                                         >
@@ -485,6 +535,28 @@ export default function Orders() {
                                                             className="px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold text-sm transition flex items-center gap-2"
                                                         >
                                                             <MessageCircle size={16} /> Avisar que está pronto
+                                                        </button>
+                                                        <button
+                                                            onClick={() => updateStatus(order.id, 'completed')}
+                                                            className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"
+                                                        >
+                                                            <CheckCircle size={16} /> Finalizar pedido
+                                                        </button>
+                                                    </>
+                                                )}
+
+                                                {order.status === 'ready' && (
+                                                    <>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const changed = await updateStatus(order.id, 'cancelled');
+                                                                if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) {
+                                                                    await openOrderMessage(order, 'order_cancelled');
+                                                                }
+                                                            }}
+                                                            className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
+                                                        >
+                                                            Cancelar
                                                         </button>
                                                         <button
                                                             onClick={() => updateStatus(order.id, 'completed')}

@@ -138,11 +138,6 @@ export default function Catalog() {
         tracking_url: string;
     } | null>(null);
 
-    useEffect(() => {
-        if (!orderSuccess) return;
-        const timer = window.setTimeout(() => setOrderSuccess(null), 5000);
-        return () => window.clearTimeout(timer);
-    }, [orderSuccess]);
 
     useEffect(() => {
         const checkoutSuccess = location.state?.orderSuccess;
