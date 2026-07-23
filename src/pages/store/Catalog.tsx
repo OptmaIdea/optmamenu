@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import type { Product, Category, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
@@ -71,6 +71,8 @@ interface Store {
 
 export default function Catalog() {
     const { storeSlug, tableCode } = useParams();
+    const location = useLocation();
+    const navigate = useNavigate();
     const isQrTableMode = Boolean(tableCode);
     const {
         items: cartItems,
@@ -141,6 +143,14 @@ export default function Catalog() {
         const timer = window.setTimeout(() => setOrderSuccess(null), 5000);
         return () => window.clearTimeout(timer);
     }, [orderSuccess]);
+
+    useEffect(() => {
+        const checkoutSuccess = location.state?.orderSuccess;
+        if (!checkoutSuccess) return;
+
+        setOrderSuccess(checkoutSuccess);
+        navigate(location.pathname, { replace: true, state: null });
+    }, [location.pathname, location.state, navigate]);
 
     const [paymentMethods, setPaymentMethods] = useState<PublicPaymentMethod[]>([]);
     const [selectedPaymentMethodCode, setSelectedPaymentMethodCode] = useState('pending');
