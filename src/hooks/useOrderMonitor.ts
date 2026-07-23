@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-interface MonitorOrder {
+export interface MonitorOrder {
     id: string;
     created_at: string;
     status: string;
@@ -25,20 +25,21 @@ function normalizeOptions(arg?: UseOrderMonitorArg): UseOrderMonitorOptions {
         return {
             storeId: arg ?? null,
             enabled: true,
-            intervalMs: 60_000,
+            intervalMs: 15_000,
         };
     }
 
     return {
         storeId: arg.storeId ?? null,
         enabled: arg.enabled ?? true,
-        intervalMs: arg.intervalMs ?? 60_000,
+        intervalMs: arg.intervalMs ?? 15_000,
     };
 }
 
 export function useOrderMonitor(arg?: UseOrderMonitorArg) {
-    const { storeId, enabled = true, intervalMs = 60_000 } = normalizeOptions(arg);
-
+    const { storeId, enabled = true, intervalMs = 15_000 } = normalizeOptions(arg);
+    const [orders, setOrders] = useState<MonitorOrder[]>([]);
+    const [loading, setLoading] = useState(false);
     const runningRef = useRef(false);
     const timerRef = useRef<number | null>(null);
 
@@ -46,14 +47,13 @@ export function useOrderMonitor(arg?: UseOrderMonitorArg) {
         if (!storeId || !enabled || runningRef.current) return;
 
         runningRef.current = true;
+        setLoading(true);
 
         try {
-            const since = new Date(Date.now() - 3 * 60 * 1000).toISOString();
-
             const { data, error } = await supabase.rpc('get_order_monitor_pending_orders', {
                 p_store_id: storeId,
-                p_since: since,
-                p_limit: 20,
+                p_since: new Date(0).toISOString(),
+                p_limit: 50,
             });
 
             if (error) {
@@ -62,31 +62,29 @@ export function useOrderMonitor(arg?: UseOrderMonitorArg) {
             }
 
             if (!data?.ok) {
-                if (data?.error) {
-                    console.warn('[OrderMonitor] Monitor returned:', data.error);
-                }
+                if (data?.error) console.warn('[OrderMonitor] Monitor returned:', data.error);
                 return;
             }
 
-            const orders = (data.orders || []) as MonitorOrder[];
-
-            if (orders.length === 0) return;
-
-            console.info('[OrderMonitor] Pending orders:', orders);
+            setOrders((data.orders || []) as MonitorOrder[]);
         } catch (err) {
             console.error('[OrderMonitor] Unexpected error:', err);
         } finally {
             runningRef.current = false;
+            setLoading(false);
         }
     }, [storeId, enabled]);
 
     useEffect(() => {
-        if (!storeId || !enabled) return;
+        if (!storeId || !enabled) {
+            setOrders([]);
+            return;
+        }
 
-        checkOrders();
+        void checkOrders();
 
         timerRef.current = window.setInterval(() => {
-            checkOrders();
+            void checkOrders();
         }, intervalMs);
 
         return () => {
@@ -98,6 +96,9 @@ export function useOrderMonitor(arg?: UseOrderMonitorArg) {
     }, [storeId, enabled, intervalMs, checkOrders]);
 
     return {
+        orders,
+        pendingCount: orders.length,
+        loading,
         checkOrders,
     };
 }
