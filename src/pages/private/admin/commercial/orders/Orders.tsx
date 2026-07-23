@@ -6,6 +6,7 @@ import PageContainer from '@/components/common/PageContainer';
 import OrderStatusFilter from '@/components/common/OrderStatusFilter';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
+import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
 
 export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -129,13 +130,8 @@ export default function Orders() {
             return remaining > 120000 && remaining <= 180000;
         });
 
-        for (const order of warningOrders) {
-            const sentKey = `warning_sms_${order.id}`;
-            if (!localStorage.getItem(sentKey)) {
-                sendSmsNotification(order, 'warning');
-                localStorage.setItem(sentKey, 'true');
-            }
-        }
+        // O aviso ao cliente é assistido. A tela apenas identifica pedidos próximos do vencimento.
+        void warningOrders;
 
         if (expiredOrders.length === 0) return;
 
@@ -146,14 +142,6 @@ export default function Orders() {
         if (error) {
             console.error('Erro ao cancelar reservas expiradas:', error);
             return;
-        }
-
-        for (const order of expiredOrders) {
-            const sentKey = `cancelled_sms_${order.id}`;
-            if (!localStorage.getItem(sentKey)) {
-                sendSmsNotification(order, 'cancelled');
-                localStorage.setItem(sentKey, 'true');
-            }
         }
 
         fetchOrders();
@@ -178,50 +166,49 @@ export default function Orders() {
         }
     }
 
-    // Send SMS / WhatsApp via OptmaSMSGate
-    async function sendSmsNotification(order: Order, type: 'prepared' | 'ready' | 'warning' | 'cancelled') {
-        if (!storeData?.token) {
-            alert('Erro: Token do Gateway SMS não configurado.');
-            return;
+    function getPublicOrderFields(order: Order) {
+        return order as Order & {
+            order_code?: string;
+            public_order_token?: string;
+            fulfillment_type?: string;
+        };
+    }
+
+    async function openOrderMessage(order: Order, eventCode: OrderMessageEventCode) {
+        const publicOrder = getPublicOrderFields(order);
+        const token = publicOrder.public_order_token;
+        const orderCode = publicOrder.order_code || order.id;
+
+        if (!token) {
+            alert('Este pedido não possui link público de acompanhamento.');
+            return false;
         }
 
-        const phone = (order.customer_phone ?? '').replace(/\D/g, '');
-        if (phone.length < 10) return;
-
-        const firstName = (order.customer_name ?? 'Cliente').split(' ')[0];
-        let message = '';
-
-        if (type === 'prepared') {
-            const publicOrder = order as Order & { order_code?: string; public_order_token?: string };
-            const compactOrderCode = (publicOrder.order_code || order.id).split('-').pop();
-            message = `Olá *${firstName}*! Já estamos separando seu pedido nº *#${compactOrderCode}*. Você pode acompanhar o andamento aqui:\n${window.location.origin}/p/${publicOrder.public_order_token || ''}`;
-        } else if (type === 'ready') {
-            message = `Olá ${firstName}! Seu pedido #${order.id.slice(0, 5)} está PRONTO! 🛵📦`;
-        } else if (type === 'warning') {
-            message = `⏳ ${firstName}, seu pedido #${order.id.slice(0, 5)} vai expirar em 3 min!`;
-        } else if (type === 'cancelled') {
-            message = `❌ ${firstName}, o prazo de reserva do pedido #${order.id.slice(0, 5)} expirou e ele foi cancelado.`;
+        const phone = String(order.customer_phone || '').replace(/\D/g, '');
+        if (phone.length < 10) {
+            alert('O cliente não possui um WhatsApp válido cadastrado neste pedido.');
+            return false;
         }
 
-        const deviceId = '9bVs7d8LmmXlJYbmQjFIDKyMsoZ2_a10s';
+        const storeSlug = String(
+            (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata?.slug || ''
+        );
 
-        try {
-            await fetch('https://optmasmsgate.vercel.app/api/v1/sms/send', {
-                method: 'POST',
-                headers: {
-                    'x-api-key': storeData.token,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    deviceId: deviceId,
-                    phoneNumber: `+55${phone}`,
-                    message: message
-                })
-            });
-            // Silent success or toast
-        } catch (error) {
-            console.error('Generic SMS Error', error);
-        }
+        const opened = await OrderCommunicationService.open(eventCode, {
+            orderId: order.id,
+            orderCode,
+            customerName: order.customer_name,
+            customerPhone: phone,
+            trackingUrl: `${window.location.origin}/p/${encodeURIComponent(token)}`,
+            catalogUrl: storeSlug
+                ? `${window.location.origin}/s/${encodeURIComponent(storeSlug)}`
+                : window.location.origin,
+            expiresAt: order.stock_reservations?.[0]?.expires_at || null,
+            fulfillmentType: publicOrder.fulfillment_type || null,
+        });
+
+        if (!opened) alert('Não foi possível abrir o WhatsApp para este cliente.');
+        return opened;
     }
 
     // Update Status
@@ -249,9 +236,11 @@ export default function Orders() {
             }
             // Optimistic update
             setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+            return true;
         } catch (error) {
             console.error('Error updating status:', error);
             alert('Erro ao atualizar status');
+            return false;
         }
     }
 
@@ -396,14 +385,20 @@ export default function Orders() {
                                                         >
                                                             <MessageCircle size={16} /> Contatar no WhatsApp
                                                         </a>
-                                                        {storeData?.token && (
-                                                            <button
-                                                                onClick={() => sendSmsNotification(order, 'prepared')}
-                                                                className="flex items-center justify-center gap-2 w-full p-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition text-sm font-bold mt-2"
-                                                            >
-                                                                <MessageCircle size={16} /> Enviar Aviso "Preparando"
-                                                            </button>
-                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openOrderMessage(order, 'order_accepted')}
+                                                            className="flex items-center justify-center gap-2 w-full p-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition text-sm font-bold mt-2"
+                                                        >
+                                                            <MessageCircle size={16} /> Mensagem de pedido aceito
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => openOrderMessage(order, 'order_ready')}
+                                                            className="flex items-center justify-center gap-2 w-full p-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition text-sm font-bold mt-2"
+                                                        >
+                                                            <MessageCircle size={16} /> Avisar que está pronto
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -445,17 +440,23 @@ export default function Orders() {
                                                         </button>
 
                                                         <button
-                                                            onClick={() => updateStatus(order.id, 'cancelled')}
+                                                            onClick={async () => {
+                                                                const changed = await updateStatus(order.id, 'cancelled');
+                                                                if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) {
+                                                                    await openOrderMessage(order, 'order_cancelled');
+                                                                }
+                                                            }}
                                                             className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
                                                         >
                                                             Recusar / Cancelar
                                                         </button>
 
                                                         <button
-                                                            onClick={() => {
-                                                                const confirmSend = window.confirm('Deseja enviar aviso automático para o cliente?');
-                                                                updateStatus(order.id, 'confirmed');
-                                                                if (confirmSend) sendSmsNotification(order, 'prepared');
+                                                            onClick={async () => {
+                                                                const changed = await updateStatus(order.id, 'confirmed');
+                                                                if (changed && window.confirm('Pedido aceito. Deseja abrir a mensagem para o cliente?')) {
+                                                                    await openOrderMessage(order, 'order_accepted');
+                                                                }
                                                             }}
                                                             className="px-6 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg font-bold text-sm transition shadow-lg shadow-teal-200 flex items-center gap-2"
                                                         >
@@ -467,17 +468,29 @@ export default function Orders() {
                                                 {order.status === 'confirmed' && (
                                                     <>
                                                         <button
-                                                            onClick={() => updateStatus(order.id, 'cancelled')}
+                                                            onClick={async () => {
+                                                                const changed = await updateStatus(order.id, 'cancelled');
+                                                                if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) {
+                                                                    await openOrderMessage(order, 'order_cancelled');
+                                                                }
+                                                            }}
                                                             className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
                                                         >
                                                             Cancelar
                                                         </button>
 
                                                         <button
+                                                            type="button"
+                                                            onClick={() => openOrderMessage(order, 'order_ready')}
+                                                            className="px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold text-sm transition flex items-center gap-2"
+                                                        >
+                                                            <MessageCircle size={16} /> Avisar que está pronto
+                                                        </button>
+                                                        <button
                                                             onClick={() => updateStatus(order.id, 'completed')}
                                                             className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"
                                                         >
-                                                            <CheckCircle size={16} /> Prontificar / Finalizar
+                                                            <CheckCircle size={16} /> Finalizar pedido
                                                         </button>
                                                     </>
                                                 )}
