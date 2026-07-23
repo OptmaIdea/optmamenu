@@ -35,13 +35,6 @@ function compactPublicOrderCode(orderCode: string) {
     return suffix ? `#${suffix}` : orderCode;
 }
 
-function formatOrderCurrency(value: number) {
-    return Number(value || 0).toLocaleString('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-    });
-}
-
 // Simple Theme Toggle Icon Component
 function ThemeToggleIcon() {
     return (
@@ -401,33 +394,14 @@ export default function Catalog() {
             }
             const trackingUrl = `${window.location.origin}/p/${encodeURIComponent(result.order.public_order_token)}`;
             const compactCode = compactPublicOrderCode(result.order.order_code);
-            const paymentName = paymentMethods.find((method) => method.code === selectedPaymentMethodCode)?.name || 'A combinar';
-            const fulfillmentName = selectedDeliveryMethod?.name || (selectedFulfillmentType === 'delivery' ? 'Entrega' : selectedFulfillmentType === 'qr_table' ? 'Mesa/comanda' : 'Retirada');
-            const itemLines = cartItems.flatMap((item) => [
-                `• ${item.quantity}x ${item.name}`,
-                `  ${formatOrderCurrency(Number(item.price || 0))} cada — ${formatOrderCurrency(Number(item.price || 0) * item.quantity)}`,
-            ]);
+            const firstName = (customerName.trim() || 'Cliente').split(/\s+/)[0];
+            const catalogUrl = `${window.location.origin}/s/${encodeURIComponent(storeSlug)}`;
             const orderMessage = [
-                `🛒 *Novo pedido — ${compactCode}*`,
+                `Olá *${firstName}*. Bom ter você conosco 😊!`,
                 '',
-                `🏪 *Loja:* ${store?.name || 'Loja'}`,
-                `👤 *Cliente:* ${customerName.trim() || 'Cliente não identificado'}`,
-                '',
-                '📦 *Itens*',
-                ...itemLines,
-                '',
-                `Subtotal: ${formatOrderCurrency(Number(result.order.subtotal || 0))}`,
-                ...(Number(result.order.delivery_fee || 0) > 0 ? [`Entrega: ${formatOrderCurrency(Number(result.order.delivery_fee || 0))}`] : []),
-                `*Total: ${formatOrderCurrency(Number(result.order.total || 0))}*`,
-                '',
-                `💳 *Pagamento:* ${paymentName}`,
-                `📍 *Atendimento:* ${fulfillmentName}`,
-                ...(tableCode ? [`🪑 *Mesa/comanda:* ${tableCode}`] : []),
-                '',
-                '🔗 *Acompanhar este pedido:*',
-                trackingUrl,
-                '',
-                'Por favor, confirme o recebimento do pedido.',
+                `Recebemos seu pedido nº *${compactCode}*. Já já te damos mais detalhes.`,
+                'Enquanto isso, navegue pelo nosso catálogo:',
+                catalogUrl,
             ].join('\n');
             const orderWhatsappUrl = result.whatsapp?.digits && canOpenWhatsapp(result.whatsapp.digits)
                 ? buildWhatsappUrl(result.whatsapp.digits, orderMessage)

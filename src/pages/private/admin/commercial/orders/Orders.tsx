@@ -86,7 +86,7 @@ export default function Orders() {
     const handleOrdersChange = useCallback(() => {
         fetchOrders();
         // Play Sound
-        const audio = new Audio('/notification.mp3');
+        const audio = new Audio('/notification.wav');
         audio.play().catch(() => { });
     }, [fetchOrders]);
 
@@ -118,37 +118,45 @@ export default function Orders() {
     async function checkExpirations() {
         if (!storeData) return;
 
-        orders.forEach(async (order) => {
-            if (order.status !== 'reserved' || !order.stock_reservations?.[0]) return;
-
-            const expiresAt = new Date(order.stock_reservations[0].expires_at).getTime();
-            const timeRemaining = expiresAt - Date.now();
-            const minutesRemaining = timeRemaining / 60000;
-
-            // Warning: Less than 3 minutes and NOT already warned (local check avoided for simplicity, just log/console for now to avoid spamming user in this version)
-            // In a real app, we'd flag 'warned' in DB or local state map. 
-            // For MVP: We will auto-cancel if expired.
-
-            if (minutesRemaining <= 0) {
-                console.log(`Order ${order.id} expired. Cancelling...`);
-                await supabase.rpc('cancel_expired_reservations', { p_store_id: storeData.id });
-
-                const sentKey = `cancelled_sms_${order.id}`;
-                if (!localStorage.getItem(sentKey)) {
-                    sendSmsNotification(order, 'cancelled');
-                    localStorage.setItem(sentKey, 'true');
-                }
-                fetchOrders();
-            } else if (minutesRemaining <= 3 && minutesRemaining > 2.0) {
-                // Trigger One-time warning
-                const sentKey = `warning_sms_${order.id}`;
-                if (!localStorage.getItem(sentKey)) {
-                    console.warn(`Sending warning for Order ${order.id}`);
-                    sendSmsNotification(order, 'warning');
-                    localStorage.setItem(sentKey, 'true');
-                }
-            }
+        const expiredOrders = orders.filter((order) => {
+            if (order.status !== 'reserved' || !order.stock_reservations?.[0]) return false;
+            return new Date(order.stock_reservations[0].expires_at).getTime() <= Date.now();
         });
+
+        const warningOrders = orders.filter((order) => {
+            if (order.status !== 'reserved' || !order.stock_reservations?.[0]) return false;
+            const remaining = new Date(order.stock_reservations[0].expires_at).getTime() - Date.now();
+            return remaining > 120000 && remaining <= 180000;
+        });
+
+        for (const order of warningOrders) {
+            const sentKey = `warning_sms_${order.id}`;
+            if (!localStorage.getItem(sentKey)) {
+                sendSmsNotification(order, 'warning');
+                localStorage.setItem(sentKey, 'true');
+            }
+        }
+
+        if (expiredOrders.length === 0) return;
+
+        const { error } = await supabase.rpc('cancel_expired_reservations', {
+            p_store_id: storeData.id,
+        });
+
+        if (error) {
+            console.error('Erro ao cancelar reservas expiradas:', error);
+            return;
+        }
+
+        for (const order of expiredOrders) {
+            const sentKey = `cancelled_sms_${order.id}`;
+            if (!localStorage.getItem(sentKey)) {
+                sendSmsNotification(order, 'cancelled');
+                localStorage.setItem(sentKey, 'true');
+            }
+        }
+
+        fetchOrders();
     }
 
     async function extendReservation(orderId: string) {
@@ -184,7 +192,9 @@ export default function Orders() {
         let message = '';
 
         if (type === 'prepared') {
-            message = `Olá ${firstName}! Seu pedido #${order.id.slice(0, 5)} foi aceito e já está sendo preparado! 👨‍🍳`;
+            const publicOrder = order as Order & { order_code?: string; public_order_token?: string };
+            const compactOrderCode = (publicOrder.order_code || order.id).split('-').pop();
+            message = `Olá *${firstName}*! Já estamos separando seu pedido nº *#${compactOrderCode}*. Você pode acompanhar o andamento aqui:\n${window.location.origin}/p/${publicOrder.public_order_token || ''}`;
         } else if (type === 'ready') {
             message = `Olá ${firstName}! Seu pedido #${order.id.slice(0, 5)} está PRONTO! 🛵📦`;
         } else if (type === 'warning') {
