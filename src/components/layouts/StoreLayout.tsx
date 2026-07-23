@@ -1,10 +1,27 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
 
+function getStoreSlugFromPath(pathname: string): string | null {
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length < 2) return null;
+
+    const [prefix, slug] = segments;
+    if (['s', 'loja', 'cardapio', 'q', 'mesa'].includes(prefix) && slug) {
+        return slug;
+    }
+
+    return null;
+}
+
 export function StoreLayout({ children }: { children: React.ReactNode }) {
+    const location = useLocation();
     const { items } = useCartStore();
     const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
+    const storeSlug = getStoreSlugFromPath(location.pathname);
+    const checkoutPath = storeSlug
+        ? `/checkout?store=${encodeURIComponent(storeSlug)}`
+        : '/checkout';
 
     return (
         <div className="min-h-screen">
@@ -33,7 +50,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
                 {/* Cart FAB */}
                 <Link
-                    to="/checkout"
+                    to={checkoutPath}
                     className="bg-orange-500 text-white p-4 rounded-full shadow-2xl hover:bg-orange-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center relative"
                     aria-label="Abrir Carrinho"
                 >
