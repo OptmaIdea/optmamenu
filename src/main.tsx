@@ -3,18 +3,24 @@ import ReactDOM from 'react-dom/client';
 import App from '@/App';
 import './index.css';
 
-const CHUNK_RELOAD_KEY = 'optmamenu.chunk-reload-attempted';
+const CHUNK_RELOAD_KEY = 'optmamenu.chunk-reload-attempted-at';
+const CHUNK_RELOAD_WINDOW_MS = 30_000;
 
-window.addEventListener('vite:preloadError', (event) => {
-  event.preventDefault();
+function reloadAfterChunkFailure() {
+  const previousAttempt = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
+  const now = Date.now();
 
-  if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1') {
-    sessionStorage.removeItem(CHUNK_RELOAD_KEY);
+  if (previousAttempt > 0 && now - previousAttempt < CHUNK_RELOAD_WINDOW_MS) {
     return;
   }
 
-  sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+  sessionStorage.setItem(CHUNK_RELOAD_KEY, String(now));
   window.location.reload();
+}
+
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  reloadAfterChunkFailure();
 });
 
 window.addEventListener('error', (event) => {
@@ -23,20 +29,14 @@ window.addEventListener('error', (event) => {
     message.includes('Failed to fetch dynamically imported module') ||
     message.includes('Expected a JavaScript-or-Wasm module script');
 
-  if (!isDynamicImportFailure) return;
-
-  if (sessionStorage.getItem(CHUNK_RELOAD_KEY) === '1') {
-    sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-    return;
+  if (isDynamicImportFailure) {
+    reloadAfterChunkFailure();
   }
-
-  sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
-  window.location.reload();
 });
 
-window.addEventListener('load', () => {
+window.setTimeout(() => {
   sessionStorage.removeItem(CHUNK_RELOAD_KEY);
-});
+}, 10_000);
 
 const rootElement = document.getElementById('root') as HTMLElement;
 const root = ReactDOM.createRoot(rootElement);
