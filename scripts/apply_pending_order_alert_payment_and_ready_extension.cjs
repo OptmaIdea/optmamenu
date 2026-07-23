@@ -118,11 +118,9 @@ orders = orders.replace(
   "order.status === 'confirmed' ? <Clock size={24} /> :\n                                              order.status === 'ready' ? <CheckCircle size={24} /> :\n                                              order.status === 'completed' ?",
 );
 
-// Botão do bloco de contato também muda o estado antes de enviar.
-orders = orders.replaceAll(
-  "onClick={() => openOrderMessage(order, 'order_ready')}",
-  "onClick={() => markReadyAndNotify(order)}",
-);
+// As ações de fluxo ficam somente no rodapé do pedido; o quadro do cliente mantém contato livre.
+orders = orders.replace(/\n\s*<button\n\s*type="button"\n\s*onClick=\{\(\) => openOrderMessage\(order, 'order_accepted'\)\}[\s\S]*?Mensagem de pedido aceito[\s\S]*?<\/button>/m, '');
+orders = orders.replace(/\n\s*<button\n\s*type="button"\n\s*onClick=\{\(\) => openOrderMessage\(order, 'order_ready'\)\}[\s\S]*?Avisar que está pronto[\s\S]*?<\/button>/m, '');
 
 // Em preparo: permitir prorrogar e marcar pronto.
 const confirmedMarker = `                                                {order.status === 'confirmed' && (\n                                                    <>`;
@@ -133,12 +131,16 @@ if (orders.includes(confirmedMarker) && !orders.includes("order.status === 'conf
   );
 }
 
+orders = orders.replaceAll(
+  "onClick={() => openOrderMessage(order, 'order_ready')}",
+  "onClick={() => markReadyAndNotify(order)}",
+);
 orders = orders.replace(
   "onClick={() => updateStatus(order.id, 'completed')}",
   "onClick={() => setFinalizingOrder(order)}",
 );
 
-// Estado pronto: prorrogar, cancelar ou finalizar com pagamento.
+// Estado pronto: prorrogar ou finalizar com pagamento.
 if (!orders.includes("{order.status === 'ready' && (")) {
   const completedMarker = `                                                {order.status === 'completed' && (`;
   if (!orders.includes(completedMarker)) fail('Bloco completed não encontrado para inserir ações ready.');
