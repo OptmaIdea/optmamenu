@@ -7,6 +7,7 @@ import OrderStatusFilter from '@/components/common/OrderStatusFilter';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
+import OrderPaymentModal, { type FinalPaymentMethodCode } from '@/components/orders/OrderPaymentModal';
 
 export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
@@ -15,6 +16,8 @@ export default function Orders() {
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
+    const [finalizingOrder, setFinalizingOrder] = useState<Order | null>(null);
+    const [finalizationLoading, setFinalizationLoading] = useState(false);
 
     // Filter displayed orders locally if 'current' is selected
     const displayedOrders = useMemo(() => {
@@ -180,7 +183,7 @@ export default function Orders() {
         };
     }
 
-    async function openOrderMessage(order: Order, eventCode: OrderMessageEventCode) {
+    async function openOrderMessage(order: Order, eventCode: OrderMessageEventCode, expiresAtOverride?: string | null) {
         const publicOrder = getPublicOrderFields(order);
         const token = publicOrder.public_order_token;
         const orderCode = publicOrder.order_code || order.id;
@@ -262,6 +265,52 @@ export default function Orders() {
             console.error('Erro ao marcar pedido como pronto:', error);
             alert('Erro ao marcar pedido como pronto.');
             return false;
+        }
+    }
+
+    async function markReadyAndNotify(order: Order) {
+        try {
+            const { data, error } = await supabase.rpc('admin_mark_public_order_ready_safe', {
+                p_order_id: order.id,
+            });
+            if (error) throw error;
+            if (data?.ok === false) throw new Error(data?.error || 'Erro ao marcar pedido como pronto.');
+
+            const expiresAt = data?.expires_at || order.stock_reservations?.[0]?.expires_at || null;
+            setOrders((current) => current.map((item) => item.id === order.id
+                ? {
+                    ...item,
+                    status: 'ready',
+                    stock_reservations: expiresAt ? [{ expires_at: expiresAt }] : item.stock_reservations,
+                }
+                : item));
+
+            await openOrderMessage(order, 'order_ready', expiresAt);
+            await fetchOrders();
+        } catch (error) {
+            console.error('Erro ao marcar pedido como pronto:', error);
+            alert('Não foi possível marcar o pedido como pronto.');
+        }
+    }
+
+    async function finalizeOrder(method: FinalPaymentMethodCode) {
+        if (!finalizingOrder) return;
+        setFinalizationLoading(true);
+        try {
+            const { data, error } = await supabase.rpc('admin_finalize_public_order_with_payment', {
+                p_order_id: finalizingOrder.id,
+                p_payment_method_code: method,
+            });
+            if (error) throw error;
+            if (data?.ok === false) throw new Error(data?.error || 'Erro ao finalizar pedido.');
+
+            setFinalizingOrder(null);
+            await fetchOrders();
+        } catch (error) {
+            console.error('Erro ao finalizar pedido com pagamento:', error);
+            alert('Não foi possível finalizar o pedido e registrar o pagamento.');
+        } finally {
+            setFinalizationLoading(false);
         }
     }
 
@@ -440,13 +489,6 @@ export default function Orders() {
                                                         </a>
                                                         <button
                                                             type="button"
-                                                            onClick={() => openOrderMessage(order, 'order_accepted')}
-                                                            className="flex items-center justify-center gap-2 w-full p-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition text-sm font-bold mt-2"
-                                                        >
-                                                            <MessageCircle size={16} /> Mensagem de pedido aceito
-                                                        </button>
-                                                        <button
-                                                            type="button"
                                                             onClick={() => markOrderReady(order)}
                                                             className="flex items-center justify-center gap-2 w-full p-2 bg-emerald-700 text-white rounded-lg hover:bg-emerald-800 transition text-sm font-bold mt-2"
                                                         >
@@ -518,6 +560,12 @@ export default function Orders() {
                                                 {order.status === 'confirmed' && (
                                                     <>
                                                         <button
+                                                            onClick={() => extendReservation(order.id)}
+                                                            className="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-bold text-sm transition"
+                                                        >
+                                                            Prorrogar (+{storeData?.config?.extension_minutes || 10}min)
+                                                        </button>
+                                                        <button
                                                             onClick={async () => {
                                                                 const changed = await updateStatus(order.id, 'cancelled');
                                                                 if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) {
@@ -528,16 +576,8 @@ export default function Orders() {
                                                         >
                                                             Cancelar
                                                         </button>
-
                                                         <button
-                                                            type="button"
-                                                            onClick={() => openOrderMessage(order, 'order_ready')}
-                                                            className="px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold text-sm transition flex items-center gap-2"
-                                                        >
-                                                            <MessageCircle size={16} /> Avisar que está pronto
-                                                        </button>
-                                                        <button
-                                                            onClick={() => updateStatus(order.id, 'completed')}
+                                                            onClick={() => setFinalizingOrder(order)}
                                                             className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"
                                                         >
                                                             <CheckCircle size={16} /> Finalizar pedido
@@ -581,6 +621,12 @@ export default function Orders() {
                     })}
                 </div>
             )}
+            <OrderPaymentModal
+                order={finalizingOrder}
+                loading={finalizationLoading}
+                onClose={() => !finalizationLoading && setFinalizingOrder(null)}
+                onConfirm={finalizeOrder}
+            />
         </PageContainer>
     );
 }

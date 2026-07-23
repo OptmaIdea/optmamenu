@@ -7,7 +7,7 @@ import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
 
-type PaymentChoice = 'pix' | 'cash';
+type PaymentChoice = 'pix' | 'pending';
 
 function compactOrderCode(orderCode: string) {
     const suffix = orderCode.split('-').pop();
@@ -202,10 +202,10 @@ export default function Checkout() {
                         <span className="font-bold text-gray-700">PIX</span>
                         {paymentMethod === 'pix' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
                     </button>
-                    <button type="button" onClick={() => setPaymentMethod('cash')} className={`w-full flex items-center p-4 rounded-2xl border-2 ${paymentMethod === 'cash' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}>
+                    <button type="button" onClick={() => setPaymentMethod('pending')} className={`w-full flex items-center p-4 rounded-2xl border-2 ${paymentMethod === 'pending' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}>
                         <Store className="w-5 h-5 mr-3 text-gray-500" />
-                        <span className="font-bold text-gray-700">Dinheiro na retirada</span>
-                        {paymentMethod === 'cash' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
+                        <span className="font-bold text-gray-700">Pagar na retirada</span>
+                        {paymentMethod === 'pending' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
                     </button>
                 </section>
 

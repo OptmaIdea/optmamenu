@@ -8,6 +8,7 @@ import { getCurrentUserSecurityContext } from '@/services/securityService';
 import { useOrderMonitor } from '@/hooks/useOrderMonitor';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
+import PendingOrdersFloatingAlert from '@/components/orders/PendingOrdersFloatingAlert';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
@@ -1634,6 +1635,10 @@ export default function PrivateLayout() {
                     </main>
                 </div>
             </div>
+            <PendingOrdersFloatingAlert
+                storeId={storeId}
+                enabled={hasPermission('orders.view')}
+            />
             <BackToTopButton />
         </div>
     );
