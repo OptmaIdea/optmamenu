@@ -30,6 +30,18 @@ import {
     X
 } from 'lucide-react';
 
+function compactPublicOrderCode(orderCode: string) {
+    const suffix = orderCode.split('-').pop();
+    return suffix ? `#${suffix}` : orderCode;
+}
+
+function formatOrderCurrency(value: number) {
+    return Number(value || 0).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+    });
+}
+
 // Simple Theme Toggle Icon Component
 function ThemeToggleIcon() {
     return (
@@ -127,7 +139,15 @@ export default function Catalog() {
         order_code: string;
         total: number;
         whatsapp_url?: string;
+        public_order_token: string;
+        tracking_url: string;
     } | null>(null);
+
+    useEffect(() => {
+        if (!orderSuccess) return;
+        const timer = window.setTimeout(() => setOrderSuccess(null), 5000);
+        return () => window.clearTimeout(timer);
+    }, [orderSuccess]);
 
     const [paymentMethods, setPaymentMethods] = useState<PublicPaymentMethod[]>([]);
     const [selectedPaymentMethodCode, setSelectedPaymentMethodCode] = useState('pending');
@@ -379,17 +399,52 @@ export default function Catalog() {
                 );
                 return;
             }
+            const trackingUrl = `${window.location.origin}/p/${encodeURIComponent(result.order.public_order_token)}`;
+            const compactCode = compactPublicOrderCode(result.order.order_code);
+            const paymentName = paymentMethods.find((method) => method.code === selectedPaymentMethodCode)?.name || 'A combinar';
+            const fulfillmentName = selectedDeliveryMethod?.name || (selectedFulfillmentType === 'delivery' ? 'Entrega' : selectedFulfillmentType === 'qr_table' ? 'Mesa/comanda' : 'Retirada');
+            const itemLines = cartItems.flatMap((item) => [
+                `• ${item.quantity}x ${item.name}`,
+                `  ${formatOrderCurrency(Number(item.price || 0))} cada — ${formatOrderCurrency(Number(item.price || 0) * item.quantity)}`,
+            ]);
+            const orderMessage = [
+                `🛒 *Novo pedido — ${compactCode}*`,
+                '',
+                `🏪 *Loja:* ${store?.name || 'Loja'}`,
+                `👤 *Cliente:* ${customerName.trim() || 'Cliente não identificado'}`,
+                '',
+                '📦 *Itens*',
+                ...itemLines,
+                '',
+                `Subtotal: ${formatOrderCurrency(Number(result.order.subtotal || 0))}`,
+                ...(Number(result.order.delivery_fee || 0) > 0 ? [`Entrega: ${formatOrderCurrency(Number(result.order.delivery_fee || 0))}`] : []),
+                `*Total: ${formatOrderCurrency(Number(result.order.total || 0))}*`,
+                '',
+                `💳 *Pagamento:* ${paymentName}`,
+                `📍 *Atendimento:* ${fulfillmentName}`,
+                ...(tableCode ? [`🪑 *Mesa/comanda:* ${tableCode}`] : []),
+                '',
+                '🔗 *Acompanhar este pedido:*',
+                trackingUrl,
+                '',
+                'Por favor, confirme o recebimento do pedido.',
+            ].join('\n');
+            const orderWhatsappUrl = result.whatsapp?.digits && canOpenWhatsapp(result.whatsapp.digits)
+                ? buildWhatsappUrl(result.whatsapp.digits, orderMessage)
+                : result.whatsapp?.url || undefined;
 
             setOrderSuccess({
                 order_code: result.order.order_code,
                 total: Number(result.order.total || 0),
-                whatsapp_url: result.whatsapp?.url || undefined,
+                whatsapp_url: orderWhatsappUrl,
+                public_order_token: result.order.public_order_token,
+                tracking_url: trackingUrl,
             });
 
             clearCart();
 
-            if (result.whatsapp?.url) {
-                window.open(result.whatsapp.url, '_blank', 'noopener,noreferrer');
+            if (orderWhatsappUrl) {
+                window.open(orderWhatsappUrl, '_blank', 'noopener,noreferrer');
             }
         } catch (err: any) {
             console.error('Erro ao criar pedido público:', err);
@@ -761,6 +816,22 @@ export default function Catalog() {
             className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300 pb-20"
             style={{ backgroundColor: store.config?.visual_color_secondary }}
         >
+            {orderSuccess && (
+                <div className="fixed inset-x-4 top-5 z-[120] mx-auto max-w-lg animate-fadeIn">
+                    <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-2xl dark:border-emerald-800 dark:bg-slate-900">
+                        <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">✓</div>
+                            <div className="min-w-0 flex-1">
+                                <p className="font-black text-emerald-800 dark:text-emerald-200">Pedido enviado com sucesso!</p>
+                                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Pedido {compactPublicOrderCode(orderSuccess.order_code)} encaminhado para a loja.</p>
+                                <a href={orderSuccess.tracking_url} className="mt-2 inline-flex text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-300">Acompanhar pedido</a>
+                            </div>
+                            <button type="button" onClick={() => setOrderSuccess(null)} className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800">×</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {!storeStatus.isOpen && (
                 <div className={`p-3 text-center text-white font-bold shadow-md sticky top-0 z-[60] animate-fadeIn ${storeStatus.canOrder ? 'bg-blue-600' : 'bg-red-600'}`}>
                     {storeStatus.message || "Loja Fechada"}
