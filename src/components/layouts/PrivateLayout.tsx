@@ -662,10 +662,10 @@ export default function PrivateLayout() {
         // Favicon Logic - Force reload to avoid cache issues on tablets
         const link = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
         if (link) {
-            link.href = '/assets/OptmaMenuLogo.ico';
+            link.href = '/OptmaMenuLogo.ico';
             // Force reload by removing and re-adding
             const newLink = link.cloneNode() as HTMLLinkElement;
-            newLink.href = '/assets/OptmaMenuLogo.ico?' + Date.now();
+            newLink.href = '/OptmaMenuLogo.ico?' + Date.now();
             link.parentNode?.replaceChild(newLink, link);
         }
 

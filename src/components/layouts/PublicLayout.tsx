@@ -23,11 +23,11 @@ export default function PublicLayout() {
     // Set Favicon
     const faviconLink = document.querySelector("link[rel~='icon']") as HTMLLinkElement;
     if (faviconLink) {
-      faviconLink.href = '/assets/OptmaMenuLogo.ico';
+      faviconLink.href = '/OptmaMenuLogo.ico';
     } else {
       const newLink = document.createElement('link');
       newLink.rel = 'icon';
-      newLink.href = '/assets/OptmaMenuLogo.ico';
+      newLink.href = '/OptmaMenuLogo.ico';
       document.head.appendChild(newLink);
     }
 
