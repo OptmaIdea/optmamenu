@@ -71,7 +71,56 @@ export interface CreatePublicOrderResponse {
     };
 }
 
+export interface PublicOrderTrackingItem {
+    name: string;
+    quantity: number;
+    unit_price: number;
+    discount: number;
+    line_total: number;
+}
+
+export interface PublicOrderTrackingResponse {
+    ok: boolean;
+    error?: string;
+    store?: {
+        name: string;
+        slug: string;
+        logo_url?: string | null;
+    };
+    order?: {
+        order_code: string;
+        status: string;
+        customer_name?: string | null;
+        subtotal: number;
+        delivery_fee: number;
+        total: number;
+        sales_channel: string;
+        fulfillment_type: string;
+        delivery_method_name?: string | null;
+        payment_method_name?: string | null;
+        table_code?: string | null;
+        created_at: string;
+        confirmed_at?: string | null;
+        completed_at?: string | null;
+        expires_at?: string | null;
+        items: PublicOrderTrackingItem[];
+    };
+}
+
 export const PublicOrderService = {
+    async getPublicOrderByToken(token: string): Promise<PublicOrderTrackingResponse> {
+        const { data, error } = await supabaseCustomer.rpc('get_public_order_by_token', {
+            p_token: token,
+        });
+
+        if (error) {
+            console.error('get_public_order_by_token error:', error);
+            throw error;
+        }
+
+        return data as PublicOrderTrackingResponse;
+    },
+
     async createPublicOrder(input: CreatePublicOrderInput): Promise<CreatePublicOrderResponse> {
         const { data, error } = await supabaseCustomer.rpc('create_public_order_by_slug', {
             p_slug: input.slug,
