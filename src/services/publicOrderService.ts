@@ -1,4 +1,4 @@
-import { supabaseCustomer } from '@/lib/supabase';
+import { supabaseCustomer, supabasePublic } from '@/lib/supabase';
 
 export type PublicFulfillmentType = 'pickup' | 'delivery' | 'qr_table' | 'dine_in' | 'other';
 
@@ -109,12 +109,18 @@ export interface PublicOrderTrackingResponse {
 
 export const PublicOrderService = {
     async getPublicOrderByToken(token: string): Promise<PublicOrderTrackingResponse> {
-        const { data, error } = await supabaseCustomer.rpc('get_public_order_by_token', {
-            p_token: token,
+        const normalizedToken = decodeURIComponent(token).trim();
+        const { data, error } = await supabasePublic.rpc('get_public_order_by_token', {
+            p_token: normalizedToken,
         });
 
         if (error) {
-            console.error('get_public_order_by_token error:', error);
+            console.error('get_public_order_by_token error:', {
+                code: error.code,
+                message: error.message,
+                details: error.details,
+                hint: error.hint,
+            });
             throw error;
         }
 
