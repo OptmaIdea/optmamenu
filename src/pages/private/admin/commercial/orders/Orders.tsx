@@ -599,7 +599,7 @@ export default function Orders() {
                                                             Cancelar
                                                         </button>
                                                         <button
-                                                            onClick={() => updateStatus(order.id, 'completed')}
+                                                            onClick={() => setFinalizingOrder(order)}
                                                             className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"
                                                         >
                                                             <CheckCircle size={16} /> Finalizar pedido
