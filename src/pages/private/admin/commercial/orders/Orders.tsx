@@ -212,7 +212,11 @@ export default function Orders() {
             catalogUrl: storeSlug
                 ? `${window.location.origin}/s/${encodeURIComponent(storeSlug)}`
                 : window.location.origin,
-            expiresAt: publicOrder.available_until || order.stock_reservations?.[0]?.expires_at || null,
+            expiresAt:
+                expiresAtOverride ||
+                publicOrder.available_until ||
+                order.stock_reservations?.[0]?.expires_at ||
+                null,
             fulfillmentType: publicOrder.fulfillment_type || null,
         });
 
@@ -257,39 +261,23 @@ export default function Orders() {
             if (error) throw error;
             if (data?.ok === false) throw new Error(data?.error || 'Erro ao marcar pedido como pronto.');
 
-            const updatedOrder = { ...order, status: 'ready' as OrderStatus };
+            const expiresAt = data?.expires_at || order.stock_reservations?.[0]?.expires_at || null;
+            const updatedOrder = {
+                ...order,
+                status: 'ready' as OrderStatus,
+                available_until: expiresAt,
+                cancellation_grace_until: data?.cancellation_grace_until || null,
+                stock_reservations: expiresAt ? [{ expires_at: expiresAt }] : order.stock_reservations,
+            } as Order;
+
             setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
-            await openOrderMessage(updatedOrder, 'order_ready');
+            await openOrderMessage(updatedOrder, 'order_ready', expiresAt);
+            await fetchOrders();
             return true;
         } catch (error) {
             console.error('Erro ao marcar pedido como pronto:', error);
             alert('Erro ao marcar pedido como pronto.');
             return false;
-        }
-    }
-
-    async function markReadyAndNotify(order: Order) {
-        try {
-            const { data, error } = await supabase.rpc('admin_mark_public_order_ready_safe', {
-                p_order_id: order.id,
-            });
-            if (error) throw error;
-            if (data?.ok === false) throw new Error(data?.error || 'Erro ao marcar pedido como pronto.');
-
-            const expiresAt = data?.expires_at || order.stock_reservations?.[0]?.expires_at || null;
-            setOrders((current) => current.map((item) => item.id === order.id
-                ? {
-                    ...item,
-                    status: 'ready',
-                    stock_reservations: expiresAt ? [{ expires_at: expiresAt }] : item.stock_reservations,
-                }
-                : item));
-
-            await openOrderMessage(order, 'order_ready', expiresAt);
-            await fetchOrders();
-        } catch (error) {
-            console.error('Erro ao marcar pedido como pronto:', error);
-            alert('Não foi possível marcar o pedido como pronto.');
         }
     }
 
@@ -413,12 +401,11 @@ export default function Orders() {
                         }
 
                         return (
-                            <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${
-                                order.status === 'reserved' ? 'border-l-yellow-400' :
-                                order.status === 'confirmed' ? 'border-l-blue-400' :
-                                order.status === 'ready' ? 'border-l-emerald-400' :
-                                order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'
-                            }`}>
+                            <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${order.status === 'reserved' ? 'border-l-yellow-400' :
+                                    order.status === 'confirmed' ? 'border-l-blue-400' :
+                                        order.status === 'ready' ? 'border-l-emerald-400' :
+                                            order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'
+                                }`}>
                                 {/* Card Header */}
                                 <div
                                     className="p-5 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 cursor-pointer"
@@ -428,9 +415,9 @@ export default function Orders() {
                                     <div className="flex items-center gap-4 flex-1">
                                         <div className={`p-3 rounded-full ${statusColors[order.status]} bg-opacity-20`}>
                                             {order.status === 'reserved' ? <AlertCircle size={24} /> :
-                                             order.status === 'confirmed' ? <Clock size={24} /> :
-                                             order.status === 'ready' ? <CheckCircle size={24} /> :
-                                             order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
+                                                order.status === 'confirmed' ? <Clock size={24} /> :
+                                                    order.status === 'ready' ? <CheckCircle size={24} /> :
+                                                        order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
                                         </div>
                                         <div>
                                             <div className="flex items-center gap-2">
@@ -575,6 +562,13 @@ export default function Orders() {
                                                             className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition"
                                                         >
                                                             Cancelar
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => markOrderReady(order)}
+                                                            className="px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold text-sm transition flex items-center gap-2"
+                                                        >
+                                                            <MessageCircle size={16} /> Avisar que está pronto
                                                         </button>
                                                         <button
                                                             onClick={() => setFinalizingOrder(order)}
