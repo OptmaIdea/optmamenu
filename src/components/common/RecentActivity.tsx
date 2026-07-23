@@ -20,6 +20,28 @@ interface RecentActivityProps {
   viewAllLink?: string;
 }
 
+function formatActivityDateTime(timestamp: Date): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return 'Data não informada';
+
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfActivity = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayDifference = Math.round(
+    (startOfToday.getTime() - startOfActivity.getTime()) / 86_400_000,
+  );
+
+  const time = date.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  if (dayDifference === 0) return `Hoje às ${time}`;
+  if (dayDifference === 1) return `Ontem às ${time}`;
+
+  return `${date.toLocaleDateString('pt-BR')} às ${time}`;
+}
+
 export default function RecentActivity({
   activities,
   title = 'Atividades Recentes',
@@ -75,7 +97,6 @@ export default function RecentActivity({
                 key={activity.id}
                 className="flex items-start gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
               >
-                {/* Avatar */}
                 <div className="flex-shrink-0">
                   {activity.user.avatar ? (
                     <img
@@ -90,18 +111,14 @@ export default function RecentActivity({
                   )}
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
                     <span className="font-bold text-sm text-gray-800 dark:text-white font-candara-bold truncate">
                       {activity.user.name}
                     </span>
                     <span className="text-xs text-gray-400 font-candara flex items-center whitespace-nowrap">
-                      • <Clock size={12} className="inline mx-1" />
-                      {new Date(activity.timestamp).toLocaleTimeString('pt-BR', {
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      <Clock size={12} className="mr-1" />
+                      {formatActivityDateTime(activity.timestamp)}
                     </span>
                   </div>
 
