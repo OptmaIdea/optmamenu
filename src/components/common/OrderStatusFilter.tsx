@@ -18,6 +18,7 @@ export default function OrderStatusFilter({ value, onChange }: OrderStatusFilter
         <option value="all">Todos os Status</option>
         <option value="reserved">Novos</option>
         <option value="confirmed">Em Preparo</option>
+        <option value="ready">Prontos</option>
         <option value="completed">Finalizados</option>
         <option value="cancelled">Cancelados</option>
       </select>
