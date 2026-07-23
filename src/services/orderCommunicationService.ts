@@ -67,7 +67,7 @@ const DEFAULT_TEMPLATES: Record<OrderMessageEventCode, string> = {
   order_cancelled: [
     'Olá *{customerName}*.',
     '',
-    'Não foi possível atender o pedido nº *{orderCode}* neste momento.',
+    'Não foi possível atender o pedido nº *{orderCode}* neste momento, devido a problemas internos. Pedimos desculpas pelo ocorrido.',
     '',
     'Veja nosso catálogo:',
     '{catalogUrl}',
