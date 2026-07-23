@@ -65,6 +65,22 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 /**
+ * PUBLIC:
+ * - cliente anônimo e isolado;
+ * - não reutiliza sessão administrativa;
+ * - não injeta o JWT próprio do portal do cliente;
+ * - indicado para RPCs cuja credencial é um token público específico.
+ */
+export const supabasePublic = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: 'sb-public-anon-disabled-auth',
+    },
+});
+
+/**
  * CUSTOMER:
  * - NÃO usa supabase.auth
  * - Injeta Authorization Bearer <jwt_customer> em REST/RPC/Storage/Functions
