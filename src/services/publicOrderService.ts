@@ -41,6 +41,38 @@ export interface CreatePublicOrderInput {
     notes?: string | null;
 }
 
+export interface PublicOrderPricingItem {
+    product_id: string;
+    product_name: string;
+    category_id?: string | null;
+    category_name?: string | null;
+    quantity: number;
+    pricing_quantity: number;
+    base_price: number;
+    unit_price: number;
+    discount_total: number;
+    line_total: number;
+    pricing_source:
+        | 'category_combined_volume'
+        | 'category_standard'
+        | 'product_volume'
+        | 'product_standard'
+        | 'product_base_price';
+    applied_tier?: {
+        min: number;
+        price: number;
+    } | null;
+}
+
+export interface PublicOrderPricingResponse {
+    ok: boolean;
+    error?: string;
+    items?: PublicOrderPricingItem[];
+    subtotal?: number;
+    base_subtotal?: number;
+    total_discount?: number;
+}
+
 export interface CreatePublicOrderResponse {
     ok: boolean;
     error?: string;
@@ -49,6 +81,7 @@ export interface CreatePublicOrderResponse {
     current_total?: number;
     product_id?: string;
     product_name?: string;
+    pricing?: PublicOrderPricingResponse;
     order?: {
         id: string;
         order_code: string;
@@ -127,8 +160,22 @@ export const PublicOrderService = {
         return data as PublicOrderTrackingResponse;
     },
 
+    async quotePublicOrder(slug: string, items: PublicOrderItemInput[]): Promise<PublicOrderPricingResponse> {
+        const { data, error } = await supabasePublic.rpc('quote_public_order_by_slug', {
+            p_slug: slug,
+            p_items: items,
+        });
+
+        if (error) {
+            console.error('quote_public_order_by_slug error:', error);
+            throw error;
+        }
+
+        return data as PublicOrderPricingResponse;
+    },
+
     async createPublicOrder(input: CreatePublicOrderInput): Promise<CreatePublicOrderResponse> {
-        const { data, error } = await supabaseCustomer.rpc('create_public_order_by_slug', {
+        const { data, error } = await supabaseCustomer.rpc('create_public_order_by_slug_v2', {
             p_slug: input.slug,
             p_customer_name: input.customer_name,
             p_customer_phone: input.customer_phone,
@@ -143,7 +190,7 @@ export const PublicOrderService = {
         });
 
         if (error) {
-            console.error('create_public_order_by_slug error:', error);
+            console.error('create_public_order_by_slug_v2 error:', error);
             throw error;
         }
 
