@@ -72,6 +72,7 @@ export default function PendingOrdersFloatingAlert({
 
             <Link
                 to="/admin/orders"
+                onClick={() => setDismissedSignature(signature)}
                 className="mt-4 flex w-full items-center justify-center rounded-xl bg-amber-500 px-4 py-3 text-sm font-black text-gray-950 transition hover:bg-amber-400"
             >
                 Abrir pedidos
