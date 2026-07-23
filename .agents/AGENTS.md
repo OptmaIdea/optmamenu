@@ -21,6 +21,7 @@
 3. **Documentação:** ao concluir uma frente funcional, atualizar os documentos relevantes em `docs/` e, quando houver memória nova importante, atualizar este arquivo.
 4. **RPCs:** RPCs novas ou alteradas devem ser documentadas em `docs/RPCS_AND_VIEWS.md`.
 5. **Advisors Supabase:** problemas de Advisors devem ser tratados em rodada própria, sem misturar hardening de linter com fechamento funcional de UX.
+6. **Commits e Push Automáticos:** a cada conjunto de alterações ou correções concluídas e validadas, realizar automaticamente o `git add`, `git commit` e `git push` para manter o GitHub e o Vercel sempre atualizados.
 
 ---
 
