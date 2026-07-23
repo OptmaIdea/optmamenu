@@ -75,6 +75,7 @@ const PrivacyPolicy = lazy(() => import('@/pages/initial/legal/PrivacyPolicy'));
 // Lazy load store routes
 const Catalog = lazy(() => import('@/pages/store/Catalog'));
 const Checkout = lazy(() => import('@/pages/store/Checkout'));
+const PublicOrderTracking = lazy(() => import('@/pages/store/PublicOrderTracking'));
 const StoreLayout = lazy(() => import('@/components/layouts/StoreLayout').then(m => ({ default: m.StoreLayout })));
 
 // Dashboard Section
@@ -164,6 +165,7 @@ export default function AppRoutes() {
           <Route path="/q/:storeSlug/:tableCode" element={<Catalog />} />
           <Route path="/mesa/:storeSlug/:tableCode" element={<Catalog />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/p/:publicOrderToken" element={<PublicOrderTracking />} />
         </Route>
 
         {/* Protected Routes - All wrapped in PrivateLayout */}

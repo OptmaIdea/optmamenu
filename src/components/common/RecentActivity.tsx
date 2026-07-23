@@ -20,6 +20,12 @@ interface RecentActivityProps {
   viewAllLink?: string;
 }
 
+function formatActivityTarget(activity: Activity): string {
+  if (activity.type !== 'order') return activity.target;
+  const suffix = String(activity.target || '').split('-').pop();
+  return suffix ? `#${suffix}` : activity.target;
+}
+
 function formatActivityDateTime(timestamp: Date): string {
   const date = new Date(timestamp);
   if (Number.isNaN(date.getTime())) return 'Data não informada';
@@ -125,7 +131,7 @@ export default function RecentActivity({
                   <p className="text-sm text-gray-600 dark:text-gray-300 font-candara mb-1">
                     {activity.action}{' '}
                     <span className="font-bold text-[#19A999]">
-                      {activity.target}
+                      {formatActivityTarget(activity)}
                     </span>
                   </p>
 
