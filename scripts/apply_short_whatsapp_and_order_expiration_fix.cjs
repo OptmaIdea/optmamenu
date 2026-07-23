@@ -25,7 +25,7 @@ if (!catalog.includes('Bom ter você conosco')) {
   if (!longMessagePattern.test(catalog)) fail('Bloco atual da mensagem de WhatsApp não encontrado no Catalog.tsx');
 
   const replacement = `
-            const firstName = (customerName.trim() || result.order.customer_name || 'Cliente').split(/\\s+/)[0];
+            const firstName = (customerName.trim() || 'Cliente').split(/\\s+/)[0];
             const catalogUrl = \`${'${window.location.origin}'}/s/${'${encodeURIComponent(storeSlug)}'}\`;
             const orderMessage = [
                 \`Olá *\${firstName}*. Bom ter você conosco 😊!\`,
@@ -135,7 +135,7 @@ if (!orders.includes('const expiredOrders = orders.filter')) {
 
 orders = orders.replace(
   "message = `Olá ${firstName}! Seu pedido #${order.id.slice(0, 5)} foi aceito e já está sendo preparado! 👨‍🍳`;",
-  "message = `Olá *${firstName}*! Já estamos separando seu pedido nº *#${(order.order_code || order.id).split('-').pop()}*. Você pode acompanhar o andamento aqui:\\n${window.location.origin}/p/${order.public_order_token || ''}`;",
+  "const publicOrder = order as Order & { order_code?: string; public_order_token?: string };\n            const compactOrderCode = (publicOrder.order_code || order.id).split('-').pop();\n            message = `Olá *${firstName}*! Já estamos separando seu pedido nº *#${compactOrderCode}*. Você pode acompanhar o andamento aqui:\\n${window.location.origin}/p/${publicOrder.public_order_token || ''}`;",
 );
 
 fs.writeFileSync(catalogPath, catalog, 'utf8');
