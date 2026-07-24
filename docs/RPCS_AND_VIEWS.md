@@ -670,7 +670,7 @@ Permissões:
 
 Salva grupo e vínculos de categorias de forma atômica. Exige autenticação e
 proprietário, `categories.manage` ou `products.manage`. Grupo ativo exige ao
-menos duas categorias da mesma loja. Execução revogada de `public` e `anon`.
+menos duas categorias da mesma loja. Criação e alteração registram antes/depois, responsável, faixas e categorias vinculadas em `audit_logs`. Execução revogada de `public` e `anon`.
 
 Usada por:
 
