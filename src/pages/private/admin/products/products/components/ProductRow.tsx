@@ -51,18 +51,6 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
     rowBgClass = 'hover:bg-gray-50 dark:hover:bg-gray-700/30';
   }
 
-  const stickyBgClass = !product.active
-    ? 'lg:bg-gray-50 lg:dark:bg-gray-800'
-    : stockStatus === 'zero'
-    ? 'lg:bg-red-50 lg:dark:bg-red-900/30'
-    : stockStatus === 'low'
-    ? 'lg:bg-yellow-50 lg:dark:bg-yellow-900/30'
-    : stockStatus === 'attention'
-    ? 'lg:bg-amber-50 lg:dark:bg-amber-900/30'
-    : stockStatus === 'high'
-    ? 'lg:bg-purple-50 lg:dark:bg-purple-900/30'
-    : 'lg:bg-white lg:dark:bg-gray-800';
-
   const formattedPrice = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -103,15 +91,7 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
   return (
     <tr className={`transition-colors ${rowBgClass}`}>
       <td
-        className={`
-          px-4 py-2.5
-          lg:sticky lg:left-0 lg:z-20
-          ${stickyBgClass}
-          lg:shadow-[6px_0_10px_-10px_rgba(0,0,0,0.25)]
-          lg:before:content-['']
-          lg:before:absolute lg:before:top-0 lg:before:right-0 lg:before:h-full lg:before:w-px
-          lg:before:bg-gray-200 lg:dark:before:bg-gray-700
-        `}
+        className="w-[320px] max-w-[320px] px-4 py-2.5"
       >
         <div className="flex items-center gap-3">
           <ProductThumb product={product} />

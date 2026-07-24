@@ -43,6 +43,39 @@ export type PosPaymentMethod = {
   sort_order: number;
 };
 
+export type PosPricingTier = {
+  min: number;
+  price: number;
+};
+
+export type PosPricingItem = {
+  product_id: string;
+  product_name: string;
+  category_id: string | null;
+  category_name: string | null;
+  quantity: number;
+  pricing_quantity: number;
+  base_price: number;
+  unit_price: number;
+  discount_total: number;
+  line_total: number;
+  pricing_source:
+    | 'category_combined_volume'
+    | 'category_per_product_volume'
+    | 'category_standard'
+    | 'product_volume'
+    | 'product_base_price';
+  applied_tier: PosPricingTier | null;
+};
+
+export type PosPricingQuote = {
+  ok: true;
+  items: PosPricingItem[];
+  subtotal: number;
+  base_subtotal: number;
+  total_discount: number;
+};
+
 export type PosBootstrap = {
   store: {
     id: string;

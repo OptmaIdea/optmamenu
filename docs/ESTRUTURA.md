@@ -2218,3 +2218,18 @@ Imports locais:
 - `public/pdv.webmanifest` e `public/pdv-sw.js` — instalação dedicada do PDV.
 - Cadastro de Produto — edição de código interno, SKU e EAN em `product_codes`.
 - Migração `20260724002328_pdv_stock_exception_and_sell_permission.sql` — venda com divergência auditada.
+
+## PDV dedicado — fechamento parcial de preços e catálogo 2026-07-24
+
+- `src/pages/private/admin/pdv/PdvPage.tsx` — cotação autoritativa no carrinho,
+  desconto automático visível e troco calculado sobre o preço efetivo.
+- `src/services/pdvService.ts` e `src/types/pdv.ts` — contrato da prévia de preço.
+- `src/pages/private/admin/products/products/hooks/useFilters.ts` — busca por nome,
+  descrição, código interno, SKU e EAN.
+- `ProductTable.tsx` e `CategoryTable.tsx` — rolagem horizontal superior
+  sincronizada; a coluna Produto deixa de sobrepor as demais.
+- Categorias — contagem e modal sem produtos descontinuados.
+- `public/pdv.webmanifest` — identidade instalável própria do PDV, separada da
+  aplicação administrativa.
+- Migração `20260724012303_pdv_pricing_preview_safe.sql` — RPC
+  `quote_pos_cart_safe` e fechamento do acesso direto ao motor interno.

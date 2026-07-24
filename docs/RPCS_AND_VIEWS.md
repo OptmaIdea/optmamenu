@@ -583,3 +583,14 @@ Sempre que uma RPC for criada ou alterada:
   venda acima do disponível;
 - o saldo físico é limitado a zero;
 - a diferença fica registrada para reconciliação, sem saldo negativo silencioso.
+
+### `quote_pos_cart_safe`
+
+- Parâmetros: `p_store_id uuid`, `p_items jsonb`.
+- Retorna a mesma estrutura de `calculate_store_cart_pricing`, incluindo preço-base,
+  preço unitário aplicado, origem da regra, faixa, subtotal-base, desconto e total.
+- Exige autenticação, vínculo ativo em `store_members` e `pdv.view` ou proprietário.
+- É usada pelo carrinho do PDV para mostrar a mesma precificação aplicada na slug
+  antes do pagamento e do cálculo de troco.
+- `calculate_store_cart_pricing` permanece como motor interno, sem execução direta
+  por `public`, `anon` ou `authenticated`.

@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft,
+  Download,
   LayoutDashboard,
   LogOut,
   MapPin,
@@ -13,6 +14,11 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+};
 
 type PdvLayoutProps = {
   children: ReactNode;
@@ -46,11 +52,36 @@ export default function PdvLayout({
     return savedTheme === 'dark' ||
       (savedTheme !== 'light' && document.documentElement.classList.contains('dark'));
   });
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark);
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
   }, [isDark]);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const handleInstalled = () => setInstallPrompt(null);
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleInstalled);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+    setInstallPrompt(null);
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -105,6 +136,21 @@ export default function PdvLayout({
           >
             {isDark ? <Sun size={19} /> : <Moon size={19} />}
           </button>
+
+          {installPrompt && (
+            <button
+              type="button"
+              onClick={() => void handleInstall()}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#1A867A] transition hover:bg-[#21A896]/10 sm:h-11 sm:w-auto sm:gap-2 sm:px-3"
+              title="Instalar atalho exclusivo do PDV"
+              aria-label="Instalar atalho exclusivo do PDV"
+            >
+              <Download size={18} aria-hidden="true" />
+              <span className="hidden text-sm font-semibold xl:inline">
+                Instalar PDV
+              </span>
+            </button>
+          )}
 
           <div
             className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#6B6258]/15 bg-[#7B2D8E]/10 text-xs font-black text-[#7B2D8E] sm:h-11 sm:w-auto sm:max-w-48 sm:gap-2 sm:rounded-xl sm:px-2.5 dark:border-gray-700 dark:text-purple-300"

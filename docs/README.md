@@ -96,6 +96,7 @@ O OptmaMenu é uma plataforma administrativa e operacional para gestão de catá
 
 - GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md
 - ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md
+- PDV_FECHAMENTO_PARCIAL_E_COMANDA_DIGITAL_20260724.md
 - FASE_9_13_PERMISSOES_SEGURANCA.md
 - FASE_9_13_1G_HISTORICO_PESSOAL.md
 - FASE_9_13_1H_PEDIDO_ONLINE_CONFIGURACOES.md
@@ -186,6 +187,10 @@ A fundação do PDV dedicado está registrada em `PDV_FASE_1_FUNDACAO_BACKEND.md
 e `PDV_FASE_2_ROTA_BOOTSTRAP_CATALOGO.md`. A Fase 2 cria `/admin/pdv`, layout
 exclusivo, redirecionamento do operador somente-PDV, códigos extensíveis de
 produto e catálogo reduzido com estoque disponível em Realtime.
+
+O fechamento parcial do PDV, a prévia autoritativa de preços, as correções de
+Produtos/Categorias e a direção do MVP de comanda estão em
+`PDV_FECHAMENTO_PARCIAL_E_COMANDA_DIGITAL_20260724.md`.
 
 O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
 

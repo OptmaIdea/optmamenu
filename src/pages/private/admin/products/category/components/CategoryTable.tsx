@@ -1,3 +1,4 @@
+import { useRef, type RefObject, type UIEvent } from 'react';
 import { Eye, Edit, Trash2, ChevronRight, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Category } from '../types/category.types';
@@ -22,12 +23,49 @@ export default function CategoryTable({
     deletingId,
     canManage = true,
 }: CategoryTableProps) {
+    const topScrollRef = useRef<HTMLDivElement>(null);
+    const tableScrollRef = useRef<HTMLDivElement>(null);
+
+    const syncHorizontalScroll = (
+        event: UIEvent<HTMLDivElement>,
+        target: RefObject<HTMLDivElement | null>
+    ) => {
+        if (target.current) {
+            target.current.scrollLeft = event.currentTarget.scrollLeft;
+        }
+    };
+
     // ✅ Garantia de que categories é um array
     const safeCategories = Array.isArray(categories) ? categories : [];
 
     return (
-        <div className="block w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 custom-scrollbar" role="region" aria-label="Tabela de categorias com rolagem horizontal" tabIndex={0}>
-            <table className="min-w-[760px] w-full text-left">
+        <div className="w-full max-w-full min-w-0">
+            <div
+                ref={topScrollRef}
+                onScroll={(event) => syncHorizontalScroll(event, tableScrollRef)}
+                className="mb-2 w-full overflow-x-auto overscroll-x-contain touch-pan-x custom-scrollbar"
+                aria-label="Rolagem horizontal superior da tabela de categorias"
+                tabIndex={0}
+            >
+                <div className="h-px min-w-[900px]" />
+            </div>
+            <div
+                ref={tableScrollRef}
+                onScroll={(event) => syncHorizontalScroll(event, topScrollRef)}
+                className="block w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 custom-scrollbar"
+                role="region"
+                aria-label="Tabela de categorias com rolagem horizontal"
+                tabIndex={0}
+            >
+            <table className="min-w-[900px] w-full table-fixed text-left">
+                <colgroup>
+                    <col className="w-16" />
+                    <col className="w-[320px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[110px]" />
+                    <col className="w-[110px]" />
+                </colgroup>
                 <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 font-medium text-sm">
                     <tr>
                         <th className="p-4 w-16 text-center">Ord</th>
@@ -134,6 +172,7 @@ export default function CategoryTable({
                     ))}
                 </tbody>
             </table>
+            </div>
         </div>
     );
 }

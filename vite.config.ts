@@ -29,6 +29,7 @@ export default defineConfig({
             'apple-touch-icon.png',
           ],
           manifest: {
+            id: '/admin',
             name: 'OptmaMenu',
             short_name: 'OptmaMenu',
             description: 'OptmaMenu | Solução em Cardápio Digital',
@@ -36,8 +37,8 @@ export default defineConfig({
             background_color: '#ffffff',
             display: 'standalone',
             scope: '/',
-            start_url: '/',
-            orientation: 'portrait',
+            start_url: '/admin',
+            orientation: 'any',
             icons: [
               { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
               { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
