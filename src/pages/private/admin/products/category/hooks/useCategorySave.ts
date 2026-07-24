@@ -21,11 +21,12 @@ export const useCategorySave = () => {
     const uploadImage = async (file: File, activeStoreId: string, categoryId: string): Promise<string | null> => {
         try {
             const fileExt = file.name.split('.').pop()?.toLowerCase() || 'webp';
-            const fileName = `${activeStoreId}/categories/${categoryId}/cover.${fileExt}`;
+            const uniqueName = `${Date.now()}-${uuidv4()}.${fileExt}`;
+            const fileName = `${activeStoreId}/categories/${categoryId}/${uniqueName}`;
             const { error: uploadError } = await supabase.storage
                 .from(CATEGORY_IMAGE_BUCKET)
                 .upload(fileName, file, {
-                    upsert: true,
+                    upsert: false,
                     cacheControl: '3600',
                     contentType: file.type || undefined,
                 });
@@ -36,7 +37,7 @@ export const useCategorySave = () => {
                 .from(CATEGORY_IMAGE_BUCKET)
                 .getPublicUrl(fileName);
 
-            return `${publicUrl}?v=${Date.now()}`;
+            return publicUrl;
         } catch (error) {
             console.error('Erro ao fazer upload da imagem:', error);
             toast.error('Erro ao enviar imagem');
