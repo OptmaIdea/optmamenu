@@ -37,6 +37,12 @@ export type PosProduct = {
   codes: PosProductCode[];
 };
 
+export type PosPaymentMethod = {
+  code: string;
+  name: string;
+  sort_order: number;
+};
+
 export type PosBootstrap = {
   store: {
     id: string;
