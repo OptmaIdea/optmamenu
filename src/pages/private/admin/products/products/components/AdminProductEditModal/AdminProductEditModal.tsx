@@ -74,6 +74,9 @@ export default function AdminProductEditModal({
     const [stockQuantity, setStockQuantity] = useState(0);
     const [minStock, setMinStock] = useState(0);
     const [maxStock, setMaxStock] = useState(0);
+    const [internalCode, setInternalCode] = useState('');
+    const [sku, setSku] = useState('');
+    const [ean, setEan] = useState('');
 
     // Imagens
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -171,6 +174,9 @@ export default function AdminProductEditModal({
         setStockQuantity(product.stock_quantity || 0);
         setMinStock(product.min_stock || 0);
         setMaxStock(product.max_stock || 0);
+        setInternalCode(product.codes?.find((code) => code.code_type === 'internal')?.code_value ?? '');
+        setSku(product.codes?.find((code) => code.code_type === 'sku')?.code_value ?? '');
+        setEan(product.codes?.find((code) => code.code_type === 'ean')?.code_value ?? '');
 
         setUseCategoryPricing(product.use_category_pricing ?? true);
         setPricingMode(product.price_logic_type || 'standard');
@@ -208,6 +214,9 @@ export default function AdminProductEditModal({
         setStockQuantity(0);
         setMinStock(0);
         setMaxStock(0);
+        setInternalCode('');
+        setSku('');
+        setEan('');
         setPricingMode('standard');
         setPriceLogicType('standard');
         setUseCategoryPricing(true);
@@ -390,6 +399,11 @@ export default function AdminProductEditModal({
             stockQuantity,
             minStock,
             maxStock,
+            productCodes: [
+                { type: 'internal', value: internalCode },
+                { type: 'sku', value: sku },
+                { type: 'ean', value: ean },
+            ],
             isEditing,
             canManageProducts,
             onSuccess: () => {
@@ -463,6 +477,12 @@ export default function AdminProductEditModal({
                     setName={setName}
                     description={description}
                     setDescription={setDescription}
+                    internalCode={internalCode}
+                    setInternalCode={setInternalCode}
+                    sku={sku}
+                    setSku={setSku}
+                    ean={ean}
+                    setEan={setEan}
                     categories={categories}
                     categoriesLoading={loadingCategories}
                     categoryId={categoryId}
