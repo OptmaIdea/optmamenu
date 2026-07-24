@@ -13,6 +13,7 @@ administrativo e sem antecipar sessão de caixa, offline ou periféricos.
 - alias autenticado `/pdv`;
 - layout exclusivo `PdvLayout`, sem sidebar;
 - proteção por vínculo ativo e `pdv.view`;
+- 12 permissões `pdv.*` integradas ao `ROLE_PERMISSION_TREE` de Segurança;
 - redirecionamento automático do operador somente-PDV;
 - fallback contextual de rotas negadas para `/admin/pdv`;
 - bootstrap seguro de loja, operador e locais autorizados para venda;
