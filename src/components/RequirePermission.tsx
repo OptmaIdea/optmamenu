@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import { hasEffectivePermission, hasAllEffectivePermissions } from '@/utils/permissions';
+import {
+  hasEffectivePermission,
+  hasAllEffectivePermissions,
+  hasOnlyPdvOperationalAccess,
+} from '@/utils/permissions';
 import { getActiveStoreId } from '@/utils/activeStore';
 import PageContainer from '@/components/common/PageContainer';
 import { ShieldAlert, AlertTriangle } from 'lucide-react';
@@ -21,7 +25,6 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(5);
-  const fallbackPath = '/admin/my-profile';
 
   const activeMembership = securityContext?.memberships?.find(
     (m) => m.store_id === activeStoreId && m.status === 'active'
@@ -29,6 +32,12 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
 
   const isOwner = activeMembership?.role === 'owner';
   const targetPermission = permissionsProp ?? permission ?? '';
+  const fallbackPath =
+    !isOwner &&
+    targetPermission !== 'pdv.view' &&
+    hasOnlyPdvOperationalAccess(permissions)
+      ? '/admin/pdv'
+      : '/admin/my-profile';
   const hasAccess = Boolean(
     activeStoreId &&
     activeMembership &&
@@ -55,7 +64,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
         clearInterval(interval);
       };
     }
-  }, [securityLoading, permissionsLoading, hasAccess, navigate]);
+  }, [securityLoading, permissionsLoading, hasAccess, navigate, fallbackPath]);
 
   // Spinner apenas na carga inicial (loading=true, sem dados anteriores).
   // Quando é apenas um refresh silencioso (refreshing=true), loading permanece
@@ -96,7 +105,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
           )}
         </p>
         <p className="mt-4 text-xs font-bold text-[#19A999]">
-          Redirecionando para Meus Dados em {countdown} segundo{countdown !== 1 ? 's' : ''}...
+          Redirecionando para {fallbackPath === '/admin/pdv' ? 'o PDV' : 'Meus Dados'} em {countdown} segundo{countdown !== 1 ? 's' : ''}...
         </p>
         <div className="mt-8 flex gap-3">
           <button
@@ -106,10 +115,10 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
             Voltar
           </button>
           <button
-            onClick={() => navigate('/admin/my-profile')}
+            onClick={() => navigate(fallbackPath)}
             className="bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition cursor-pointer"
           >
-            Ir para Meus Dados
+            {fallbackPath === '/admin/pdv' ? 'Ir para o PDV' : 'Ir para Meus Dados'}
           </button>
         </div>
       </div>
