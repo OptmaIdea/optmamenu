@@ -113,7 +113,7 @@ export default function StockDiscrepanciesPage() {
   if (loadingStore) return <LoadingSpinner />;
 
   return (
-    <PageContainer>
+    <PageContainer title="Divergências de estoque" withoutHeader>
       <div className="space-y-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
