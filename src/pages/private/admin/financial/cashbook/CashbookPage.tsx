@@ -1,4 +1,3 @@
-// @ts-nocheck -- diagnóstico temporário; remover antes do merge
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
     TrendingUp,
