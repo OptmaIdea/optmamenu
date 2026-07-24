@@ -5,7 +5,7 @@
   "description": "PDV de atendimento do OptmaMenu",
   "lang": "pt-BR",
   "start_url": "/pdv?source=pwa",
-  "scope": "/",
+  "scope": "/pdv",
   "display": "standalone",
   "orientation": "any",
   "theme_color": "#21A896",
