@@ -612,4 +612,4 @@ registre `pdv_stock_exception`.
 
 As leituras do saldo-base da venda filtram `variant_id IS NULL`.
 
-Migração: `20260724130259_fix_pdv_missing_stock_balance.sql`.
+Migração e versão registrada no Supabase: `20260724130259_fix_pdv_missing_stock_balance.sql`.
