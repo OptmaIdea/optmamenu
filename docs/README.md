@@ -197,6 +197,7 @@ O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missã
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
 
 A próxima ação recomendada é abrir uma rodada própria de Advisors/RLS/hardening Supabase, sem misturar com fechamento funcional ou novos módulos grandes.
+
 ## Atualização 24/07/2026 — atacado combinado
 
 A frente prioritária de grupos de precificação está documentada em
