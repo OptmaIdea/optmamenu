@@ -27,6 +27,7 @@ export const useProducts = () => {
                 .from('products')
                 .select(`
           *,
+          product_codes(id, code_type, code_value, normalized_code, is_primary, active),
           category:categories(id, name, price_logic_type, price_rules)
         `)
                 .eq('store_id', activeStoreId)
@@ -94,6 +95,9 @@ export const useProducts = () => {
                         : p.price_rules,
 
                     images: Array.isArray(parsedImages) ? parsedImages : [],
+                    codes: Array.isArray(p.product_codes)
+                        ? p.product_codes.filter((code: any) => code.active !== false)
+                        : [],
 
                     category: p.category ? {
                         ...p.category,
