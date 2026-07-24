@@ -84,6 +84,8 @@ export default function CategoriesPage() {
                 .select('name')
                 .eq('category_id', categoryId)
                 .eq('store_id', storeId)
+                .eq('discontinued', false)
+                .eq('is_discontinued', false)
                 .order('name');
 
             if (error) throw error;
