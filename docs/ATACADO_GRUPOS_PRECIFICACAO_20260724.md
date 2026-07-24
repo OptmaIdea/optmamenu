@@ -108,6 +108,15 @@ Valida:
 Uma categoria selecionada que estava em outro grupo é movida na mesma
 transação, evitando associação dupla.
 
+Cada criação ou alteração registra em `audit_logs`:
+
+- responsável;
+- grupo;
+- estado anterior;
+- estado posterior;
+- categorias vinculadas;
+- faixas e estado publicado/rascunho.
+
 ## 6. Motor autoritativo v2
 
 `calculate_store_cart_pricing` passa a calcular:
