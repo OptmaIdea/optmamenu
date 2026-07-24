@@ -21,6 +21,7 @@
 - helpers de store context
 - funções usadas em writes sensíveis
 - histórico de correções do linter Supabase
+
 ## Grupos de atacado — 24/07/2026
 
 `pricing_groups` possui RLS ativa e isolamento por `store_id`.
