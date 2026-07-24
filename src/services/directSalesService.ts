@@ -37,6 +37,7 @@ export interface CreateAdminDirectSaleInput {
   marketingConsent?: boolean;
   loyaltyOptIn?: boolean;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
 }
 
 export interface AdminDirectSaleOrderResult {
@@ -65,6 +66,8 @@ export interface AdminDirectSaleResult {
   order?: AdminDirectSaleOrderResult;
   cashbook?: unknown;
   loyalty?: unknown;
+  pricing?: unknown;
+  idempotent_replay?: boolean;
   error?: string;
   message?: string;
 }
@@ -73,6 +76,8 @@ function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
   return items.map((item) => ({
     product_id: item.productId,
     quantity: item.quantity,
+    // Valores de preço continuam no payload apenas para compatibilidade e auditoria
+    // do cliente. A RPC recalcula obrigatoriamente os preços no motor central.
     unit_price: item.unitPrice ?? null,
     discount: item.discount ?? 0,
     original_unit_price: item.originalUnitPrice ?? item.unitPrice ?? null,
@@ -101,6 +106,8 @@ export const DirectSalesService = {
       throw new Error('Há itens inválidos na venda direta.');
     }
 
+    const idempotencyKey = input.idempotencyKey || crypto.randomUUID();
+
     const { data, error } = await supabase.rpc('create_admin_direct_sale_order_safe', {
       p_store_id: input.storeId,
       p_items: normalizeDirectSaleItems(input.items),
@@ -115,7 +122,10 @@ export const DirectSalesService = {
       p_create_customer_if_missing: input.createCustomerIfMissing ?? true,
       p_marketing_consent: input.marketingConsent ?? false,
       p_loyalty_opt_in: input.loyaltyOptIn ?? true,
-      p_metadata: input.metadata || {},
+      p_metadata: {
+        ...(input.metadata || {}),
+        idempotency_key: idempotencyKey,
+      },
     });
 
     if (error) throw error;
