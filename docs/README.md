@@ -182,6 +182,11 @@ A frente `9.13.1K` foi concluída funcionalmente em `FASE_9_13_1K_LABELS_AMIGAVE
 
 O checklist `CHECKLIST_NOVAS_PERMISSOES.md` consolida a regra operacional: toda nova permissão deve ser criada no catálogo/templates, versionada via `store_permission_versions` e também registrada em `ROLE_PERMISSION_TREE` e nos agrupamentos visuais correspondentes.
 
+A fundação do PDV dedicado está registrada em `PDV_FASE_1_FUNDACAO_BACKEND.md`
+e `PDV_FASE_2_ROTA_BOOTSTRAP_CATALOGO.md`. A Fase 2 cria `/admin/pdv`, layout
+exclusivo, redirecionamento do operador somente-PDV, códigos extensíveis de
+produto e catálogo reduzido com estoque disponível em Realtime.
+
 O guia institucional `GUIA_INSTITUCIONAL_OPTMAIDEA_OPTMAMENU.md` registra missão, valores, posicionamento e diferencial do OptmaMenu como ferramenta acessível para digitalização responsável de pequenos lojistas.
 
 O roadmap `ROADMAP_ATENDENTE_VIRTUAL_MENSAGENS_ENGAJAMENTO.md` registra a evolução planejada de mensagens, Painel de Engajamento, automação via n8n, integração oficial WhatsApp e atendente virtual inteligente.
