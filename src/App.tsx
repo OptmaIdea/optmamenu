@@ -13,8 +13,18 @@ function App() {
   useEffect(() => {
     const checkAndInitSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          await supabase.auth.signOut({ scope: 'local' });
+          setSession(null);
+          setProfile(null);
+          return;
+        }
+
         if (session) {
           const isValid = await validateSessionSecurity(async () => {
             await supabase.auth.signOut();
