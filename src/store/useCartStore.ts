@@ -3,10 +3,16 @@ import { persist } from 'zustand/middleware';
 import type { CartItem, Product, PriceRule, Category } from '@/types';
 import { getPriceForQuantity } from '@/utils/pricing';
 
+type CategoryPricingRule = {
+    type: string;
+    rules: PriceRule[];
+    volumeScope: 'combined' | 'per_product';
+};
+
 interface CartState {
     items: CartItem[];
     isCartOpen: boolean;
-    categoryRules: Record<string, { type: string, rules: PriceRule[] }>;
+    categoryRules: Record<string, CategoryPricingRule>;
     setCategoryRules: (categories: Category[]) => void;
     addToCart: (product: Product, quantity: number) => void;
     removeFromCart: (productId: string) => void;
@@ -30,15 +36,16 @@ export const useCartStore = create<CartState>()(
                     if (cat.price_rules && cat.price_rules.length > 0) {
                         acc[cat.id] = {
                             type: cat.price_logic_type || 'standard',
-                            rules: cat.price_rules
+                            rules: cat.price_rules,
+                            volumeScope: cat.pricing_strategy?.volume_scope || 'combined',
                         };
                     }
                     return acc;
-                }, {} as Record<string, { type: string, rules: PriceRule[] }>)
+                }, {} as Record<string, CategoryPricingRule>)
             }),
 
             addToCart: (product, quantity) => set((state) => {
-                let newItems = [...state.items];
+                const newItems = [...state.items];
                 const existingItemIndex = newItems.findIndex(item => item.id === product.id);
 
                 if (existingItemIndex > -1) {
@@ -63,16 +70,14 @@ export const useCartStore = create<CartState>()(
             }),
 
             updateQuantity: (productId, quantity) => set((state) => {
-                const newItems = state.items.map(item =>
-                    item.id === productId ? { ...item, quantity } : item
-                );
+                const newItems = state.items
+                    .map(item => item.id === productId ? { ...item, quantity } : item)
+                    .filter(item => item.quantity > 0);
                 return { items: recalculatePrices(newItems, state.categoryRules) };
             }),
 
             clearCart: () => set({ items: [] }),
-            total: () => {
-                return get().items.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-            },
+            total: () => get().items.reduce((acc, item) => acc + (item.price * item.quantity), 0),
             openCart: () => set({ isCartOpen: true }),
             closeCart: () => set({ isCartOpen: false }),
             toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
@@ -87,43 +92,43 @@ export const useCartStore = create<CartState>()(
     )
 );
 
-// Helper to recalculate prices based on category rules
-function recalculatePrices(items: CartItem[], categoryRules: Record<string, { type: string, rules: PriceRule[] }>): CartItem[] {
-    // 1. Calculate totals per category
+function recalculatePrices(
+    items: CartItem[],
+    categoryRules: Record<string, CategoryPricingRule>,
+): CartItem[] {
     const categoryTotals: Record<string, number> = {};
+
     items.forEach(item => {
-        if (item.category_id) {
+        if (item.category_id && item.use_category_pricing) {
             categoryTotals[item.category_id] = (categoryTotals[item.category_id] || 0) + item.quantity;
         }
     });
 
-    // 2. Apply rules
     return items.map(item => {
-        // Only apply category pricing when this product is configured to inherit it.
-        if (!item.use_category_pricing) {
-            return { ...item, price: item.originalPrice || item.price };
-        }
+        const originalPrice = item.originalPrice || item.price;
 
-        if (!item.category_id || !categoryRules[item.category_id]) {
-            return { ...item, price: item.originalPrice || item.price };
+        if (!item.use_category_pricing || !item.category_id) {
+            return { ...item, price: originalPrice };
         }
 
         const logic = categoryRules[item.category_id];
+        if (!logic) {
+            return { ...item, price: originalPrice };
+        }
 
         if (logic.type === 'category_volume') {
-            const totalQty = categoryTotals[item.category_id];
-            const newPrice = getPriceForQuantity(logic.rules, totalQty);
+            const pricingQuantity = logic.volumeScope === 'per_product'
+                ? item.quantity
+                : categoryTotals[item.category_id];
+            const newPrice = getPriceForQuantity(logic.rules, pricingQuantity);
             if (typeof newPrice === 'number') return { ...item, price: newPrice };
         }
 
-        // Preço único (standard): usa a regra min=0 (ou a menor min) como valor fixo
         if (logic.type === 'standard' && Array.isArray(logic.rules) && logic.rules.length > 0) {
             const newPrice = getPriceForQuantity(logic.rules, 1);
             if (typeof newPrice === 'number') return { ...item, price: newPrice };
         }
 
-        // Fallback to original price if no rule met or not category pricing
-// Fallback to original price if no rule met or not volume logic
-        return { ...item, price: item.originalPrice || item.price };
+        return { ...item, price: originalPrice };
     });
 }
