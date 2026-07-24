@@ -15,7 +15,7 @@ export async function getPosBootstrap(
   storeId: string,
   locationId?: string | null
 ): Promise<PosBootstrap> {
-  const { data, error } = await supabase.rpc('get_pos_bootstrap', {
+  const { data, error } = await supabase.rpc('get_pos_bootstrap_v2', {
     p_store_id: storeId,
     p_location_id: locationId ?? null,
   });
@@ -34,6 +34,8 @@ export async function getPosBootstrap(
     products: (payload.products ?? []).map((product) => ({
       ...product,
       price: toFiniteNumber(product.price),
+      on_hand_stock: toFiniteNumber(product.on_hand_stock),
+      reserved_stock: toFiniteNumber(product.reserved_stock),
       available_stock: toFiniteNumber(product.available_stock),
       images: product.images ?? [],
       codes: product.codes ?? [],
