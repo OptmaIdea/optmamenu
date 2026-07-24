@@ -64,6 +64,7 @@ import {
     ScrollText,
     BadgeDollarSign,
     FolderTree,
+    MonitorSmartphone,
 } from 'lucide-react';
 
 type MenuItem = {
@@ -394,6 +395,7 @@ export default function PrivateLayout() {
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
             { path: '/admin/direct-sales', icon: BadgeDollarSign, label: 'Venda direta', permission: 'orders.manage' },
+            { path: '/admin/pdv', icon: MonitorSmartphone, label: 'PDV', permission: 'pdv.view' },
         ],
         financial: [
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
@@ -466,13 +468,19 @@ export default function PrivateLayout() {
 
     useEffect(() => {
         const initialize = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+            const {
+                data: { session },
+                error: sessionError,
+            } = await supabase.auth.getSession();
 
-            if (!user) {
-                navigate('/login');
+            if (sessionError || !session?.user) {
+                clearSessionSecurity();
+                await supabase.auth.signOut({ scope: 'local' });
+                navigate('/login', { replace: true });
                 return;
             }
 
+            const user = session.user;
             setUserId(user.id);
 
             try {
@@ -1442,6 +1450,16 @@ export default function PrivateLayout() {
                                     <StoreIcon size={19} />
                                 </button>
                             )
+                        )}
+
+                        {hasPermission('pdv.view') && (
+                            <Link
+                                to="/pdv"
+                                title="Abrir PDV"
+                                className="p-2 rounded-lg text-[#F26541] hover:bg-[#F26541]/10 transition shrink-0"
+                            >
+                                <MonitorSmartphone size={19} />
+                            </Link>
                         )}
 
                         {hasPermission('orders.view') && (
