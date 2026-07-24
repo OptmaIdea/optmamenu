@@ -2252,3 +2252,5 @@ Imports locais:
 - `supabase/migrations/20260724145045_fix_cashbook_and_stock_discrepancies.sql`: correção do fechamento, filtro por `entry_date`, tabela/RLS/Realtime/trigger/RPCs de divergências.
 - Rota protegida: `/admin/stock/divergences` com `stock.view`; tratamento exige `stock.manage` ou `stock.adjust`.
 - Decisões e evolução de conciliação financeira: `docs/FECHAMENTO_CAIXA_E_DIVERGENCIAS_ESTOQUE_20260724.md`.
+
+- `supabase/migrations/20260724145323_index_stock_discrepancy_actors.sql`: índices das referências de operador/responsável da fila de divergências.
