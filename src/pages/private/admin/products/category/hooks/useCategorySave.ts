@@ -7,9 +7,9 @@ import type { CategoryFormData } from '../types/category.types';
 
 interface SaveParams {
     storeId: string;
-    categoryId?: string; // se fornecido, é edição; senão, criação
+    categoryId?: string;
     formData: CategoryFormData;
-    imageFile?: File | null; // arquivo de imagem para upload (substitui image_url se fornecido)
+    imageFile?: File | null;
     onSuccess: () => void;
 }
 
@@ -18,11 +18,11 @@ export const useCategorySave = () => {
 
     const uploadImage = async (file: File, activeStoreId: string, categoryId: string): Promise<string | null> => {
         try {
-            const fileExt = file.name.split('.').pop();
-            const fileName = `${activeStoreId}/${categoryId}/cover.${fileExt}`; // único por categoria
+            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'webp';
+            const fileName = `${activeStoreId}/${categoryId}/cover.${fileExt}`;
             const { error: uploadError } = await supabase.storage
                 .from('category-images')
-                .upload(fileName, file, { upsert: true }); // sobrescreve se já existir
+                .upload(fileName, file, { upsert: true });
 
             if (uploadError) throw uploadError;
 
@@ -45,8 +45,8 @@ export const useCategorySave = () => {
             if (parts.length > 1) {
                 await supabase.storage.from('category-images').remove([parts[1]]);
             }
-        } catch (e) {
-            console.error('Erro ao remover imagem:', e);
+        } catch (error) {
+            console.error('Erro ao remover imagem:', error);
         }
     };
 
@@ -67,14 +67,12 @@ export const useCategorySave = () => {
         let uploadedImageUrl: string | null = null;
 
         try {
-            // 1. Se houver um novo arquivo de imagem, faz o upload e obtém a URL
             if (imageFile) {
                 const tempId = categoryId || uuidv4();
                 uploadedImageUrl = await uploadImage(imageFile, activeStoreId, tempId);
                 if (!uploadedImageUrl) throw new Error('Falha no upload da imagem');
             }
 
-            // 2. Payload base (sem store_id — adicionado apenas no INSERT)
             const basePayload = {
                 name: formData.name,
                 description: formData.description,
@@ -82,19 +80,15 @@ export const useCategorySave = () => {
                 active: formData.active,
                 price_logic_type: formData.price_logic_type,
                 price_rules: formData.price_rules,
+                pricing_strategy: formData.pricing_strategy,
                 image_url: uploadedImageUrl || formData.image_url || null,
             };
 
-            // 3. INSERT ou UPDATE separados
             if (!categoryId) {
-                // CRIAR: inclui store_id
                 const insertPayload = { ...basePayload, store_id: activeStoreId };
-                const { error } = await supabase
-                    .from('categories')
-                    .insert([insertPayload]);
+                const { error } = await supabase.from('categories').insert([insertPayload]);
                 if (error) throw error;
             } else {
-                // EDITAR: trava pela loja ativa para evitar edição cruzada
                 const { data, error } = await supabase
                     .from('categories')
                     .update(basePayload)
@@ -104,11 +98,10 @@ export const useCategorySave = () => {
                     .maybeSingle();
                 if (error) throw error;
                 if (!data) {
-                    throw new Error('Nenhuma categoria foi alterada. Verifique se a categoria pertence à loja ativa ou se há permissão para editar.');
+                    throw new Error('Nenhuma categoria foi alterada. Verifique a loja ativa e sua permissão.');
                 }
             }
 
-            // 4. Se a categoria antiga tinha uma imagem e foi substituída, remove a antiga
             if (categoryId && formData.image_url && uploadedImageUrl && formData.image_url !== uploadedImageUrl) {
                 await deleteImage(formData.image_url);
             }
