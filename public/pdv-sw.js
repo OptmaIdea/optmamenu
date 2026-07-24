@@ -1,5 +1,5 @@
 const CACHE_NAME = 'optmamenu-pdv-v1';
-const APP_SHELL = ['/pdv', '/pdv.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png'];
+const APP_SHELL = ['/pdv.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -35,6 +35,6 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/pdv')))
+      .catch(() => caches.match(event.request))
   );
 });
