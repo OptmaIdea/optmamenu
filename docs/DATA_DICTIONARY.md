@@ -219,3 +219,40 @@ Itens de cotações de compra.
 
 ### order_items
 *(A documentar)*
+---
+
+## Precificação
+
+### pricing_groups
+
+Grupos por loja usados para somar quantidades de categorias distintas.
+
+Campos principais:
+
+- `id uuid`;
+- `store_id uuid`;
+- `name text`;
+- `description text`;
+- `price_logic_type text` — `category_volume` nesta versão;
+- `price_rules jsonb` — faixas `{ min, price }`;
+- `active boolean`;
+- `created_at timestamptz`;
+- `updated_at timestamptz`.
+
+Restrições:
+
+- nome não vazio e único por loja;
+- regras em array;
+- quantidades mínimas não negativas;
+- preços maiores que zero;
+- RLS por loja e permissões de Produtos/Categorias.
+
+### categories — vínculo de atacado
+
+Campos adicionados:
+
+- `pricing_group_id uuid`;
+- `use_pricing_group_rules boolean not null default false`.
+
+O trigger de consistência impede vínculo entre categoria e grupo de lojas
+diferentes.
