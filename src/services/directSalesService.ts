@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 
 export type DirectSaleSalesChannel = 'direct' | 'in_person' | 'phone' | 'whatsapp' | 'other';
 
@@ -148,7 +149,7 @@ export const DirectSalesService = {
       throw new Error('Há itens inválidos na venda direta.');
     }
 
-    const idempotencyKey = input.idempotencyKey || crypto.randomUUID();
+    const idempotencyKey = input.idempotencyKey || uuidv4();
 
     const { data, error } = await supabase.rpc('create_admin_direct_sale_order_safe', {
       p_store_id: input.storeId,
