@@ -38,7 +38,7 @@ export default function ProductTable({
     };
 
     return (
-        <div className="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm custom-scrollbar">
+        <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm custom-scrollbar" role="region" aria-label="Tabela de produtos com rolagem horizontal" tabIndex={0}>
             <table className="min-w-[860px] w-full text-sm relative">
                 <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                         <tr>
