@@ -95,9 +95,15 @@ const DIRECT_SALE_ERROR_MESSAGES: Record<string, string> = {
   idempotency_conflict:
     'Esta tentativa de venda já foi usada com dados diferentes. Atualize o PDV e tente novamente.',
   invalid_request_format: 'Há dados inválidos na venda. Revise os itens e tente novamente.',
+  unexpected_error:
+    'Ocorreu uma falha inesperada ao concluir a venda. Atualize o PDV e tente novamente.',
 };
 
 function getDirectSaleErrorMessage(result: AdminDirectSaleResult | null | undefined): string {
+  if (result?.error === 'unexpected_error') {
+    return DIRECT_SALE_ERROR_MESSAGES.unexpected_error;
+  }
+
   const backendMessage = result?.message?.trim();
   if (backendMessage) return backendMessage;
 
