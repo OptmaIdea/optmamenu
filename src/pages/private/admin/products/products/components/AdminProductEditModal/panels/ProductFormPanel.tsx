@@ -6,6 +6,7 @@ type PriceRule = { min: number; price: string };
 
 interface ProductFormPanelProps {
   isEditing: boolean;
+  productName?: string;
   name: string;
   setName: (v: string) => void;
   description: string;
@@ -58,6 +59,7 @@ interface ProductFormPanelProps {
 export default function ProductFormPanel(props: ProductFormPanelProps) {
   const {
     isEditing,
+    productName,
     name,
     setName,
     description,
@@ -109,7 +111,7 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
             <Package size={20} className="text-[#19A999]" />
           </div>
           <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
-            {isEditing ? 'Editar Produto' : 'Novo Produto'}
+            {isEditing ? `Editar Produto | ${productName || ''}` : 'Novo Produto'}
           </h2>
         </div>
         <button

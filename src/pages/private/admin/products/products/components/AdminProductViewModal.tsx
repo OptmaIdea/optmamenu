@@ -122,7 +122,7 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                                 <Package size={20} className="text-[#19A999]" />
                             </div>
                             <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white">
-                                {product.name}
+                                Visualizar Produto | {product.name}
                             </h2>
                         </div>
                         <button
@@ -137,7 +137,7 @@ export default function AdminProductViewModal({ isOpen, onClose, product, onEdit
                     <div className="flex-1 overflow-y-auto p-6 md:p-6 space-y-6">
                         {/* No mobile, mostramos o nome e o botão fechar inline */}
                         <div className="flex items-center justify-between md:hidden">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{product.name}</h2>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Visualizar Produto | {product.name}</h2>
                             <button
                                 onClick={onClose}
                                 className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"

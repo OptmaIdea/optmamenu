@@ -473,6 +473,7 @@ export default function AdminProductEditModal({
                 {/* LADO DIREITO – FORMULÁRIO */}
                 <ProductFormPanel
                     isEditing={isEditing}
+                    productName={product?.name}
                     name={name}
                     setName={setName}
                     description={description}

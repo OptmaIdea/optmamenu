@@ -75,3 +75,26 @@ export default function MinhaPaginaDestaque() {
 * **Consistência por Seção**: Telas dentro do mesmo grupo de menu lateral (ex: todas as telas de *Configurações* ou todas de *Produtos*) devem preferencialmente seguir o mesmo padrão de cabeçalho (Flat ou Card) para evitar mudanças bruscas de layout ao navegar.
 * **Uso do `category`**: A tag de categoria deve corresponder ao grupo do menu lateral (ex: `"Configurações"`, `"Produtos"`, `"Financeiro"`) ou ao contexto operacional geral da funcionalidade.
 
+---
+
+## 🔐 Padrão de Cabeçalho de Modais de Edição e Visualização
+
+Para garantir que o usuário mantenha o contexto do item com o qual está lidando ao rolar a página em modais, todos os modais de edição e visualização de entidades do sistema (ex: Categorias, Produtos, etc.) devem exibir um cabeçalho fixo no seguinte formato:
+
+1. **Modal de Edição**:
+   * **Padrão**: `Editar <Nome da Entidade> | <Nome original do item sendo editado>`
+   * **Implementação**:
+     ```tsx
+     {isEditing ? `Editar Categoria | ${category?.name || ''}` : 'Nova Categoria'}
+     ```
+
+2. **Modal de Visualização**:
+   * **Padrão**: `Visualizar <Nome da Entidade> | <Nome original do item sendo visualizado>`
+   * **Implementação**:
+     ```tsx
+     Visualizar Categoria | {category.name}
+     ```
+
+* **Fixidez e Clareza**: O cabeçalho deve estar sempre fixo no topo do modal. Se a tela sofrer rolagem, o título permanecerá visível permitindo identificar rapidamente o contexto de operação.
+
+
