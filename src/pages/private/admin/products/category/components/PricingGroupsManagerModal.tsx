@@ -90,7 +90,11 @@ export default function PricingGroupsManagerModal({
       setForm(selected ? toForm(selected) : newForm());
     } catch (error) {
       console.error('Erro ao carregar grupos de atacado:', error);
-      toast.error('Não foi possível carregar os grupos de atacado.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Não foi possível carregar os grupos de atacado.'
+      );
     } finally {
       setLoading(false);
     }
