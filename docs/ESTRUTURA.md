@@ -2209,3 +2209,12 @@ Imports locais:
 - `product_codes` — códigos extensíveis por produto e loja.
 - `get_pos_bootstrap(uuid, uuid)` — contexto mínimo do terminal.
 - `inventory_location_balances` — publicada no `supabase_realtime`.
+
+
+## PDV dedicado — correção operacional 2026-07-24
+
+- `src/pages/private/admin/pdv/PdvPage.tsx` — catálogo com imagens, carrinho persistente, pagamento, troco e finalização.
+- `src/components/layouts/PdvLayout.tsx` — tema, avatar e navegação responsiva.
+- `public/pdv.webmanifest` e `public/pdv-sw.js` — instalação dedicada do PDV.
+- Cadastro de Produto — edição de código interno, SKU e EAN em `product_codes`.
+- Migração `20260724002328_pdv_stock_exception_and_sell_permission.sql` — venda com divergência auditada.
