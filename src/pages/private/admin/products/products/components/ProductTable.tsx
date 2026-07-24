@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useRef, type RefObject, type UIEvent } from 'react';
 import { Plus, Minus } from 'lucide-react';
 import type { Product, SortConfig } from '../types/product.types';
 import ProductRow from '@/pages/private/admin/products/products/components/ProductRow';
@@ -32,19 +32,55 @@ export default function ProductTable({
     deletingId,
     isFilteredEmpty,
 }: ProductTableProps) {
+    const topScrollRef = useRef<HTMLDivElement>(null);
+    const tableScrollRef = useRef<HTMLDivElement>(null);
+
+    const syncHorizontalScroll = (
+        event: UIEvent<HTMLDivElement>,
+        target: RefObject<HTMLDivElement | null>
+    ) => {
+        if (target.current) {
+            target.current.scrollLeft = event.currentTarget.scrollLeft;
+        }
+    };
+
     const getSortIndicator = (key: SortConfig['key']) => {
         if (sortConfig.key !== key) return '';
         return sortConfig.direction === 'asc' ? '↑' : '↓';
     };
 
     return (
-        <div className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm custom-scrollbar" role="region" aria-label="Tabela de produtos com rolagem horizontal" tabIndex={0}>
-            <table className="min-w-[860px] w-full text-sm relative">
+        <div className="w-full max-w-full min-w-0">
+            <div
+                ref={topScrollRef}
+                onScroll={(event) => syncHorizontalScroll(event, tableScrollRef)}
+                className="mb-2 w-full overflow-x-auto overscroll-x-contain touch-pan-x custom-scrollbar"
+                aria-label="Rolagem horizontal superior da tabela de produtos"
+                tabIndex={0}
+            >
+                <div className="h-px min-w-[1120px]" />
+            </div>
+            <div
+                ref={tableScrollRef}
+                onScroll={(event) => syncHorizontalScroll(event, topScrollRef)}
+                className="w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm custom-scrollbar"
+                role="region"
+                aria-label="Tabela de produtos com rolagem horizontal"
+                tabIndex={0}
+            >
+            <table className="min-w-[1120px] w-full table-fixed text-sm">
+                <colgroup>
+                    <col className="w-[320px]" />
+                    <col className="w-[190px]" />
+                    <col className="w-[150px]" />
+                    <col className="w-[220px]" />
+                    <col className="w-[120px]" />
+                    <col className="w-[120px]" />
+                </colgroup>
                 <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                         <tr>
-                            {/* Coluna Produto - sticky no mobile */}
                             <th
-                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999] lg:sticky lg:left-0 lg:z-20 bg-gray-50 dark:bg-gray-900/50 lg:border-r border-gray-200 dark:border-gray-700"
+                                className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999] bg-gray-50 dark:bg-gray-900/50"
                                 onClick={() => onSort('name')}
                             >
                                 Produto {getSortIndicator('name')}
@@ -132,6 +168,7 @@ export default function ProductTable({
                         )}
                     </tbody>
                 </table>
+            </div>
         </div>
     );
 }
