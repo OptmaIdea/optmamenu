@@ -107,6 +107,7 @@ function formatPermissionModule(module: string): string {
         users: 'Usuários',
         security: 'Segurança',
         settings: 'Configurações',
+        pdv: 'PDV',
     };
 
     return labels[module] ?? module;
@@ -1244,6 +1245,25 @@ export const ROLE_PERMISSION_TREE = [
         label: 'Operacional',
         icon: Grid3X3,
         groups: [
+            {
+                id: 'pdv',
+                label: 'PDV',
+                accessPermission: 'pdv.view',
+                permissions: [
+                    'pdv.view',
+                    'pdv.sell',
+                    'pdv.discount.apply',
+                    'pdv.price.override',
+                    'pdv.item.cancel',
+                    'pdv.sale.cancel',
+                    'pdv.customer.select',
+                    'pdv.payment.change',
+                    'pdv.cash.open',
+                    'pdv.cash.close',
+                    'pdv.history.view',
+                    'pdv.receipt.reprint',
+                ],
+            },
             {
                 id: 'commercial',
                 label: 'Comercial',
