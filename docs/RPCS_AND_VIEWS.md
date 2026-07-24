@@ -499,7 +499,64 @@ Verifica acesso a uma seção de Segurança.
 
 ---
 
-# 3. Controle de atualização deste documento
+# 3. PDV
+
+## 3.1 `get_pos_bootstrap`
+
+### Objetivo
+
+Retorna, em uma única chamada autenticada, o contexto reduzido necessário para
+abrir o PDV dedicado.
+
+### Parâmetros
+
+- `p_store_id uuid`
+- `p_location_id uuid default null`
+
+### Permissão
+
+- proprietário da loja; ou
+- `pdv.view`.
+
+Também exige vínculo ativo em `store_members`.
+
+### Retorno
+
+Objeto JSON com:
+
+- loja;
+- operador;
+- locais ativos com `allow_sales=true`;
+- local selecionado;
+- categorias ativas;
+- produtos ativos;
+- códigos ativos de produto;
+- estoque disponível por local.
+
+O estoque disponível é calculado por:
+
+```text
+greatest(on_hand - reserved, 0)
+```
+
+### Segurança
+
+A RPC evita conceder `products.view` ao operador somente-PDV e não retorna custo
+ou campos administrativos do produto.
+
+### Onde é usada
+
+- `src/services/pdvService.ts`
+- `/admin/pdv`
+
+### Efeitos relacionados
+
+- `inventory_location_balances` participa do Realtime do PDV;
+- `product_codes` possui RLS própria e não é acessível por `anon`.
+
+---
+
+# 4. Controle de atualização deste documento
 
 Sempre que uma RPC for criada ou alterada:
 
