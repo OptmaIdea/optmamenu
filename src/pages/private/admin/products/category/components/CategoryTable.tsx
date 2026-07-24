@@ -26,8 +26,8 @@ export default function CategoryTable({
     const safeCategories = Array.isArray(categories) ? categories : [];
 
     return (
-        <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-            <table className="w-full text-left">
+        <div className="block w-full max-w-full min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 custom-scrollbar" role="region" aria-label="Tabela de categorias com rolagem horizontal" tabIndex={0}>
+            <table className="min-w-[760px] w-full text-left">
                 <thead className="bg-gray-50 dark:bg-gray-900/50 text-gray-500 dark:text-gray-400 font-medium text-sm">
                     <tr>
                         <th className="p-4 w-16 text-center">Ord</th>
