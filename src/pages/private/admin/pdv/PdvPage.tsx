@@ -1,20 +1,32 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Boxes,
+  CheckCircle2,
+  Minus,
   PackageSearch,
+  Plus,
   RefreshCw,
   Search,
   ShoppingCart,
+  Trash2,
+  X,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import PdvLayout from '@/components/layouts/PdvLayout';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
-import { getPosBootstrap } from '@/services/pdvService';
-import type { PosBootstrap, PosProduct } from '@/types/pdv';
+import { DirectSalesService } from '@/services/directSalesService';
+import { getPosBootstrap, getPosPaymentMethods } from '@/services/pdvService';
+import type { PosBootstrap, PosPaymentMethod, PosProduct } from '@/types/pdv';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { hasOnlyPdvOperationalAccess } from '@/utils/permissions';
+
+type CartLine = {
+  product: PosProduct;
+  quantity: number;
+};
 
 function normalizeSearch(value: string): string {
   return value
@@ -35,6 +47,10 @@ function getLocationStorageKey(storeId: string): string {
   return `optmamenu_pos_location_${storeId}`;
 }
 
+function getCartStorageKey(storeId: string, locationId: string | null): string {
+  return `optmamenu_pos_cart_${storeId}_${locationId ?? 'default'}`;
+}
+
 function matchesSearch(product: PosProduct, rawSearch: string): boolean {
   const normalized = normalizeSearch(rawSearch);
   if (!normalized) return true;
@@ -49,16 +65,268 @@ function matchesSearch(product: PosProduct, rawSearch: string): boolean {
   );
 }
 
+type CartPanelProps = {
+  cart: CartLine[];
+  paymentMethods: PosPaymentMethod[];
+  paymentMethodCode: string;
+  setPaymentMethodCode: (value: string) => void;
+  cashReceived: string;
+  setCashReceived: (value: string) => void;
+  shortageConfirmed: boolean;
+  setShortageConfirmed: (value: boolean) => void;
+  processing: boolean;
+  onChangeQuantity: (product: PosProduct, quantity: number) => void;
+  onClear: () => void;
+  onFinalize: () => void;
+};
+
+function CartPanel({
+  cart,
+  paymentMethods,
+  paymentMethodCode,
+  setPaymentMethodCode,
+  cashReceived,
+  setCashReceived,
+  shortageConfirmed,
+  setShortageConfirmed,
+  processing,
+  onChangeQuantity,
+  onClear,
+  onFinalize,
+}: CartPanelProps) {
+  const totalItems = cart.reduce((sum, line) => sum + line.quantity, 0);
+  const subtotal = cart.reduce(
+    (sum, line) => sum + line.product.price * line.quantity,
+    0
+  );
+  const shortageLines = cart.filter(
+    (line) => line.quantity > line.product.available_stock
+  );
+  const received = Number(cashReceived.replace(',', '.')) || 0;
+  const change = paymentMethodCode === 'cash' ? Math.max(0, received - subtotal) : 0;
+  const canFinalize =
+    cart.length > 0 &&
+    Boolean(paymentMethodCode) &&
+    (!shortageLines.length || shortageConfirmed) &&
+    (paymentMethodCode !== 'cash' || received >= subtotal);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex items-center justify-between gap-3 border-b border-[#6B6258]/10 pb-3 dark:border-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#7B2D8E]/10 text-[#7B2D8E] dark:text-purple-300">
+            <ShoppingCart size={21} aria-hidden="true" />
+          </div>
+          <div>
+            <h2 className="font-bold">Carrinho</h2>
+            <p className="text-xs text-[#6B6258] dark:text-gray-400">
+              {totalItems} {totalItems === 1 ? 'item' : 'itens'}
+            </p>
+          </div>
+        </div>
+        {cart.length > 0 && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="flex h-10 items-center gap-1.5 rounded-xl px-2.5 text-xs font-bold text-[#DC2626] hover:bg-[#DC2626]/10"
+          >
+            <Trash2 size={16} />
+            Limpar
+          </button>
+        )}
+      </div>
+
+      {cart.length === 0 ? (
+        <div className="my-5 rounded-xl border border-dashed border-[#6B6258]/20 p-5 text-center">
+          <p className="text-sm font-semibold">Nenhum item adicionado</p>
+          <p className="mt-1 text-xs text-[#6B6258] dark:text-gray-400">
+            Toque em um produto para iniciar a venda.
+          </p>
+        </div>
+      ) : (
+        <div className="my-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+          {cart.map(({ product, quantity }) => {
+            const hasShortage = quantity > product.available_stock;
+            return (
+              <div
+                key={product.id}
+                className={`rounded-xl border p-2.5 ${
+                  hasShortage
+                    ? 'border-[#FBA93C]/60 bg-[#FBA93C]/10'
+                    : 'border-[#6B6258]/10 bg-[#F8F6F2] dark:border-gray-800 dark:bg-gray-950'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-white dark:bg-gray-800">
+                    {product.images[0] ? (
+                      <img
+                        src={product.images[0]}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-[#21A896]">
+                        <Boxes size={20} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{product.name}</p>
+                    <p className="text-xs font-semibold text-[#7B2D8E] dark:text-purple-300">
+                      {formatCurrency(product.price * quantity)}
+                    </p>
+                    {hasShortage && (
+                      <p className="mt-0.5 text-[10px] font-bold text-[#8A5A00] dark:text-amber-300">
+                        Divergência: {quantity - product.available_stock} sem saldo
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onChangeQuantity(product, 0)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#DC2626] hover:bg-[#DC2626]/10"
+                    aria-label={`Remover ${product.name}`}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onChangeQuantity(product, quantity - 1)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#6B6258]/15 bg-white dark:border-gray-700 dark:bg-gray-900"
+                    aria-label={`Diminuir ${product.name}`}
+                  >
+                    <Minus size={16} />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={quantity}
+                    onChange={(event) =>
+                      onChangeQuantity(product, Math.max(1, Number(event.target.value) || 1))
+                    }
+                    className="h-9 w-14 rounded-lg border border-[#6B6258]/15 bg-white text-center text-sm font-black dark:border-gray-700 dark:bg-gray-900"
+                    aria-label={`Quantidade de ${product.name}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onChangeQuantity(product, quantity + 1)}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#21A896] text-white"
+                    aria-label={`Aumentar ${product.name}`}
+                  >
+                    <Plus size={16} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {cart.length > 0 && (
+        <div className="space-y-3 border-t border-[#6B6258]/10 pt-3 dark:border-gray-800">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Prévia</span>
+            <span className="text-xl font-black text-[#7B2D8E] dark:text-purple-300">
+              {formatCurrency(subtotal)}
+            </span>
+          </div>
+          <p className="text-[10px] text-[#6B6258] dark:text-gray-400">
+            O motor central recalcula e confirma o preço final.
+          </p>
+
+          <label className="block">
+            <span className="mb-1 block text-xs font-bold">Forma de pagamento</span>
+            <select
+              value={paymentMethodCode}
+              onChange={(event) => setPaymentMethodCode(event.target.value)}
+              className="h-11 w-full rounded-xl border border-[#6B6258]/15 bg-white px-3 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950"
+            >
+              <option value="">Selecione</option>
+              {paymentMethods
+                .filter((method) => method.code !== 'pending')
+                .map((method) => (
+                  <option key={method.code} value={method.code}>
+                    {method.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+
+          {paymentMethodCode === 'cash' && (
+            <div className="grid grid-cols-2 gap-2">
+              <label>
+                <span className="mb-1 block text-xs font-bold">Dinheiro recebido</span>
+                <input
+                  value={cashReceived}
+                  onChange={(event) => setCashReceived(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  className="h-11 w-full rounded-xl border border-[#6B6258]/15 bg-white px-3 text-sm font-semibold dark:border-gray-700 dark:bg-gray-950"
+                />
+              </label>
+              <div>
+                <span className="mb-1 block text-xs font-bold">Troco</span>
+                <div className="flex h-11 items-center rounded-xl bg-[#21A896]/10 px-3 text-sm font-black text-[#1A867A]">
+                  {formatCurrency(change)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {shortageLines.length > 0 && (
+            <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[#FBA93C]/50 bg-[#FBA93C]/10 p-3">
+              <input
+                type="checkbox"
+                checked={shortageConfirmed}
+                onChange={(event) => setShortageConfirmed(event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[#F26541]"
+              />
+              <span className="text-xs font-semibold text-[#684600] dark:text-amber-200">
+                Continuar a venda e registrar a divergência de estoque para reconciliação.
+              </span>
+            </label>
+          )}
+
+          <button
+            type="button"
+            onClick={onFinalize}
+            disabled={!canFinalize || processing}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#F26541] text-sm font-black text-white transition hover:bg-[#D94F2E] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            {processing ? (
+              <RefreshCw size={18} className="animate-spin" />
+            ) : (
+              <CheckCircle2 size={18} />
+            )}
+            {processing ? 'Concluindo...' : 'Concluir venda'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PdvPage() {
   const storeId = getActiveStoreId();
   const { permissions } = usePermissions(storeId);
   const [bootstrap, setBootstrap] = useState<PosBootstrap | null>(null);
+  const [paymentMethods, setPaymentMethods] = useState<PosPaymentMethod[]>([]);
+  const [cart, setCart] = useState<CartLine[]>([]);
+  const [paymentMethodCode, setPaymentMethodCode] = useState('');
+  const [cashReceived, setCashReceived] = useState('');
+  const [shortageConfirmed, setShortageConfirmed] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string>('all');
   const [online, setOnline] = useState(() => navigator.onLine);
+  const saleAttemptIdRef = useRef(crypto.randomUUID());
 
   const loadBootstrap = useCallback(
     async (requestedLocationId?: string | null, allowFallback = true) => {
@@ -68,8 +336,12 @@ export default function PdvPage() {
       setRefreshing(Boolean(bootstrap));
 
       try {
-        const data = await getPosBootstrap(storeId, requestedLocationId);
+        const [data, methods] = await Promise.all([
+          getPosBootstrap(storeId, requestedLocationId),
+          getPosPaymentMethods(storeId),
+        ]);
         setBootstrap(data);
+        setPaymentMethods(methods);
 
         if (data.selected_location_id) {
           localStorage.setItem(
@@ -83,12 +355,11 @@ export default function PdvPage() {
           await loadBootstrap(null, false);
           return;
         }
-
-        const message =
+        setError(
           loadError instanceof Error
             ? loadError.message
-            : 'Não foi possível carregar o PDV.';
-        setError(message);
+            : 'Não foi possível carregar o PDV.'
+        );
       } finally {
         setLoading(false);
         setRefreshing(false);
@@ -101,20 +372,69 @@ export default function PdvPage() {
     if (!storeId) return;
     const savedLocationId = localStorage.getItem(getLocationStorageKey(storeId));
     void loadBootstrap(savedLocationId);
-    // A carga inicial deve ocorrer somente quando a loja muda.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeId]);
 
   useEffect(() => {
+    if (!storeId || !bootstrap) return;
+    const storageKey = getCartStorageKey(storeId, bootstrap.selected_location_id);
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) ?? '[]') as Array<{
+        productId: string;
+        quantity: number;
+      }>;
+      setCart(
+        saved.flatMap((line) => {
+          const product = bootstrap.products.find((item) => item.id === line.productId);
+          return product && line.quantity > 0
+            ? [{ product, quantity: line.quantity }]
+            : [];
+        })
+      );
+    } catch {
+      setCart([]);
+    }
+  }, [storeId, bootstrap?.selected_location_id]);
+
+  useEffect(() => {
+    if (!storeId || !bootstrap) return;
+    localStorage.setItem(
+      getCartStorageKey(storeId, bootstrap.selected_location_id),
+      JSON.stringify(
+        cart.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+        }))
+      )
+    );
+  }, [cart, storeId, bootstrap]);
+
+  useEffect(() => {
     const handleOnline = () => setOnline(true);
     const handleOffline = () => setOnline(false);
-
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    const manifest = document.createElement('link');
+    manifest.rel = 'manifest';
+    manifest.href = '/pdv.webmanifest';
+    manifest.dataset.pdvManifest = 'true';
+    document.head.appendChild(manifest);
+    document.title = 'PDV | OptmaMenu';
+
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.register('/pdv-sw.js', { scope: '/' });
+    }
+
+    return () => {
+      manifest.remove();
+      document.title = 'OptmaMenu';
     };
   }, []);
 
@@ -143,7 +463,6 @@ export default function PdvPage() {
 
   const filteredProducts = useMemo(() => {
     if (!bootstrap) return [];
-
     return bootstrap.products.filter(
       (product) =>
         (categoryId === 'all' || product.category_id === categoryId) &&
@@ -151,17 +470,117 @@ export default function PdvPage() {
     );
   }, [bootstrap, categoryId, search]);
 
+  const totalItems = cart.reduce((sum, line) => sum + line.quantity, 0);
+  const cartTotal = cart.reduce(
+    (sum, line) => sum + line.product.price * line.quantity,
+    0
+  );
   const showAdminExit = !hasOnlyPdvOperationalAccess(permissions);
+
+  const changeQuantity = useCallback((product: PosProduct, quantity: number) => {
+    saleAttemptIdRef.current = crypto.randomUUID();
+    setShortageConfirmed(false);
+    setCart((current) => {
+      if (quantity <= 0) return current.filter((line) => line.product.id !== product.id);
+      const exists = current.some((line) => line.product.id === product.id);
+      return exists
+        ? current.map((line) =>
+            line.product.id === product.id ? { product, quantity } : line
+          )
+        : [...current, { product, quantity }];
+    });
+  }, []);
+
+  const clearCart = useCallback(() => {
+    saleAttemptIdRef.current = crypto.randomUUID();
+    setCart([]);
+    setPaymentMethodCode('');
+    setCashReceived('');
+    setShortageConfirmed(false);
+  }, []);
+
+  const finalizeSale = async () => {
+    if (!storeId || !bootstrap?.selected_location_id || cart.length === 0) return;
+
+    setProcessing(true);
+    try {
+      const shortageItems = cart
+        .filter((line) => line.quantity > line.product.available_stock)
+        .map((line) => ({
+          product_id: line.product.id,
+          product_name: line.product.name,
+          requested: line.quantity,
+          available: line.product.available_stock,
+          shortage: line.quantity - line.product.available_stock,
+        }));
+
+      const result = await DirectSalesService.createAdminDirectSale({
+        storeId,
+        locationId: bootstrap.selected_location_id,
+        items: cart.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+          unitPrice: line.product.price,
+        })),
+        paymentMethodCode,
+        salesChannel: 'in_person',
+        fulfillmentType: 'in_person',
+        createCustomerIfMissing: false,
+        loyaltyOptIn: false,
+        idempotencyKey: saleAttemptIdRef.current,
+        metadata: {
+          source: 'dedicated_pos',
+          allow_stock_exception: shortageItems.length > 0,
+          stock_exception_items: shortageItems,
+        },
+      });
+
+      toast.success(
+        `Venda ${result.order?.order_code ?? ''} concluída com sucesso.`
+      );
+      clearCart();
+      setMobileCartOpen(false);
+      await refresh();
+    } catch (saleError) {
+      const message =
+        saleError instanceof Error ? saleError.message : 'Não foi possível concluir a venda.';
+      toast.error(message);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const cartPanel = (
+    <CartPanel
+      cart={cart}
+      paymentMethods={paymentMethods}
+      paymentMethodCode={paymentMethodCode}
+      setPaymentMethodCode={(value) => {
+        saleAttemptIdRef.current = crypto.randomUUID();
+        setPaymentMethodCode(value);
+        setCashReceived('');
+      }}
+      cashReceived={cashReceived}
+      setCashReceived={setCashReceived}
+      shortageConfirmed={shortageConfirmed}
+      setShortageConfirmed={setShortageConfirmed}
+      processing={processing}
+      onChangeQuantity={changeQuantity}
+      onClear={clearCart}
+      onFinalize={() => void finalizeSale()}
+    />
+  );
 
   return (
     <PdvLayout
       storeName={bootstrap?.store.name}
       operatorName={bootstrap?.operator.name}
+      operatorAvatarUrl={bootstrap?.operator.avatar_url}
       locationName={selectedLocation?.name}
       online={online}
       showAdminExit={showAdminExit}
     >
-      <div className="mx-auto grid max-w-[1800px] gap-4 p-3 sm:p-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mx-auto grid max-w-[1800px] gap-4 p-3 pb-24 sm:p-4 lg:grid-cols-[minmax(0,1fr)_360px] lg:pb-4">
         <section className="min-w-0">
           <div className="mb-3 grid gap-3 rounded-2xl border border-[#6B6258]/10 bg-white p-3 shadow-sm sm:grid-cols-[minmax(0,1fr)_240px] dark:border-gray-800 dark:bg-gray-900">
             <label className="relative block">
@@ -183,7 +602,13 @@ export default function PdvPage() {
               <span className="sr-only">Local de estoque</span>
               <select
                 value={bootstrap?.selected_location_id ?? ''}
-                onChange={(event) => void loadBootstrap(event.target.value)}
+                onChange={(event) => {
+                  if (cart.length > 0) {
+                    toast.warning('Limpe o carrinho antes de trocar o local.');
+                    return;
+                  }
+                  void loadBootstrap(event.target.value);
+                }}
                 className="h-12 w-full rounded-xl border border-[#6B6258]/15 bg-white px-3 text-sm font-semibold outline-none focus:border-[#21A896] dark:border-gray-700 dark:bg-gray-950"
                 disabled={!bootstrap || bootstrap.locations.length <= 1}
               >
@@ -255,49 +680,70 @@ export default function PdvPage() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
               {filteredProducts.map((product) => {
                 const primaryCode =
-                  product.codes.find((code) => code.is_primary) ??
-                  product.codes[0];
+                  product.codes.find((code) => code.is_primary) ?? product.codes[0];
+                const quantity =
+                  cart.find((line) => line.product.id === product.id)?.quantity ?? 0;
                 const outOfStock = product.available_stock <= 0;
 
                 return (
                   <article
                     key={product.id}
-                    className="flex min-h-44 flex-col rounded-2xl border border-[#6B6258]/10 bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
+                    className="group flex min-h-56 flex-col overflow-hidden rounded-2xl border border-[#6B6258]/10 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-800 dark:bg-gray-900"
                   >
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <div
-                        className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                          outOfStock
-                            ? 'bg-[#DC2626]/10 text-[#DC2626]'
-                            : 'bg-[#21A896]/10 text-[#1A867A]'
-                        }`}
-                      >
-                        <Boxes size={21} aria-hidden="true" />
-                      </div>
+                    <button
+                      type="button"
+                      onClick={() => changeQuantity(product, quantity + 1)}
+                      className="relative block aspect-[4/3] w-full overflow-hidden bg-[#F8F6F2] text-left dark:bg-gray-950"
+                      aria-label={`Adicionar ${product.name}`}
+                    >
+                      {product.images[0] ? (
+                        <img
+                          src={product.images[0]}
+                          alt={product.name}
+                          loading="lazy"
+                          className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[#21A896]">
+                          <Boxes size={34} aria-hidden="true" />
+                        </div>
+                      )}
                       <span
-                        className={`rounded-full px-2 py-1 text-[10px] font-bold ${
+                        className={`absolute right-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold shadow-sm ${
                           outOfStock
                             ? 'bg-[#DC2626] text-white'
                             : product.available_stock <= 5
                               ? 'bg-[#FBA93C] text-[#2D2A26]'
-                              : 'bg-[#21A896]/10 text-[#1A867A]'
+                              : 'bg-white/95 text-[#1A867A] dark:bg-gray-900/95'
                         }`}
                       >
-                        {product.available_stock} disponível
+                        {product.available_stock} disp.
                       </span>
-                    </div>
+                    </button>
 
-                    <h3 className="line-clamp-2 text-sm font-bold leading-tight">
-                      {product.name}
-                    </h3>
-                    {primaryCode && (
-                      <p className="mt-1 truncate text-[11px] text-[#6B6258] dark:text-gray-400">
-                        {primaryCode.type.toUpperCase()}: {primaryCode.value}
-                      </p>
-                    )}
-                    <p className="mt-auto pt-3 text-lg font-black text-[#7B2D8E]">
-                      {formatCurrency(product.price)}
-                    </p>
+                    <div className="flex flex-1 flex-col p-3">
+                      <h3 className="line-clamp-2 text-sm font-bold leading-tight">
+                        {product.name}
+                      </h3>
+                      {primaryCode && (
+                        <p className="mt-1 truncate text-[10px] text-[#6B6258] dark:text-gray-400">
+                          {primaryCode.type.toUpperCase()}: {primaryCode.value}
+                        </p>
+                      )}
+                      <div className="mt-auto flex items-end justify-between gap-2 pt-3">
+                        <p className="text-base font-black text-[#7B2D8E] dark:text-purple-300">
+                          {formatCurrency(product.price)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => changeQuantity(product, quantity + 1)}
+                          className="flex h-10 min-w-10 items-center justify-center rounded-xl bg-[#21A896] px-2 text-sm font-black text-white"
+                          aria-label={`Adicionar ${product.name}`}
+                        >
+                          {quantity > 0 ? quantity : <Plus size={18} />}
+                        </button>
+                      </div>
+                    </div>
                   </article>
                 );
               })}
@@ -305,38 +751,51 @@ export default function PdvPage() {
           )}
         </section>
 
-        <aside className="hidden lg:block">
-          <div className="sticky top-[84px] rounded-2xl border border-[#6B6258]/10 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#7B2D8E]/10 text-[#7B2D8E]">
-                <ShoppingCart size={23} aria-hidden="true" />
-              </div>
-              <div>
-                <h2 className="font-bold">Carrinho</h2>
-                <p className="text-xs text-[#6B6258] dark:text-gray-400">
-                  Fundação operacional pronta
-                </p>
-              </div>
-            </div>
-            <div className="my-5 rounded-xl border border-dashed border-[#6B6258]/20 p-5 text-center">
-              <p className="text-sm font-semibold">Nenhum item adicionado</p>
-              <p className="mt-1 text-xs text-[#6B6258] dark:text-gray-400">
-                Inclusão, quantidade e pagamento entram na próxima etapa do PDV.
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled
-              className="min-h-12 w-full cursor-not-allowed rounded-xl bg-[#6B6258]/15 text-sm font-bold text-[#6B6258]"
-            >
-              Finalizar venda
-            </button>
+        <aside className="hidden min-h-0 lg:block">
+          <div className="sticky top-[84px] max-h-[calc(100vh-100px)] rounded-2xl border border-[#6B6258]/10 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            {cartPanel}
           </div>
         </aside>
       </div>
 
+      <button
+        type="button"
+        onClick={() => setMobileCartOpen(true)}
+        className="fixed bottom-3 left-3 right-3 z-30 flex min-h-14 items-center justify-between rounded-2xl bg-[#7B2D8E] px-4 text-white shadow-2xl lg:hidden"
+      >
+        <span className="flex items-center gap-2 font-bold">
+          <ShoppingCart size={20} />
+          Carrinho ({totalItems})
+        </span>
+        <span className="font-black">{formatCurrency(cartTotal)}</span>
+      </button>
+
+      {mobileCartOpen && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/50 lg:hidden">
+          <button
+            type="button"
+            className="absolute inset-0"
+            onClick={() => setMobileCartOpen(false)}
+            aria-label="Fechar carrinho"
+          />
+          <div className="relative z-10 max-h-[92vh] w-full rounded-t-3xl bg-white p-4 shadow-2xl dark:bg-gray-900">
+            <div className="mb-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setMobileCartOpen(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="Fechar carrinho"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="max-h-[calc(92vh-64px)] overflow-y-auto">{cartPanel}</div>
+          </div>
+        </div>
+      )}
+
       {refreshing && (
-        <div className="fixed bottom-4 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#2D2A26] px-4 py-2 text-xs font-semibold text-white shadow-lg">
+        <div className="fixed bottom-20 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#2D2A26] px-4 py-2 text-xs font-semibold text-white shadow-lg lg:bottom-4">
           <RefreshCw size={14} className="animate-spin" />
           Atualizando estoque
         </div>
