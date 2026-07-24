@@ -2241,3 +2241,14 @@ Imports locais:
   corrige a finalização quando ainda não existe saldo para loja + local + produto.
 - `docs/PDV_CORRECAO_SALDO_LOCAL_AUSENTE_20260724.md` registra causa, contrato,
   UX e validação transacional.
+
+
+## Atualização 24/07/2026 — fechamento e divergências operacionais
+
+- `src/pages/private/admin/products/inventory/StockDiscrepanciesPage.tsx`: fila auditável de vendas concluídas com exceção de estoque.
+- `src/services/stockDiscrepancyService.ts`: leitura e tratamento das ocorrências por RPC.
+- `src/pages/private/admin/financial/cashbook/components/DayClosingPanel.tsx`: separação visual de fundo de abertura, movimento diário e esperado físico.
+- `src/services/cashbookService.ts`: listagem por período/data operacional e contrato ampliado do fechamento.
+- `supabase/migrations/20260724180000_fix_cashbook_and_stock_discrepancies.sql`: correção do fechamento, filtro por `entry_date`, tabela/RLS/Realtime/trigger/RPCs de divergências.
+- Rota protegida: `/admin/stock/divergences` com `stock.view`; tratamento exige `stock.manage` ou `stock.adjust`.
+- Decisões e evolução de conciliação financeira: `docs/FECHAMENTO_CAIXA_E_DIVERGENCIAS_ESTOQUE_20260724.md`.
