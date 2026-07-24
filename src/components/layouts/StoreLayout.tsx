@@ -25,7 +25,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className="min-h-screen">
-            {/* StoreLayout now only provides the floating actions (WhatsApp, Cart)
+            {/* StoreLayout now only provides the floating actions (Cart)
                 The specific store header and content width are handled by the page components */}
 
             {/* Main Content Area */}
@@ -35,19 +35,6 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
             {/* Floating Action Buttons */}
             <div className="fixed bottom-6 right-4 z-40 flex flex-col gap-4 items-end">
-                {/* WhatsApp Button */}
-                <a
-                    href="https://wa.me/5532999999999"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bg-green-500 text-white p-3 rounded-full shadow-lg hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center w-12 h-12"
-                    aria-label="Fale Conosco no WhatsApp"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" />
-                    </svg>
-                </a>
-
                 {/* Cart FAB */}
                 <Link
                     to={checkoutPath}
