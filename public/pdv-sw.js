@@ -1,5 +1,10 @@
-const CACHE_NAME = 'optmamenu-pdv-v1';
-const APP_SHELL = ['/pdv.webmanifest', '/pwa-192x192.png', '/pwa-512x512.png'];
+const CACHE_NAME = 'optmamenu-pdv-v2';
+const APP_SHELL = [
+  '/pdv.webmanifest?v=3',
+  '/pdv-192x192.png',
+  '/pdv-512x512.png',
+  '/pdv-maskable-512x512.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
