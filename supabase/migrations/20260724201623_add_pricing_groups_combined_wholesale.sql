@@ -220,6 +220,7 @@ declare
   v_group_id uuid;
   v_category_ids uuid[] := coalesce(p_category_ids, '{}'::uuid[]);
   v_category_count integer;
+  v_blocking_group_names text;
   v_result jsonb;
 begin
   if v_user_id is null then
@@ -259,6 +260,36 @@ begin
 
   if coalesce(p_active, false) and v_category_count < 2 then
     raise exception 'Um grupo ativo precisa reunir pelo menos duas categorias.'
+      using errcode = '22023';
+  end if;
+
+  select string_agg(pg.name, ', ' order by pg.name)
+    into v_blocking_group_names
+  from public.pricing_groups pg
+  where pg.store_id = p_store_id
+    and pg.active
+    and pg.id is distinct from p_group_id
+    and exists (
+      select 1
+      from public.categories selected
+      where selected.store_id = p_store_id
+        and selected.pricing_group_id = pg.id
+        and selected.use_pricing_group_rules
+        and selected.id = any(v_category_ids)
+    )
+    and (
+      select count(*)
+      from public.categories remaining
+      where remaining.store_id = p_store_id
+        and remaining.pricing_group_id = pg.id
+        and remaining.use_pricing_group_rules
+        and not (remaining.id = any(v_category_ids))
+    ) < 2;
+
+  if v_blocking_group_names is not null then
+    raise exception
+      'Desative ou reorganize primeiro os grupos publicados: %.',
+      v_blocking_group_names
       using errcode = '22023';
   end if;
 
@@ -619,9 +650,9 @@ end;
 $$;
 
 revoke all on function public.calculate_store_cart_pricing(uuid, jsonb)
-  from public, anon;
+  from public, anon, authenticated;
 grant execute on function public.calculate_store_cart_pricing(uuid, jsonb)
-  to authenticated, service_role;
+  to service_role;
 
 create or replace function public.get_public_catalog_by_slug(p_slug text)
 returns jsonb
