@@ -84,7 +84,7 @@ export default function PdvLayout({
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: 'local' });
     navigate('/login', { replace: true });
   };
 
