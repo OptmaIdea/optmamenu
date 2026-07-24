@@ -31,6 +31,31 @@ type SavePricingGroupResponse = {
   message?: string;
 };
 
+function getPricingGroupErrorMessage(error: unknown): string {
+  const details = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+
+  if (
+    details?.code === 'PGRST202' ||
+    details?.code === '42P01' ||
+    details?.message?.includes('save_pricing_group') ||
+    details?.message?.includes('pricing_groups')
+  ) {
+    return 'A atualização do banco para grupos de atacado ainda não foi aplicada.';
+  }
+
+  return (
+    details?.message ||
+    details?.details ||
+    details?.hint ||
+    'Não foi possível acessar os grupos de atacado.'
+  );
+}
+
 function normalizeRules(value: unknown): PriceRule[] {
   if (!Array.isArray(value)) return [];
 
@@ -66,7 +91,7 @@ export const PricingGroupService = {
       .order('active', { ascending: false })
       .order('name');
 
-    if (groupsError) throw groupsError;
+    if (groupsError) throw new Error(getPricingGroupErrorMessage(groupsError));
 
     const { data: categories, error: categoriesError } = await supabase
       .from('categories')
@@ -74,7 +99,7 @@ export const PricingGroupService = {
       .eq('store_id', storeId)
       .not('pricing_group_id', 'is', null);
 
-    if (categoriesError) throw categoriesError;
+    if (categoriesError) throw new Error(getPricingGroupErrorMessage(categoriesError));
 
     const categoryIdsByGroup = new Map<string, string[]>();
     for (const category of categories || []) {
@@ -119,7 +144,7 @@ export const PricingGroupService = {
       p_category_ids: categoryIds,
     });
 
-    if (error) throw error;
+    if (error) throw new Error(getPricingGroupErrorMessage(error));
 
     const result = data as SavePricingGroupResponse;
     if (!result?.ok || !result.group) {
