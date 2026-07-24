@@ -208,7 +208,7 @@ export default function CategoriesPage() {
                 />
 
                 {/* Cards Mobile */}
-                <div className="lg:hidden bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden divide-y divide-gray-100 dark:divide-gray-700">
+                <div className="hidden">
                     {filteredAndSortedCategories.map(category => (
                         <CategoryCard
                             key={category.id}
