@@ -10,6 +10,12 @@ interface ProductFormPanelProps {
   setName: (v: string) => void;
   description: string;
   setDescription: (v: string) => void;
+  internalCode: string;
+  setInternalCode: (v: string) => void;
+  sku: string;
+  setSku: (v: string) => void;
+  ean: string;
+  setEan: (v: string) => void;
 
   categories: Category[];
   categoriesLoading: boolean;
@@ -56,6 +62,12 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
     setName,
     description,
     setDescription,
+    internalCode,
+    setInternalCode,
+    sku,
+    setSku,
+    ean,
+    setEan,
     categories,
     categoriesLoading,
     categoryId,
@@ -167,6 +179,45 @@ export default function ProductFormPanel(props: ProductFormPanelProps) {
               rows={3}
             />
           </div>
+
+          <fieldset className="rounded-xl border border-gray-200 p-3 dark:border-gray-600">
+            <legend className="px-1 text-sm font-bold text-gray-700 dark:text-gray-200">
+              Identificação e leitura
+            </legend>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">Código interno</span>
+                <input
+                  value={internalCode}
+                  onChange={(e) => setInternalCode(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white p-2.5 uppercase dark:border-gray-600 dark:bg-gray-700"
+                  placeholder="Ex.: PROD-001"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">SKU</span>
+                <input
+                  value={sku}
+                  onChange={(e) => setSku(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white p-2.5 uppercase dark:border-gray-600 dark:bg-gray-700"
+                  placeholder="Ex.: SKU-001"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-gray-600 dark:text-gray-300">EAN / código de barras</span>
+                <input
+                  value={ean}
+                  onChange={(e) => setEan(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white p-2.5 dark:border-gray-600 dark:bg-gray-700"
+                  placeholder="Leia ou digite o EAN"
+                  inputMode="numeric"
+                  autoComplete="off"
+                />
+              </label>
+            </div>
+          </fieldset>
 
           {/* Categoria */}
           <div className="flex items-end gap-2">
