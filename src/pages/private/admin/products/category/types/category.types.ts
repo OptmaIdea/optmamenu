@@ -1,6 +1,12 @@
 export interface PriceRule {
-  min: number; // quantidade mínima
-  price: number; // preço unitário
+  min: number;
+  price: number;
+}
+
+export type CategoryVolumeScope = 'combined' | 'per_product';
+
+export interface CategoryPricingStrategy {
+  volume_scope?: CategoryVolumeScope;
 }
 
 export interface Category {
@@ -13,14 +19,13 @@ export interface Category {
   active: boolean;
 
   // Precificação da categoria:
-  // - 'standard': preço único fixo (UI simples). Representado por UMA regra min=0 em price_rules.
-  // - 'category_volume': regras progressivas por volume (múltiplas faixas) em price_rules.
+  // - 'standard': preço único fixo.
+  // - 'category_volume': regras progressivas por volume.
   price_logic_type: 'standard' | 'category_volume';
   price_rules: PriceRule[];
+  pricing_strategy?: CategoryPricingStrategy | null;
 
-  // Campo calculado (pode vir de view/RPC) para exibir contagem de produtos.
   products_count?: number;
-
   created_at?: string;
   updated_at?: string;
 }
@@ -33,4 +38,5 @@ export interface CategoryFormData {
   active: boolean;
   price_logic_type: 'standard' | 'category_volume';
   price_rules: PriceRule[];
+  pricing_strategy: CategoryPricingStrategy;
 }
