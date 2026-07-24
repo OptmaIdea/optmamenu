@@ -7,6 +7,14 @@ import CookieConsent from '@/components/common/CookieConsent';
 import { Toaster } from 'sonner';
 import { validateSessionSecurity, markSessionAsActive } from '@/utils/sessionSecurity';
 
+function isProtectedApplicationPath(pathname: string): boolean {
+  return (
+    pathname === '/pdv' ||
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/onboarding')
+  );
+}
+
 function App() {
   const { setSession, setLoading, setProfile } = useAuthStore();
 
@@ -25,9 +33,9 @@ function App() {
           return;
         }
 
-        if (session) {
+        if (session && isProtectedApplicationPath(window.location.pathname)) {
           const isValid = await validateSessionSecurity(async () => {
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({ scope: 'local' });
           });
           
           if (!isValid) {
