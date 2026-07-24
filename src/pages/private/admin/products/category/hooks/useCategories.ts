@@ -27,7 +27,7 @@ export const useCategories = () => {
                 .from('categories')
                 .select(`
                     *,
-                    products:products(count)
+                    products:products(discontinued, is_discontinued)
                 `)
                 .eq('store_id', activeStoreId)
                 .order('sort_order', { ascending: true });
@@ -37,7 +37,12 @@ export const useCategories = () => {
             const parsedData: Category[] = categoriesData?.map(cat => ({
                 ...cat,
                 price_rules: typeof cat.price_rules === 'string' ? JSON.parse(cat.price_rules) : cat.price_rules,
-                products_count: cat.products?.[0]?.count || 0
+                products_count: Array.isArray(cat.products)
+                    ? cat.products.filter(
+                        (product: { discontinued?: boolean; is_discontinued?: boolean }) =>
+                            !product.discontinued && !product.is_discontinued
+                    ).length
+                    : 0
             })) || [];
 
             setCategories(parsedData);
