@@ -76,3 +76,5 @@ Essa conciliação é separada da divergência física de estoque e do fechament
 - `list_cashbook_entries_by_period_safe`
 - `list_stock_discrepancy_occurrences_safe`
 - `resolve_stock_discrepancy_occurrence_safe`
+
+- `supabase/migrations/20260724145323_index_stock_discrepancy_actors.sql`: índices das referências de operador/responsável da fila de divergências.
