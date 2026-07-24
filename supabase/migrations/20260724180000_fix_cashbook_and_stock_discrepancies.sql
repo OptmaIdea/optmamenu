@@ -211,7 +211,35 @@ BEGIN
   v_cash_opening_suggested := COALESCE((v_preview #>> '{expected,cash_opening_suggested}')::numeric, 0);
 
   IF COALESCE(p_metadata ->> 'opening_cash_total', '') <> ''
-     AND (p_metadata ->> 'opening_cash_total') !~ '^[0-9]+([.][0-9]{1,2})?
+     AND (p_metadata ->> 'opening_cash_total') !~ '^[0-9]+([.][0-9]{1,2})?$' THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'invalid_opening_cash_total',
+      'message', 'Informe um saldo de abertura válido, igual ou maior que zero.'
+    );
+  END IF;
+
+  v_opening_cash_total := COALESCE(
+    NULLIF(p_metadata ->> 'opening_cash_total', '')::numeric,
+    v_cash_opening_suggested,
+    0
+  );
+
+  IF v_opening_cash_total < 0 THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'negative_opening_cash_not_allowed',
+      'message', 'O saldo de abertura do caixa não pode ser negativo.'
+    );
+  END IF;
+
+  v_expected_cash := GREATEST(v_opening_cash_total + v_cash_movement, 0);
+  v_cash_unfunded_outflow := GREATEST(-(v_opening_cash_total + v_cash_movement), 0);
+  v_expected_pix := GREATEST(COALESCE((v_preview #>> '{expected,pix}')::numeric, 0), 0);
+  v_expected_debit := GREATEST(COALESCE((v_preview #>> '{expected,debit_card}')::numeric, 0), 0);
+  v_expected_credit := GREATEST(COALESCE((v_preview #>> '{expected,credit_card}')::numeric, 0), 0);
+  v_expected_other := GREATEST(COALESCE((v_preview #>> '{expected,other}')::numeric, 0), 0);
+  v_expected_total := v_expected_cash + v_expected_pix + v_expected_debit + v_expected_credit + v_expected_other;
   v_pending_total := COALESCE((v_preview #>> '{pending,total}')::numeric, 0);
   v_pending_count := COALESCE((v_preview #>> '{pending,count}')::integer, 0);
   v_cancelled_total := COALESCE((v_preview #>> '{cancelled,total}')::numeric, 0);
@@ -298,215 +326,6 @@ BEGIN
       'cash_opening_suggested', v_cash_opening_suggested,
       'cash_movement', v_cash_movement,
       'cash_unfunded_outflow', v_cash_unfunded_outflow
-    )
-  );
-
-  INSERT INTO public.cashbook_day_closings (
-    store_id,
-    closing_date,
-    status,
-    expected_cash,
-    expected_pix,
-    expected_debit_card,
-    expected_credit_card,
-    expected_other,
-    expected_total,
-    counted_cash_total,
-    counted_denominations,
-    confirmed_pix_total,
-    confirmed_debit_card_total,
-    confirmed_credit_card_total,
-    confirmed_other_total,
-    confirmed_total,
-    difference_cash,
-    difference_pix,
-    difference_debit_card,
-    difference_credit_card,
-    difference_other,
-    difference_total,
-    pending_total,
-    pending_count,
-    cancelled_total,
-    cancelled_count,
-    notes,
-    metadata,
-    closed_by,
-    closed_at,
-    created_by
-  ) VALUES (
-    p_store_id,
-    v_closing_date,
-    v_status,
-    v_expected_cash,
-    v_expected_pix,
-    v_expected_debit,
-    v_expected_credit,
-    v_expected_other,
-    v_expected_total,
-    COALESCE(p_counted_cash_total, 0),
-    COALESCE(p_counted_denominations, '{}'::jsonb),
-    COALESCE(p_confirmed_pix_total, 0),
-    COALESCE(p_confirmed_debit_card_total, 0),
-    COALESCE(p_confirmed_credit_card_total, 0),
-    COALESCE(p_confirmed_other_total, 0),
-    v_confirmed_total,
-    v_difference_cash,
-    v_difference_pix,
-    v_difference_debit,
-    v_difference_credit,
-    v_difference_other,
-    v_difference_total,
-    v_pending_total,
-    v_pending_count,
-    v_cancelled_total,
-    v_cancelled_count,
-    NULLIF(trim(COALESCE(p_notes, '')), ''),
-    v_clean_metadata,
-    CASE WHEN v_status = 'closed' THEN v_user_id ELSE NULL END,
-    CASE WHEN v_status = 'closed' THEN now() ELSE NULL END,
-    v_user_id
-  )
-  ON CONFLICT (store_id, closing_date)
-  DO UPDATE SET
-    status = EXCLUDED.status,
-    expected_cash = EXCLUDED.expected_cash,
-    expected_pix = EXCLUDED.expected_pix,
-    expected_debit_card = EXCLUDED.expected_debit_card,
-    expected_credit_card = EXCLUDED.expected_credit_card,
-    expected_other = EXCLUDED.expected_other,
-    expected_total = EXCLUDED.expected_total,
-    counted_cash_total = EXCLUDED.counted_cash_total,
-    counted_denominations = EXCLUDED.counted_denominations,
-    confirmed_pix_total = EXCLUDED.confirmed_pix_total,
-    confirmed_debit_card_total = EXCLUDED.confirmed_debit_card_total,
-    confirmed_credit_card_total = EXCLUDED.confirmed_credit_card_total,
-    confirmed_other_total = EXCLUDED.confirmed_other_total,
-    confirmed_total = EXCLUDED.confirmed_total,
-    difference_cash = EXCLUDED.difference_cash,
-    difference_pix = EXCLUDED.difference_pix,
-    difference_debit_card = EXCLUDED.difference_debit_card,
-    difference_credit_card = EXCLUDED.difference_credit_card,
-    difference_other = EXCLUDED.difference_other,
-    difference_total = EXCLUDED.difference_total,
-    pending_total = EXCLUDED.pending_total,
-    pending_count = EXCLUDED.pending_count,
-    cancelled_total = EXCLUDED.cancelled_total,
-    cancelled_count = EXCLUDED.cancelled_count,
-    notes = EXCLUDED.notes,
-    metadata = EXCLUDED.metadata,
-    closed_by = EXCLUDED.closed_by,
-    closed_at = EXCLUDED.closed_at,
-    updated_at = now()
-  RETURNING * INTO v_saved;
-
-  RETURN jsonb_build_object('ok', true, 'closing', to_jsonb(v_saved));
-EXCEPTION
-  WHEN OTHERS THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'unexpected_error', 'message', 'Não foi possível salvar o fechamento. Revise os valores e tente novamente.');
-END;
-$function$
- THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'error', 'invalid_opening_cash_total',
-      'message', 'Informe um saldo de abertura válido, igual ou maior que zero.'
-    );
-  END IF;
-
-  v_opening_cash_total := COALESCE(
-    NULLIF(p_metadata ->> 'opening_cash_total', '')::numeric,
-    v_cash_opening_suggested,
-    0
-  );
-
-  IF v_opening_cash_total < 0 THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'error', 'negative_opening_cash_not_allowed',
-      'message', 'O saldo de abertura do caixa não pode ser negativo.'
-    );
-  END IF;
-
-  v_expected_cash := GREATEST(v_opening_cash_total + v_cash_movement, 0);
-  v_cash_unfunded_outflow := GREATEST(-(v_opening_cash_total + v_cash_movement), 0);
-  v_expected_pix := GREATEST(COALESCE((v_preview #>> '{expected,pix}')::numeric, 0), 0);
-  v_expected_debit := GREATEST(COALESCE((v_preview #>> '{expected,debit_card}')::numeric, 0), 0);
-  v_expected_credit := GREATEST(COALESCE((v_preview #>> '{expected,credit_card}')::numeric, 0), 0);
-  v_expected_other := GREATEST(COALESCE((v_preview #>> '{expected,other}')::numeric, 0), 0);
-  v_expected_total := v_expected_cash + v_expected_pix + v_expected_debit + v_expected_credit + v_expected_other;
-  v_pending_total := COALESCE((v_preview #>> '{pending,total}')::numeric, 0);
-  v_pending_count := COALESCE((v_preview #>> '{pending,count}')::integer, 0);
-  v_cancelled_total := COALESCE((v_preview #>> '{cancelled,total}')::numeric, 0);
-  v_cancelled_count := COALESCE((v_preview #>> '{cancelled,count}')::integer, 0);
-
-  v_confirmed_total := COALESCE(p_counted_cash_total, 0)
-    + COALESCE(p_confirmed_pix_total, 0)
-    + COALESCE(p_confirmed_debit_card_total, 0)
-    + COALESCE(p_confirmed_credit_card_total, 0)
-    + COALESCE(p_confirmed_other_total, 0);
-
-  v_difference_cash := COALESCE(p_counted_cash_total, 0) - v_expected_cash;
-  v_difference_pix := COALESCE(p_confirmed_pix_total, 0) - v_expected_pix;
-  v_difference_debit := COALESCE(p_confirmed_debit_card_total, 0) - v_expected_debit;
-  v_difference_credit := COALESCE(p_confirmed_credit_card_total, 0) - v_expected_credit;
-  v_difference_other := COALESCE(p_confirmed_other_total, 0) - v_expected_other;
-  v_difference_total := v_confirmed_total - v_expected_total;
-  v_abs_difference_total := abs(v_difference_total);
-
-  IF v_abs_difference_total >= 0.01 THEN
-    v_has_divergence := true;
-    v_divergence_type := CASE WHEN v_difference_total < 0 THEN 'shortage' ELSE 'surplus' END;
-    v_occurrence_required := true;
-
-    IF v_abs_difference_total <= 2 THEN
-      v_divergence_level := 'low';
-    ELSIF v_abs_difference_total <= 20 THEN
-      v_divergence_level := 'relevant';
-    ELSE
-      v_divergence_level := 'critical';
-    END IF;
-  END IF;
-
-  IF v_status = 'closed'
-     AND v_has_divergence
-     AND NULLIF(trim(COALESCE(p_notes, '')), '') IS NULL THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'error', 'divergence_notes_required',
-      'message', 'Informe uma observacao para fechar caixa com divergencia.',
-      'difference_total', v_difference_total,
-      'divergence_type', v_divergence_type,
-      'divergence_level', v_divergence_level
-    );
-  END IF;
-
-  v_clean_metadata := COALESCE(p_metadata, '{}'::jsonb) - 'preview';
-  v_clean_metadata := v_clean_metadata || jsonb_build_object(
-    'expected_snapshot', COALESCE(v_clean_metadata -> 'expected_snapshot', v_preview -> 'expected'),
-    'pending_snapshot', COALESCE(v_clean_metadata -> 'pending_snapshot', v_preview -> 'pending'),
-    'cancelled_snapshot', COALESCE(v_clean_metadata -> 'cancelled_snapshot', v_preview -> 'cancelled'),
-    'closing_saved_at', now(),
-    'closing_saved_by', v_user_id,
-    'has_divergence', v_has_divergence,
-    'divergence_type', v_divergence_type,
-    'divergence_level', v_divergence_level,
-    'occurrence_required', v_occurrence_required,
-    'divergence_tolerance_snapshot', jsonb_build_object(
-      'low_until', 2,
-      'relevant_until', 20,
-      'critical_above', 20,
-      'currency', 'BRL',
-      'source', 'temporary_backend_rule'
-    ),
-    'divergence_snapshot', jsonb_build_object(
-      'expected_total', v_expected_total,
-      'confirmed_total', v_confirmed_total,
-      'difference_total', v_difference_total,
-      'difference_cash', v_difference_cash,
-      'difference_pix', v_difference_pix,
-      'difference_debit_card', v_difference_debit,
-      'difference_credit_card', v_difference_credit,
-      'difference_other', v_difference_other
     )
   );
 
