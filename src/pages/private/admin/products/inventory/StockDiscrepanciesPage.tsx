@@ -1,6 +1,5 @@
-// @ts-nocheck -- diagnóstico temporário do preview; remover antes do merge
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageSearch, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageSearch, RefreshCw, Search, type LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -10,6 +9,7 @@ import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import {
   StockDiscrepancyService,
+  type StockDiscrepancyItem,
   type StockDiscrepancyOccurrence,
   type StockDiscrepancyStatus,
 } from '@/services/stockDiscrepancyService';
@@ -41,7 +41,7 @@ function formatDateTime(value: string) {
   return new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 }
 
-function quantity(item: Record<string, unknown>, keys: string[]) {
+function quantity(item: StockDiscrepancyItem, keys: string[]) {
   for (const key of keys) {
     const value = Number(item[key]);
     if (Number.isFinite(value)) return value;
@@ -112,8 +112,12 @@ export default function StockDiscrepanciesPage() {
   }), [items]);
 
   function openResolution(occurrence: StockDiscrepancyOccurrence) {
+    let statusForTreatment: Exclude<StockDiscrepancyStatus, 'open'> = 'under_review';
+    if (occurrence.status === 'waiting_stock_count') statusForTreatment = 'waiting_stock_count';
+    if (occurrence.status === 'under_review') statusForTreatment = 'under_review';
+
     setSelected(occurrence);
-    setNextStatus(occurrence.status === 'open' ? 'under_review' : occurrence.status === 'resolved' || occurrence.status === 'cancelled' ? 'under_review' : occurrence.status);
+    setNextStatus(statusForTreatment);
     setResolutionType(occurrence.resolution_type || '');
     setResolutionNotes(occurrence.resolution_notes || '');
   }
@@ -144,6 +148,13 @@ export default function StockDiscrepanciesPage() {
     }
   }
 
+  const summaryCards: Array<{ label: string; value: number; Icon: LucideIcon }> = [
+    { label: 'Total no filtro', value: totals.total, Icon: ClipboardCheck },
+    { label: 'Abertas', value: totals.open, Icon: AlertTriangle },
+    { label: 'Em tratamento', value: totals.review, Icon: PackageSearch },
+    { label: 'Encerradas', value: totals.resolved, Icon: CheckCircle2 },
+  ];
+
   if (loadingStore) return <LoadingSpinner />;
 
   return (
@@ -161,12 +172,7 @@ export default function StockDiscrepanciesPage() {
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: 'Total no filtro', value: totals.total, Icon: ClipboardCheck },
-            { label: 'Abertas', value: totals.open, Icon: AlertTriangle },
-            { label: 'Em tratamento', value: totals.review, Icon: PackageSearch },
-            { label: 'Encerradas', value: totals.resolved, Icon: CheckCircle2 },
-          ].map(({ label, value, Icon }) => (
+          {summaryCards.map(({ label, value, Icon }) => (
             <div key={label} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
               <div className="flex items-center gap-3"><Icon size={18} className="text-teal-600" /><span className="text-xs font-black uppercase tracking-widest text-gray-400">{String(label)}</span></div>
               <p className="mt-3 text-2xl font-black text-gray-900 dark:text-white">{Number(value)}</p>
@@ -199,7 +205,7 @@ export default function StockDiscrepanciesPage() {
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Local: {occurrence.location_name || 'Não identificado'} · Operador: {occurrence.operator_name || 'Não identificado'}</p>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                       {(occurrence.items || []).map((rawItem, index) => {
-                        const item = rawItem as Record<string, unknown>;
+                        const item: StockDiscrepancyItem = rawItem;
                         return <div key={String(item.product_id || index)} className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
                           <p className="font-black text-gray-900 dark:text-white">{String(item.product_name || 'Produto')}</p>
                           <p className="mt-1 text-xs font-bold text-gray-500">Solicitado {quantity(item, ['requested_quantity','requested'])} · disponível {quantity(item, ['available_quantity','available'])} · divergência {quantity(item, ['shortage_quantity','shortage'])}</p>
