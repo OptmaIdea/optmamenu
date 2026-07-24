@@ -6,7 +6,6 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
-import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import {
   StockDiscrepancyService,
   type StockDiscrepancyOccurrence,
@@ -79,15 +78,6 @@ export default function StockDiscrepanciesPage() {
   }, [storeId, status, startDate, endDate]);
 
   useRefreshFrame(load);
-  useRealtimeListener({
-    channelName: `stock-discrepancies-${storeId || 'none'}`,
-    tables: storeId
-      ? [{ table: 'stock_discrepancy_occurrences', filter: `store_id=eq.${storeId}` }]
-      : [],
-    onChanged: load,
-    enabled: Boolean(storeId),
-  });
-
   useEffect(() => {
     if (!loadingStore && storeId) void load();
   }, [loadingStore, storeId, load]);
