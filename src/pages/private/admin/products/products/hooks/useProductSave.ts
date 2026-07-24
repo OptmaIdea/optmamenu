@@ -5,6 +5,96 @@ import { getActiveStoreId } from '@/utils/activeStore';
 import type { MediaItem } from '@/pages/private/admin/products/products/hooks/useProductImages';
 import type { PriceRule } from '../types/product.types';
 
+type ProductCodeInput = {
+    type: 'internal' | 'sku' | 'ean';
+    value: string;
+};
+
+function normalizeProductCode(value: string): string {
+    return value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
+async function syncProductCodes(
+    storeId: string,
+    productId: string,
+    productCodes: ProductCodeInput[]
+) {
+    const desired = productCodes
+        .map((code) => ({ ...code, value: code.value.trim(), normalized: normalizeProductCode(code.value) }))
+        .filter((code) => code.value && code.normalized);
+
+    const normalizedCodes = desired.map((code) => code.normalized);
+    if (normalizedCodes.length > 0) {
+        const { data: conflicts, error: conflictError } = await supabase
+            .from('product_codes')
+            .select('id, product_id, normalized_code')
+            .eq('store_id', storeId)
+            .in('normalized_code', normalizedCodes);
+        if (conflictError) throw conflictError;
+        const conflict = (conflicts ?? []).find((row) => row.product_id !== productId);
+        if (conflict) {
+            throw new Error('SKU, EAN ou código interno já está vinculado a outro produto.');
+        }
+    }
+
+    const { data: existing, error: existingError } = await supabase
+        .from('product_codes')
+        .select('id, code_type')
+        .eq('store_id', storeId)
+        .eq('product_id', productId)
+        .in('code_type', ['internal', 'sku', 'ean']);
+    if (existingError) throw existingError;
+
+    await supabase
+        .from('product_codes')
+        .update({ is_primary: false })
+        .eq('store_id', storeId)
+        .eq('product_id', productId);
+
+    const primaryType = desired.find((code) => code.type === 'internal')?.type
+        ?? desired.find((code) => code.type === 'sku')?.type
+        ?? desired[0]?.type;
+
+    for (const code of desired) {
+        const current = (existing ?? []).find((row) => row.code_type === code.type);
+        const payload = {
+            code_value: code.value,
+            is_primary: code.type === primaryType,
+            active: true,
+        };
+        if (current) {
+            const { error } = await supabase
+                .from('product_codes')
+                .update(payload)
+                .eq('id', current.id)
+                .eq('store_id', storeId);
+            if (error) throw error;
+        } else {
+            const { error } = await supabase.from('product_codes').insert({
+                store_id: storeId,
+                product_id: productId,
+                code_type: code.type,
+                ...payload,
+            });
+            if (error) throw error;
+        }
+    }
+
+    const desiredTypes = new Set(desired.map((code) => code.type));
+    const idsToDelete = (existing ?? [])
+        .filter((row) => !desiredTypes.has(row.code_type as ProductCodeInput['type']))
+        .map((row) => row.id);
+    if (idsToDelete.length > 0) {
+        const { error } = await supabase
+            .from('product_codes')
+            .delete()
+            .eq('store_id', storeId)
+            .in('id', idsToDelete);
+        if (error) throw error;
+    }
+}
+
+
 
 interface SaveParams {
     productId: string;
@@ -21,6 +111,7 @@ interface SaveParams {
     stockQuantity: number;
     minStock: number;
     maxStock: number;
+    productCodes: ProductCodeInput[];
     isEditing: boolean;
     canManageProducts: boolean;
     onSuccess: () => void;
@@ -45,6 +136,7 @@ export const useProductSave = () => {
         stockQuantity,
         minStock,
         maxStock,
+        productCodes,
         isEditing,
         canManageProducts,
         onSuccess,
@@ -137,6 +229,8 @@ export const useProductSave = () => {
                     );
                 }
             }
+
+            await syncProductCodes(activeStoreId, productId, productCodes);
 
             // 4. Limpar imagens removidas
             if (imagesToDelete.length > 0) {
