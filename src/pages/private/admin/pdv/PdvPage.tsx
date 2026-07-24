@@ -511,7 +511,7 @@ export default function PdvPage() {
     const createdManifest = !currentManifest;
 
     manifest.rel = 'manifest';
-    manifest.href = '/pdv.webmanifest?v=2';
+    manifest.href = '/pdv.webmanifest?v=3';
     manifest.dataset.pdvManifest = 'true';
 
     if (createdManifest) {
