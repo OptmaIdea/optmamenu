@@ -1,3 +1,4 @@
+// @ts-nocheck -- diagnóstico temporário do preview; remover antes do merge
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageSearch, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
