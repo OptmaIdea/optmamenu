@@ -102,11 +102,26 @@ export const useFilters = (products: Product[]) => {
 
         // Search filter
         if (searchTerm) {
-            const lowerTerm = searchTerm.toLowerCase();
+            const lowerTerm = searchTerm.trim().toLocaleLowerCase('pt-BR');
+            const normalizedCodeTerm = searchTerm
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .toUpperCase();
             result = result.filter(
                 (p) =>
-                    p.name.toLowerCase().includes(lowerTerm) ||
-                    p.description?.toLowerCase().includes(lowerTerm)
+                    p.name.toLocaleLowerCase('pt-BR').includes(lowerTerm) ||
+                    p.description?.toLocaleLowerCase('pt-BR').includes(lowerTerm) ||
+                    (normalizedCodeTerm.length > 0 &&
+                        p.codes?.some((code) =>
+                            code.normalized_code.includes(normalizedCodeTerm) ||
+                            code.code_value
+                                .normalize('NFD')
+                                .replace(/[\u0300-\u036f]/g, '')
+                                .replace(/[^a-zA-Z0-9]/g, '')
+                                .toUpperCase()
+                                .includes(normalizedCodeTerm)
+                        ))
             );
         }
 
