@@ -1,4 +1,3 @@
-// @ts-nocheck -- diagnóstico temporário; remover antes do merge
 import { supabase } from '@/lib/supabase';
 
 export type StockDiscrepancyStatus = 'open' | 'under_review' | 'waiting_stock_count' | 'resolved' | 'cancelled';
