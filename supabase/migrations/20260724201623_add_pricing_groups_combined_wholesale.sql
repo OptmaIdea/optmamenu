@@ -221,6 +221,7 @@ declare
   v_category_ids uuid[] := coalesce(p_category_ids, '{}'::uuid[]);
   v_category_count integer;
   v_blocking_group_names text;
+  v_old_state jsonb := '{}'::jsonb;
   v_result jsonb;
 begin
   if v_user_id is null then
@@ -314,6 +315,20 @@ begin
     )
     returning id into v_group_id;
   else
+    select to_jsonb(pg) || jsonb_build_object(
+      'category_ids', coalesce((
+        select jsonb_agg(c.id order by c.name)
+        from public.categories c
+        where c.store_id = p_store_id
+          and c.pricing_group_id = pg.id
+          and c.use_pricing_group_rules
+      ), '[]'::jsonb)
+    )
+      into v_old_state
+    from public.pricing_groups pg
+    where pg.id = p_group_id
+      and pg.store_id = p_store_id;
+
     update public.pricing_groups pg
     set
       name = p_name,
@@ -369,6 +384,28 @@ begin
   into v_result
   from public.pricing_groups pg
   where pg.id = v_group_id;
+
+  insert into public.audit_logs (
+    store_id,
+    user_id,
+    action,
+    entity,
+    entity_id,
+    old_data,
+    new_data
+  )
+  values (
+    p_store_id,
+    v_user_id,
+    case when p_group_id is null
+      then 'pricing_group_created'
+      else 'pricing_group_updated'
+    end,
+    'pricing_groups',
+    v_group_id,
+    coalesce(v_old_state, '{}'::jsonb),
+    coalesce(v_result->'group', '{}'::jsonb)
+  );
 
   return v_result;
 end;
