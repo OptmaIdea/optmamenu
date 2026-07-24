@@ -1339,12 +1339,6 @@ export default function Catalog() {
                 </div>
             )}
 
-            <div className="max-w-5xl mx-auto mt-4 px-4">
-                <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900 shadow-sm dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-100">
-                    Cardápio público em modo de visualização. Em breve você poderá montar o pedido por aqui e finalizar pelo WhatsApp.
-                </div>
-            </div>
-
             <main className="max-w-5xl mx-auto px-4 mt-8">
                 <div className="flex gap-2 mb-6">
                     <div className="relative flex-1">
