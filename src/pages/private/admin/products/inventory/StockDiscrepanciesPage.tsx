@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, ClipboardCheck, PackageSearch, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -89,7 +89,9 @@ export default function StockDiscrepanciesPage() {
     enabled: Boolean(storeId),
   });
 
-  useMemo(() => { if (!loadingStore && storeId) void load(); return null; }, [loadingStore, storeId, load]);
+  useEffect(() => {
+    if (!loadingStore && storeId) void load();
+  }, [loadingStore, storeId, load]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase('pt-BR');
@@ -159,12 +161,12 @@ export default function StockDiscrepanciesPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ['Total no filtro', totals.total, ClipboardCheck],
-            ['Abertas', totals.open, AlertTriangle],
-            ['Em tratamento', totals.review, PackageSearch],
-            ['Encerradas', totals.resolved, CheckCircle2],
-          ].map(([label, value, Icon]) => (
-            <div key={String(label)} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+            { label: 'Total no filtro', value: totals.total, Icon: ClipboardCheck },
+            { label: 'Abertas', value: totals.open, Icon: AlertTriangle },
+            { label: 'Em tratamento', value: totals.review, Icon: PackageSearch },
+            { label: 'Encerradas', value: totals.resolved, Icon: CheckCircle2 },
+          ].map(({ label, value, Icon }) => (
+            <div key={label} className="rounded-2xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
               <div className="flex items-center gap-3"><Icon size={18} className="text-teal-600" /><span className="text-xs font-black uppercase tracking-widest text-gray-400">{String(label)}</span></div>
               <p className="mt-3 text-2xl font-black text-gray-900 dark:text-white">{Number(value)}</p>
             </div>
