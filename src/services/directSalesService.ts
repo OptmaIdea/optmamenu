@@ -70,6 +70,48 @@ export interface AdminDirectSaleResult {
   idempotent_replay?: boolean;
   error?: string;
   message?: string;
+  product_id?: string;
+  product_name?: string;
+  available?: number;
+  requested?: number;
+}
+
+const DIRECT_SALE_ERROR_MESSAGES: Record<string, string> = {
+  missing_store_id: 'Não foi possível identificar a loja desta venda.',
+  empty_cart: 'Adicione ao menos um item antes de concluir a venda.',
+  invalid_quantity: 'Revise a quantidade dos itens antes de concluir a venda.',
+  product_not_found: 'Um dos produtos não foi encontrado nesta loja.',
+  product_unavailable: 'Um dos produtos não está disponível para venda.',
+  insufficient_stock:
+    'Há item sem saldo suficiente. Confirme a divergência de estoque para continuar.',
+  stock_balance_not_found:
+    'O saldo deste produto ainda não foi preparado para o local selecionado. Atualize o PDV e tente novamente.',
+  stock_balance_prepare_failed:
+    'O saldo local mudou durante a finalização. Atualize o PDV e tente novamente.',
+  payment_method_disabled:
+    'A forma de pagamento selecionada não está disponível nesta loja.',
+  access_denied: 'Você não tem permissão para concluir esta venda.',
+  discount_permission_required: 'Você não tem permissão para aplicar desconto no PDV.',
+  idempotency_conflict:
+    'Esta tentativa de venda já foi usada com dados diferentes. Atualize o PDV e tente novamente.',
+  invalid_request_format: 'Há dados inválidos na venda. Revise os itens e tente novamente.',
+  unexpected_error:
+    'Ocorreu uma falha inesperada ao concluir a venda. Atualize o PDV e tente novamente.',
+};
+
+function getDirectSaleErrorMessage(result: AdminDirectSaleResult | null | undefined): string {
+  if (result?.error === 'unexpected_error') {
+    return DIRECT_SALE_ERROR_MESSAGES.unexpected_error;
+  }
+
+  const backendMessage = result?.message?.trim();
+  if (backendMessage) return backendMessage;
+
+  if (result?.error && DIRECT_SALE_ERROR_MESSAGES[result.error]) {
+    return DIRECT_SALE_ERROR_MESSAGES[result.error];
+  }
+
+  return 'Não foi possível concluir a venda. Atualize o PDV e tente novamente.';
 }
 
 function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
@@ -133,7 +175,7 @@ export const DirectSalesService = {
     const result = data as AdminDirectSaleResult;
 
     if (!result?.ok) {
-      throw new Error(result?.message || result?.error || 'Erro ao criar venda direta.');
+      throw new Error(getDirectSaleErrorMessage(result));
     }
 
     return result;

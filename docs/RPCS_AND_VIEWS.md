@@ -594,3 +594,22 @@ Sempre que uma RPC for criada ou alterada:
   antes do pagamento e do cálculo de troco.
 - `calculate_store_cart_pricing` permanece como motor interno, sem execução direta
   por `public`, `anon` ou `authenticated`.
+
+
+## 3.4. Correção de saldo local ausente no PDV — 24/07/2026
+
+A função interna `create_admin_direct_sale_order_legacy_internal`, chamada por
+`create_admin_direct_sale_order_safe`, passou a distinguir:
+
+- linha local existente com saldo insuficiente;
+- ausência da linha de `inventory_location_balances`.
+
+Sem `allow_stock_exception`, ambos retornam `insufficient_stock` com mensagem
+amigável e sem criar saldo residual. Com a exceção autenticada e autorizada pelo
+wrapper do PDV, a função cria a linha local zerada de modo idempotente, bloqueia-a
+com `FOR UPDATE`, conclui a venda sem saldo negativo e permite que o wrapper
+registre `pdv_stock_exception`.
+
+As leituras do saldo-base da venda filtram `variant_id IS NULL`.
+
+Migração: `20260724125708_fix_pdv_missing_stock_balance.sql`.
