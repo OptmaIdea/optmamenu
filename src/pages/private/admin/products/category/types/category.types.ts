@@ -17,14 +17,11 @@ export interface Category {
   image_url: string | null;
   sort_order: number;
   active: boolean;
-
-  // Precificação da categoria:
-  // - 'standard': preço único fixo.
-  // - 'category_volume': regras progressivas por volume.
   price_logic_type: 'standard' | 'category_volume';
   price_rules: PriceRule[];
   pricing_strategy?: CategoryPricingStrategy | null;
-
+  pricing_group_id?: string | null;
+  use_pricing_group_rules?: boolean;
   products_count?: number;
   created_at?: string;
   updated_at?: string;
