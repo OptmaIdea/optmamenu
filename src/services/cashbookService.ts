@@ -1,4 +1,3 @@
-// @ts-nocheck -- diagnóstico temporário; remover antes do merge
 import { supabase } from '@/lib/supabase';
 
 export type CashbookEntryType =
