@@ -2237,7 +2237,7 @@ Imports locais:
 
 ### Correção de saldo local ausente do PDV — 24/07/2026
 
-- `supabase/migrations/20260724125708_fix_pdv_missing_stock_balance.sql`
+- `supabase/migrations/20260724130259_fix_pdv_missing_stock_balance.sql`
   corrige a finalização quando ainda não existe saldo para loja + local + produto.
 - `docs/PDV_CORRECAO_SALDO_LOCAL_AUSENTE_20260724.md` registra causa, contrato,
   UX e validação transacional.
