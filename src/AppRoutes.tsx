@@ -8,7 +8,7 @@ import CreateStore from '@/pages/CreateStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getActiveStoreId } from '@/utils/activeStore';
-import { hasEffectivePermission } from '@/utils/permissions';
+import { hasEffectivePermission, hasOnlyPdvOperationalAccess } from '@/utils/permissions';
 import { useState, useEffect } from 'react';
 
 function AdminLanding() {
@@ -23,16 +23,19 @@ function AdminLanding() {
 
   const isOwner = activeMembership?.role === 'owner';
   const hasDashboardView = isOwner || hasEffectivePermission(permissions, 'dashboard.view');
+  const onlyPdvAccess = !isOwner && hasOnlyPdvOperationalAccess(permissions);
 
   useEffect(() => {
     if (securityLoading || permissionsLoading || !activeStoreId) return;
 
     if (hasDashboardView) {
       setRedirectPath('/admin');
+    } else if (onlyPdvAccess) {
+      setRedirectPath('/admin/pdv');
     } else {
       setRedirectPath('/admin/my-profile');
     }
-  }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView]);
+  }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView, onlyPdvAccess]);
 
   if (securityLoading || permissionsLoading) {
     return (
@@ -96,6 +99,7 @@ const LoyaltyAdvancedPage = lazy(() => import('@/pages/private/admin/loyalty/Loy
 const CommercialDashboardPage = lazy(() => import('@/pages/private/admin/commercial/dashboard/CommercialDashboardPage'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
 const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
+const PdvPage = lazy(() => import('@/pages/private/admin/pdv/PdvPage'));
 
 // Cashbook/Payments/Financial Section
 const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
@@ -171,6 +175,17 @@ export default function AppRoutes() {
         {/* Protected Routes - All wrapped in PrivateLayout */}
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/create-store" element={<CreateStore />} />
+          <Route path="/pdv" element={<Navigate to="/admin/pdv" replace />} />
+          <Route
+            path="/admin/pdv"
+            element={
+              <RequireActiveStoreMember>
+                <RequirePermission permission="pdv.view">
+                  <PdvPage />
+                </RequirePermission>
+              </RequireActiveStoreMember>
+            }
+          />
           <Route element={<PrivateLayout />}>
             // Dashboard Section
             <Route path="/admin" element={<AdminLanding />} />
