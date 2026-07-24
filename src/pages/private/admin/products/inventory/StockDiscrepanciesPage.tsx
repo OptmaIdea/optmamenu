@@ -1,4 +1,3 @@
-// @ts-nocheck -- diagnóstico temporário; remover antes do merge
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
