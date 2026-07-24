@@ -36,6 +36,15 @@ export interface InventoryAlertLocation {
     is_default: boolean;
 }
 
+export interface ProductCode {
+    id: string;
+    code_type: string;
+    code_value: string;
+    normalized_code: string;
+    is_primary: boolean;
+    active: boolean;
+}
+
 // ─── Interface principal de Produto ──────────────────────────────────────────
 
 export interface Product {
@@ -45,6 +54,7 @@ export interface Product {
     price: number;
     active: boolean;
     images?: string[];
+    codes?: ProductCode[];
     use_category_pricing?: boolean;
     price_logic_type?: 'standard' | 'category_volume';
     price_rules?: any[];
