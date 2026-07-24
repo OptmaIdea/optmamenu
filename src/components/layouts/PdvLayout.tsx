@@ -8,6 +8,7 @@ import {
   MapPin,
   MonitorSmartphone,
   Moon,
+  ReceiptText,
   Store,
   Sun,
   Wifi,
@@ -28,6 +29,7 @@ type PdvLayoutProps = {
   locationName?: string;
   online: boolean;
   showAdminExit?: boolean;
+  hideSalesHistory?: boolean;
 };
 
 function getInitials(name: string): string {
@@ -45,6 +47,7 @@ export default function PdvLayout({
   locationName = 'Local não selecionado',
   online,
   showAdminExit = false,
+  hideSalesHistory = false,
 }: PdvLayoutProps) {
   const navigate = useNavigate();
   const [isDark, setIsDark] = useState(() => {
@@ -149,6 +152,19 @@ export default function PdvLayout({
               <span className="hidden text-sm font-semibold xl:inline">
                 Instalar PDV
               </span>
+            </button>
+          )}
+
+          {!hideSalesHistory && (
+            <button
+              type="button"
+              onClick={() => navigate('/admin/pdv/sales')}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#7B2D8E] transition hover:bg-[#7B2D8E]/10 sm:h-11 sm:w-auto sm:gap-2 sm:px-3 dark:text-purple-300"
+              title="Vendas realizadas"
+              aria-label="Vendas realizadas"
+            >
+              <ReceiptText size={18} aria-hidden="true" />
+              <span className="hidden text-sm font-semibold xl:inline">Vendas</span>
             </button>
           )}
 
