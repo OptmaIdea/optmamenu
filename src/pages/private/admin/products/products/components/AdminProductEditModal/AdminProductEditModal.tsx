@@ -210,6 +210,7 @@ export default function AdminProductEditModal({
         setMaxStock(0);
         setPricingMode('standard');
         setPriceLogicType('standard');
+        setUseCategoryPricing(true);
         setPriceRules([]);
         setMediaItems([]);
         setImagesToDelete([]);
@@ -384,7 +385,7 @@ export default function AdminProductEditModal({
             mediaItems,
             imagesToDelete,
             pricingMode: useCategoryPricing ? 'inherit' : 'custom',
-            priceLogicType,
+            priceLogicType: pricingMode,
             priceRules: priceRules.map(r => ({ min: r.min, price: Number(r.price) || 0 })),
             stockQuantity,
             minStock,
