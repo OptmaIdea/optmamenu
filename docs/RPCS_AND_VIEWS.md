@@ -565,3 +565,21 @@ Sempre que uma RPC for criada ou alterada:
 3. Registrar efeitos colaterais, especialmente logs e realtime.
 4. Conferir `docs/ADVISORS.md`.
 5. Não misturar documentação funcional com rodada de hardening Advisors/RLS.
+
+
+## Correção PDV — 2026-07-24
+
+### `create_admin_direct_sale_order_safe`
+
+- aceita operador com `pdv.sell` quando o canal é `in_person`;
+- continua recalculando preços no backend;
+- exige `pdv.discount.apply` para descontos de operador do PDV;
+- propaga a exceção de estoque somente para owner ou usuário autorizado no PDV;
+- registra `pdv_stock_exception` em `audit_logs`.
+
+### `create_admin_direct_sale_order_legacy_internal`
+
+- quando a exceção foi validada pela função pública segura, permite concluir a
+  venda acima do disponível;
+- o saldo físico é limitado a zero;
+- a diferença fica registrada para reconciliação, sem saldo negativo silencioso.
