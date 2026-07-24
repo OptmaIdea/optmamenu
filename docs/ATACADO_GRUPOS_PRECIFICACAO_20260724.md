@@ -221,7 +221,7 @@ Nenhum grupo, vínculo ou alteração de produto foi persistido nesses testes.
 Arquivo planejado:
 
 ```text
-20260724201623_add_pricing_groups_combined_wholesale.sql
+20260724175951_add_pricing_groups_combined_wholesale.sql
 ```
 
 O CLI oficial não conseguiu criar o arquivo nesta sessão porque tentou escrever
