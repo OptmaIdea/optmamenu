@@ -562,7 +562,8 @@ BEGIN
       updated_at = now()
     WHERE ilb.store_id = p_store_id
       AND ilb.location_id = v_location_id
-      AND ilb.product_id = v_product_id;
+      AND ilb.product_id = v_product_id
+      AND ilb.variant_id IS NULL;
 
     UPDATE public.inventory_balances ib
     SET
