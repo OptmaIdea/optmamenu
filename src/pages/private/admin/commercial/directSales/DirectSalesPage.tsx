@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -143,6 +143,17 @@ export default function DirectSalesPage() {
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
   const [productSort, setProductSort] = useState<ProductSortOption>('name_asc');
   const [isQuickPosOpen, setIsQuickPosOpen] = useState(false);
+  const saleAttemptIdRef = useRef(crypto.randomUUID());
+
+  useEffect(() => {
+    saleAttemptIdRef.current = crypto.randomUUID();
+  }, [
+    cart,
+    selectedCustomerId,
+    customerName,
+    customerPhone,
+    paymentMethodCode,
+  ]);
 
   const productMap = useMemo(() => new Map(products.map((product) => [product.id, product])), [products]);
   const customerMap = useMemo(() => new Map(customers.map((customer) => [customer.id, customer])), [customers]);
@@ -448,6 +459,7 @@ export default function DirectSalesPage() {
         fulfillmentType: 'in_person',
         createCustomerIfMissing: !effectiveCustomerId,
         loyaltyOptIn: true,
+        idempotencyKey: saleAttemptIdRef.current,
         metadata: {
           source: 'direct_sales_minimal_ui',
           customer_selection_mode: selectedCustomerId ? 'existing_customer' : counterCustomer?.id ? 'counter_customer' : 'counter_customer_unlinked',
@@ -461,6 +473,7 @@ export default function DirectSalesPage() {
       });
 
       setLastOrderCode(result.order?.order_code || result.order?.id || null);
+      saleAttemptIdRef.current = crypto.randomUUID();
       setCart([]);
       toast.success('Venda direta concluída.');
     } catch (error) {
