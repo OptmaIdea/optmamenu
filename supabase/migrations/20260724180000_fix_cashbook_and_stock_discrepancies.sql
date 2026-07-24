@@ -134,8 +134,7 @@ EXCEPTION
   WHEN OTHERS THEN
     RETURN jsonb_build_object('ok', false, 'error', 'unexpected_error', 'message', 'Não foi possível calcular a prévia do fechamento.');
 END;
-$function$
-
+$function$;
 
 CREATE OR REPLACE FUNCTION public.save_cashbook_day_closing_safe(p_store_id uuid, p_closing_date date, p_counted_denominations jsonb DEFAULT '{}'::jsonb, p_counted_cash_total numeric DEFAULT 0, p_confirmed_pix_total numeric DEFAULT 0, p_confirmed_debit_card_total numeric DEFAULT 0, p_confirmed_credit_card_total numeric DEFAULT 0, p_confirmed_other_total numeric DEFAULT 0, p_notes text DEFAULT NULL::text, p_status text DEFAULT 'closed'::text, p_metadata jsonb DEFAULT '{}'::jsonb)
  RETURNS jsonb
@@ -612,11 +611,9 @@ $function$
   RETURN jsonb_build_object('ok', true, 'closing', to_jsonb(v_saved));
 EXCEPTION
   WHEN OTHERS THEN
-    RETURN jsonb_build_object('ok', false, 'error', 'unexpected_error', 'message', SQLERRM);
+    RETURN jsonb_build_object('ok', false, 'error', 'unexpected_error', 'message', 'Não foi possível salvar o fechamento. Revise os valores e tente novamente.');
 END;
-$function$
-
-
+$function$;
 
 -- Lista lançamentos por data operacional; entry_date é a autoridade do filtro.
 CREATE OR REPLACE FUNCTION public.list_cashbook_entries_by_period_safe(
