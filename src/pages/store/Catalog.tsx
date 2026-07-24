@@ -81,6 +81,7 @@ export default function Catalog() {
         updateQuantity,
         clearCart,
         setCategoryRules,
+        syncCatalogPricing,
     } = useCartStore();
 
     const { isAuthenticated, customer, logout } = useCustomerAuth();
@@ -207,7 +208,7 @@ export default function Catalog() {
                 );
 
                 setCategories(normalizedCategories);
-                setCategoryRules(normalizedCategories);
+                syncCatalogPricing(normalizedCategories, normalizedProducts);
                 setProducts(normalizedProducts);
 
                 const paymentMethodsResult =
