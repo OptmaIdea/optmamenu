@@ -172,6 +172,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [saving, setSaving] = useState<'draft' | 'closed' | null>(null);
   const [counts, setCounts] = useState<DenominationCounts>({});
+  const [openingCash, setOpeningCash] = useState('');
   const [confirmedPix, setConfirmedPix] = useState('');
   const [confirmedDebit, setConfirmedDebit] = useState('');
   const [confirmedCredit, setConfirmedCredit] = useState('');
@@ -207,10 +208,18 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
   const confirmedCreditTotal = externalDetails.credit.length ? detailTotals.credit : normalizeNumber(confirmedCredit);
   const confirmedOtherTotal = externalDetails.other.length ? detailTotals.other : normalizeNumber(confirmedOther);
   const expected = preview?.expected;
-  const expectedTotal = expected?.total || 0;
+  const openingCashTotal = normalizeNumber(openingCash);
+  const cashMovement = Number(expected?.cash_movement ?? expected?.cash ?? 0);
+  const expectedCashTotal = Math.max(openingCashTotal + cashMovement, 0);
+  const cashUnfundedOutflow = Math.max(-(openingCashTotal + cashMovement), 0);
+  const expectedTotal = expectedCashTotal
+    + Number(expected?.pix || 0)
+    + Number(expected?.debit_card || 0)
+    + Number(expected?.credit_card || 0)
+    + Number(expected?.other || 0);
   const confirmedTotal = countedCashTotal + confirmedPixTotal + confirmedDebitTotal + confirmedCreditTotal + confirmedOtherTotal;
   const differences = {
-    cash: countedCashTotal - (expected?.cash || 0),
+    cash: countedCashTotal - expectedCashTotal,
     pix: confirmedPixTotal - (expected?.pix || 0),
     debit: confirmedDebitTotal - (expected?.debit_card || 0),
     credit: confirmedCreditTotal - (expected?.credit_card || 0),
@@ -220,6 +229,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
 
   function clearForm() {
     setCounts({});
+    setOpeningCash('');
     setConfirmedPix('');
     setConfirmedDebit('');
     setConfirmedCredit('');
@@ -270,6 +280,9 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
       const result = await CashbookService.getDayClosingPreview(storeId, closingDate);
       setPreview(result);
       if (result.existing_closing) {
+        const closingMetadata = result.existing_closing.metadata || {};
+        const snapshot = (closingMetadata.expected_snapshot || {}) as Record<string, unknown>;
+        setOpeningCash(String(closingMetadata.opening_cash_total ?? snapshot.opening_cash_total ?? result.expected.cash_opening_suggested ?? 0));
         setCounts(result.existing_closing.counted_denominations || {});
         setConfirmedPix(String(result.existing_closing.confirmed_pix_total || ''));
         setConfirmedDebit(String(result.existing_closing.confirmed_debit_card_total || ''));
@@ -279,6 +292,7 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         setNotes(result.existing_closing.notes || '');
       } else {
         clearForm();
+        setOpeningCash(String(result.expected.cash_opening_suggested ?? 0));
       }
     } catch (error) {
       console.error('Erro ao carregar prévia de fechamento:', error);
@@ -321,7 +335,11 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
     if (!storeId) return;
     if (isClosedDate) return toast.error('Este caixa já foi fechado. Confira os detalhes no histórico.');
     if (!canClose) return toast.error('Você não tem permissão para salvar o fechamento do caixa.');
-    if (status === 'closed' && Math.abs(differences.total) >= 0.01 && !notes.trim()) return toast.error('Informe uma observação para fechar caixa com divergência.');
+    if (status === 'closed' && (Math.abs(differences.total) >= 0.01 || cashUnfundedOutflow >= 0.01) && !notes.trim()) {
+      return toast.error(cashUnfundedOutflow >= 0.01
+        ? 'Informe uma observação: houve uma saída em dinheiro sem fundo suficiente registrado.'
+        : 'Informe uma observação para fechar caixa com divergência.');
+    }
     if (!window.confirm(status === 'closed' ? 'Fechar o caixa do dia com os valores conferidos?' : 'Salvar rascunho do fechamento do caixa?')) return;
 
     try {
@@ -339,7 +357,15 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
         status,
         metadata: {
           source: 'cashbook_day_closing_panel',
-          expected_snapshot: preview?.expected || null,
+          opening_cash_total: openingCashTotal,
+          expected_snapshot: {
+            ...(preview?.expected || {}),
+            opening_cash_total: openingCashTotal,
+            cash: expectedCashTotal,
+            cash_movement: cashMovement,
+            cash_unfunded_outflow: cashUnfundedOutflow,
+            total: expectedTotal,
+          },
           pending_snapshot: preview?.pending || null,
           cancelled_snapshot: preview?.cancelled || null,
           external_conference_details: serializeExternalDetails(externalDetails),
@@ -680,6 +706,45 @@ export default function DayClosingPanel({ storeId, canClose = false }: DayClosin
               <div className="mt-5 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
                 <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-xs dark:border-gray-800 dark:bg-gray-900">
                   <h3 className="text-sm font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Conferência de dinheiro</h3>
+                  <div className="mt-4 rounded-2xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/60">
+                    <label className="block text-xs font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                      Fundo de abertura / troco inicial
+                    </label>
+                    <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end">
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={openingCash}
+                        onChange={(event) => setOpeningCash(event.target.value)}
+                        disabled={!canClose}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold outline-none focus:border-teal-500 disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white sm:max-w-[180px]"
+                        placeholder="0,00"
+                      />
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        Sugestão pelo último caixa fechado: {formatCurrencyPtBr(Number(expected?.cash_opening_suggested || 0))}. Ajuste se o valor físico deixado na gaveta foi outro.
+                      </p>
+                    </div>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Abertura</p>
+                        <p className="mt-1 font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(openingCashTotal)}</p>
+                      </div>
+                      <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Movimento em dinheiro</p>
+                        <p className={`mt-1 font-black ${cashMovement < 0 ? 'text-rose-600 dark:text-rose-300' : 'text-emerald-600 dark:text-emerald-300'}`}>{formatCurrencyPtBr(cashMovement)}</p>
+                      </div>
+                      <div className="rounded-xl bg-white p-3 dark:bg-gray-900">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Esperado na gaveta</p>
+                        <p className="mt-1 font-black text-teal-700 dark:text-teal-300">{formatCurrencyPtBr(expectedCashTotal)}</p>
+                      </div>
+                    </div>
+                    {cashUnfundedOutflow >= 0.01 && (
+                      <div className="mt-3 flex gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
+                        <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                        <span>As saídas em dinheiro excedem o fundo informado em {formatCurrencyPtBr(cashUnfundedOutflow)}. O fechamento poderá ser salvo, mas abrirá uma ocorrência para auditoria.</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="mt-4 overflow-x-auto">
                     <table className="w-full min-w-[460px] text-sm">
                       <thead>

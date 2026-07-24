@@ -100,6 +100,9 @@ export interface CashbookSummary {
 
 export interface CashbookDayClosingExpected {
     cash: number;
+    cash_opening_suggested?: number;
+    cash_movement?: number;
+    cash_unfunded_outflow?: number;
     pix: number;
     debit_card: number;
     credit_card: number;
@@ -293,10 +296,12 @@ function isCashDrawerOutflow(input: CreateCashbookEntryInput, metadata: Record<s
 }
 
 export const CashbookService = {
-    async listByStore(storeId: string): Promise<CashbookEntry[]> {
-        const { data: result, error } = await supabase.rpc('get_cashbook_entries_safe', {
+    async listByStore(storeId: string, startDate?: string | null, endDate?: string | null): Promise<CashbookEntry[]> {
+        const { data: result, error } = await supabase.rpc('list_cashbook_entries_by_period_safe', {
             p_store_id: storeId,
-            p_limit: 100,
+            p_start_date: startDate || null,
+            p_end_date: endDate || null,
+            p_limit: 500,
         });
 
         if (error) throw error;
@@ -457,10 +462,18 @@ export const CashbookService = {
             p_metadata: input.metadata || {},
         });
 
-        if (error) throw error;
+        if (error) {
+            if (error.message?.includes('cashbook_day_closings_amounts_non_negative')) {
+                throw new Error('Os valores do fechamento ficaram inconsistentes. Atualize a prévia e confira o fundo de abertura antes de tentar novamente.');
+            }
+            throw error;
+        }
 
         if (!data?.ok) {
-            throw new Error(data?.message || data?.error || 'Erro ao salvar fechamento de caixa.');
+            const safeMessage = data?.error === 'unexpected_error'
+                ? 'Não foi possível salvar o fechamento. Atualize a prévia e tente novamente.'
+                : data?.message || data?.error;
+            throw new Error(safeMessage || 'Erro ao salvar fechamento de caixa.');
         }
 
         return data.closing as CashbookDayClosing;

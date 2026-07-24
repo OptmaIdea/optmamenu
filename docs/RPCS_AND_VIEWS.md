@@ -613,3 +613,31 @@ registre `pdv_stock_exception`.
 As leituras do saldo-base da venda filtram `variant_id IS NULL`.
 
 Migração e versão registrada no Supabase: `20260724130259_fix_pdv_missing_stock_balance.sql`.
+
+
+## Fechamento físico de caixa e divergências de estoque (24/07/2026)
+
+### `get_cashbook_day_closing_preview_safe(p_store_id, p_closing_date)`
+
+A prévia do fechamento passa a separar o movimento diário do saldo físico esperado:
+
+- `expected.cash_opening_suggested`: fundo sugerido a partir do último fechamento;
+- `expected.cash_movement`: entradas menos saídas em dinheiro no dia;
+- `expected.cash`: esperado físico não negativo;
+- `expected.cash_unfunded_outflow`: parte das saídas não coberta pelo fundo informado/sugerido.
+
+### `save_cashbook_day_closing_safe(..., p_metadata)`
+
+Lê `p_metadata.opening_cash_total`, recalcula o esperado no backend e impede valores monetários negativos. Uma saída em dinheiro não coberta pelo fundo cria ocorrência mesmo quando a diferença contada total é zero.
+
+### `list_cashbook_entries_by_period_safe(p_store_id, p_start_date, p_end_date, p_limit)`
+
+Lista lançamentos usando `cashbook_entries.entry_date` como data operacional, com limite de 1.000 registros e validação de acesso ao Livro Diário.
+
+### `list_stock_discrepancy_occurrences_safe(p_store_id, p_status, p_start_date, p_end_date, p_limit)`
+
+Retorna a fila de vendas concluídas com exceção de estoque, incluindo venda, local, operador e itens afetados. Requer proprietário ou `stock.view`.
+
+### `resolve_stock_discrepancy_occurrence_safe(p_store_id, p_occurrence_id, p_status, p_resolution_type, p_resolution_notes, p_metadata)`
+
+Move a ocorrência entre tratamento, espera de contagem e encerramento. Resolução/cancelamento exigem tipo e observação. Requer proprietário, `stock.manage` ou `stock.adjust`. A função audita a decisão, mas não altera saldos automaticamente.

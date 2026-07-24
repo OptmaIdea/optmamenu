@@ -109,6 +109,7 @@ const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/s
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
 const InventoryByLocationPage = lazy(() => import('@/pages/private/admin/products/inventory/InventoryByLocationPage'));
+const StockDiscrepanciesPage = lazy(() => import('@/pages/private/admin/products/inventory/StockDiscrepanciesPage'));
 const TransfersPage = lazy(() => import('@/pages/private/admin/products/inventory/TransfersPage'));
 const TransferDetailPage = lazy(() => import('@/pages/private/admin/products/inventory/TransferDetailPage'));
 const Categories = lazy(() => import('@/pages/private/admin/products/Categories'));
@@ -243,6 +244,7 @@ export default function AppRoutes() {
             />
             <Route path="/admin/categories" element={<RequirePermission permission="categories.view"><Categories /></RequirePermission>} />
             <Route path="/admin/inventory" element={<RequirePermission permission="stock.view"><InventoryByLocationPage /></RequirePermission>} />
+            <Route path="/admin/stock/divergences" element={<RequirePermission permission="stock.view"><StockDiscrepanciesPage /></RequirePermission>} />
             <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecycleSelectorPage /></RequirePermission>} />
             <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecyclePage /></RequirePermission>} />
             <Route
