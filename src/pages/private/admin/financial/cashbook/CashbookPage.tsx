@@ -31,11 +31,15 @@ import CashbookClassificationFields, {
 } from './components/CashbookClassificationFields';
 
 function getDateInputValue(value: Date) {
-    return value.toISOString().slice(0, 10);
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function getEntryDateKey(entry: CashbookEntry) {
-    return new Date(entry.occurred_at || entry.entry_date).toISOString().slice(0, 10);
+    if (entry.entry_date) return entry.entry_date.slice(0, 10);
+    return getDateInputValue(new Date(entry.occurred_at));
 }
 
 function getMetadataText(metadata: Record<string, unknown> | null | undefined, keys: string[]) {
@@ -130,16 +134,16 @@ function getPeriodDates(period: string) {
             const start = new Date(today.getFullYear(), today.getMonth(), 1);
             const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
             return {
-                start: start.toISOString().slice(0, 10),
-                end: end.toISOString().slice(0, 10)
+                start: getDateInputValue(start),
+                end: getDateInputValue(end)
             };
         }
         case 'last_month': {
             const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
             const end = new Date(today.getFullYear(), today.getMonth(), 0);
             return {
-                start: start.toISOString().slice(0, 10),
-                end: end.toISOString().slice(0, 10)
+                start: getDateInputValue(start),
+                end: getDateInputValue(end)
             };
         }
         case 'fortnight': {
@@ -149,15 +153,15 @@ function getPeriodDates(period: string) {
                 const start = new Date(today.getFullYear(), today.getMonth(), 1);
                 const end = new Date(today.getFullYear(), today.getMonth(), 15);
                 return {
-                    start: start.toISOString().slice(0, 10),
-                    end: end.toISOString().slice(0, 10)
+                    start: getDateInputValue(start),
+                    end: getDateInputValue(end)
                 };
             } else {
                 const start = new Date(today.getFullYear(), today.getMonth(), 16);
                 const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
                 return {
-                    start: start.toISOString().slice(0, 10),
-                    end: end.toISOString().slice(0, 10)
+                    start: getDateInputValue(start),
+                    end: getDateInputValue(end)
                 };
             }
         }
@@ -168,15 +172,15 @@ function getPeriodDates(period: string) {
                 const start = new Date(today.getFullYear(), today.getMonth() - 1, 16);
                 const end = new Date(today.getFullYear(), today.getMonth(), 0);
                 return {
-                    start: start.toISOString().slice(0, 10),
-                    end: end.toISOString().slice(0, 10)
+                    start: getDateInputValue(start),
+                    end: getDateInputValue(end)
                 };
             } else {
                 const start = new Date(today.getFullYear(), today.getMonth(), 1);
                 const end = new Date(today.getFullYear(), today.getMonth(), 15);
                 return {
-                    start: start.toISOString().slice(0, 10),
-                    end: end.toISOString().slice(0, 10)
+                    start: getDateInputValue(start),
+                    end: getDateInputValue(end)
                 };
             }
         }
@@ -188,8 +192,8 @@ function getPeriodDates(period: string) {
             const saturday = new Date(sunday);
             saturday.setDate(sunday.getDate() + 6);
             return {
-                start: sunday.toISOString().slice(0, 10),
-                end: saturday.toISOString().slice(0, 10)
+                start: getDateInputValue(sunday),
+                end: getDateInputValue(saturday)
             };
         }
         case 'all': {
@@ -482,20 +486,19 @@ export default function CashbookPage() {
         try {
             setLoading(true);
             const today = new Date();
-            const startISO = periodFilter === 'all'
-                ? '1970-01-01T00:00:00.000Z'
-                : (startDate ? `${startDate}T00:00:00.000Z` : new Date(today.getFullYear(), today.getMonth(), 1).toISOString());
-            const endISO = periodFilter === 'all'
-                ? new Date().toISOString()
-                : (endDate ? `${endDate}T23:59:59.999Z` : today.toISOString());
-            
-            const absoluteStartISO = '1970-01-01T00:00:00.000Z';
-            const absoluteEndISO = new Date().toISOString();
+            const rangeStart = periodFilter === 'all'
+                ? null
+                : (startDate || getDateInputValue(new Date(today.getFullYear(), today.getMonth(), 1)));
+            const rangeEnd = periodFilter === 'all'
+                ? null
+                : (endDate || getDateInputValue(today));
+            const absoluteStart = '1970-01-01';
+            const absoluteEnd = getDateInputValue(today);
 
             const [entriesData, summaryData, absoluteSummaryData, pendingEntriesResult] = await Promise.all([
-                CashbookService.listByStore(storeId),
-                CashbookService.getSummary(storeId, startISO, endISO),
-                CashbookService.getSummary(storeId, absoluteStartISO, absoluteEndISO),
+                CashbookService.listByStore(storeId, rangeStart, rangeEnd),
+                CashbookService.getSummary(storeId, rangeStart || absoluteStart, rangeEnd || absoluteEnd),
+                CashbookService.getSummary(storeId, absoluteStart, absoluteEnd),
                 supabase
                     .from('cashbook_entries')
                     .select('amount, direction, status, payment_method_code')
@@ -519,7 +522,7 @@ export default function CashbookPage() {
         } finally {
             setLoading(false);
         }
-    }, [storeId, startDate, endDate]);
+    }, [storeId, periodFilter, startDate, endDate]);
 
     useEffect(() => {
         if (!loadingStore && storeId) {
