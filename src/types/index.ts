@@ -25,6 +25,8 @@ export interface Product {
     description?: string;
     price: number;
     use_category_pricing?: boolean;
+    price_logic_type?: 'standard' | 'category_volume';
+    price_rules?: PriceRule[];
     images: string[];
     image_url?: string;
     video_url?: string;
