@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { PosBootstrap } from '@/types/pdv';
+import type { PosBootstrap, PosPaymentMethod } from '@/types/pdv';
 
 function toFiniteNumber(value: unknown): number {
   const parsed = Number(value);
@@ -34,4 +34,27 @@ export async function getPosBootstrap(
       codes: product.codes ?? [],
     })),
   };
+}
+
+export async function getPosPaymentMethods(
+  storeId: string
+): Promise<PosPaymentMethod[]> {
+  const { data, error } = await supabase
+    .from('store_payment_methods')
+    .select('code, name, sort_order')
+    .eq('store_id', storeId)
+    .eq('active', true)
+    .order('sort_order')
+    .order('name');
+
+  if (error) {
+    console.error('Erro ao carregar formas de pagamento do PDV:', error);
+    throw error;
+  }
+
+  return (data ?? []).map((method) => ({
+    code: method.code,
+    name: method.name,
+    sort_order: Number(method.sort_order ?? 0),
+  }));
 }
