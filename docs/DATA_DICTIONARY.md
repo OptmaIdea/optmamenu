@@ -219,6 +219,7 @@ Itens de cotações de compra.
 
 ### order_items
 *(A documentar)*
+
 ---
 
 ## Precificação
