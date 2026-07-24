@@ -70,7 +70,7 @@ Essa conciliação é separada da divergência física de estoque e do fechament
 - `src/pages/private/admin/products/inventory/StockDiscrepanciesPage.tsx`
 - `src/services/cashbookService.ts`
 - `src/services/stockDiscrepancyService.ts`
-- `supabase/migrations/20260724180000_fix_cashbook_and_stock_discrepancies.sql`
+- `supabase/migrations/20260724145045_fix_cashbook_and_stock_discrepancies.sql`
 - `get_cashbook_day_closing_preview_safe`
 - `save_cashbook_day_closing_safe`
 - `list_cashbook_entries_by_period_safe`
