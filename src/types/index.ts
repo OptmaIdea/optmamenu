@@ -3,6 +3,14 @@ export interface PriceRule {
     price: number;
 }
 
+export interface PricingGroupSummary {
+    id: string;
+    name: string;
+    price_logic_type: 'category_volume';
+    price_rules: PriceRule[];
+    active: boolean;
+}
+
 export interface Category {
     id: string;
     name: string;
@@ -15,6 +23,9 @@ export interface Category {
     pricing_strategy?: {
         volume_scope?: 'combined' | 'per_product';
     };
+    pricing_group_id?: string | null;
+    use_pricing_group_rules?: boolean;
+    pricing_group?: PricingGroupSummary | null;
     active?: boolean;
 }
 
