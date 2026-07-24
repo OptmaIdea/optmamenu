@@ -2188,3 +2188,25 @@ Imports locais:
 - [`src/lib/supabase.ts`](file:///d:/OptmaIdea/optmamenu/src/lib/supabase.ts)
 - [`src/utils/activeStore.ts`](file:///d:/OptmaIdea/optmamenu/src/utils/activeStore.ts)
 
+## PDV dedicado — Fase 2
+
+### Rota
+
+- `/admin/pdv` — rota autenticada com layout exclusivo e `pdv.view`.
+- `/pdv` — alias autenticado para `/admin/pdv`.
+
+### Arquivos
+
+- `src/components/layouts/PdvLayout.tsx` — frame reduzido do terminal.
+- `src/pages/private/admin/pdv/PdvPage.tsx` — bootstrap, busca, categorias e catálogo.
+- `src/services/pdvService.ts` — acesso à RPC reduzida do PDV.
+- `src/types/pdv.ts` — contratos de loja, operador, local, categoria, produto e código.
+- `supabase/migrations/202607240400_pdv2_catalog_bootstrap.sql` — códigos,
+  RLS, Realtime e `get_pos_bootstrap`.
+
+### Banco
+
+- `product_codes` — códigos extensíveis por produto e loja.
+- `get_pos_bootstrap(uuid, uuid)` — contexto mínimo do terminal.
+- `inventory_location_balances` — publicada no `supabase_realtime`.
+
