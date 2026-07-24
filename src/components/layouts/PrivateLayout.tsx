@@ -909,7 +909,7 @@ export default function PrivateLayout() {
         clearActiveStoreId();
         sessionStorage.removeItem('optmamenu.session.start');
         clearSessionSecurity();
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         navigate('/login', { replace: true });
     };
 
