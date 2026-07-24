@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, ArrowUpDown, Package, Layers } from 'lucide-react';
+import { Plus, Search, ArrowUpDown, Package, Layers, Layers3 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ import CategoryEditModal from '@/pages/private/admin/products/category/component
 import CategoryDeleteConfirmModal from '@/pages/private/admin/products/category/components/CategoryDeleteConfirmModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import CategoryProductsSimpleModal from '@/pages/private/admin/products/category/components/CategoryProductsSimpleModal';
+import PricingGroupsManagerModal from '@/pages/private/admin/products/category/components/PricingGroupsManagerModal';
 
 export default function CategoriesPage() {
     const [storeId, setStoreId] = useState<string | null>(null);
@@ -62,6 +63,7 @@ export default function CategoriesPage() {
     // Estado para produtos da categoria (Modal de Produtos)
     const [productsModalCategory, setProductsModalCategory] = useState<Category | null>(null);
     const [categoryProductsNames, setCategoryProductsNames] = useState<string[]>([]);
+    const [pricingGroupsOpen, setPricingGroupsOpen] = useState(false);
 
 
     // Resolver storeId ao montar (síncrono via loja ativa)
@@ -135,6 +137,15 @@ export default function CategoriesPage() {
                 flat
                 action={
                     <div className="flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setPricingGroupsOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md transition-colors"
+                            title="Gerenciar grupos de atacado entre categorias"
+                        >
+                            <Layers3 size={16} />
+                            <span className="hidden lg:inline">Grupos de atacado</span>
+                        </button>
                         <Link
                             to="/admin/products"
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 text-sm font-medium rounded-md transition-colors"
@@ -287,6 +298,17 @@ export default function CategoriesPage() {
                 categoryName={productsModalCategory?.name || ''}
                 productNames={categoryProductsNames}
             />
+
+            {storeId && (
+                <PricingGroupsManagerModal
+                    isOpen={pricingGroupsOpen}
+                    onClose={() => setPricingGroupsOpen(false)}
+                    storeId={storeId}
+                    categories={categories}
+                    canManage={canManageCategories}
+                    onChanged={refresh}
+                />
+            )}
         </>
     );
 }
