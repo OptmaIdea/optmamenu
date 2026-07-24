@@ -114,12 +114,18 @@ export interface PublicCatalogResponse {
 }
 
 function normalizePriceRules(value: unknown) {
-    if (Array.isArray(value)) return value;
+    if (Array.isArray(value)) {
+        return value
+            .map((rule) => ({
+                min: Number((rule as { min?: unknown }).min ?? 0),
+                price: Number((rule as { price?: unknown }).price ?? 0),
+            }))
+            .filter((rule) => Number.isFinite(rule.min) && Number.isFinite(rule.price));
+    }
 
     if (typeof value === 'string') {
         try {
-            const parsed = JSON.parse(value);
-            return Array.isArray(parsed) ? parsed : [];
+            return normalizePriceRules(JSON.parse(value));
         } catch {
             return [];
         }
@@ -184,18 +190,34 @@ export const PublicStorefrontService = {
             categories: (payload.categories || []).map((category) => ({
                 ...category,
                 price_rules: normalizePriceRules(category.price_rules),
-                products: (category.products || []).map((product) => ({
-                    ...product,
-                    category_id: product.category_id || category.id,
-                    images: normalizeImages(product.images),
-                    image_url: product.image_url || normalizeImages(product.images)[0],
-                    featured: product.featured ?? false,
-                    sales_count: product.sales_count ?? 0,
-                    stock_quantity: product.stock_quantity ?? 0,
-                    rating_avg: product.rating_avg ?? 5,
-                    review_count: product.review_count ?? 0,
-                    active: product.active ?? true,
-                })),
+                pricing_strategy: {
+                    volume_scope:
+                        category.pricing_strategy?.volume_scope === 'per_product'
+                            ? 'per_product'
+                            : 'combined',
+                },
+                products: (category.products || []).map((product) => {
+                    const images = normalizeImages(product.images);
+                    return {
+                        ...product,
+                        category_id: product.category_id || category.id,
+                        price: Number(product.price || 0),
+                        use_category_pricing: Boolean(product.use_category_pricing),
+                        price_logic_type:
+                            product.price_logic_type === 'category_volume'
+                                ? 'category_volume'
+                                : 'standard',
+                        price_rules: normalizePriceRules(product.price_rules),
+                        images,
+                        image_url: product.image_url || images[0],
+                        featured: product.featured ?? false,
+                        sales_count: product.sales_count ?? 0,
+                        stock_quantity: product.stock_quantity ?? 0,
+                        rating_avg: product.rating_avg ?? 5,
+                        review_count: product.review_count ?? 0,
+                        active: product.active ?? true,
+                    };
+                }),
             })),
         };
     },
