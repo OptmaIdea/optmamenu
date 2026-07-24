@@ -30,6 +30,7 @@ cadastro. O agrupamento existe somente para precificação.
 - grupos podem ficar em rascunho;
 - somente grupos ativos alteram preços;
 - grupo ativo exige ao menos duas categorias;
+- mover categorias não pode deixar outro grupo publicado com menos de duas;
 - uma categoria só pode usar um grupo por vez;
 - grupo e categoria devem pertencer à mesma loja;
 - regra própria do produto prevalece.
@@ -193,6 +194,7 @@ O simulador soma quantidades hipotéticas por categoria e mostra:
 | RLS | Ativa |
 | `anon` em `save_pricing_group` | Bloqueado |
 | `anon` no motor interno | Bloqueado |
+| `authenticated` no motor interno | Bloqueado; usa wrappers autorizados |
 
 Nenhum grupo, vínculo ou alteração de produto foi persistido nesses testes.
 
