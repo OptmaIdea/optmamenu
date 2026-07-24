@@ -13,24 +13,30 @@ interface SaveParams {
     onSuccess: () => void;
 }
 
+const CATEGORY_IMAGE_BUCKET = 'products';
+
 export const useCategorySave = () => {
     const [saving, setSaving] = useState(false);
 
     const uploadImage = async (file: File, activeStoreId: string, categoryId: string): Promise<string | null> => {
         try {
             const fileExt = file.name.split('.').pop()?.toLowerCase() || 'webp';
-            const fileName = `${activeStoreId}/${categoryId}/cover.${fileExt}`;
+            const fileName = `${activeStoreId}/categories/${categoryId}/cover.${fileExt}`;
             const { error: uploadError } = await supabase.storage
-                .from('category-images')
-                .upload(fileName, file, { upsert: true });
+                .from(CATEGORY_IMAGE_BUCKET)
+                .upload(fileName, file, {
+                    upsert: true,
+                    cacheControl: '3600',
+                    contentType: file.type || undefined,
+                });
 
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage
-                .from('category-images')
+                .from(CATEGORY_IMAGE_BUCKET)
                 .getPublicUrl(fileName);
 
-            return publicUrl;
+            return `${publicUrl}?v=${Date.now()}`;
         } catch (error) {
             console.error('Erro ao fazer upload da imagem:', error);
             toast.error('Erro ao enviar imagem');
@@ -41,9 +47,18 @@ export const useCategorySave = () => {
     const deleteImage = async (imageUrl: string): Promise<void> => {
         try {
             const urlObj = new URL(imageUrl);
-            const parts = urlObj.pathname.split('/category-images/');
-            if (parts.length > 1) {
-                await supabase.storage.from('category-images').remove([parts[1]]);
+            const productsMarker = '/products/';
+            const categoryMarker = '/category-images/';
+
+            if (urlObj.pathname.includes(productsMarker)) {
+                const path = urlObj.pathname.split(productsMarker)[1];
+                if (path) await supabase.storage.from('products').remove([path]);
+                return;
+            }
+
+            if (urlObj.pathname.includes(categoryMarker)) {
+                const path = urlObj.pathname.split(categoryMarker)[1];
+                if (path) await supabase.storage.from('category-images').remove([path]);
             }
         } catch (error) {
             console.error('Erro ao remover imagem:', error);
