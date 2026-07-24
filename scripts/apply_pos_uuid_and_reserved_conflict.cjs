@@ -93,4 +93,25 @@ directSales = ensureImport(
 directSales = directSales.replaceAll('crypto.randomUUID()', 'createClientUuid()');
 write(directSalesPath, directSales);
 
-console.log('[pos-hardening] UUID compatível e conflito de reservas conectados.');
+const routesPath = 'src/AppRoutes.tsx';
+let routes = read(routesPath);
+if (!routes.includes("const PdvSalesHistoryPage = lazy")) {
+  routes = replaceOnce(
+    routes,
+    "const PdvPage = lazy(() => import('@/pages/private/admin/pdv/PdvPage'));",
+    "const PdvPage = lazy(() => import('@/pages/private/admin/pdv/PdvPage'));\nconst PdvSalesHistoryPage = lazy(() => import('@/pages/private/admin/pdv/PdvSalesHistoryPage'));",
+    'lazy import do histórico de vendas'
+  );
+}
+
+if (!routes.includes('path="/admin/pdv/sales"')) {
+  routes = replaceOnce(
+    routes,
+    `          <Route\n            path="/admin/pdv"\n            element={\n              <RequireActiveStoreMember>\n                <RequirePermission permission="pdv.view">\n                  <PdvPage />\n                </RequirePermission>\n              </RequireActiveStoreMember>\n            }\n          />`,
+    `          <Route\n            path="/admin/pdv"\n            element={\n              <RequireActiveStoreMember>\n                <RequirePermission permission="pdv.view">\n                  <PdvPage />\n                </RequirePermission>\n              </RequireActiveStoreMember>\n            }\n          />\n          <Route\n            path="/admin/pdv/sales"\n            element={\n              <RequireActiveStoreMember>\n                <RequirePermission permission="pdv.view">\n                  <PdvSalesHistoryPage />\n                </RequirePermission>\n              </RequireActiveStoreMember>\n            }\n          />`,
+    'rota do histórico de vendas'
+  );
+}
+write(routesPath, routes);
+
+console.log('[pos-hardening] UUID, conflitos de reservas e histórico de vendas conectados.');
