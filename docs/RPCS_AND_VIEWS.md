@@ -643,6 +643,7 @@ Retorna a fila de vendas concluídas com exceção de estoque, incluindo venda, 
 Move a ocorrência entre tratamento, espera de contagem e encerramento. Resolução/cancelamento exigem tipo e observação. Requer proprietário, `stock.manage` ou `stock.adjust`. A função audita a decisão, mas não altera saldos automaticamente.
 ## Grupos de atacado entre categorias (24/07/2026)
 
+
 ### `calculate_store_cart_pricing(p_store_id, p_items)`
 
 Motor autoritativo v2 com precedência:
@@ -661,8 +662,8 @@ e agrega entradas repetidas do mesmo produto.
 
 Permissões:
 
-- execução interna para `authenticated` e `service_role`;
-- execução direta revogada de `public` e `anon`;
+- execução direta somente para `service_role`;
+- execução direta revogada de `public`, `anon` e `authenticated`;
 - slug usa o wrapper público `quote_public_order_by_slug`.
 
 ### `save_pricing_group(...)`
