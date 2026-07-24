@@ -7,6 +7,11 @@ type CategoryPricingRule = {
     type: string;
     rules: PriceRule[];
     volumeScope: 'combined' | 'per_product';
+    pricingGroup?: {
+        id: string;
+        type: string;
+        rules: PriceRule[];
+    };
 };
 
 interface CartState {
@@ -27,11 +32,28 @@ interface CartState {
 
 function buildCategoryRules(categories: Category[]) {
     return categories.reduce((acc, cat) => {
-        if (cat.price_rules && cat.price_rules.length > 0) {
+        const hasCategoryRules = Boolean(cat.price_rules?.length);
+        const hasPricingGroupRules = Boolean(
+            cat.use_pricing_group_rules &&
+            cat.pricing_group?.active &&
+            cat.pricing_group.price_rules?.length
+        );
+
+        if (hasCategoryRules || hasPricingGroupRules) {
             acc[cat.id] = {
                 type: cat.price_logic_type || 'standard',
-                rules: cat.price_rules,
+                rules: cat.price_rules || [],
                 volumeScope: cat.pricing_strategy?.volume_scope || 'combined',
+                pricingGroup:
+                    cat.use_pricing_group_rules &&
+                    cat.pricing_group?.active &&
+                    cat.pricing_group.price_rules?.length
+                        ? {
+                            id: cat.pricing_group.id,
+                            type: cat.pricing_group.price_logic_type,
+                            rules: cat.pricing_group.price_rules,
+                        }
+                        : undefined,
             };
         }
         return acc;
@@ -129,10 +151,16 @@ function recalculatePrices(
     categoryRules: Record<string, CategoryPricingRule>,
 ): CartItem[] {
     const categoryTotals: Record<string, number> = {};
+    const pricingGroupTotals: Record<string, number> = {};
 
     items.forEach(item => {
         if (item.category_id && item.use_category_pricing) {
             categoryTotals[item.category_id] = (categoryTotals[item.category_id] || 0) + item.quantity;
+            const pricingGroup = categoryRules[item.category_id]?.pricingGroup;
+            if (pricingGroup) {
+                pricingGroupTotals[pricingGroup.id] =
+                    (pricingGroupTotals[pricingGroup.id] || 0) + item.quantity;
+            }
         }
     });
 
@@ -164,6 +192,14 @@ function recalculatePrices(
         const logic = categoryRules[item.category_id];
         if (!logic) {
             return { ...item, price: originalPrice, originalPrice };
+        }
+
+        if (logic.pricingGroup?.type === 'category_volume') {
+            const pricingQuantity = pricingGroupTotals[logic.pricingGroup.id] || item.quantity;
+            const newPrice = getPriceForQuantity(logic.pricingGroup.rules, pricingQuantity);
+            if (typeof newPrice === 'number') {
+                return { ...item, price: newPrice, originalPrice };
+            }
         }
 
         if (logic.type === 'category_volume') {
