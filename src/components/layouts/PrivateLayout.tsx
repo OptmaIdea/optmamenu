@@ -65,6 +65,7 @@ import {
     BadgeDollarSign,
     FolderTree,
     MonitorSmartphone,
+    TriangleAlert,
 } from 'lucide-react';
 
 type MenuItem = {
@@ -407,6 +408,7 @@ export default function PrivateLayout() {
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'quotes.view' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
+            { path: '/admin/stock/divergences', icon: TriangleAlert, label: 'Divergências', permission: 'stock.view' },
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
             { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.manage' },
