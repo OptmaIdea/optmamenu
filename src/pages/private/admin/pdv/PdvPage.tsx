@@ -18,8 +18,18 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { DirectSalesService } from '@/services/directSalesService';
-import { getPosBootstrap, getPosPaymentMethods } from '@/services/pdvService';
-import type { PosBootstrap, PosPaymentMethod, PosProduct } from '@/types/pdv';
+import {
+  getPosBootstrap,
+  getPosPaymentMethods,
+  getPosPricingQuote,
+} from '@/services/pdvService';
+import type {
+  PosBootstrap,
+  PosPaymentMethod,
+  PosPricingItem,
+  PosPricingQuote,
+  PosProduct,
+} from '@/types/pdv';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { hasOnlyPdvOperationalAccess } from '@/utils/permissions';
 
@@ -51,6 +61,21 @@ function getCartStorageKey(storeId: string, locationId: string | null): string {
   return `optmamenu_pos_cart_${storeId}_${locationId ?? 'default'}`;
 }
 
+function getPricingSourceLabel(item: PosPricingItem): string {
+  switch (item.pricing_source) {
+    case 'category_combined_volume':
+      return `Atacado da categoria • ${item.pricing_quantity} un. combinadas`;
+    case 'category_per_product_volume':
+      return `Atacado da categoria • ${item.pricing_quantity} un. do produto`;
+    case 'category_standard':
+      return 'Preço da categoria';
+    case 'product_volume':
+      return `Atacado do produto • ${item.pricing_quantity} un.`;
+    default:
+      return 'Preço do produto';
+  }
+}
+
 function matchesSearch(product: PosProduct, rawSearch: string): boolean {
   const normalized = normalizeSearch(rawSearch);
   if (!normalized) return true;
@@ -67,6 +92,9 @@ function matchesSearch(product: PosProduct, rawSearch: string): boolean {
 
 type CartPanelProps = {
   cart: CartLine[];
+  pricingQuote: PosPricingQuote | null;
+  pricingLoading: boolean;
+  pricingError: string | null;
   paymentMethods: PosPaymentMethod[];
   paymentMethodCode: string;
   setPaymentMethodCode: (value: string) => void;
@@ -82,6 +110,9 @@ type CartPanelProps = {
 
 function CartPanel({
   cart,
+  pricingQuote,
+  pricingLoading,
+  pricingError,
   paymentMethods,
   paymentMethodCode,
   setPaymentMethodCode,
@@ -95,10 +126,11 @@ function CartPanel({
   onFinalize,
 }: CartPanelProps) {
   const totalItems = cart.reduce((sum, line) => sum + line.quantity, 0);
-  const subtotal = cart.reduce(
+  const baseSubtotal = cart.reduce(
     (sum, line) => sum + line.product.price * line.quantity,
     0
   );
+  const subtotal = pricingQuote?.subtotal ?? baseSubtotal;
   const shortageLines = cart.filter(
     (line) => line.quantity > line.product.available_stock
   );
@@ -106,6 +138,9 @@ function CartPanel({
   const change = paymentMethodCode === 'cash' ? Math.max(0, received - subtotal) : 0;
   const canFinalize =
     cart.length > 0 &&
+    !pricingLoading &&
+    !pricingError &&
+    Boolean(pricingQuote) &&
     Boolean(paymentMethodCode) &&
     (!shortageLines.length || shortageConfirmed) &&
     (paymentMethodCode !== 'cash' || received >= subtotal);
@@ -147,6 +182,12 @@ function CartPanel({
         <div className="my-3 min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {cart.map(({ product, quantity }) => {
             const hasShortage = quantity > product.available_stock;
+            const pricedLine = pricingQuote?.items.find(
+              (item) => item.product_id === product.id
+            );
+            const hasAutomaticDiscount =
+              Boolean(pricedLine) &&
+              Number(pricedLine?.unit_price) < Number(pricedLine?.base_price);
             return (
               <div
                 key={product.id}
@@ -173,8 +214,27 @@ function CartPanel({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">{product.name}</p>
                     <p className="text-xs font-semibold text-[#7B2D8E] dark:text-purple-300">
-                      {formatCurrency(product.price * quantity)}
+                      {formatCurrency(
+                        pricedLine?.line_total ?? product.price * quantity
+                      )}
                     </p>
+                    {pricedLine && (
+                      <p
+                        className={`mt-0.5 text-[10px] font-semibold ${
+                          hasAutomaticDiscount
+                            ? 'text-[#1A867A] dark:text-teal-300'
+                            : 'text-[#6B6258] dark:text-gray-400'
+                        }`}
+                      >
+                        {formatCurrency(pricedLine.unit_price)}/un. •{' '}
+                        {getPricingSourceLabel(pricedLine)}
+                      </p>
+                    )}
+                    {hasAutomaticDiscount && pricedLine && (
+                      <p className="mt-0.5 text-[10px] text-[#6B6258] line-through dark:text-gray-500">
+                        Preço-base: {formatCurrency(pricedLine.base_price)}/un.
+                      </p>
+                    )}
                     {hasShortage && (
                       <p className="mt-0.5 text-[10px] font-bold text-[#8A5A00] dark:text-amber-300">
                         Divergência: {quantity - product.available_stock} sem saldo
@@ -227,15 +287,34 @@ function CartPanel({
 
       {cart.length > 0 && (
         <div className="space-y-3 border-t border-[#6B6258]/10 pt-3 dark:border-gray-800">
+          {pricingLoading && (
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-[#1A867A] dark:text-teal-300">
+              <RefreshCw size={13} className="animate-spin" />
+              Calculando o melhor preço...
+            </p>
+          )}
+          {pricingError && (
+            <p className="rounded-lg bg-[#DC2626]/10 px-2.5 py-2 text-xs font-semibold text-[#DC2626]">
+              {pricingError}
+            </p>
+          )}
+          {pricingQuote && pricingQuote.total_discount > 0 && (
+            <div className="flex items-center justify-between rounded-xl bg-[#21A896]/10 px-3 py-2 text-xs font-bold text-[#1A867A] dark:text-teal-300">
+              <span>Desconto automático</span>
+              <span>- {formatCurrency(pricingQuote.total_discount)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Prévia</span>
+            <span className="text-sm font-semibold">Total</span>
             <span className="text-xl font-black text-[#7B2D8E] dark:text-purple-300">
               {formatCurrency(subtotal)}
             </span>
           </div>
-          <p className="text-[10px] text-[#6B6258] dark:text-gray-400">
-            O motor central recalcula e confirma o preço final.
-          </p>
+          {pricingQuote && pricingQuote.total_discount > 0 && (
+            <p className="text-right text-[10px] text-[#6B6258] dark:text-gray-400">
+              Valor sem desconto: {formatCurrency(pricingQuote.base_subtotal)}
+            </p>
+          )}
 
           <label className="block">
             <span className="mb-1 block text-xs font-bold">Forma de pagamento</span>
@@ -315,6 +394,9 @@ export default function PdvPage() {
   const [bootstrap, setBootstrap] = useState<PosBootstrap | null>(null);
   const [paymentMethods, setPaymentMethods] = useState<PosPaymentMethod[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [pricingQuote, setPricingQuote] = useState<PosPricingQuote | null>(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
   const [paymentMethodCode, setPaymentMethodCode] = useState('');
   const [cashReceived, setCashReceived] = useState('');
   const [shortageConfirmed, setShortageConfirmed] = useState(false);
@@ -421,22 +503,80 @@ export default function PdvPage() {
   }, []);
 
   useEffect(() => {
-    const manifest = document.createElement('link');
+    const currentManifest = document.querySelector<HTMLLinkElement>(
+      'link[rel="manifest"]'
+    );
+    const manifest = currentManifest ?? document.createElement('link');
+    const previousHref = currentManifest?.getAttribute('href') ?? null;
+    const createdManifest = !currentManifest;
+
     manifest.rel = 'manifest';
-    manifest.href = '/pdv.webmanifest';
+    manifest.href = '/pdv.webmanifest?v=2';
     manifest.dataset.pdvManifest = 'true';
-    document.head.appendChild(manifest);
+
+    if (createdManifest) {
+      document.head.appendChild(manifest);
+    }
+
     document.title = 'PDV | OptmaMenu';
 
     if ('serviceWorker' in navigator) {
-      void navigator.serviceWorker.register('/pdv-sw.js', { scope: '/' });
+      void navigator.serviceWorker.register('/pdv-sw.js', { scope: '/pdv' });
     }
 
     return () => {
-      manifest.remove();
+      delete manifest.dataset.pdvManifest;
+      if (createdManifest) {
+        manifest.remove();
+      } else if (previousHref) {
+        manifest.href = previousHref;
+      }
       document.title = 'OptmaMenu';
     };
   }, []);
+
+  useEffect(() => {
+    if (!storeId || cart.length === 0) {
+      setPricingQuote(null);
+      setPricingError(null);
+      setPricingLoading(false);
+      return;
+    }
+
+    let active = true;
+    setPricingQuote(null);
+    setPricingLoading(true);
+    setPricingError(null);
+
+    const timeoutId = window.setTimeout(() => {
+      void getPosPricingQuote(
+        storeId,
+        cart.map((line) => ({
+          productId: line.product.id,
+          quantity: line.quantity,
+        }))
+      )
+        .then((quote) => {
+          if (!active) return;
+          setPricingQuote(quote);
+        })
+        .catch(() => {
+          if (!active) return;
+          setPricingQuote(null);
+          setPricingError(
+            'Não foi possível confirmar os preços. Tente atualizar o carrinho.'
+          );
+        })
+        .finally(() => {
+          if (active) setPricingLoading(false);
+        });
+    }, 180);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timeoutId);
+    };
+  }, [cart, storeId]);
 
   const refresh = useCallback(async () => {
     await loadBootstrap(bootstrap?.selected_location_id ?? null);
@@ -471,10 +611,9 @@ export default function PdvPage() {
   }, [bootstrap, categoryId, search]);
 
   const totalItems = cart.reduce((sum, line) => sum + line.quantity, 0);
-  const cartTotal = cart.reduce(
-    (sum, line) => sum + line.product.price * line.quantity,
-    0
-  );
+  const cartTotal =
+    pricingQuote?.subtotal ??
+    cart.reduce((sum, line) => sum + line.product.price * line.quantity, 0);
   const showAdminExit = !hasOnlyPdvOperationalAccess(permissions);
 
   const changeQuantity = useCallback((product: PosProduct, quantity: number) => {
@@ -500,7 +639,15 @@ export default function PdvPage() {
   }, []);
 
   const finalizeSale = async () => {
-    if (!storeId || !bootstrap?.selected_location_id || cart.length === 0) return;
+    if (
+      !storeId ||
+      !bootstrap?.selected_location_id ||
+      cart.length === 0 ||
+      !pricingQuote ||
+      pricingLoading
+    ) {
+      return;
+    }
 
     setProcessing(true);
     try {
@@ -553,6 +700,9 @@ export default function PdvPage() {
   const cartPanel = (
     <CartPanel
       cart={cart}
+      pricingQuote={pricingQuote}
+      pricingLoading={pricingLoading}
+      pricingError={pricingError}
       paymentMethods={paymentMethods}
       paymentMethodCode={paymentMethodCode}
       setPaymentMethodCode={(value) => {
