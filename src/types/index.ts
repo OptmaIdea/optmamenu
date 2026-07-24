@@ -8,26 +8,27 @@ export interface Category {
     name: string;
     description?: string;
     image_url?: string;
-    slug?: string; // Made optional as it might not be in the immediate fetch or DB schema explicitly yet
+    slug?: string;
     sort_order: number;
     price_logic_type?: 'standard' | 'category_volume';
     price_rules?: PriceRule[];
+    pricing_strategy?: {
+        volume_scope?: 'combined' | 'per_product';
+    };
     active?: boolean;
 }
 
 export interface Product {
     id: string;
-    // Can be null/undefined when product is not linked to a category
     category_id?: string | null;
     name: string;
     description?: string;
     price: number;
-    /** If true, price should be derived from the category pricing rules (when available). */
     use_category_pricing?: boolean;
     images: string[];
-    image_url?: string; // Optional fallback
+    image_url?: string;
     video_url?: string;
-    allergens?: string[]; // 'LEITE', 'AMENDOIM', etc.
+    allergens?: string[];
     featured: boolean;
     sales_count: number;
     stock_quantity: number;
@@ -38,7 +39,7 @@ export interface Product {
 
 export interface CartItem extends Product {
     quantity: number;
-    originalPrice: number; // To store base price before discounts
+    originalPrice: number;
 }
 
 export type PaymentMethod = 'pix' | 'cash' | 'card' | 'pending';
@@ -87,22 +88,15 @@ export interface StoreConfig {
     visual_color_highlight?: string;
     visual_banner_url?: string;
     loyalty_active?: boolean;
-
-    // Header
     visual_slogan?: string;
-
-    // Institutional (About Us)
     about_text?: string;
     about_image_url?: string;
-
-    // Contact & Footer
     contact_phone?: string;
     contact_email?: string;
     contact_whatsapp_support?: string;
     contact_address?: string;
     contact_map_link?: string;
     contact_coords?: { lat: number; lng: number };
-
     social_links?: {
         instagram?: string;
         facebook?: string;
@@ -111,14 +105,10 @@ export interface StoreConfig {
         website?: string;
         google_reviews?: string;
     };
-
     footer_text?: string;
     footer_show_contact?: boolean;
-
     banners?: Array<{ url: string; type: 'image' | 'video'; link?: string }>;
     custom_domain?: string;
-
-    // Operations
     opening_time?: string;
     closing_time?: string;
     custom_consent_text?: string;
@@ -143,13 +133,7 @@ export interface Address {
     is_default: boolean;
 }
 
-// Domain module re-exports
 export * from '@/types/order';
 export * from '@/types/store';
 export * from '@/types/loyalty';
 export * from '@/types/admin';
-export * from '@/types/security';
-export * from '@/types/permissions';
-export * from '@/types/userMemberDetails';
-export * from '@/types/storeMemberInvites';
-export * from '@/types/myStoreInvites';
