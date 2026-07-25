@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { optimizeImageForUpload, createSafeImageFilename, IMAGE_PROFILES } from '@/utils/imageOptimization';
 import type { CategoryFormData } from '../types/category.types';
 
 interface SaveParams {
@@ -13,34 +14,33 @@ interface SaveParams {
     onSuccess: () => void;
 }
 
-const CATEGORY_IMAGE_BUCKET = 'products';
-
 export const useCategorySave = () => {
     const [saving, setSaving] = useState(false);
 
     const uploadImage = async (file: File, activeStoreId: string, categoryId: string): Promise<string | null> => {
         try {
-            const fileExt = file.name.split('.').pop()?.toLowerCase() || 'webp';
-            const uniqueName = `${Date.now()}-${uuidv4()}.${fileExt}`;
-            const fileName = `${activeStoreId}/categories/${categoryId}/${uniqueName}`;
+            const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.category);
+            const safeName = createSafeImageFilename(file.name, 'category');
+            const fileName = `${activeStoreId}/categories/${categoryId}/${safeName}`;
+
             const { error: uploadError } = await supabase.storage
-                .from(CATEGORY_IMAGE_BUCKET)
-                .upload(fileName, file, {
+                .from('category-images')
+                .upload(fileName, optimized.file, {
                     upsert: false,
-                    cacheControl: '3600',
-                    contentType: file.type || undefined,
+                    cacheControl: '31536000',
+                    contentType: 'image/webp',
                 });
 
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage
-                .from(CATEGORY_IMAGE_BUCKET)
+                .from('category-images')
                 .getPublicUrl(fileName);
 
             return publicUrl;
         } catch (error) {
-            console.error('Erro ao fazer upload da imagem:', error);
-            toast.error('Erro ao enviar imagem');
+            console.error('Erro ao fazer upload da imagem de categoria:', error);
+            toast.error('Erro ao enviar imagem da categoria');
             return null;
         }
     };

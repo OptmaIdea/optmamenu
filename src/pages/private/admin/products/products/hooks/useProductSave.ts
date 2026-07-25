@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { optimizeImageForUpload, createSafeImageFilename, IMAGE_PROFILES } from '@/utils/imageOptimization';
 import type { MediaItem } from '@/pages/private/admin/products/products/hooks/useProductImages';
 import type { PriceRule } from '../types/product.types';
 
@@ -165,16 +166,25 @@ export const useProductSave = () => {
                 if (item.type === 'url') {
                     finalImageUrls.push(item.value as string);
                 } else if (item.type === 'file') {
-                    const file = item.value as File;
-                    const fileExt = file.name.split('.').pop();
-                    const fileName = `${activeStoreId}/${productId}/${Date.now()}_${Math.random().toString(36).substr(2, 5)}.${fileExt}`;
+                    const rawFile = item.value as File;
+                    const optimizedResult = await optimizeImageForUpload(rawFile, IMAGE_PROFILES.product);
+                    const safeName = createSafeImageFilename(rawFile.name, 'product');
+                    const fileName = `${activeStoreId}/${productId}/${safeName}`;
+
                     const { error: uploadError } = await supabase.storage
                         .from('products')
-                        .upload(fileName, file);
+                        .upload(fileName, optimizedResult.file, {
+                            contentType: 'image/webp',
+                            cacheControl: '31536000',
+                            upsert: false,
+                        });
+
                     if (uploadError) throw uploadError;
+
                     const { data: { publicUrl } } = supabase.storage
                         .from('products')
                         .getPublicUrl(fileName);
+
                     finalImageUrls.push(publicUrl);
                     uploadedPaths.push(fileName);
                 }

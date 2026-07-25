@@ -1,19 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { optimizeImageForUpload, createSafeImageFilename, IMAGE_PROFILES } from '@/utils/imageOptimization';
 
 const AVATAR_BUCKET = 'user-avatars';
-
-function getAvatarExtension(file: File): string {
-    const extensionFromName = file.name.split('.').pop()?.toLowerCase();
-
-    if (extensionFromName && ['jpg', 'jpeg', 'png', 'webp'].includes(extensionFromName)) {
-        return extensionFromName === 'jpeg' ? 'jpg' : extensionFromName;
-    }
-
-    if (file.type === 'image/png') return 'png';
-    if (file.type === 'image/webp') return 'webp';
-
-    return 'jpg';
-}
 
 export async function uploadStoreMemberAvatar(params: {
     memberId: string;
@@ -23,26 +11,16 @@ export async function uploadStoreMemberAvatar(params: {
 }) {
     const { memberId, userId, file, reason } = params;
 
-    if (!file.type.startsWith('image/')) {
-        throw new Error('Envie uma imagem válida.');
-    }
-
-    const maxSizeInMb = 2;
-    const maxSize = maxSizeInMb * 1024 * 1024;
-
-    if (file.size > maxSize) {
-        throw new Error(`A imagem deve ter no máximo ${maxSizeInMb} MB.`);
-    }
-
-    const ext = getAvatarExtension(file);
-    const filePath = `${userId}/avatar-${Date.now()}.${ext}`;
+    const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.avatar);
+    const safeName = createSafeImageFilename(file.name, 'avatar');
+    const filePath = `${userId}/${safeName}`;
 
     const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
-        .upload(filePath, file, {
-            cacheControl: '3600',
+        .upload(filePath, optimized.file, {
+            cacheControl: '31536000',
             upsert: false,
-            contentType: file.type,
+            contentType: 'image/webp',
         });
 
     if (uploadError) {

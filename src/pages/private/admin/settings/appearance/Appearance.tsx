@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { optimizeImageForUpload, createSafeImageFilename, IMAGE_PROFILES } from '@/utils/imageOptimization';
 import {
     Save,
     Loader,
@@ -234,23 +235,29 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         }
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `favicon-${Math.random()}.${fileExt}`;
-        const filePath = `store-assets/${fileName}`;
 
         try {
             setSaving(true);
-            const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file);
+            const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.logo);
+            const safeName = createSafeImageFilename(file.name, 'logo');
+            const filePath = `store-assets/${safeName}`;
+
+            const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, optimized.file, {
+                contentType: 'image/webp',
+                cacheControl: '31536000',
+                upsert: false,
+            });
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
 
             setConfig(prev => ({ ...prev, visual_icon_url: publicUrl }));
-            setMessage({ type: 'success', text: 'Ícone carregado! Clique em salvar.' });
+            setMessage({ type: 'success', text: 'Ícone otimizado e carregado! Clique em salvar.' });
         } catch (error: any) {
             setMessage({ type: 'error', text: 'Erro no upload: ' + error.message });
         } finally {
             setSaving(false);
+            e.target.value = '';
         }
     };
 
@@ -261,23 +268,29 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         }
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `banner-${Math.random()}.${fileExt}`;
-        const filePath = `store-assets/${fileName}`;
 
         try {
             setSaving(true);
-            const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, file);
+            const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.banner);
+            const safeName = createSafeImageFilename(file.name, 'banner');
+            const filePath = `store-assets/${safeName}`;
+
+            const { error: uploadError } = await supabase.storage.from('logos').upload(filePath, optimized.file, {
+                contentType: 'image/webp',
+                cacheControl: '31536000',
+                upsert: false,
+            });
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
 
             setConfig(prev => ({ ...prev, visual_banner_url: publicUrl }));
-            setMessage({ type: 'success', text: 'Banner carregado! Clique em salvar.' });
+            setMessage({ type: 'success', text: 'Banner otimizado e carregado! Clique em salvar.' });
         } catch (error: any) {
             setMessage({ type: 'error', text: 'Erro no upload: ' + error.message });
         } finally {
             setSaving(false);
+            e.target.value = '';
         }
     };
 
@@ -288,24 +301,29 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         }
         if (!e.target.files || e.target.files.length === 0) return;
         const file = e.target.files[0];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `about-${Math.random()}.${fileExt}`;
-        const filePath = `store-assets/${fileName}`;
 
         try {
             setSaving(true);
             setUploadingAbout(true);
 
+            const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.product);
+            const safeName = createSafeImageFilename(file.name, 'about');
+            const filePath = `store-assets/${safeName}`;
+
             const { error: uploadError } = await supabase.storage
                 .from('logos')
-                .upload(filePath, file, { upsert: true });
+                .upload(filePath, optimized.file, {
+                    contentType: 'image/webp',
+                    cacheControl: '31536000',
+                    upsert: false,
+                });
 
             if (uploadError) throw uploadError;
 
             const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(filePath);
 
             setConfig(prev => ({ ...prev, about_image_url: publicUrl }));
-            setMessage({ type: 'success', text: 'Imagem "Quem Somos" carregada!' });
+            setMessage({ type: 'success', text: 'Imagem "Quem Somos" otimizada e carregada!' });
         } catch (error: any) {
             console.error('Upload error:', error);
             setMessage({ type: 'error', text: 'Erro no upload: ' + error.message });
