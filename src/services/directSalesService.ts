@@ -72,11 +72,7 @@ export interface AdminDirectSaleResult {
   on_hand?: number;
 }
 
-type StoredPosCustomer = {
-  id: string;
-  name: string;
-  phone?: string | null;
-};
+type StoredPosCustomer = { id: string; name: string; phone?: string | null };
 
 const DIRECT_SALE_ERROR_MESSAGES: Record<string, string> = {
   missing_store_id: 'Não foi possível identificar a loja desta venda.',
@@ -117,16 +113,26 @@ function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
   }));
 }
 
+function getPosCustomerStorageKey(storeId: string) {
+  return `optmamenu.pdv.customer.${storeId}`;
+}
+
 function readSelectedPosCustomer(storeId: string): StoredPosCustomer | null {
   if (typeof window === 'undefined') return null;
   try {
-    const value = window.localStorage.getItem(`optmamenu.pdv.customer.${storeId}`);
+    const value = window.localStorage.getItem(getPosCustomerStorageKey(storeId));
     if (!value) return null;
     const parsed = JSON.parse(value) as StoredPosCustomer;
     return parsed?.id && parsed?.name ? parsed : null;
   } catch {
     return null;
   }
+}
+
+function clearSelectedPosCustomer(storeId: string) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(getPosCustomerStorageKey(storeId));
+  window.dispatchEvent(new CustomEvent('optmamenu:pdv-customer-cleared'));
 }
 
 export const DirectSalesService = {
@@ -171,6 +177,7 @@ export const DirectSalesService = {
     if (error) throw error;
     const result = data as AdminDirectSaleResult;
     if (!result?.ok) throw new Error(getDirectSaleErrorMessage(result));
+    if (isDedicatedPos) clearSelectedPosCustomer(input.storeId);
     return result;
   },
 };
