@@ -1,16 +1,8 @@
 #!/usr/bin/env node
 
 /**
- * Inventário e simulação de otimização das imagens antigas do Supabase Storage.
- *
- * Modos seguros disponíveis nesta etapa:
- *   npm run storage:images:inventory
- *   npm run storage:images:dry-run
- *   npm run storage:images:inventory -- --bucket products
- *
- * O script NÃO envia, atualiza ou exclui arquivos e NÃO altera o banco.
- * A chave service_role é usada somente localmente para listar objetos e cruzar
- * referências de todas as lojas.
+ * Inventário e simulação segura das imagens antigas do Supabase Storage.
+ * Não altera banco, não envia arquivos e não exclui objetos.
  */
 
 import fs from 'node:fs';
@@ -23,28 +15,28 @@ import sharp from 'sharp';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
-
-const SUPPORTED_BUCKETS = ['products', 'logos', 'reward-images'];
 const REPORT_DIR = path.join(projectRoot, 'reports', 'storage-images');
+const SUPPORTED_BUCKETS = ['products', 'logos', 'reward-images'];
 
 const IMAGE_PROFILES = {
   products: { maxWidth: 800, maxHeight: 800, quality: 82, label: 'Produto' },
   logos: { maxWidth: 800, maxHeight: 800, quality: 90, label: 'Logo' },
-  'reward-images': { maxWidth: 800, maxHeight: 800, quality: 82, label: 'Recompensa' },
+  'reward-images': {
+    maxWidth: 800,
+    maxHeight: 800,
+    quality: 82,
+    label: 'Recompensa',
+  },
 };
 
 function loadLocalEnv() {
-  const candidates = ['.env.local', '.env', '.env.development.local'];
-
-  for (const filename of candidates) {
+  for (const filename of ['.env.local', '.env', '.env.development.local']) {
     const fullPath = path.join(projectRoot, filename);
     if (!fs.existsSync(fullPath)) continue;
 
-    const lines = fs.readFileSync(fullPath, 'utf8').split(/\r?\n/);
-    for (const rawLine of lines) {
+    for (const rawLine of fs.readFileSync(fullPath, 'utf8').split(/\r?\n/)) {
       const line = rawLine.trim();
       if (!line || line.startsWith('#')) continue;
-
       const separator = line.indexOf('=');
       if (separator <= 0) continue;
 
@@ -56,7 +48,6 @@ function loadLocalEnv() {
       ) {
         value = value.slice(1, -1);
       }
-
       if (!process.env[key]) process.env[key] = value;
     }
   }
@@ -64,23 +55,17 @@ function loadLocalEnv() {
 
 function parseArgs() {
   const args = process.argv.slice(2);
-  const options = {
-    mode: args.includes('--dry-run') ? 'dry-run' : 'inventory',
-    bucket: null,
-  };
-
   const bucketIndex = args.indexOf('--bucket');
-  if (bucketIndex >= 0 && args[bucketIndex + 1]) {
-    options.bucket = args[bucketIndex + 1];
-  }
-
-  if (options.bucket && !SUPPORTED_BUCKETS.includes(options.bucket)) {
+  const bucket = bucketIndex >= 0 ? args[bucketIndex + 1] : null;
+  if (bucket && !SUPPORTED_BUCKETS.includes(bucket)) {
     throw new Error(
-      `Bucket inválido: ${options.bucket}. Opções: ${SUPPORTED_BUCKETS.join(', ')}`,
+      `Bucket inválido: ${bucket}. Opções: ${SUPPORTED_BUCKETS.join(', ')}`,
     );
   }
-
-  return options;
+  return {
+    mode: args.includes('--dry-run') ? 'dry-run' : 'inventory',
+    bucket,
+  };
 }
 
 function requireEnvironment() {
@@ -91,62 +76,56 @@ function requireEnvironment() {
   if (!supabaseUrl) {
     throw new Error('Defina SUPABASE_URL ou VITE_SUPABASE_URL no ambiente local.');
   }
-
   if (!serviceRoleKey) {
     throw new Error(
       'Defina SUPABASE_SERVICE_ROLE_KEY localmente. Nunca use prefixo VITE_ nessa chave.',
     );
   }
-
   return { supabaseUrl, serviceRoleKey };
 }
 
 function normalizeObjectPath(value, expectedBucket) {
   if (!value || typeof value !== 'string') return null;
-
   try {
     const decoded = decodeURIComponent(value);
-    const markers = [
+    for (const marker of [
       `/storage/v1/object/public/${expectedBucket}/`,
       `/storage/v1/object/sign/${expectedBucket}/`,
       `/storage/v1/object/authenticated/${expectedBucket}/`,
-    ];
-
-    for (const marker of markers) {
-      const markerIndex = decoded.indexOf(marker);
-      if (markerIndex >= 0) {
+    ]) {
+      const index = decoded.indexOf(marker);
+      if (index >= 0) {
         return decoded
-          .slice(markerIndex + marker.length)
+          .slice(index + marker.length)
           .split('?')[0]
           .replace(/^\/+/, '');
       }
     }
-
     if (!decoded.includes('://')) {
       return decoded.split('?')[0].replace(/^\/+/, '');
     }
   } catch {
     return null;
   }
-
   return null;
 }
 
-function addReference(referenceMap, bucket, objectPath, reference) {
+function addReference(map, bucket, objectPath, reference) {
   if (!objectPath) return;
   const key = `${bucket}:${objectPath}`;
-  const current = referenceMap.get(key) || [];
-  current.push(reference);
-  referenceMap.set(key, current);
+  const references = map.get(key) || [];
+  references.push(reference);
+  map.set(key, references);
 }
 
 async function loadDatabaseReferences(supabase) {
   const referenceMap = new Map();
-
   const [productsResult, storesResult, rewardsResult] = await Promise.all([
     supabase.from('products').select('id, store_id, name, images'),
     supabase.from('stores').select('id, name, logo_url'),
-    supabase.from('fidelity_rewards').select('id, store_id, name, image_url'),
+    supabase
+      .from('fidelity_rewards')
+      .select('id, program_id, title, image_url, fidelity_programs(store_id)'),
   ]);
 
   for (const result of [productsResult, storesResult, rewardsResult]) {
@@ -156,40 +135,33 @@ async function loadDatabaseReferences(supabase) {
   for (const product of productsResult.data || []) {
     const images = Array.isArray(product.images) ? product.images : [];
     images.forEach((url, index) => {
-      addReference(
-        referenceMap,
-        'products',
-        normalizeObjectPath(url, 'products'),
-        {
-          entityType: 'product',
-          entityId: product.id,
-          storeId: product.store_id,
-          entityName: product.name,
-          field: 'images',
-          index,
-          fullValue: url,
-        },
-      );
+      addReference(referenceMap, 'products', normalizeObjectPath(url, 'products'), {
+        entityType: 'product',
+        entityId: product.id,
+        storeId: product.store_id,
+        entityName: product.name,
+        field: 'images',
+        index,
+        fullValue: url,
+      });
     });
   }
 
   for (const store of storesResult.data || []) {
-    addReference(
-      referenceMap,
-      'logos',
-      normalizeObjectPath(store.logo_url, 'logos'),
-      {
-        entityType: 'store',
-        entityId: store.id,
-        storeId: store.id,
-        entityName: store.name,
-        field: 'logo_url',
-        fullValue: store.logo_url,
-      },
-    );
+    addReference(referenceMap, 'logos', normalizeObjectPath(store.logo_url, 'logos'), {
+      entityType: 'store',
+      entityId: store.id,
+      storeId: store.id,
+      entityName: store.name,
+      field: 'logo_url',
+      fullValue: store.logo_url,
+    });
   }
 
   for (const reward of rewardsResult.data || []) {
+    const program = Array.isArray(reward.fidelity_programs)
+      ? reward.fidelity_programs[0]
+      : reward.fidelity_programs;
     addReference(
       referenceMap,
       'reward-images',
@@ -197,8 +169,9 @@ async function loadDatabaseReferences(supabase) {
       {
         entityType: 'reward',
         entityId: reward.id,
-        storeId: reward.store_id,
-        entityName: reward.name,
+        storeId: program?.store_id || null,
+        programId: reward.program_id,
+        entityName: reward.title,
         field: 'image_url',
         fullValue: reward.image_url,
       },
@@ -219,21 +192,18 @@ async function listFolder(supabase, bucket, prefix = '') {
       offset,
       sortBy: { column: 'name', order: 'asc' },
     });
-
     if (error) throw error;
-    const entries = data || [];
 
+    const entries = data || [];
     for (const entry of entries) {
       const objectPath = prefix ? `${prefix}/${entry.name}` : entry.name;
       const isFolder = !entry.id && !entry.metadata;
-
       if (isFolder) {
         objects.push(...(await listFolder(supabase, bucket, objectPath)));
       } else if (entry.name !== '.emptyFolderPlaceholder') {
         objects.push({
           bucket,
           path: objectPath,
-          id: entry.id || null,
           createdAt: entry.created_at || null,
           updatedAt: entry.updated_at || null,
           metadata: entry.metadata || {},
@@ -244,7 +214,6 @@ async function listFolder(supabase, bucket, prefix = '') {
     if (entries.length < limit) break;
     offset += limit;
   }
-
   return objects;
 }
 
@@ -256,22 +225,22 @@ function proposedPath(bucket, references) {
     const index = Number.isInteger(reference.index) ? reference.index + 1 : 1;
     return `${reference.storeId}/${reference.entityId}/image-${String(index).padStart(2, '0')}.webp`;
   }
-
   if (bucket === 'logos' && reference.entityType === 'store') {
     return `${reference.storeId}/logo.webp`;
   }
-
-  if (bucket === 'reward-images' && reference.entityType === 'reward') {
+  if (
+    bucket === 'reward-images' &&
+    reference.entityType === 'reward' &&
+    reference.storeId
+  ) {
     return `${reference.storeId}/${reference.entityId}/reward.webp`;
   }
-
   return null;
 }
 
 function getObjectSize(object) {
-  const raw = object.metadata?.size;
-  const parsed = Number(raw);
-  return Number.isFinite(parsed) ? parsed : 0;
+  const value = Number(object.metadata?.size);
+  return Number.isFinite(value) ? value : 0;
 }
 
 function getMimeType(object) {
@@ -286,12 +255,11 @@ async function estimateOptimization(supabase, object, profile) {
   const { data, error } = await supabase.storage
     .from(object.bucket)
     .download(object.path);
-
   if (error) throw error;
+
   const input = Buffer.from(await data.arrayBuffer());
   const image = sharp(input, { failOn: 'error' }).rotate();
   const metadata = await image.metadata();
-
   const optimized = await image
     .resize({
       width: profile.maxWidth,
@@ -311,7 +279,9 @@ async function estimateOptimization(supabase, object, profile) {
     estimatedSavingBytes: Math.max(0, input.length - optimized.data.length),
     estimatedSavingPercent:
       input.length > 0
-        ? Number((((input.length - optimized.data.length) / input.length) * 100).toFixed(1))
+        ? Number(
+            (((input.length - optimized.data.length) / input.length) * 100).toFixed(1),
+          )
         : 0,
   };
 }
@@ -336,7 +306,6 @@ function summarize(items) {
       totalBytes: 0,
       estimatedBytes: 0,
     });
-
     summary.totalBytes += item.sizeBytes;
     bucketSummary.objects += 1;
     bucketSummary.totalBytes += item.sizeBytes;
@@ -348,16 +317,13 @@ function summarize(items) {
       summary.referenced += 1;
       bucketSummary.referenced += 1;
     }
-
     if (item.references.length > 1) summary.duplicateReference += 1;
-
     if (item.optimization?.estimatedSizeBytes) {
       summary.estimatedBytes += item.optimization.estimatedSizeBytes;
       summary.estimatedSavingBytes += item.optimization.estimatedSavingBytes;
       bucketSummary.estimatedBytes += item.optimization.estimatedSizeBytes;
     }
   }
-
   return summary;
 }
 
@@ -379,14 +345,10 @@ function printSummary(summary, mode, reportPath) {
   console.log(`Órfãos candidatos: ${summary.orphan}`);
   console.log(`Referências compartilhadas: ${summary.duplicateReference}`);
   console.log(`Tamanho atual: ${formatBytes(summary.totalBytes)}`);
-
   if (mode === 'dry-run') {
     console.log(`Tamanho estimado: ${formatBytes(summary.estimatedBytes)}`);
-    console.log(
-      `Economia estimada: ${formatBytes(summary.estimatedSavingBytes)}`,
-    );
+    console.log(`Economia estimada: ${formatBytes(summary.estimatedSavingBytes)}`);
   }
-
   console.log(`Relatório: ${reportPath}\n`);
 }
 
@@ -405,11 +367,8 @@ async function main() {
   for (const bucket of buckets) {
     console.log(`Analisando bucket ${bucket}...`);
     const objects = await listFolder(supabase, bucket);
-
     for (const object of objects) {
-      const key = `${bucket}:${object.path}`;
-      const objectReferences = references.get(key) || [];
-      const profile = IMAGE_PROFILES[bucket];
+      const objectReferences = references.get(`${bucket}:${object.path}`) || [];
       const item = {
         bucket,
         path: object.path,
@@ -429,13 +388,12 @@ async function main() {
           item.optimization = await estimateOptimization(
             supabase,
             object,
-            profile,
+            IMAGE_PROFILES[bucket],
           );
         } catch (error) {
           item.error = error instanceof Error ? error.message : String(error);
         }
       }
-
       items.push(item);
     }
   }
@@ -448,17 +406,23 @@ async function main() {
     `storage-images-${options.mode}-${timestamp}.json`,
   );
 
-  const report = {
-    generatedAt: new Date().toISOString(),
-    mode: options.mode,
-    buckets,
-    writeOperationsPerformed: false,
-    profiles: IMAGE_PROFILES,
-    summary,
-    items,
-  };
-
-  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
+  fs.writeFileSync(
+    reportPath,
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        mode: options.mode,
+        buckets,
+        writeOperationsPerformed: false,
+        profiles: IMAGE_PROFILES,
+        summary,
+        items,
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
   printSummary(summary, options.mode, reportPath);
 }
 
