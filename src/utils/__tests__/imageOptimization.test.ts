@@ -59,9 +59,9 @@ describe('imageOptimization Utility', () => {
 
     it('deve rejeitar arquivos acima do limite máximo de bytes', () => {
       const mockHugeFile = new File(['mock'], 'gigante.png', { type: 'image/png' });
-      Object.defineProperty(mockHugeFile, 'size', { value: 6 * 1024 * 1024 });
+      Object.defineProperty(mockHugeFile, 'size', { value: 11 * 1024 * 1024 });
 
-      expect(() => validateImageFile(mockHugeFile)).toThrow('A imagem selecionada é muito grande. Escolha um arquivo de até 5 MB.');
+      expect(() => validateImageFile(mockHugeFile)).toThrow('A imagem selecionada é muito grande. Escolha um arquivo de até 10 MB.');
     });
   });
 });

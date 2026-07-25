@@ -23,7 +23,7 @@ export type OptimizedImageResult = {
 };
 
 export const IMAGE_UPLOAD_DEFAULTS = {
-  maxOriginalBytes: 5 * 1024 * 1024, // 5 MB (otimizado para a cota Free Tier de 1 GB do Supabase e memória mobile)
+  maxOriginalBytes: 10 * 1024 * 1024, // 10 MB (suporta fotos de câmeras nativas sem travar a memória do browser)
   maxWidth: 800,
   maxHeight: 800,
   quality: 0.82,

@@ -673,7 +673,6 @@ export default function Profile() {
             await refreshSecurityContext();
             window.dispatchEvent(new CustomEvent('optmamenu:security-context-refresh'));
         } catch (error: any) {
-            console.error('Error uploading avatar:', error);
             toast.error(error?.message || 'Erro ao fazer upload da foto de perfil.');
         } finally {
             setSavingAvatar(false);

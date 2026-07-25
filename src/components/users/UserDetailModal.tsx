@@ -1421,7 +1421,6 @@ export function UserDetailModal({
                 onAvatarUpdated(avatarUrl);
             }
         } catch (error) {
-            console.error('Erro ao atualizar avatar:', error);
             toast.error(
                 error instanceof Error
                     ? error.message
