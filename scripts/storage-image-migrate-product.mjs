@@ -101,7 +101,7 @@ async function main() {
 
   const { data: product, error: productError } = await supabase
     .from('products')
-    .select('id, store_id, name, images, updated_at')
+    .select('id, store_id, name, images, created_at')
     .eq('id', productId)
     .single();
   if (productError) throw productError;
@@ -129,7 +129,7 @@ async function main() {
       id: product.id,
       storeId: product.store_id,
       name: product.name,
-      updatedAt: product.updated_at,
+      createdAt: product.created_at,
       oldImages,
     },
     storage: { bucket, oldPath, newPath },
