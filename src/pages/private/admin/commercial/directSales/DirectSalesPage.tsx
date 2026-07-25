@@ -7,6 +7,7 @@ import { getActiveStoreId } from '@/utils/activeStore';
 import { DirectSalesService } from '@/services/directSalesService';
 import { Customers360Service, type CustomerListItem } from '@/services/customers360Service';
 import QuickPosModal from './components/QuickPosModal';
+import { createClientUuid } from '@/utils/clientUuid';
 
 export type PriceRule = {
   min?: number;
@@ -143,10 +144,10 @@ export default function DirectSalesPage() {
   const [productCategoryFilter, setProductCategoryFilter] = useState('all');
   const [productSort, setProductSort] = useState<ProductSortOption>('name_asc');
   const [isQuickPosOpen, setIsQuickPosOpen] = useState(false);
-  const saleAttemptIdRef = useRef(crypto.randomUUID());
+  const saleAttemptIdRef = useRef(createClientUuid());
 
   useEffect(() => {
-    saleAttemptIdRef.current = crypto.randomUUID();
+    saleAttemptIdRef.current = createClientUuid();
   }, [
     cart,
     selectedCustomerId,
@@ -473,7 +474,7 @@ export default function DirectSalesPage() {
       });
 
       setLastOrderCode(result.order?.order_code || result.order?.id || null);
-      saleAttemptIdRef.current = crypto.randomUUID();
+      saleAttemptIdRef.current = createClientUuid();
       setCart([]);
       toast.success('Venda direta concluída.');
     } catch (error) {
