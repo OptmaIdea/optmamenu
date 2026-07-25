@@ -30,6 +30,8 @@ export type PosProduct = {
   description: string | null;
   price: number;
   images: string[];
+  on_hand_stock: number;
+  reserved_stock: number;
   available_stock: number;
   use_category_pricing: boolean;
   price_logic_type: string | null;
@@ -60,11 +62,14 @@ export type PosPricingItem = {
   discount_total: number;
   line_total: number;
   pricing_source:
+    | 'pricing_group_combined_volume'
     | 'category_combined_volume'
     | 'category_per_product_volume'
     | 'category_standard'
     | 'product_volume'
     | 'product_base_price';
+  pricing_group_id?: string | null;
+  pricing_group_name?: string | null;
   applied_tier: PosPricingTier | null;
 };
 

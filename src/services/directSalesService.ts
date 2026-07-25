@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { v4 as uuidv4 } from 'uuid';
+import { createClientUuid } from '@/utils/clientUuid';
 
 export type DirectSaleSalesChannel = 'direct' | 'in_person' | 'phone' | 'whatsapp' | 'other';
 
@@ -75,6 +75,8 @@ export interface AdminDirectSaleResult {
   product_name?: string;
   available?: number;
   requested?: number;
+  reserved?: number;
+  on_hand?: number;
 }
 
 const DIRECT_SALE_ERROR_MESSAGES: Record<string, string> = {
@@ -85,6 +87,8 @@ const DIRECT_SALE_ERROR_MESSAGES: Record<string, string> = {
   product_unavailable: 'Um dos produtos não está disponível para venda.',
   insufficient_stock:
     'Há item sem saldo suficiente. Confirme a divergência de estoque para continuar.',
+  reserved_stock_conflict:
+    'Há unidades comprometidas com pedidos ativos. Remova o item ou trate as reservas antes de concluir.',
   stock_balance_not_found:
     'O saldo deste produto ainda não foi preparado para o local selecionado. Atualize o PDV e tente novamente.',
   stock_balance_prepare_failed:
@@ -101,10 +105,6 @@ const DIRECT_SALE_ERROR_MESSAGES: Record<string, string> = {
 };
 
 function getDirectSaleErrorMessage(result: AdminDirectSaleResult | null | undefined): string {
-  if (result?.error === 'unexpected_error') {
-    return DIRECT_SALE_ERROR_MESSAGES.unexpected_error;
-  }
-
   const backendMessage = result?.message?.trim();
   if (backendMessage) return backendMessage;
 
@@ -149,9 +149,13 @@ export const DirectSalesService = {
       throw new Error('Há itens inválidos na venda direta.');
     }
 
-    const idempotencyKey = input.idempotencyKey || uuidv4();
+    const idempotencyKey = input.idempotencyKey || createClientUuid();
+    const isDedicatedPos = input.metadata?.source === 'dedicated_pos';
+    const rpcName = isDedicatedPos
+      ? 'create_pos_sale_safe'
+      : 'create_admin_direct_sale_order_safe';
 
-    const { data, error } = await supabase.rpc('create_admin_direct_sale_order_safe', {
+    const { data, error } = await supabase.rpc(rpcName, {
       p_store_id: input.storeId,
       p_items: normalizeDirectSaleItems(input.items),
       p_customer_id: input.customerId || null,
