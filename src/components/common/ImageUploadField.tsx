@@ -206,7 +206,7 @@ export default function ImageUploadField({
                 Clique para selecionar ou arraste aqui
               </p>
               <p className="mt-0.5 text-[11px] text-gray-400 font-medium">
-                Arquivos JPG, PNG ou WebP de até 15 MB
+                Arquivos JPG, PNG ou WebP de até 5 MB
               </p>
             </div>
           </div>
