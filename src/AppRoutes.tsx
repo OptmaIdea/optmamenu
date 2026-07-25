@@ -60,7 +60,6 @@ function AdminLanding() {
   );
 }
 
-
 // Layouts
 const PublicLayout = lazy(() => import('@/components/layouts/PublicLayout'));
 const PrivateLayout = lazy(() => import('@/components/layouts/PrivateLayout'));
@@ -90,6 +89,7 @@ const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 // Commercial e Customer Section
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
 const DirectSalesPage = lazy(() => import('@/pages/private/admin/commercial/directSales/DirectSalesPage'));
+const SalesPage = lazy(() => import('@/pages/private/admin/commercial/sales/SalesPage'));
 const Customers = lazy(() => import('@/pages/private/admin/customers/Customers'));
 const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
 const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
@@ -110,6 +110,7 @@ const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/s
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
 const InventoryByLocationPage = lazy(() => import('@/pages/private/admin/products/inventory/InventoryByLocationPage'));
 const StockDiscrepanciesPage = lazy(() => import('@/pages/private/admin/products/inventory/StockDiscrepanciesPage'));
+const StockReservationsPage = lazy(() => import('@/pages/private/admin/products/inventory/StockReservationsPage'));
 const TransfersPage = lazy(() => import('@/pages/private/admin/products/inventory/TransfersPage'));
 const TransferDetailPage = lazy(() => import('@/pages/private/admin/products/inventory/TransferDetailPage'));
 const Categories = lazy(() => import('@/pages/private/admin/products/Categories'));
@@ -123,6 +124,7 @@ const PurchaseInsightsPage = lazy(() => import('@/pages/private/admin/products/i
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
 const SupplierDetailPage = lazy(() => import('@/pages/private/admin/suppliers/SupplierDetailPage'));
+
 // Users Section
 const Users = lazy(() => import('@/pages/private/admin/users/Users'));
 
@@ -139,7 +141,6 @@ const Documentation = lazy(() => import('@/pages/private/admin/support/Documenta
 // Marketing Section
 const MarketingCenterPage = lazy(() => import('@/pages/private/admin/marketing/MarketingCenterPage'));
 
-// Loading fallback component
 const LoadingFallback = () => (
   <div className="min-h-screen flex items-center justify-center bg-gray-50">
     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
@@ -150,7 +151,6 @@ export default function AppRoutes() {
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Routes>
-        {/* Public Routes - All wrapped in PublicLayout */}
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
@@ -162,7 +162,6 @@ export default function AppRoutes() {
           <Route path="/politica-privacidade" element={<PrivacyPolicy />} />
         </Route>
 
-        {/* Store Routes - Also public */}
         <Route element={<StoreLayout><Outlet /></StoreLayout>}>
           <Route path="/s/:storeSlug" element={<Catalog />} />
           <Route path="/loja/:storeSlug" element={<Catalog />} />
@@ -173,7 +172,6 @@ export default function AppRoutes() {
           <Route path="/p/:publicOrderToken" element={<PublicOrderTracking />} />
         </Route>
 
-        {/* Protected Routes - All wrapped in PrivateLayout */}
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding/create-store" element={<CreateStore />} />
           <Route path="/pdv" element={<Navigate to="/admin/pdv" replace />} />
@@ -188,29 +186,14 @@ export default function AppRoutes() {
             }
           />
           <Route element={<PrivateLayout />}>
-            // Dashboard Section
             <Route path="/admin" element={<AdminLanding />} />
             <Route path="/admin/activity" element={<RequirePermission permission="dashboard.activity.view"><Activity /></RequirePermission>} />
             <Route path="/admin/alerts" element={<RequirePermission permission="dashboard.alerts.view"><Alerts /></RequirePermission>} />
             <Route path="/admin/reports" element={<RequirePermission permission="reports.view"><Reports /></RequirePermission>} />
 
-            // Commercial Section
-            <Route
-              path="/admin/orders"
-              element={
-                <RequirePermission permission="orders.view">
-                  <Orders />
-                </RequirePermission>
-              }
-            />
-            <Route
-              path="/admin/direct-sales"
-              element={
-                <RequirePermission permission="orders.manage">
-                  <DirectSalesPage />
-                </RequirePermission>
-              }
-            />
+            <Route path="/admin/orders" element={<RequirePermission permission="orders.view"><Orders /></RequirePermission>} />
+            <Route path="/admin/sales" element={<RequirePermission permission="orders.view"><SalesPage /></RequirePermission>} />
+            <Route path="/admin/direct-sales" element={<RequirePermission permission="orders.manage"><DirectSalesPage /></RequirePermission>} />
             <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.sales_channels.view"><SalesChannelsPage /></RequirePermission>} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
@@ -223,38 +206,22 @@ export default function AppRoutes() {
             <Route path="/admin/messages-admin" element={<RequirePermission permission="messages.view"><AdminMessages /></RequirePermission>} />
             <Route path="/admin/marketing" element={<RequirePermission permission="marketing.view"><MarketingCenterPage /></RequirePermission>} />
 
-            // Customers Section
             <Route path="/admin/customers/new" element={<RequirePermission permission="customers.view"><CustomerFormPage /></RequirePermission>} />
             <Route path="/admin/customers/:customerId/edit" element={<RequirePermission permission="customers.view"><CustomerEditPage /></RequirePermission>} />
             <Route path="/admin/customers/:customerId" element={<RequirePermission permission="customers.view"><CustomerLifecyclePage /></RequirePermission>} />
 
-            // Financial Section
             <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
             <Route path="/admin/account-plan" element={<RequirePermission permission="financial.account_plan.view"><AccountPlanPage /></RequirePermission>} />
             <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
 
-            // Products Section
-            <Route
-              path="/admin/products"
-              element={
-                <RequirePermission permission="products.manage">
-                  <Products />
-                </RequirePermission>
-              }
-            />
+            <Route path="/admin/products" element={<RequirePermission permission="products.manage"><Products /></RequirePermission>} />
             <Route path="/admin/categories" element={<RequirePermission permission="categories.view"><Categories /></RequirePermission>} />
             <Route path="/admin/inventory" element={<RequirePermission permission="stock.view"><InventoryByLocationPage /></RequirePermission>} />
             <Route path="/admin/stock/divergences" element={<RequirePermission permission="stock.view"><StockDiscrepanciesPage /></RequirePermission>} />
+            <Route path="/admin/stock/reservations" element={<RequirePermission permission="stock.view"><StockReservationsPage /></RequirePermission>} />
             <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecycleSelectorPage /></RequirePermission>} />
             <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecyclePage /></RequirePermission>} />
-            <Route
-              path="/admin/transfers"
-              element={
-                <RequirePermission permission="transfers.view">
-                  <TransfersPage />
-                </RequirePermission>
-              }
-            />
+            <Route path="/admin/transfers" element={<RequirePermission permission="transfers.view"><TransfersPage /></RequirePermission>} />
             <Route path="/admin/transfers/:id" element={<RequirePermission permission="transfers.view"><TransferDetailPage /></RequirePermission>} />
             <Route path="/admin/suppliers" element={<RequirePermission permission="suppliers.view"><Suppliers /></RequirePermission>} />
             <Route path="/admin/suppliers/:supplierId/lifecycle" element={<RequirePermission permission="suppliers.view"><SupplierLifecyclePage /></RequirePermission>} />
@@ -270,82 +237,29 @@ export default function AppRoutes() {
             <Route path="/admin/stock-settings" element={<Navigate to="/admin/settings?tab=stock" replace />} />
             <Route path="/admin/stock/clearance" element={<Navigate to="/admin/stock-movements?type=clearance" replace />} />
 
-            //Users Section
-            <Route
-              path="/admin/users"
-              element={
-                <RequirePermission permission="users.view">
-                  <Users />
-                </RequirePermission>
-              }
-            />
+            <Route path="/admin/users" element={<RequirePermission permission="users.view"><Users /></RequirePermission>} />
 
-            //Settings Section
             <Route path="/admin/config" element={<Navigate to="/admin/settings?tab=orders" replace />} />
-            <Route
-              path="/admin/settings"
-              element={
-                <RequirePermission permissions={['settings.view']}>
-                  <Settings />
-                </RequirePermission>
-              }
-            />
-            <Route
-              path="/admin/my-profile"
-              element={
-                <RequireActiveStoreMember>
-                  <Profile />
-                </RequireActiveStoreMember>
-              }
-            />
-            <Route
-              path="/admin/meus-dados"
-              element={
-                <RequireActiveStoreMember>
-                  <Profile />
-                </RequireActiveStoreMember>
-              }
-            />
-            <Route
-              path="/admin/my-history"
-              element={
-                <RequireActiveStoreMember>
-                  <MyHistory />
-                </RequireActiveStoreMember>
-              }
-            />
+            <Route path="/admin/settings" element={<RequirePermission permissions={['settings.view']}><Settings /></RequirePermission>} />
+            <Route path="/admin/my-profile" element={<RequireActiveStoreMember><Profile /></RequireActiveStoreMember>} />
+            <Route path="/admin/meus-dados" element={<RequireActiveStoreMember><Profile /></RequireActiveStoreMember>} />
+            <Route path="/admin/my-history" element={<RequireActiveStoreMember><MyHistory /></RequireActiveStoreMember>} />
             <Route path="/admin/hours" element={<Navigate to="/admin/settings?tab=hours" replace />} />
             <Route path="/admin/messages" element={<RequirePermission permission="messages.view"><MessageSettings /></RequirePermission>} />
-            <Route
-              path="/admin/security"
-              element={
-                <RequirePermission permissions={['security.view']}>
-                  <Security />
-                </RequirePermission>
-              }
-            />
+            <Route path="/admin/security" element={<RequirePermission permissions={['security.view']}><Security /></RequirePermission>} />
 
-            //Help Section
             <Route path="/admin/legal" element={<RequirePermission permission="support.view"><Legal /></RequirePermission>} />
             <Route path="/admin/faq" element={<RequirePermission permission="support.view"><FAQ /></RequirePermission>} />
             <Route path="/admin/docs" element={<RequirePermission permission="support.view"><Documentation /></RequirePermission>} />
           </Route>
         </Route>
 
-        {/* 404 Route */}
         <Route path="*" element={
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
               <h1 className="text-6xl font-bold text-gray-900 dark:text-white mb-4">404</h1>
-              <p className="text-xl text-gray-600 dark:text-gray-300 mb-6">
-                Página não encontrada
-              </p>
-              <button
-                onClick={() => window.history.back()}
-                className="bg-[#19A999] text-white px-6 py-2 rounded-lg hover:bg-[#14887B] transition-colors"
-              >
-                Voltar
-              </button>
+              <p className="text-xl text-gray-600 dark:text-gray-300 mb-6">Página não encontrada</p>
+              <button onClick={() => window.history.back()} className="bg-[#19A999] text-white px-6 py-2 rounded-lg hover:bg-[#14887B] transition-colors">Voltar</button>
             </div>
           </div>
         } />
