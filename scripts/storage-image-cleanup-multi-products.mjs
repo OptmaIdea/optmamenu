@@ -77,7 +77,7 @@ async function main() {
 
   fs.mkdirSync(reportDir, { recursive: true });
   const reportPath = path.join(reportDir, `multi-image-products-cleanup-${timestamp()}.json`);
-  const report = { startedAt: new Date().toISOString(), parameters: { ids, execute: true }, results: [] };
+  const report = { startedAt: new Date().toISOString(), parameters: { ids, execute: true, preserveDatabaseOrder: true }, results: [] };
 
   for (const productId of ids) {
     const { data: product, error } = await supabase.from('products').select('id, store_id, name, images').eq('id', productId).single();
@@ -85,29 +85,48 @@ async function main() {
     const images = Array.isArray(product.images) ? product.images : [];
     if (images.length < 2) throw new Error(`${product.name}: esperado produto com múltiplas imagens.`);
 
-    const expectedPaths = images.map(normalizeObjectPath);
-    if (expectedPaths.some((value) => !value)) throw new Error(`${product.name}: URL inválida no array images.`);
-    expectedPaths.forEach((objectPath, index) => {
-      const expected = `${product.store_id}/${product.id}/image-${String(index + 1).padStart(2, '0')}.webp`;
-      if (objectPath !== expected) throw new Error(`${product.name}: ordem/caminho determinístico não confirmado no índice ${index}.`);
-    });
+    const currentPathsInDatabaseOrder = images.map(normalizeObjectPath);
+    if (currentPathsInDatabaseOrder.some((value) => !value)) throw new Error(`${product.name}: URL inválida no array images.`);
+    if (new Set(currentPathsInDatabaseOrder).size !== currentPathsInDatabaseOrder.length) {
+      throw new Error(`${product.name}: há caminhos duplicados no array images.`);
+    }
+
+    const expectedDeterministicPaths = images.map((_, index) =>
+      `${product.store_id}/${product.id}/image-${String(index + 1).padStart(2, '0')}.webp`,
+    );
+    const expectedSet = new Set(expectedDeterministicPaths);
+    if (
+      currentPathsInDatabaseOrder.length !== expectedDeterministicPaths.length ||
+      currentPathsInDatabaseOrder.some((objectPath) => !expectedSet.has(objectPath))
+    ) {
+      throw new Error(`${product.name}: conjunto de caminhos determinísticos não confirmado.`);
+    }
 
     const before = await listProductObjects(supabase, product.store_id, product.id);
-    for (const expectedPath of expectedPaths) {
+    for (const expectedPath of expectedDeterministicPaths) {
       if (!before.includes(expectedPath)) throw new Error(`${product.name}: arquivo atual ausente: ${expectedPath}`);
     }
-    const oldPaths = before.filter((objectPath) => !expectedPaths.includes(objectPath));
+
+    const oldPaths = before.filter((objectPath) => !expectedSet.has(objectPath));
     if (oldPaths.length) {
       const { error: removeError } = await supabase.storage.from(bucket).remove(oldPaths);
       if (removeError) throw removeError;
     }
 
     const after = await listProductObjects(supabase, product.store_id, product.id);
-    if (after.length !== expectedPaths.length || expectedPaths.some((objectPath) => !after.includes(objectPath))) {
+    if (after.length !== expectedDeterministicPaths.length || expectedDeterministicPaths.some((objectPath) => !after.includes(objectPath))) {
       throw new Error(`${product.name}: verificação pós-limpeza falhou.`);
     }
 
-    report.results.push({ status: 'cleaned', productId, name: product.name, preservedPaths: expectedPaths, deletedPaths: oldPaths, remainingPaths: after });
+    report.results.push({
+      status: 'cleaned',
+      productId,
+      name: product.name,
+      databaseOrderPreserved: currentPathsInDatabaseOrder,
+      preservedPaths: expectedDeterministicPaths,
+      deletedPaths: oldPaths,
+      remainingPaths: after,
+    });
     fs.writeFileSync(reportPath, JSON.stringify(report, null, 2), 'utf8');
   }
 
