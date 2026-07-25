@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { getActiveStoreId } from '@/utils/activeStore';
-import { optimizeImageForUpload, createSafeImageFilename, IMAGE_PROFILES } from '@/utils/imageOptimization';
+import { optimizeImageForUpload, IMAGE_PROFILES } from '@/utils/imageOptimization';
 import type { CategoryFormData } from '../types/category.types';
 
 interface SaveParams {
@@ -20,13 +20,12 @@ export const useCategorySave = () => {
     const uploadImage = async (file: File, activeStoreId: string, categoryId: string): Promise<string | null> => {
         try {
             const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.category);
-            const safeName = createSafeImageFilename(file.name, 'category');
-            const fileName = `${activeStoreId}/categories/${categoryId}/${safeName}`;
+            const fileName = `${activeStoreId}/${categoryId}/category.webp`;
 
             const { error: uploadError } = await supabase.storage
                 .from('category-images')
                 .upload(fileName, optimized.file, {
-                    upsert: false,
+                    upsert: true,
                     cacheControl: '31536000',
                     contentType: 'image/webp',
                 });
@@ -37,7 +36,7 @@ export const useCategorySave = () => {
                 .from('category-images')
                 .getPublicUrl(fileName);
 
-            return publicUrl;
+            return `${publicUrl}?v=${Date.now()}`;
         } catch (error) {
             console.error('Erro ao fazer upload da imagem de categoria:', error);
             toast.error('Erro ao enviar imagem da categoria');
@@ -45,24 +44,33 @@ export const useCategorySave = () => {
         }
     };
 
-    const deleteImage = async (imageUrl: string): Promise<void> => {
+    const deleteImage = async (imageUrl: string, activeStoreId?: string, categoryId?: string): Promise<void> => {
         try {
-            const urlObj = new URL(imageUrl);
-            const productsMarker = '/products/';
-            const categoryMarker = '/category-images/';
+            const pathsToRemove = new Set<string>();
 
-            if (urlObj.pathname.includes(productsMarker)) {
-                const path = urlObj.pathname.split(productsMarker)[1];
-                if (path) await supabase.storage.from('products').remove([path]);
-                return;
+            if (activeStoreId && categoryId) {
+                pathsToRemove.add(`${activeStoreId}/${categoryId}/category.webp`);
             }
 
-            if (urlObj.pathname.includes(categoryMarker)) {
-                const path = urlObj.pathname.split(categoryMarker)[1];
-                if (path) await supabase.storage.from('category-images').remove([path]);
+            if (imageUrl) {
+                const urlObj = new URL(imageUrl);
+                const productsMarker = '/products/';
+                const categoryMarker = '/category-images/';
+
+                if (urlObj.pathname.includes(productsMarker)) {
+                    const path = urlObj.pathname.split(productsMarker)[1];
+                    if (path) await supabase.storage.from('products').remove([path]);
+                } else if (urlObj.pathname.includes(categoryMarker)) {
+                    const path = urlObj.pathname.split(categoryMarker)[1];
+                    if (path) pathsToRemove.add(decodeURIComponent(path));
+                }
+            }
+
+            if (pathsToRemove.size > 0) {
+                await supabase.storage.from('category-images').remove(Array.from(pathsToRemove));
             }
         } catch (error) {
-            console.error('Erro ao remover imagem:', error);
+            console.error('Erro ao remover imagem de categoria:', error);
         }
     };
 
@@ -89,6 +97,9 @@ export const useCategorySave = () => {
                 if (!uploadedImageUrl) throw new Error('Falha no upload da imagem');
             }
 
+            const oldImageUrl = formData.image_url;
+            const finalImageUrl = imageFile ? uploadedImageUrl : formData.image_url;
+
             const basePayload = {
                 name: formData.name,
                 description: formData.description,
@@ -97,7 +108,7 @@ export const useCategorySave = () => {
                 price_logic_type: formData.price_logic_type,
                 price_rules: formData.price_rules,
                 pricing_strategy: formData.pricing_strategy,
-                image_url: uploadedImageUrl || formData.image_url || null,
+                image_url: finalImageUrl || null,
             };
 
             if (!categoryId) {
@@ -118,8 +129,9 @@ export const useCategorySave = () => {
                 }
             }
 
-            if (categoryId && formData.image_url && uploadedImageUrl && formData.image_url !== uploadedImageUrl) {
-                await deleteImage(formData.image_url);
+            // Se a imagem foi removida explicitamente na edição
+            if (categoryId && oldImageUrl && !finalImageUrl) {
+                await deleteImage(oldImageUrl, activeStoreId, categoryId);
             }
 
             onSuccess();

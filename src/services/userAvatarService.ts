@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { optimizeImageForUpload, createSafeImageFilename, IMAGE_PROFILES } from '@/utils/imageOptimization';
+import { optimizeImageForUpload, IMAGE_PROFILES } from '@/utils/imageOptimization';
 import { extractBucketPathFromUrl } from '@/utils/supabaseStorage';
 
 const AVATAR_BUCKET = 'user-avatars';
@@ -13,19 +13,19 @@ export async function uploadStoreMemberAvatar(params: {
 }) {
     const { memberId, userId, file, currentAvatarUrl, reason } = params;
 
-    // 1. Otimização da nova imagem para WebP no perfil avatar (512x512)
+    // 1. Otimização da imagem para WebP (perfil 512x512)
     const optimized = await optimizeImageForUpload(file, IMAGE_PROFILES.avatar);
 
-    // Gera nome único seguro com UUID para permitir INSERT direto via RLS (upsert: false)
-    const safeName = createSafeImageFilename(file.name, 'avatar');
-    const filePath = `${userId}/${safeName}`;
+    // 2. Caminho Determinístico Fixo para avatar de usuário
+    const fixedFileName = 'avatar.webp';
+    const filePath = `${userId}/${fixedFileName}`;
 
-    // 2. Upload da nova imagem usando INSERT (upsert: false) para respeitar políticas RLS do Supabase
+    // 3. Upload determinístico com upsert: true
     const { error: uploadError } = await supabase.storage
         .from(AVATAR_BUCKET)
         .upload(filePath, optimized.file, {
             cacheControl: '31536000',
-            upsert: false,
+            upsert: true,
             contentType: 'image/webp',
         });
 
@@ -37,15 +37,17 @@ export async function uploadStoreMemberAvatar(params: {
         .from(AVATAR_BUCKET)
         .getPublicUrl(filePath);
 
-    const publicUrl = data.publicUrl;
+    // Cache busting usando versão por timestamp para atualizar instantaneamente no navegador
+    const version = Date.now();
+    const versionedUrl = `${data.publicUrl}?v=${version}`;
 
     try {
-        // 3. Atualizar a referência do avatar no banco de dados via RPC
+        // 4. Persistir a URL no banco de dados via RPC
         const { data: rpcData, error: rpcError } = await supabase.rpc(
             'update_store_member_avatar_url',
             {
                 p_member_id: memberId,
-                p_avatar_url: publicUrl,
+                p_avatar_url: versionedUrl,
                 p_reason: reason ?? 'Alteração de avatar pela tela de usuário.',
             }
         );
@@ -54,26 +56,24 @@ export async function uploadStoreMemberAvatar(params: {
             throw rpcError;
         }
 
-        // 4. Exclusão dos avatares anteriores do usuário no Storage
+        // 5. Exclusão de arquivos legados com UUID/timestamp antigos na pasta do usuário
         try {
             const pathsToRemove = new Set<string>();
 
-            // Extrai a URL antiga se for uma foto do bucket user-avatars
             if (currentAvatarUrl) {
-                const oldExtractedPath = extractBucketPathFromUrl(currentAvatarUrl, AVATAR_BUCKET);
-                if (oldExtractedPath && oldExtractedPath !== filePath) {
-                    pathsToRemove.add(oldExtractedPath);
+                const oldPath = extractBucketPathFromUrl(currentAvatarUrl, AVATAR_BUCKET);
+                if (oldPath && oldPath !== filePath && oldPath.startsWith(`${userId}/`)) {
+                    pathsToRemove.add(oldPath);
                 }
             }
 
-            // Tenta listar outros arquivos legados dentro da pasta do usuário para não acumular fotos antigas
             const { data: existingFiles } = await supabase.storage
                 .from(AVATAR_BUCKET)
-                .list(userId, { limit: 500 });
+                .list(userId, { limit: 100 });
 
             if (existingFiles && existingFiles.length > 0) {
                 existingFiles.forEach((f) => {
-                    if (f.name && f.name !== safeName && f.name !== '.emptyFolderPlaceholder') {
+                    if (f.name && f.name !== fixedFileName && f.name !== '.emptyFolderPlaceholder') {
                         pathsToRemove.add(`${userId}/${f.name}`);
                     }
                 });
@@ -83,21 +83,64 @@ export async function uploadStoreMemberAvatar(params: {
             if (legacyPaths.length > 0) {
                 await supabase.storage.from(AVATAR_BUCKET).remove(legacyPaths);
             }
-        } catch (cleanupError) {
-            console.warn('[uploadStoreMemberAvatar] Aviso na remoção de avatares antigos:', cleanupError);
+        } catch (cleanupErr) {
+            console.warn('[uploadStoreMemberAvatar] Limpeza de arquivos legados:', cleanupErr);
         }
 
         return {
-            avatarUrl: publicUrl,
+            avatarUrl: versionedUrl,
             result: Array.isArray(rpcData) ? rpcData[0] ?? null : rpcData,
         };
     } catch (err) {
-        // Rollback da imagem enviada em caso de falha no banco
-        try {
-            await supabase.storage.from(AVATAR_BUCKET).remove([filePath]);
-        } catch {
-            // Ignora erro no rollback
-        }
         throw err;
     }
+}
+
+/**
+ * Remoção explícita da foto de perfil de um funcionário/membro.
+ * Deleta o arquivo determinístico no storage e atualiza o banco para null.
+ */
+export async function deleteStoreMemberAvatar(params: {
+    memberId: string;
+    userId: string;
+    currentAvatarUrl?: string | null;
+    reason?: string;
+}) {
+    const { memberId, userId, currentAvatarUrl, reason } = params;
+    const filePath = `${userId}/avatar.webp`;
+
+    const pathsToRemove = new Set<string>([filePath]);
+
+    if (currentAvatarUrl) {
+        const oldPath = extractBucketPathFromUrl(currentAvatarUrl, AVATAR_BUCKET);
+        if (oldPath) {
+            pathsToRemove.add(oldPath);
+        }
+    }
+
+    // 1. Remover objetos no Storage
+    try {
+        await supabase.storage.from(AVATAR_BUCKET).remove(Array.from(pathsToRemove));
+    } catch (err) {
+        console.warn('[deleteStoreMemberAvatar] Aviso na remoção do storage (objeto pode já não existir):', err);
+    }
+
+    // 2. Atualizar o banco de dados via RPC para null
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+        'update_store_member_avatar_url',
+        {
+            p_member_id: memberId,
+            p_avatar_url: null,
+            p_reason: reason ?? 'Remoção explícita de avatar.',
+        }
+    );
+
+    if (rpcError) {
+        throw rpcError;
+    }
+
+    return {
+        avatarUrl: null,
+        result: Array.isArray(rpcData) ? rpcData[0] ?? null : rpcData,
+    };
 }
