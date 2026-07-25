@@ -44,34 +44,49 @@ export const useCategorySave = () => {
         }
     };
 
-    const deleteImage = async (imageUrl: string, activeStoreId?: string, categoryId?: string): Promise<void> => {
-        try {
-            const pathsToRemove = new Set<string>();
+    const deleteImage = async (
+        imageUrl: string | null | undefined,
+        activeStoreId: string,
+        categoryId: string
+    ): Promise<void> => {
+        const pathsToRemove = new Set<string>([
+            `${activeStoreId}/${categoryId}/category.webp`,
+        ]);
 
-            if (activeStoreId && categoryId) {
-                pathsToRemove.add(`${activeStoreId}/${categoryId}/category.webp`);
-            }
-
-            if (imageUrl) {
+        if (imageUrl) {
+            try {
                 const urlObj = new URL(imageUrl);
                 const productsMarker = '/products/';
                 const categoryMarker = '/category-images/';
 
                 if (urlObj.pathname.includes(productsMarker)) {
-                    const path = urlObj.pathname.split(productsMarker)[1];
-                    if (path) await supabase.storage.from('products').remove([path]);
+                    const legacyProductPath = urlObj.pathname.split(productsMarker)[1];
+                    if (legacyProductPath) {
+                        const { error } = await supabase.storage
+                            .from('products')
+                            .remove([decodeURIComponent(legacyProductPath)]);
+                        if (error) throw error;
+                    }
                 } else if (urlObj.pathname.includes(categoryMarker)) {
-                    const path = urlObj.pathname.split(categoryMarker)[1];
-                    if (path) pathsToRemove.add(decodeURIComponent(path));
+                    const legacyCategoryPath = urlObj.pathname.split(categoryMarker)[1];
+                    if (legacyCategoryPath) {
+                        pathsToRemove.add(decodeURIComponent(legacyCategoryPath));
+                    }
+                }
+            } catch (error) {
+                if (error instanceof TypeError) {
+                    console.warn('URL legada de categoria inválida; removendo pelo caminho determinístico.', imageUrl);
+                } else {
+                    throw error;
                 }
             }
-
-            if (pathsToRemove.size > 0) {
-                await supabase.storage.from('category-images').remove(Array.from(pathsToRemove));
-            }
-        } catch (error) {
-            console.error('Erro ao remover imagem de categoria:', error);
         }
+
+        const { error: removeError } = await supabase.storage
+            .from('category-images')
+            .remove(Array.from(pathsToRemove));
+
+        if (removeError) throw removeError;
     };
 
     const handleSave = async ({
@@ -97,7 +112,6 @@ export const useCategorySave = () => {
                 if (!uploadedImageUrl) throw new Error('Falha no upload da imagem');
             }
 
-            const oldImageUrl = formData.image_url;
             const finalImageUrl = imageFile ? uploadedImageUrl : formData.image_url;
 
             const basePayload = {
@@ -127,11 +141,12 @@ export const useCategorySave = () => {
                 if (!data) {
                     throw new Error('Nenhuma categoria foi alterada. Verifique a loja ativa e sua permissão.');
                 }
-            }
 
-            // Se a imagem foi removida explicitamente na edição
-            if (categoryId && oldImageUrl && !finalImageUrl) {
-                await deleteImage(oldImageUrl, activeStoreId, categoryId);
+                // Em uma categoria já existente, salvar sem imagem significa remover
+                // o objeto determinístico, mesmo que a URL já tenha sido zerada no formulário.
+                if (!finalImageUrl) {
+                    await deleteImage(formData.image_url, activeStoreId, categoryId);
+                }
             }
 
             onSuccess();
