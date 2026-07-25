@@ -49,3 +49,6 @@ dist-ssr/
 
 # Scripts locais
 dump_schema.bat
+
+# Relatorios locais de auditoria do Storage
+reports/storage-images/
