@@ -22,7 +22,8 @@
     "storage:images:migrate-product": "node scripts/storage-image-migrate-product.mjs",
     "storage:images:cleanup-product-old": "node scripts/storage-image-cleanup-product-old.mjs",
     "storage:images:migrate-products-batch": "node scripts/storage-image-migrate-products-batch.mjs",
-    "storage:images:cleanup-products-batch": "node scripts/storage-image-cleanup-products-batch.mjs"
+    "storage:images:cleanup-products-batch": "node scripts/storage-image-cleanup-products-batch.mjs",
+    "storage:images:migrate-multi-products": "node scripts/storage-image-migrate-multi-products.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
