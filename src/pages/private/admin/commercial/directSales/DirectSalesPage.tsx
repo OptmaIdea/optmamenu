@@ -20,7 +20,7 @@ export type ProductOption = {
   categories?: { name?: string | null } | null;
 };
 
-type PaymentMethodOption = { code: string; name: string };
+export type PaymentMethodOption = { code: string; name: string };
 type CartLine = { productId: string; quantity: number; manualDiscount: number };
 type ProductSortOption = 'name_asc' | 'name_desc' | 'price_asc' | 'price_desc' | 'category_asc';
 
