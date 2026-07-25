@@ -158,10 +158,10 @@ export default function PdvLayout({
           {!hideSalesHistory && (
             <button
               type="button"
-              onClick={() => navigate('/admin/pdv/sales')}
+              onClick={() => navigate('/admin/sales')}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#7B2D8E] transition hover:bg-[#7B2D8E]/10 sm:h-11 sm:w-auto sm:gap-2 sm:px-3 dark:text-purple-300"
-              title="Vendas realizadas"
-              aria-label="Vendas realizadas"
+              title="Central de vendas"
+              aria-label="Central de vendas"
             >
               <ReceiptText size={18} aria-hidden="true" />
               <span className="hidden text-sm font-semibold xl:inline">Vendas</span>
