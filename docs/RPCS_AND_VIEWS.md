@@ -641,3 +641,50 @@ Retorna a fila de vendas concluídas com exceção de estoque, incluindo venda, 
 ### `resolve_stock_discrepancy_occurrence_safe(p_store_id, p_occurrence_id, p_status, p_resolution_type, p_resolution_notes, p_metadata)`
 
 Move a ocorrência entre tratamento, espera de contagem e encerramento. Resolução/cancelamento exigem tipo e observação. Requer proprietário, `stock.manage` ou `stock.adjust`. A função audita a decisão, mas não altera saldos automaticamente.
+## Grupos de atacado entre categorias (24/07/2026)
+
+
+### `calculate_store_cart_pricing(p_store_id, p_items)`
+
+Motor autoritativo v2 com precedência:
+
+```text
+regra própria do produto
+→ grupo de atacado ativo
+→ regra da categoria
+→ preço-base
+```
+
+O retorno inclui `engine_version=2`, `pricing_group_id`,
+`pricing_group_name`, `pricing_quantity`, `pricing_source` e
+`applied_tier`. A função respeita `pricing_strategy.volume_scope=per_product`
+e agrega entradas repetidas do mesmo produto.
+
+Permissões:
+
+- execução direta somente para `service_role`;
+- execução direta revogada de `public`, `anon` e `authenticated`;
+- slug usa o wrapper público `quote_public_order_by_slug`.
+
+### `save_pricing_group(...)`
+
+Salva grupo e vínculos de categorias de forma atômica. Exige autenticação e
+proprietário, `categories.manage` ou `products.manage`. Grupo ativo exige ao
+menos duas categorias da mesma loja. Criação e alteração registram antes/depois, responsável, faixas e categorias vinculadas em `audit_logs`. Execução revogada de `public` e `anon`.
+
+Usada por:
+
+- `src/services/pricingGroupService.ts`;
+- `Produtos → Categorias → Grupos de atacado`.
+
+### `get_public_catalog_by_slug(p_slug)`
+
+Passa a expor, somente para grupos ativos, `pricing_group_id`,
+`use_pricing_group_rules` e o objeto público `pricing_group` com nome,
+lógica e faixas.
+
+### `create_public_order_by_slug_v2(...)`
+
+Preserva grupo, quantidade compartilhada, origem e faixa aplicada no snapshot
+do item e do pedido. O snapshot do pedido identifica
+`calculate_store_cart_pricing_v2`.

@@ -395,6 +395,7 @@ export default function PrivateLayout() {
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
+            { path: '/admin/sales', icon: BadgeDollarSign, label: 'Vendas', permission: 'orders.view' },
             { path: '/admin/direct-sales', icon: BadgeDollarSign, label: 'Venda direta', permission: 'orders.manage' },
             { path: '/admin/pdv', icon: MonitorSmartphone, label: 'PDV', permission: 'pdv.view' },
         ],
@@ -412,6 +413,7 @@ export default function PrivateLayout() {
             { path: '/admin/suppliers', icon: Truck, label: 'Fornecedores', permission: 'suppliers.view' },
             { path: '/admin/stock/movements', icon: History, label: 'Movimentação', permission: 'stock.view' },
             { path: '/admin/products', icon: Package, label: 'Produtos', permission: 'products.manage' },
+            { path: '/admin/stock/reservations', icon: Clock, label: 'Reservas', permission: 'stock.view' },
             { path: '/admin/transfers', icon: ArrowRightLeft, label: 'Transferências', permission: 'transfers.view' },
             { path: '/admin/products/lifecycle', icon: Activity, label: 'Vida do produto', permission: 'products.manage' },
         ],
@@ -909,7 +911,7 @@ export default function PrivateLayout() {
         clearActiveStoreId();
         sessionStorage.removeItem('optmamenu.session.start');
         clearSessionSecurity();
-        await supabase.auth.signOut();
+        await supabase.auth.signOut({ scope: 'local' });
         navigate('/login', { replace: true });
     };
 

@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { v4 as uuidv4 } from 'uuid';
 import PdvLayout from '@/components/layouts/PdvLayout';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
@@ -408,7 +409,7 @@ export default function PdvPage() {
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState<string>('all');
   const [online, setOnline] = useState(() => navigator.onLine);
-  const saleAttemptIdRef = useRef(crypto.randomUUID());
+  const saleAttemptIdRef = useRef(uuidv4());
 
   const loadBootstrap = useCallback(
     async (requestedLocationId?: string | null, allowFallback = true) => {
@@ -617,7 +618,7 @@ export default function PdvPage() {
   const showAdminExit = !hasOnlyPdvOperationalAccess(permissions);
 
   const changeQuantity = useCallback((product: PosProduct, quantity: number) => {
-    saleAttemptIdRef.current = crypto.randomUUID();
+    saleAttemptIdRef.current = uuidv4();
     setShortageConfirmed(false);
     setCart((current) => {
       if (quantity <= 0) return current.filter((line) => line.product.id !== product.id);
@@ -631,7 +632,7 @@ export default function PdvPage() {
   }, []);
 
   const clearCart = useCallback(() => {
-    saleAttemptIdRef.current = crypto.randomUUID();
+    saleAttemptIdRef.current = uuidv4();
     setCart([]);
     setPaymentMethodCode('');
     setCashReceived('');
@@ -706,7 +707,7 @@ export default function PdvPage() {
       paymentMethods={paymentMethods}
       paymentMethodCode={paymentMethodCode}
       setPaymentMethodCode={(value) => {
-        saleAttemptIdRef.current = crypto.randomUUID();
+        saleAttemptIdRef.current = uuidv4();
         setPaymentMethodCode(value);
         setCashReceived('');
       }}

@@ -1411,6 +1411,7 @@ export function UserDetailModal({
                 memberId: user.id,
                 userId: user.user_id || user.stores?.[0]?.user_id || '',
                 file,
+                currentAvatarUrl: user.avatar_url || user.member_avatar_url,
                 reason: 'Alteração de avatar pela aba Cadastro.',
             });
 
@@ -1420,7 +1421,6 @@ export function UserDetailModal({
                 onAvatarUpdated(avatarUrl);
             }
         } catch (error) {
-            console.error('Erro ao atualizar avatar:', error);
             toast.error(
                 error instanceof Error
                     ? error.message

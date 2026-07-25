@@ -135,7 +135,7 @@ export default function CategoryEditModal({
                                     Clique para fazer upload
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                    PNG, JPG • max 2MB
+                                    PNG, JPG • max 10MB
                                 </p>
                             </div>
                         )}

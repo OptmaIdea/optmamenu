@@ -1,3 +1,5 @@
+import { getShortDocumentReference } from '@/utils/documentReference';
+
 type AnyRecord = Record<string, unknown>;
 
 export type ProductMovementNarrativeInput = {
@@ -71,15 +73,8 @@ export function isPurchaseDocumentCancelMovement(movement: ProductMovementNarrat
 }
 
 export function shortReference(value?: string | null, fallback = '—') {
-  const text = String(value ?? '').trim();
-
-  if (!text) return fallback;
-  if (text.startsWith('TRF-') || text.startsWith('ENT-') || text.startsWith('COT-')) {
-    return text;
-  }
-  if (text.length > 8) return text.slice(0, 8);
-
-  return text;
+  if (!value || typeof value !== 'string' || !value.trim()) return fallback;
+  return getShortDocumentReference(value, { fallbackLabel: fallback });
 }
 
 export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) {
@@ -258,18 +253,15 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
   }
 
   if (source === 'stock_transfer') {
-    if (movement.transfer_code) return movement.transfer_code;
     return shortReference(
-      movement.transfer_id ?? movement.source_id,
+      movement.transfer_code ?? movement.transfer_id ?? movement.source_id,
       'Transferência',
     );
   }
 
   if (isSaleMovement(movement)) {
-    return (
-      getMetadataText(movement.metadata, 'order_code') ??
-      shortReference(movement.order_id ?? movement.source_id, 'Pedido')
-    );
+    const rawOrderCode = getMetadataText(movement.metadata, 'order_code') ?? movement.order_id ?? movement.source_id;
+    return shortReference(rawOrderCode, 'Pedido');
   }
 
   if (source === 'purchase_document') {
@@ -279,14 +271,8 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
     const invoiceNumber =
       typeof metadata.invoice_number === 'string' ? metadata.invoice_number : null;
 
-    if (documentCode) return documentCode;
-    if (movement.purchase_document_number) return movement.purchase_document_number;
-    if (invoiceNumber) return invoiceNumber;
-
-    return shortReference(
-      movement.source_id,
-      'Documento de compra',
-    );
+    const rawPurchaseCode = documentCode ?? movement.purchase_document_number ?? invoiceNumber ?? movement.source_id;
+    return shortReference(rawPurchaseCode, 'Compra');
   }
 
   return shortReference(movement.source_id, 'Sem referência');
@@ -364,7 +350,7 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
   if (type === 'exit' && isSaleMovement(movement)) {
     const customer = getSaleCustomerLabel(movement);
     const reference = getMovementReferenceLabel(movement);
-    return `${location} teve saída de ${qty} un. por venda para ${customer} (${reference}).`;
+    return `${location} teve saída de ${qty} un. por venda para ${customer} — ${reference}.`;
   }
 
   if (type === 'exit') {

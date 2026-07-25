@@ -72,7 +72,7 @@ export function clearSessionSecurity() {
  * Valida o estado de segurança da sessão.
  * Retorna true se a sessão estiver ativa e válida, false se tiver expirado e deslogado.
  */
-export async function validateSessionSecurity(signOutFn: () => Promise<void>): Promise<boolean> {
+async function validateSessionSecurityOnce(signOutFn: () => Promise<void>): Promise<boolean> {
     if (typeof window === 'undefined') return true;
 
     const sessionActive = sessionStorage.getItem('optmamenu.session_active');
@@ -123,5 +123,24 @@ export async function validateSessionSecurity(signOutFn: () => Promise<void>): P
             await signOutFn();
             return false;
         }
+    }
+}
+
+
+let sessionSecurityValidation: Promise<boolean> | null = null;
+
+export async function validateSessionSecurity(
+    signOutFn: () => Promise<void>
+): Promise<boolean> {
+    if (sessionSecurityValidation) {
+        return sessionSecurityValidation;
+    }
+
+    sessionSecurityValidation = validateSessionSecurityOnce(signOutFn);
+
+    try {
+        return await sessionSecurityValidation;
+    } finally {
+        sessionSecurityValidation = null;
     }
 }

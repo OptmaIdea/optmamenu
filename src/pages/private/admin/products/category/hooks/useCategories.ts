@@ -71,13 +71,18 @@ export const useCategories = () => {
             // 2. Apagar imagem do storage (se existir)
             if (category.image_url) {
                 try {
+                    const storeId = category.store_id || getActiveStoreId();
+                    const paths = storeId ? [`${storeId}/${category.id}/category.webp`] : [];
                     const urlObj = new URL(category.image_url);
                     const parts = urlObj.pathname.split('/category-images/');
                     if (parts.length > 1) {
-                        await supabase.storage.from('category-images').remove([parts[1]]);
+                        paths.push(decodeURIComponent(parts[1]));
+                    }
+                    if (paths.length > 0) {
+                        await supabase.storage.from('category-images').remove(paths);
                     }
                 } catch (e) {
-                    console.error('Erro ao remover imagem:', e);
+                    console.error('Erro ao remover imagem da categoria no storage:', e);
                 }
             }
 
