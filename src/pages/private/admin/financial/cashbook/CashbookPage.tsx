@@ -130,6 +130,20 @@ function getPeriodDates(period: string) {
     const today = new Date();
     
     switch (period) {
+        case 'today': {
+            return {
+                start: getDateInputValue(today),
+                end: getDateInputValue(today)
+            };
+        }
+        case 'yesterday': {
+            const yesterday = new Date(today);
+            yesterday.setDate(today.getDate() - 1);
+            return {
+                start: getDateInputValue(yesterday),
+                end: getDateInputValue(yesterday)
+            };
+        }
         case 'current_month': {
             const start = new Date(today.getFullYear(), today.getMonth(), 1);
             const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -189,6 +203,18 @@ function getPeriodDates(period: string) {
             const dayOfWeek = today.getDay(); // 0 is Sunday, 6 is Saturday
             const sunday = new Date(today);
             sunday.setDate(today.getDate() - dayOfWeek);
+            const saturday = new Date(sunday);
+            saturday.setDate(sunday.getDate() + 6);
+            return {
+                start: getDateInputValue(sunday),
+                end: getDateInputValue(saturday)
+            };
+        }
+        case 'last_week': {
+            // Semana anterior: de Domingo a Sábado da semana anterior
+            const dayOfWeek = today.getDay();
+            const sunday = new Date(today);
+            sunday.setDate(today.getDate() - dayOfWeek - 7);
             const saturday = new Date(sunday);
             saturday.setDate(sunday.getDate() + 6);
             return {
@@ -833,11 +859,14 @@ export default function CashbookPage() {
                             }}
                             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                         >
+                            <option value="today">Hoje</option>
+                            <option value="yesterday">Ontem</option>
                             <option value="current_month">Mês Atual</option>
                             <option value="last_month">Mês Anterior</option>
                             <option value="fortnight">Quinzena Atual</option>
                             <option value="last_fortnight">Quinzena Anterior</option>
                             <option value="week">Semana (Dom-Sáb)</option>
+                            <option value="last_week">Semana Anterior</option>
                             <option value="all">Todo o período</option>
                             <option value="custom">Personalizado</option>
                         </select>
