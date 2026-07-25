@@ -10,21 +10,22 @@ export type DocumentReferenceOptions = {
 };
 
 const PREFIX_LABEL_MAP: Record<string, string> = {
-  PED: 'Pedido',
+  PED: 'PED',
   TRF: 'TRF',
-  CXA: 'Caixa',
-  ENT: 'Entrada',
-  COT: 'Cotação',
-  PUR: 'Compra',
-  CMP: 'Compra',
-  DOC: 'Doc. Compra',
-  DEV: 'Devolução',
-  AJU: 'Ajuste',
-  EST: 'Estoque',
-  RES: 'Reserva',
-  REC: 'Recibo',
-  NF: 'Nota Fiscal',
-  NFE: 'NF-e',
+  CXA: 'CXA',
+  ENT: 'ENTR',
+  ENTR: 'ENTR',
+  COT: 'COT',
+  PUR: 'COMP',
+  CMP: 'COMP',
+  DOC: 'COMP',
+  DEV: 'DEV',
+  AJU: 'AJU',
+  EST: 'EST',
+  RES: 'RES',
+  REC: 'REC',
+  NF: 'NFE',
+  NFE: 'NFE',
 };
 
 const TECHNICAL_STATUS_MAP: Record<string, string> = {
@@ -50,7 +51,7 @@ const TECHNICAL_STATUS_MAP: Record<string, string> = {
 };
 
 /**
- * Retorna o rótulo descritivo do tipo de documento baseado no prefixo (ex: PED -> Pedido, TRF -> TRF).
+ * Retorna o rótulo descritivo do tipo de documento baseado no prefixo (ex: PED -> PED, TRF -> TRF).
  */
 export function getDocumentTypeLabel(value?: string | null): string {
   if (!value) return 'Documento';
@@ -69,11 +70,11 @@ export function getDocumentTypeLabel(value?: string | null): string {
  * Converte um código longo/completo em uma referência curta humanizada.
  * 
  * Exemplos:
- * - PED-20260725-004413-5930 -> Pedido #5930
- * - TRF-20260724-013302-550 -> TRF #550
- * - CXA-20260725-004413-19DC -> Caixa #19DC
- * - ENT-20260724-123456-AB12 -> Entrada #AB12
- * - COT-20260724-123456-CD34 -> Cotação #CD34
+ * - PED-20260725-004413-5930 -> PED#5930
+ * - TRF-20260724-013302-550 -> TRF#550
+ * - CXA-20260725-004413-19DC -> CXA#19DC
+ * - ENT-20260724-123456-AB12 -> ENTR#AB12
+ * - COT-20260724-123456-CD34 -> COT#CD34
  * - UUID 5e84f407-64bf-4a75-8b24-06daab7a40c5 -> #7A40C5
  */
 export function getShortDocumentReference(
@@ -100,7 +101,7 @@ export function getShortDocumentReference(
       const cleanSuffix = suffix.toUpperCase();
 
       if (includePrefixLabel) {
-        return `${typeLabel} #${cleanSuffix}`;
+        return `${typeLabel}#${cleanSuffix}`;
       }
       return `#${cleanSuffix}`;
     }
@@ -135,4 +136,18 @@ export function humanizeTechnicalStatus(value?: string | null): string {
   if (!value) return '—';
   const lower = value.trim().toLowerCase();
   return TECHNICAL_STATUS_MAP[lower] || value;
+}
+
+/**
+ * Procura e substitui no meio de qualquer texto livre códigos longos por suas versões curtas.
+ * Exemplo: "Venda concluída pelo pedido PED-20260725-004413-5930" -> "Venda concluída pelo pedido PED#5930"
+ */
+export function humanizeTextReferences(text?: string | null): string {
+  if (!text || typeof text !== 'string') return text ?? '';
+
+  const codeRegex = /\b(PED|TRF|CXA|ENT|ENTR|COT|PUR|CMP|DOC|DEV|AJU|EST|RES|REC|NF|NFE)-[A-Za-z0-9\-]+\b/gi;
+
+  return text.replace(codeRegex, (match) => {
+    return getShortDocumentReference(match);
+  });
 }

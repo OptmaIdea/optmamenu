@@ -253,18 +253,15 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
   }
 
   if (source === 'stock_transfer') {
-    if (movement.transfer_code) return movement.transfer_code;
     return shortReference(
-      movement.transfer_id ?? movement.source_id,
+      movement.transfer_code ?? movement.transfer_id ?? movement.source_id,
       'Transferência',
     );
   }
 
   if (isSaleMovement(movement)) {
-    return (
-      getMetadataText(movement.metadata, 'order_code') ??
-      shortReference(movement.order_id ?? movement.source_id, 'Pedido')
-    );
+    const rawOrderCode = getMetadataText(movement.metadata, 'order_code') ?? movement.order_id ?? movement.source_id;
+    return shortReference(rawOrderCode, 'Pedido');
   }
 
   if (source === 'purchase_document') {
@@ -274,14 +271,8 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
     const invoiceNumber =
       typeof metadata.invoice_number === 'string' ? metadata.invoice_number : null;
 
-    if (documentCode) return documentCode;
-    if (movement.purchase_document_number) return movement.purchase_document_number;
-    if (invoiceNumber) return invoiceNumber;
-
-    return shortReference(
-      movement.source_id,
-      'Documento de compra',
-    );
+    const rawPurchaseCode = documentCode ?? movement.purchase_document_number ?? invoiceNumber ?? movement.source_id;
+    return shortReference(rawPurchaseCode, 'Compra');
   }
 
   return shortReference(movement.source_id, 'Sem referência');

@@ -22,7 +22,7 @@ import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
-import { getShortDocumentReference, getDocumentReferenceTitle } from '@/utils/documentReference';
+import { getShortDocumentReference, getDocumentReferenceTitle, humanizeTextReferences } from '@/utils/documentReference';
 import {
   ArrowLeft,
   History,
@@ -1049,7 +1049,7 @@ export default function ProductLifecyclePage() {
 
                           {divergence.divergence_notes && (
                             <p className="mt-3 text-xs opacity-80 font-medium">
-                              Observação: {divergence.divergence_notes}
+                              Observação: {humanizeTextReferences(divergence.divergence_notes)}
                             </p>
                           )}
                         </div>
@@ -1057,8 +1057,8 @@ export default function ProductLifecyclePage() {
                     }
 
                     const movement = item.movement;
-                    const rawRef = movement.transfer_code || movement.purchase_document_number || movement.source_id || '';
-                    const shortRef = getShortDocumentReference(rawRef, { fallbackLabel: 'Movimentação' });
+                    const shortRef = getMovementReferenceLabel(movement);
+                    const rawRef = movement.transfer_code || movement.purchase_document_number || (movement.metadata?.order_code as string) || movement.source_id || '';
                     const titleAttr = getDocumentReferenceTitle(rawRef);
 
                     return (
@@ -1083,7 +1083,7 @@ export default function ProductLifecyclePage() {
                             </div>
 
                             <p className="mt-2 text-sm font-medium leading-relaxed">
-                              {getMovementHumanDescription(movement)}
+                              {humanizeTextReferences(getMovementHumanDescription(movement))}
                             </p>
                           </div>
 
@@ -1119,7 +1119,7 @@ export default function ProductLifecyclePage() {
 
                         {movement.reason && (
                           <p className="mt-3 text-xs font-medium opacity-80">
-                            Motivo/observação: {movement.reason}
+                            Motivo/observação: {humanizeTextReferences(movement.reason)}
                           </p>
                         )}
                       </div>
