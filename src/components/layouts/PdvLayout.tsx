@@ -63,6 +63,7 @@ export default function PdvLayout({ children, storeName = 'OptmaMenu', operatorN
   };
   const handleInstall = async () => { if (!installPrompt) return; await installPrompt.prompt(); await installPrompt.userChoice; setInstallPrompt(null); };
   const handleLogout = async () => { await supabase.auth.signOut({ scope: 'local' }); navigate('/login', { replace: true }); };
+  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) || null;
 
   return <div className="min-h-screen bg-[#F8F6F2] text-[#2D2A26] transition-colors dark:bg-gray-950 dark:text-gray-100">
     <header className="sticky top-0 z-40 border-b border-[#6B6258]/10 bg-white/95 shadow-sm backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
@@ -73,9 +74,6 @@ export default function PdvLayout({ children, storeName = 'OptmaMenu', operatorN
             <p className="flex min-w-0 items-center gap-1 text-[11px] text-[#6B6258] dark:text-gray-400 sm:text-xs"><Store size={12} /><span className="max-w-24 truncate sm:max-w-44">{storeName}</span><span>•</span><MapPin size={12} /><span className="max-w-24 truncate sm:max-w-44">{locationName}</span></p>
           </div>
         </div>
-        <label className="hidden min-w-0 items-center gap-2 rounded-xl border border-[#6B6258]/15 bg-white px-2 lg:flex dark:border-gray-700 dark:bg-gray-950" title="Cliente da venda e fidelidade"><UserRound size={17} className="shrink-0 text-[#1A867A]" />
-          <select value={selectedCustomerId} onChange={(event) => handleCustomerChange(event.target.value)} className="h-10 max-w-48 bg-transparent text-sm font-semibold outline-none xl:max-w-60"><option value="">Cliente de balcão</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name || customer.phone || 'Cliente cadastrado'}</option>)}</select>
-        </label>
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-full sm:px-2.5 sm:py-1.5 ${online ? 'bg-[#21A896]/10 text-[#1A867A]' : 'bg-[#FBA93C]/15 text-[#8A5A00] dark:text-amber-300'}`} title={online ? 'Conectado' : 'Sem conexão'}>{online ? <Wifi size={17} /> : <WifiOff size={17} />}<span className="hidden text-xs font-semibold sm:inline">{online ? 'Online' : 'Offline'}</span></div>
         <button type="button" onClick={() => setIsDark((current) => !current)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#6B6258] transition hover:bg-[#6B6258]/10 dark:text-gray-300 dark:hover:bg-gray-800">{isDark ? <Sun size={19} /> : <Moon size={19} />}</button>
         {installPrompt && <button type="button" onClick={() => void handleInstall()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#1A867A] transition hover:bg-[#21A896]/10 sm:h-11 sm:w-auto sm:gap-2 sm:px-3"><Download size={18} /><span className="hidden text-sm font-semibold xl:inline">Instalar PDV</span></button>}
@@ -83,6 +81,18 @@ export default function PdvLayout({ children, storeName = 'OptmaMenu', operatorN
         <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#6B6258]/15 bg-[#7B2D8E]/10 text-xs font-black text-[#7B2D8E] sm:h-11 sm:w-auto sm:max-w-48 sm:gap-2 sm:rounded-xl sm:px-2.5 dark:border-gray-700 dark:text-purple-300" title={operatorName}><div className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#7B2D8E]/10">{operatorAvatarUrl ? <img src={operatorAvatarUrl} alt={operatorName} className="absolute inset-0 h-full w-full object-cover" /> : <span>{getInitials(operatorName)}</span>}</div><span className="hidden truncate text-sm font-semibold text-[#2D2A26] sm:inline dark:text-gray-100">{operatorName}</span></div>
         {showAdminExit && <button type="button" onClick={() => navigate('/admin')} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-[#6B6258]/15 text-[#2D2A26] transition hover:bg-[#6B6258]/5 sm:h-11 sm:w-auto sm:gap-2 sm:px-3 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"><ArrowLeft size={18} className="sm:hidden" /><LayoutDashboard size={18} className="hidden sm:block" /><span className="hidden text-sm font-semibold lg:inline">Painel</span></button>}
         <button type="button" onClick={() => void handleLogout()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#DC2626] transition hover:bg-[#DC2626]/10 sm:h-11 sm:w-11"><LogOut size={20} /></button>
+      </div>
+      <div className="border-t border-[#6B6258]/10 bg-[#F8F6F2]/95 px-3 py-2 dark:border-gray-800 dark:bg-gray-950/95 sm:px-5">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm font-bold"><UserRound size={18} className="text-[#1A867A]" /><span>Cliente da venda</span></div>
+          <label className="flex min-w-0 flex-1 items-center gap-2 sm:max-w-xl">
+            <select value={selectedCustomerId} onChange={(event) => handleCustomerChange(event.target.value)} className="h-11 w-full rounded-xl border border-[#6B6258]/15 bg-white px-3 text-sm font-semibold outline-none focus:border-[#21A896] focus:ring-2 focus:ring-[#21A896]/15 dark:border-gray-700 dark:bg-gray-900">
+              <option value="">Cliente de balcão — sem fidelidade</option>
+              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.full_name || customer.phone || 'Cliente cadastrado'}</option>)}
+            </select>
+          </label>
+          <span className="text-xs text-[#6B6258] dark:text-gray-400">{selectedCustomer ? 'Cliente cadastrado identificado; benefícios dependem da adesão válida.' : 'Venda rápida sem cliente cadastrado.'}</span>
+        </div>
       </div>
     </header>
     <main>{children}</main>
