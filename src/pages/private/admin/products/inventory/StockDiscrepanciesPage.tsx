@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw, Search } from 'lucide-react';
 import { toast } from 'sonner';
+import { getShortDocumentReference, getDocumentReferenceTitle } from '@/utils/documentReference';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
@@ -172,8 +173,11 @@ export default function StockDiscrepanciesPage() {
                       </span>
                       <span className="text-xs font-bold text-gray-400">{new Date(occurrence.created_at).toLocaleString('pt-BR')}</span>
                     </div>
-                    <h2 className="mt-3 text-lg font-black text-gray-900 dark:text-white">
-                      Venda {occurrence.order_code || occurrence.order_id?.slice(0, 8) || '—'}
+                    <h2
+                      className="mt-3 text-lg font-black text-gray-900 dark:text-white cursor-help"
+                      title={getDocumentReferenceTitle(occurrence.order_code || occurrence.order_id)}
+                    >
+                      {getShortDocumentReference(occurrence.order_code || occurrence.order_id, { fallbackLabel: 'Venda' })}
                     </h2>
                     <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                       Local: {occurrence.location_name || 'Não identificado'} · Operador: {occurrence.operator_name || 'Não identificado'}
@@ -203,7 +207,9 @@ export default function StockDiscrepanciesPage() {
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
           <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-gray-900 sm:rounded-3xl">
             <h2 className="text-xl font-black text-gray-900 dark:text-white">Tratar divergência</h2>
-            <p className="mt-1 text-sm text-gray-500">Venda {selected.order_code || selected.order_id?.slice(0, 8) || '—'} · {selected.location_name || 'local não identificado'}</p>
+            <p className="mt-1 text-sm text-gray-500" title={getDocumentReferenceTitle(selected.order_code || selected.order_id)}>
+              {getShortDocumentReference(selected.order_code || selected.order_id, { fallbackLabel: 'Venda' })} · {selected.location_name || 'local não identificado'}
+            </p>
             <div className="mt-5 space-y-4">
               <label className="block text-sm font-black text-gray-700 dark:text-gray-200">Próximo estado
                 <select value={nextStatus} onChange={(event) => setNextStatus(event.target.value as TreatmentStatus)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white">

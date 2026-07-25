@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Customers360Service, type Customer360, type Customer360Order } from '@/services/customers360Service';
+import { getShortDocumentReference } from '@/utils/documentReference';
 
 function formatCurrency(value: unknown) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -30,9 +31,7 @@ function statusLabel(status?: string | null) {
 }
 
 function shortOrderReference(order?: Pick<Customer360Order, 'id' | 'order_code'> | null) {
-  const source = order?.order_code || order?.id || '';
-  const compact = source.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
-  return compact ? `Pedido #${compact}` : 'Pedido';
+  return getShortDocumentReference(order?.order_code || order?.id, { fallbackLabel: 'Pedido' });
 }
 
 export default function CustomerLifecyclePage() {

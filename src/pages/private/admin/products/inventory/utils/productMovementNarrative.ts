@@ -1,3 +1,5 @@
+import { getShortDocumentReference } from '@/utils/documentReference';
+
 type AnyRecord = Record<string, unknown>;
 
 export type ProductMovementNarrativeInput = {
@@ -71,15 +73,8 @@ export function isPurchaseDocumentCancelMovement(movement: ProductMovementNarrat
 }
 
 export function shortReference(value?: string | null, fallback = '—') {
-  const text = String(value ?? '').trim();
-
-  if (!text) return fallback;
-  if (text.startsWith('TRF-') || text.startsWith('ENT-') || text.startsWith('COT-')) {
-    return text;
-  }
-  if (text.length > 8) return text.slice(0, 8);
-
-  return text;
+  if (!value || typeof value !== 'string' || !value.trim()) return fallback;
+  return getShortDocumentReference(value, { fallbackLabel: fallback });
 }
 
 export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) {
@@ -364,7 +359,7 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
   if (type === 'exit' && isSaleMovement(movement)) {
     const customer = getSaleCustomerLabel(movement);
     const reference = getMovementReferenceLabel(movement);
-    return `${location} teve saída de ${qty} un. por venda para ${customer} (${reference}).`;
+    return `${location} teve saída de ${qty} un. por venda para ${customer} — ${reference}.`;
   }
 
   if (type === 'exit') {

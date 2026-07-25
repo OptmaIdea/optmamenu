@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatDateTimePtBr } from '@/utils/dateTime';
+import { getShortDocumentReference } from '@/utils/documentReference';
 import type { OperationalTimelineEvent } from '../types/operationalTimeline.types';
 
 type OperationalTimelineProps = {
@@ -59,7 +60,7 @@ function getEventSubtitle(event: OperationalTimelineEvent) {
         event.channel_label,
         event.responsible_name ? `Responsável: ${event.responsible_name}` : null,
         event.supplier_name ? `Fornecedor: ${event.supplier_name}` : null,
-        event.reference_label ? `Ref.: ${event.reference_label}` : null,
+        event.reference_label ? `Ref.: ${getShortDocumentReference(event.reference_label)}` : null,
     ].filter(Boolean);
 
     return parts.join(' · ');
