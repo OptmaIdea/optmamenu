@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, RefreshCw, Search, ShoppingBag } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -44,18 +44,18 @@ function channelLabel(channel?: string | null) {
     qr_table: 'Mesa/QR',
     other: 'Outro',
   };
-  return labels[channel || ''] || channel || 'Não informado';
+  return labels[channel || ''] || channel || 'NÃ£o informado';
 }
 
 function paymentLabel(code?: string | null) {
   const labels: Record<string, string> = {
     pix: 'PIX',
     cash: 'Dinheiro',
-    debit_card: 'Cartão de débito',
-    credit_card: 'Cartão de crédito',
+    debit_card: 'CartÃ£o de dÃ©bito',
+    credit_card: 'CartÃ£o de crÃ©dito',
     pending: 'Pendente',
   };
-  return labels[code || ''] || code || 'Não informado';
+  return labels[code || ''] || code || 'NÃ£o informado';
 }
 
 export default function SalesPage() {
@@ -81,7 +81,7 @@ export default function SalesPage() {
       .limit(300);
 
     if (error) {
-      toast.error('Não foi possível carregar as vendas.');
+      toast.error('NÃ£o foi possÃ­vel carregar as vendas.');
     } else {
       setSales((data || []).map((row) => ({ ...row, subtotal: Number(row.subtotal || 0), total: Number(row.total || 0) })) as Sale[]);
     }
@@ -117,7 +117,7 @@ export default function SalesPage() {
       .order('id');
 
     if (error) {
-      toast.error('Não foi possível carregar os itens desta venda.');
+      toast.error('NÃ£o foi possÃ­vel carregar os itens desta venda.');
       return;
     }
 
@@ -133,7 +133,7 @@ export default function SalesPage() {
   };
 
   return (
-    <PageContainer>
+    <PageContainer title="Vendas">
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -151,7 +151,7 @@ export default function SalesPage() {
         <div className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 md:grid-cols-[minmax(0,1fr)_220px_220px]">
           <label className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Código, cliente, canal ou pagamento" className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 outline-none focus:border-[#21A896]" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="CÃ³digo, cliente, canal ou pagamento" className="h-11 w-full rounded-xl border border-slate-200 pl-10 pr-3 outline-none focus:border-[#21A896]" />
           </label>
           <select value={channel} onChange={(event) => setChannel(event.target.value)} className="h-11 rounded-xl border border-slate-200 px-3">
             <option value="all">Todos os canais</option>
@@ -166,8 +166,8 @@ export default function SalesPage() {
             <option value="all">Todos os pagamentos</option>
             <option value="pix">PIX</option>
             <option value="cash">Dinheiro</option>
-            <option value="debit_card">Débito</option>
-            <option value="credit_card">Crédito</option>
+            <option value="debit_card">DÃ©bito</option>
+            <option value="credit_card">CrÃ©dito</option>
             <option value="pending">Pendente</option>
           </select>
         </div>
@@ -188,7 +188,7 @@ export default function SalesPage() {
                   <button type="button" onClick={() => void openSale(sale.id)} className="grid w-full gap-3 p-4 text-left md:grid-cols-[minmax(0,1fr)_140px_140px_140px_auto] md:items-center">
                     <div>
                       <p className="font-black text-slate-900">{sale.order_code || sale.id.slice(0, 8)}</p>
-                      <p className="text-xs text-slate-500">{dateTime.format(new Date(sale.completed_at || sale.created_at))} • {sale.customer_name || 'Cliente de balcão'}</p>
+                      <p className="text-xs text-slate-500">{dateTime.format(new Date(sale.completed_at || sale.created_at))} â€¢ {sale.customer_name || 'Cliente de balcÃ£o'}</p>
                     </div>
                     <div><p className="text-xs text-slate-500">Canal</p><p className="font-semibold">{channelLabel(sale.sales_channel)}</p></div>
                     <div><p className="text-xs text-slate-500">Pagamento</p><p className="font-semibold">{paymentLabel(sale.payment_method_code)}</p></div>
@@ -203,9 +203,9 @@ export default function SalesPage() {
                           const meta = item.commercial_metadata || {};
                           return (
                             <div key={item.id} className="grid gap-2 rounded-xl bg-white p-3 md:grid-cols-[minmax(0,1fr)_100px_130px_130px]">
-                              <div><p className="font-bold">{String(snapshot.name || 'Produto')}</p><p className="text-xs text-slate-500">{String(meta.pricing_group_name || meta.pricing_source || 'Preço do produto')}</p></div>
+                              <div><p className="font-bold">{String(snapshot.name || 'Produto')}</p><p className="text-xs text-slate-500">{String(meta.pricing_group_name || meta.pricing_source || 'PreÃ§o do produto')}</p></div>
                               <div><p className="text-xs text-slate-500">Qtd.</p><p className="font-semibold">{item.quantity}</p></div>
-                              <div><p className="text-xs text-slate-500">Unitário</p><p className="font-semibold">{currency.format(item.unit_price)}</p></div>
+                              <div><p className="text-xs text-slate-500">UnitÃ¡rio</p><p className="font-semibold">{currency.format(item.unit_price)}</p></div>
                               <div><p className="text-xs text-slate-500">Total</p><p className="font-black">{currency.format(item.quantity * item.unit_price - item.discount)}</p></div>
                             </div>
                           );
@@ -215,7 +215,7 @@ export default function SalesPage() {
                         <span>Bruto: <strong>{currency.format(gross)}</strong></span>
                         <span>Desconto: <strong>{currency.format(discount)}</strong></span>
                         <span>Total: <strong>{currency.format(sale.total)}</strong></span>
-                        <span>Status: <strong>{sale.payment_status === 'paid' ? 'Pago' : sale.payment_status || 'Não informado'}</strong></span>
+                        <span>Status: <strong>{sale.payment_status === 'paid' ? 'Pago' : sale.payment_status || 'NÃ£o informado'}</strong></span>
                       </div>
                     </div>
                   )}
@@ -228,3 +228,4 @@ export default function SalesPage() {
     </PageContainer>
   );
 }
+

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Search, TimerReset } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -33,7 +33,7 @@ function channelLabel(channel?: string | null) {
     in_person: 'PDV',
     qr_table: 'Mesa/QR',
   };
-  return labels[channel || ''] || channel || 'Não informado';
+  return labels[channel || ''] || channel || 'NÃ£o informado';
 }
 
 export default function StockReservationsPage() {
@@ -51,7 +51,7 @@ export default function StockReservationsPage() {
     });
 
     if (error) {
-      toast.error('Não foi possível carregar as reservas de estoque.');
+      toast.error('NÃ£o foi possÃ­vel carregar as reservas de estoque.');
     } else {
       setRows((data || []).map((row: ReservationRow) => ({ ...row, quantity: Number(row.quantity || 0) })));
     }
@@ -73,7 +73,7 @@ export default function StockReservationsPage() {
   const totalReserved = visibleRows.reduce((sum, row) => sum + row.quantity, 0);
 
   return (
-    <PageContainer>
+    <PageContainer title="Reservas de estoque">
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -81,7 +81,7 @@ export default function StockReservationsPage() {
             <h1 className="mt-1 flex items-center gap-2 text-3xl font-black text-slate-900">
               <TimerReset className="text-[#21A896]" /> Reservas de estoque
             </h1>
-            <p className="mt-1 text-slate-500">Veja exatamente quais pedidos estão comprometendo o saldo disponível.</p>
+            <p className="mt-1 text-slate-500">Veja exatamente quais pedidos estÃ£o comprometendo o saldo disponÃ­vel.</p>
           </div>
           <button type="button" onClick={() => void load()} className="flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 font-semibold">
             <RefreshCw size={17} /> Atualizar
@@ -123,12 +123,12 @@ export default function StockReservationsPage() {
                     <td className="px-4 py-3 font-bold text-slate-900">{row.product_name}</td>
                     <td className="px-4 py-3 font-black text-[#7B2D8E]">{row.quantity}</td>
                     <td className="px-4 py-3">
-                      <div className="font-semibold">{row.order_code || 'Sem código'}</div>
+                      <div className="font-semibold">{row.order_code || 'Sem cÃ³digo'}</div>
                       <div className="text-xs text-slate-500">{row.order_status || row.reservation_status}</div>
                     </td>
-                    <td className="px-4 py-3">{row.customer_name || 'Não informado'}</td>
+                    <td className="px-4 py-3">{row.customer_name || 'NÃ£o informado'}</td>
                     <td className="px-4 py-3">{channelLabel(row.sales_channel)}</td>
-                    <td className="px-4 py-3">{row.location_name || 'Não informado'}</td>
+                    <td className="px-4 py-3">{row.location_name || 'NÃ£o informado'}</td>
                     <td className="px-4 py-3">{dateTime.format(new Date(row.created_at))}</td>
                     <td className="px-4 py-3">{row.expires_at ? dateTime.format(new Date(row.expires_at)) : 'Sem prazo'}</td>
                   </tr>
@@ -141,3 +141,4 @@ export default function StockReservationsPage() {
     </PageContainer>
   );
 }
+
