@@ -1411,6 +1411,7 @@ export function UserDetailModal({
                 memberId: user.id,
                 userId: user.user_id || user.stores?.[0]?.user_id || '',
                 file,
+                currentAvatarUrl: user.avatar_url || user.member_avatar_url,
                 reason: 'Alteração de avatar pela aba Cadastro.',
             });
 

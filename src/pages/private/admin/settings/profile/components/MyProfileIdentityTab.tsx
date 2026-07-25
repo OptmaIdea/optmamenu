@@ -1,5 +1,5 @@
 import React from 'react';
-import { Camera, Loader, Mail, Phone, User, Plus, Save } from 'lucide-react';
+import { Camera, Loader, Mail, Phone, User, Plus, Save, Maximize2, X } from 'lucide-react';
 import type { ProfileChangeRequestType } from '@/services/securityService';
 
 export interface AdditionalInfo {
@@ -87,6 +87,9 @@ export default function MyProfileIdentityTab({
     openProfileRequestModal,
     handleSave,
 }: MyProfileIdentityTabProps) {
+    const [isZoomOpen, setIsZoomOpen] = React.useState(false);
+    const fileInputRef = React.useRef<HTMLInputElement>(null);
+
     const handleMobileChange = (value: string) => {
         const formatted = formatMobile(value);
         setProfile((current) => ({
@@ -109,7 +112,17 @@ export default function MyProfileIdentityTab({
             {/* Visual Avatar Block */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row items-center gap-6">
                 <div className="relative group">
-                    <div className="relative h-24 w-24 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#19A999]/10 flex items-center justify-center">
+                    <div
+                        onClick={() => {
+                            if (profile.avatar_url) {
+                                setIsZoomOpen(true);
+                            } else {
+                                fileInputRef.current?.click();
+                            }
+                        }}
+                        className="relative h-28 w-28 overflow-hidden rounded-full border-4 border-white dark:border-gray-700 shadow-md bg-[#19A999]/10 flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+                        title={profile.avatar_url ? 'Clique para ampliar ou alterar' : 'Clique para enviar foto'}
+                    >
                         {profile.avatar_url ? (
                             <img
                                 src={profile.avatar_url}
@@ -123,30 +136,50 @@ export default function MyProfileIdentityTab({
                         )}
 
                         {/* Hover Overlay */}
-                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full transition cursor-pointer">
-                            <label htmlFor="avatar-upload" className="cursor-pointer text-white flex flex-col items-center">
-                                <Camera size={18} />
-                                <span className="text-[10px] font-bold mt-1">Alterar</span>
-                            </label>
+                        <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 rounded-full transition cursor-pointer gap-1 p-2 text-white text-center">
+                            {profile.avatar_url ? (
+                                <>
+                                    <span className="text-[11px] font-black flex items-center gap-1 hover:underline">
+                                        <Maximize2 size={12} /> Ampliar
+                                    </span>
+                                    <span
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            fileInputRef.current?.click();
+                                        }}
+                                        className="text-[11px] font-black flex items-center gap-1 hover:underline text-teal-300"
+                                    >
+                                        <Camera size={12} /> Substituir
+                                    </span>
+                                </>
+                            ) : (
+                                <span className="text-[11px] font-black flex items-center gap-1">
+                                    <Camera size={14} /> Enviar foto
+                                </span>
+                            )}
                         </div>
                     </div>
 
                     {savingAvatar && (
-                        <div className="absolute inset-0 bg-white/70 dark:bg-gray-800/70 rounded-full flex items-center justify-center">
-                            <Loader size={20} className="animate-spin text-[#19A999]" />
+                        <div className="absolute inset-0 bg-white/80 dark:bg-gray-800/80 rounded-full flex items-center justify-center z-10">
+                            <Loader size={22} className="animate-spin text-[#19A999]" />
                         </div>
                     )}
 
-                    <label
-                        htmlFor="avatar-upload"
-                        className="absolute bottom-0 right-0 bg-[#19A999] text-white p-1.5 rounded-full shadow-md cursor-pointer hover:brightness-110 transition"
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={savingAvatar}
+                        className="absolute bottom-0 right-0 bg-[#19A999] text-white p-2 rounded-full shadow-lg hover:bg-teal-700 transition cursor-pointer z-10"
+                        title="Substituir imagem de perfil"
                     >
                         <Camera size={14} />
-                    </label>
+                    </button>
+
                     <input
-                        id="avatar-upload"
+                        ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         className="hidden"
                         onChange={handleAvatarChange}
                         disabled={savingAvatar}
@@ -154,13 +187,75 @@ export default function MyProfileIdentityTab({
                 </div>
 
                 <div className="flex-1 text-center sm:text-left">
-                    <h2 className="text-xl font-bold text-gray-800 dark:text-white">Foto de Perfil</h2>
+                    <div className="flex items-center gap-3 justify-center sm:justify-start">
+                        <h2 className="text-xl font-bold text-gray-800 dark:text-white">Foto de Perfil</h2>
+                        {profile.avatar_url && (
+                            <button
+                                type="button"
+                                onClick={() => setIsZoomOpen(true)}
+                                className="text-xs font-bold text-[#19A999] hover:underline flex items-center gap-1"
+                            >
+                                <Maximize2 size={12} /> Ampliar
+                            </button>
+                        )}
+                    </div>
                     <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-                        Carregue uma imagem quadrada para seu avatar.
-                        <br />Formatos aceitos: JPG, PNG ou WEBP, máx. 2MB.
+                        Clique na imagem para ampliar ou substitua por uma nova foto.
+                        <br />Sua imagem é automaticamente convertida e otimizada para WebP.
                     </p>
                 </div>
             </div>
+
+            {/* Modal de Foto Ampliada (Zoom) */}
+            {isZoomOpen && profile.avatar_url && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-xs animate-fadeIn"
+                    onClick={() => setIsZoomOpen(false)}
+                >
+                    <div
+                        className="relative max-w-lg w-full bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-2xl border border-gray-200 dark:border-gray-800 flex flex-col items-center gap-4"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            onClick={() => setIsZoomOpen(false)}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-white p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+                        >
+                            <X size={20} />
+                        </button>
+
+                        <h3 className="text-base font-bold text-gray-900 dark:text-white">Foto de Perfil</h3>
+
+                        <div className="relative h-72 w-72 overflow-hidden rounded-full border-4 border-[#19A999] shadow-inner bg-gray-100 dark:bg-gray-800">
+                            <img
+                                src={profile.avatar_url}
+                                alt="Foto de Perfil Ampliada"
+                                className="h-full w-full object-cover"
+                            />
+                        </div>
+
+                        <div className="flex gap-3 mt-2 w-full justify-center">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsZoomOpen(false);
+                                    fileInputRef.current?.click();
+                                }}
+                                className="px-5 py-2.5 rounded-xl bg-[#19A999] text-white font-bold text-xs hover:bg-teal-700 transition flex items-center gap-2 shadow-xs cursor-pointer"
+                            >
+                                <Camera size={14} /> Substituir Imagem
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsZoomOpen(false)}
+                                className="px-5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-xs hover:bg-gray-100 dark:hover:bg-gray-800 transition cursor-pointer"
+                            >
+                                Fechar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Identification Section */}
             <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">

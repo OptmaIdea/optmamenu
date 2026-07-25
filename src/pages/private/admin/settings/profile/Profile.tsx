@@ -662,6 +662,7 @@ export default function Profile() {
                 memberId: primaryMembership.member_id,
                 userId: user.id,
                 file,
+                currentAvatarUrl: profile.avatar_url,
                 reason: 'Alteração de avatar pessoal.',
             });
 
