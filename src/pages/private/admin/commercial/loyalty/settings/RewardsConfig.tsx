@@ -6,8 +6,6 @@ import RewardImageLibrary from './RewardImageLibrary';
 import { uploadRewardMediaAsset, type RewardMediaAsset } from '@/services/rewardMediaLibrary';
 import { applyImageFallback, imageOrFallback, IMAGE_FALLBACKS } from '@/lib/imageFallbacks';
 
-const DEFAULT_REWARD_IMAGE = IMAGE_FALLBACKS.reward;
-
 // --- Types ---
 interface Reward {
     id: string;
