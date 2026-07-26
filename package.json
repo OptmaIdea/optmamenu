@@ -19,6 +19,7 @@
     "convert:webp:quality": "node scripts/convert-to-webp.js --quality 90",
     "images:integrate-fallbacks": "node scripts/integrate-image-fallbacks.mjs",
     "images:integrate-reward-library": "node scripts/integrate-reward-image-library.mjs",
+    "images:finalize-reward-actions": "node scripts/finalize-reward-image-actions.mjs",
     "storage:images:inventory": "node scripts/storage-image-inventory.mjs --inventory",
     "storage:images:dry-run": "node scripts/storage-image-inventory.mjs --dry-run",
     "storage:images:migrate-product": "node scripts/storage-image-migrate-product.mjs",
