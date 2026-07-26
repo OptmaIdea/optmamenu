@@ -106,6 +106,15 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             return;
         }
 
+        const normalizedSlug = slug.trim().toLowerCase();
+        const currentSlug = (store?.slug || '').trim().toLowerCase();
+        if (currentSlug && normalizedSlug !== currentSlug) {
+            const confirmed = window.confirm(
+                `Você está alterando o endereço público da loja.\n\nAtual: /s/${currentSlug}\nNovo: /s/${normalizedSlug}\n\nLinks e QR Codes antigos continuarão levando para esta mesma loja, mas novos materiais devem usar o endereço novo. Deseja continuar?`
+            );
+            if (!confirmed) return;
+        }
+
         try {
             setSaving(true);
             setError(null);
@@ -115,7 +124,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                 store_id: storeId,
                 public_store_enabled: publicStoreEnabled,
                 public_catalog_enabled: publicCatalogEnabled,
-                slug,
+                slug: normalizedSlug,
                 minimum_order_value: asNumber(minimumOrderValue, 0),
                 reservation_time_minutes: Math.max(1, Math.floor(asNumber(reservationTimeMinutes, 10))),
                 public_sales_location_id: publicSalesLocationId || null,
@@ -202,7 +211,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                             <ToggleCard title="Mostrar indisponíveis" description="Mantém produtos indisponíveis visíveis no catálogo." checked={Boolean(orderSettings.show_unavailable_products)} onChange={(checked) => updateOrderSettings({ show_unavailable_products: checked })} disabled={disabled} />
                         </div>
                         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Slug público</label><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase())} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="gelinharessjn" disabled={disabled} /><p className="mt-1 text-xs text-gray-500">Link: {publicUrl || 'configure um slug'}</p></div>
+                            <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Slug público</label><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} minLength={3} maxLength={60} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="gelinharessjn" disabled={disabled} /><p className="mt-1 text-xs text-gray-500">Link: {publicUrl || 'configure um slug'}</p>{store?.slug && slug.trim().toLowerCase() !== store.slug.trim().toLowerCase() && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">A mudança preservará o endereço antigo como alias protegido, mas novos QR Codes e materiais devem usar o novo link.</p>}</div>
                             <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Local de venda pública</label><select value={publicSalesLocationId} onChange={(event) => setPublicSalesLocationId(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" disabled={disabled}><option value="">Selecionar automaticamente</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}{location.is_default ? ' — padrão' : ''}</option>)}</select></div>
                         </div>
                     </section>
