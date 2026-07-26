@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Loader, Plus, Trash2, Upload, Image as ImageIcon, Search, Box, AlertCircle, Edit, ArrowLeft, LayoutList, Save, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import { applyImageFallback, imageOrFallback, IMAGE_FALLBACKS } from '@/lib/imageFallbacks';
 
-const DEFAULT_REWARD_IMAGE = 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/reward-images/0abba741-0f77-4783-8cf8-58811cf7343b/logo-gelinhares.png';
+const DEFAULT_REWARD_IMAGE = IMAGE_FALLBACKS.reward;
 
 // --- Types ---
 interface Reward {
@@ -81,7 +82,7 @@ const deleteRewardImage = async (imageUrl: string) => {
     try {
         // Protected images check
         if (!imageUrl) return;
-        if (imageUrl === DEFAULT_REWARD_IMAGE) return;
+        if (imageUrl === DEFAULT_REWARD_IMAGE || imageUrl.startsWith('/fallbacks/')) return;
         if (!imageUrl.includes('/reward-images/')) return; // Likely a product image or external
 
         const path = imageUrl.split('/reward-images/')[1];
@@ -116,7 +117,7 @@ const RewardRow = ({ reward, onEdit }: { reward: Reward, onEdit: (r: Reward) => 
             {/* Image Avatar */}
             <div className="w-12 h-12 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden relative border border-gray-200 dark:border-gray-600">
                 {reward.image_url ? (
-                    <img src={reward.image_url} alt={reward.title} className="w-full h-full object-cover" />
+                    <img src={imageOrFallback(reward.image_url, 'reward')} onError={(event) => applyImageFallback(event, 'reward')} alt={reward.title} className="w-full h-full object-cover" />
                 ) : (
                     <div className="w-full h-full flex items-center justify-center text-gray-300">
                         <ImageIcon size={20} />
@@ -189,7 +190,7 @@ const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, is
     // Local State
     const [formData, setFormData] = useState<Reward>(initialData);
     const [imageFile, setImageFile] = useState<File | null>(null);
-    const [previewUrl, setPreviewUrl] = useState<string | undefined>(initialData.image_url);
+    const [previewUrl, setPreviewUrl] = useState<string>(imageOrFallback(initialData.image_url, 'reward'));
     const [saving, setSaving] = useState(false);
 
     // Group Products by Category
@@ -315,7 +316,7 @@ const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, is
                 {/* Image Area */}
                 <div className="relative w-full aspect-video bg-gray-50 dark:bg-gray-900/50 rounded-xl mb-6 overflow-hidden group/image border border-gray-100 dark:border-gray-700">
                     {previewUrl ? (
-                        <img src={previewUrl} alt={formData.title} className="w-full h-full object-cover" />
+                        <img src={imageOrFallback(previewUrl, 'reward')} onError={(event) => applyImageFallback(event, 'reward')} alt={formData.title} className="w-full h-full object-cover" />
                     ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-gray-300 dark:text-gray-600">
                             <ImageIcon size={48} className="mb-2 opacity-50" />
