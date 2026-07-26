@@ -28,20 +28,21 @@ https://gelinharessjn.optmaidea.com.br
 
 ## 🛠️ 2. Configuração da Infraestrutura (Registro.br + Vercel)
 
-Como o domínio `optmaidea.com.br` está registrado no **Registro.br**, a configuração é dividida em duas etapas simples:
+Como o painel de DNS nativo do **Registro.br** bloqueia o caractere coringa `*` (conforme especificação estrita do seu servidor DNS autoritativo), a solução padrão de mercado é delegar o gerenciamento de DNS para um servidor externo gratuito (**Cloudflare** ou **Vercel DNS**).
 
-### Etapa A: Configuração no Registro.br (ou Servidor de DNS / Cloudflare)
-Para permitir que qualquer subdomínio dinâmico (ex: `qualquercoisa.optmaidea.com.br`) responda na Vercel:
+### Etapa A: Opções de Servidor de DNS Externo (Delegar NS no Registro.br)
 
-1. Acesse o painel do **Registro.br** no domínio `optmaidea.com.br`.
-2. Vá em **Editar Zona DNS**.
-3. Adicione uma nova entrada do tipo **A (IPv4)**:
-   - **Tipo:** `A`
-   - **Nome:** `*`
-   - **Endereço IP / Servidor:** `76.76.21.21` *(IP Oficial da Vercel para registros A)*
+#### Opção 1: Cloudflare (Recomendado - 100% Gratuito)
+1. Crie uma conta gratuita em [Cloudflare.com](https://cloudflare.com) e adicione o domínio `optmaidea.com.br`.
+2. O Cloudflare importará automaticamente todos os seus registros DNS atuais (como e-mails, Brevo, etc.).
+3. O Cloudflare fornecerá 2 Servidores DNS (NameServers, ex: `ns1.cloudflare.com` e `ns2.cloudflare.com`).
+4. No painel do **Registro.br**, clique no seu domínio -> **Alterar Servidores DNS** e insira os 2 NameServers do Cloudflare.
+5. No painel do Cloudflare, crie a entrada CNAME ou A com wildcard `*` apontando para `cname.vercel-dns.com` ou `76.76.21.21`.
 
-> ⚠️ **Por que usar o Tipo A no Registro.br?** O painel do Registro.br bloqueia nativamente o caractere `*` para registros do tipo `CNAME`. Ao utilizar o tipo `A` apontando para o IP `76.76.21.21`, o wildcard funciona perfeitamente.
-> 💡 **Alternativa Cloudflare:** Se preferir usar CNAME Wildcard com proxy, ative o Cloudflare gratuito apontando os NameServers do Registro.br para o Cloudflare.
+#### Opção 2: Vercel DNS (100% Gratuito)
+1. No painel da Vercel (em *Domains*), adicione `optmaidea.com.br`. A Vercel exibirá os NameServers dela (ex: `ns1.vercel-dns.com` e `ns2.vercel-dns.com`).
+2. No **Registro.br**, altere os Servidores DNS para os fornecidos pela Vercel.
+3. Recrie quaisquer registros de e-mail existentes (Brevo, Google Workspace, etc.) no painel de DNS da Vercel.
 
 ### Etapa B: Configuração no Projeto da Vercel
 1. Acesse o painel da **Vercel** -> Selecione o projeto `optmamenu`.
