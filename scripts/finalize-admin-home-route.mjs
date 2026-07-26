@@ -25,38 +25,88 @@ let routes = read(routesPath);
 
 routes = replaceOnce(
   routes,
-  "import { hasEffectivePermission, hasOnlyPdvOperationalAccess } from '@/utils/permissions';\nimport { useState, useEffect } from 'react';\n\nfunction AdminLanding() {",
-  "import { hasOnlyPdvOperationalAccess } from '@/utils/permissions';\nimport { useEffect } from 'react';\n\nfunction AdminLanding() {",
+  "import { hasEffectivePermission, hasOnlyPdvOperationalAccess } from '@/utils/permissions';\nimport { useState, useEffect } from 'react';",
+  "import { hasOnlyPdvOperationalAccess } from '@/utils/permissions';",
   'imports do AdminLanding'
 );
 
-routes = replaceOnce(
-  routes,
-  "  const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);\n  const [redirectPath, setRedirectPath] = useState<string | null>(null);",
-  "  const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);",
-  'estado de redirecionamento'
-);
+const oldAdminLanding = `function AdminLanding() {
+  const activeStoreId = getActiveStoreId();
+  const { securityContext, loading: securityLoading } = useSecurityContext();
+  const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
-routes = replaceOnce(
-  routes,
-  "  const isOwner = activeMembership?.role === 'owner';\n  const hasDashboardView = isOwner || hasEffectivePermission(permissions, 'dashboard.view');\n  const onlyPdvAccess = !isOwner && hasOnlyPdvOperationalAccess(permissions);",
-  "  const isOwner = activeMembership?.role === 'owner';\n  const onlyPdvAccess = !isOwner && hasOnlyPdvOperationalAccess(permissions);",
-  'cálculo de acesso do dashboard'
-);
+  const activeMembership = securityContext?.memberships?.find(
+    (m) => m.store_id === activeStoreId && m.status === 'active'
+  ) || securityContext?.primary_membership || null;
 
-routes = replaceOnce(
-  routes,
-  "  useEffect(() => {\n    if (securityLoading || permissionsLoading || !activeStoreId) return;\n\n    if (hasDashboardView) {\n      setRedirectPath('/admin');\n    } else if (onlyPdvAccess) {\n      setRedirectPath('/admin/pdv');\n    } else {\n      setRedirectPath('/admin/my-profile');\n    }\n  }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView, onlyPdvAccess]);",
-  "  useEffect(() => {\n    if (securityLoading || permissionsLoading || !activeStoreId) return;\n\n    if (onlyPdvAccess) {\n      window.location.replace('/admin/pdv');\n    }\n  }, [securityLoading, permissionsLoading, activeStoreId, onlyPdvAccess]);",
-  'efeito de landing'
-);
+  const isOwner = activeMembership?.role === 'owner';
+  const hasDashboardView = isOwner || hasEffectivePermission(permissions, 'dashboard.view');
+  const onlyPdvAccess = !isOwner && hasOnlyPdvOperationalAccess(permissions);
 
-routes = replaceOnce(
-  routes,
-  "  if (hasDashboardView) {\n    return <Dashboard />;\n  }\n\n  if (redirectPath) {\n    return <Navigate to={redirectPath} replace />;\n  }",
-  "  if (onlyPdvAccess) {\n    return (\n      <div className=\"min-h-screen flex items-center justify-center bg-gray-50\">\n        <div className=\"animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]\"></div>\n      </div>\n    );\n  }\n\n  return <AdminHome />;",
-  'renderização do landing'
-);
+  useEffect(() => {
+    if (securityLoading || permissionsLoading || !activeStoreId) return;
+
+    if (hasDashboardView) {
+      setRedirectPath('/admin');
+    } else if (onlyPdvAccess) {
+      setRedirectPath('/admin/pdv');
+    } else {
+      setRedirectPath('/admin/my-profile');
+    }
+  }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView, onlyPdvAccess]);
+
+  if (securityLoading || permissionsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
+      </div>
+    );
+  }
+
+  if (hasDashboardView) {
+    return <Dashboard />;
+  }
+
+  if (redirectPath) {
+    return <Navigate to={redirectPath} replace />;
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
+    </div>
+  );
+}`;
+
+const newAdminLanding = `function AdminLanding() {
+  const activeStoreId = getActiveStoreId();
+  const { securityContext, loading: securityLoading } = useSecurityContext();
+  const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
+
+  const activeMembership = securityContext?.memberships?.find(
+    (membership) => membership.store_id === activeStoreId && membership.status === 'active'
+  ) || securityContext?.primary_membership || null;
+
+  const isOwner = activeMembership?.role === 'owner';
+  const onlyPdvAccess = !isOwner && hasOnlyPdvOperationalAccess(permissions);
+
+  if (securityLoading || permissionsLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
+      </div>
+    );
+  }
+
+  if (onlyPdvAccess) {
+    return <Navigate to="/admin/pdv" replace />;
+  }
+
+  return <AdminHome />;
+}`;
+
+routes = replaceOnce(routes, oldAdminLanding, newAdminLanding, 'componente AdminLanding');
 
 routes = replaceOnce(
   routes,
