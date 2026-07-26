@@ -17,6 +17,7 @@
     "convert:webp": "node scripts/convert-to-webp.js",
     "convert:webp:delete": "node scripts/convert-to-webp.js --delete",
     "convert:webp:quality": "node scripts/convert-to-webp.js --quality 90",
+    "images:integrate-fallbacks": "node scripts/integrate-image-fallbacks.mjs",
     "storage:images:inventory": "node scripts/storage-image-inventory.mjs --inventory",
     "storage:images:dry-run": "node scripts/storage-image-inventory.mjs --dry-run",
     "storage:images:migrate-product": "node scripts/storage-image-migrate-product.mjs",
@@ -27,7 +28,7 @@
     "storage:images:cleanup-multi-products": "node scripts/storage-image-cleanup-multi-products.mjs",
     "storage:images:migrate-asset": "node scripts/storage-image-migrate-asset.mjs",
     "storage:images:cleanup-asset": "node scripts/storage-image-cleanup-assets.mjs",
-    "storage:images:optimize-legacy-fallbacks": "node scripts/storage-image-optimize-legacy-fallbacks.mjs"
+    "storage:images:cleanup-confirmed-legacy": "node scripts/storage-image-cleanup-confirmed-legacy.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
