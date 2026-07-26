@@ -5,7 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = path.join(root, 'src/pages/private/admin/commercial/loyalty/settings/RewardsConfig.tsx');
-let source = fs.readFileSync(target, 'utf8');
+const rawSource = fs.readFileSync(target, 'utf8');
+const usesCrlf = rawSource.includes('\r\n');
+let source = rawSource.replace(/\r\n/g, '\n');
 const before = source;
 
 function replaceOnce(search, replacement, label) {
@@ -97,5 +99,6 @@ if (source === before) {
   process.exit(0);
 }
 
-fs.writeFileSync(target, source, 'utf8');
+const output = usesCrlf ? source.replace(/\n/g, '\r\n') : source;
+fs.writeFileSync(target, output, 'utf8');
 console.log('Biblioteca de imagens integrada em RewardsConfig.tsx.');
