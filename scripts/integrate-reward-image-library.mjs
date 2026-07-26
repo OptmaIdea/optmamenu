@@ -16,10 +16,11 @@ function replaceOnce(search, replacement, label) {
   source = source.replace(search, replacement);
 }
 
-function replaceRegexOnce(pattern, replacement, alreadyIntegratedMarker, label) {
-  if (source.includes(alreadyIntegratedMarker)) return;
-  if (!pattern.test(source)) throw new Error(`Ponto de integração não encontrado: ${label}`);
-  source = source.replace(pattern, replacement);
+function insertBeforeMarker(marker, insertion, alreadyIntegratedToken, label) {
+  if (source.includes(alreadyIntegratedToken)) return;
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) throw new Error(`Ponto de integração não encontrado: ${label}`);
+  source = `${source.slice(0, markerIndex)}${insertion}${source.slice(markerIndex)}`;
 }
 
 replaceOnce(
@@ -52,18 +53,44 @@ replaceOnce(
   'limpeza de vínculo ao selecionar produto',
 );
 
-replaceRegexOnce(
-  /([ \t]*)<div className="absolute inset-0 bg-black\/40 opacity-0 group-hover\/image:opacity-100 transition flex items-center justify-center backdrop-blur-sm">\n[ \t]*<label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">/,
-  `$1<div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">\n$1    <button type="button" onClick={() => setLibraryOpen(true)} className="bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">\n$1        <ImageIcon size={16} /> Biblioteca\n$1    </button>\n$1    <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">`,
-  '<ImageIcon size={16} /> Biblioteca',
+replaceOnce(
+  '<div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center backdrop-blur-sm">\n                         <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">',
+  '<div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">\n                         <button type="button" onClick={() => setLibraryOpen(true)} className="bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">\n                             <ImageIcon size={16} /> Biblioteca\n                         </button>\n                         <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">',
   'botão da biblioteca no formulário',
 );
 
-replaceOnce(
-  "             </div>\n         </div>\n     );\n });",
-  "             </div>\n             <RewardImageLibrary\n                 storeId={storeId}\n                 open={libraryOpen}\n                 selectable\n                 selectedId={formData.media_asset_id}\n                 onClose={() => setLibraryOpen(false)}\n                 onSelect={(asset: RewardMediaAsset) => {\n                     setFormData(prev => ({ ...prev, image_url: asset.public_url, media_asset_id: asset.id }));\n                     setPreviewUrl(asset.public_url);\n                     setImageFile(null);\n                     setLibraryOpen(false);\n                 }}\n             />\n         </div>\n     );\n });",
+insertBeforeMarker(
+  '// --- MAIN Rewards Component ---',
+  `            <RewardImageLibrary
+                storeId={storeId}
+                open={libraryOpen}
+                selectable
+                selectedId={formData.media_asset_id}
+                onClose={() => setLibraryOpen(false)}
+                onSelect={(asset: RewardMediaAsset) => {
+                    setFormData(prev => ({ ...prev, image_url: asset.public_url, media_asset_id: asset.id }));
+                    setPreviewUrl(asset.public_url);
+                    setImageFile(null);
+                    setLibraryOpen(false);
+                }}
+            />
+        </div>
+    );
+});
+
+
+`,
+  'selectedId={formData.media_asset_id}',
   'modal da biblioteca no formulário',
 );
+
+// Remove o fechamento original de RewardForm caso o modal tenha sido inserido antes do marcador.
+if (source.includes('selectedId={formData.media_asset_id}')) {
+  const duplicatedClosing = `        </div>\n    );\n});\n\n\n            <RewardImageLibrary`;
+  if (source.includes(duplicatedClosing)) {
+    source = source.replace(duplicatedClosing, '            <RewardImageLibrary');
+  }
+}
 
 replaceOnce(
   "    const [filterType, setFilterType] = useState<'all' | 'product' | 'discount' | 'gift'>('all');",
