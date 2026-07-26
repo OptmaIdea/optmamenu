@@ -54,27 +54,19 @@ function sha256Bytes(bytes: Uint8Array): string {
     0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
   ];
-  const state = [
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
-  ];
-
+  const state = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
   const bitLength = bytes.length * 8;
   const paddedLength = Math.ceil((bytes.length + 9) / 64) * 64;
   const padded = new Uint8Array(paddedLength);
   padded.set(bytes);
   padded[bytes.length] = 0x80;
   const view = new DataView(padded.buffer);
-  const high = Math.floor(bitLength / 0x100000000);
-  const low = bitLength >>> 0;
-  view.setUint32(paddedLength - 8, high, false);
-  view.setUint32(paddedLength - 4, low, false);
-
+  view.setUint32(paddedLength - 8, Math.floor(bitLength / 0x100000000), false);
+  view.setUint32(paddedLength - 4, bitLength >>> 0, false);
   const words = new Uint32Array(64);
+
   for (let offset = 0; offset < paddedLength; offset += 64) {
-    for (let index = 0; index < 16; index += 1) {
-      words[index] = view.getUint32(offset + index * 4, false);
-    }
+    for (let index = 0; index < 16; index += 1) words[index] = view.getUint32(offset + index * 4, false);
     for (let index = 16; index < 64; index += 1) {
       const previous15 = words[index - 15];
       const previous2 = words[index - 2];
@@ -91,14 +83,7 @@ function sha256Bytes(bytes: Uint8Array): string {
       const sum0 = rotateRight(a, 2) ^ rotateRight(a, 13) ^ rotateRight(a, 22);
       const majority = (a & b) ^ (a & c) ^ (b & c);
       const temp2 = (sum0 + majority) >>> 0;
-      h = g;
-      g = f;
-      f = e;
-      e = (d + temp1) >>> 0;
-      d = c;
-      c = b;
-      b = a;
-      a = (temp1 + temp2) >>> 0;
+      h = g; g = f; f = e; e = (d + temp1) >>> 0; d = c; c = b; b = a; a = (temp1 + temp2) >>> 0;
     }
 
     state[0] = (state[0] + a) >>> 0;
@@ -118,15 +103,8 @@ async function sha256(blob: Blob): Promise<string> {
   return sha256Bytes(new Uint8Array(await blob.arrayBuffer()));
 }
 
-async function dimensions(blob: Blob): Promise<{ width: number; height: number }> {
+async function optimizeImage(blob: Blob): Promise<{ blob: Blob; width: number; height: number }> {
   const bitmap = await createImageBitmap(blob);
-  const result = { width: bitmap.width, height: bitmap.height };
-  bitmap.close();
-  return result;
-}
-
-async function optimizeImage(file: File): Promise<{ blob: Blob; width: number; height: number }> {
-  const bitmap = await createImageBitmap(file);
   const max = 800;
   const ratio = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const width = Math.max(1, Math.round(bitmap.width * ratio));
@@ -138,10 +116,29 @@ async function optimizeImage(file: File): Promise<{ blob: Blob; width: number; h
   if (!context) throw new Error('Não foi possível preparar a imagem.');
   context.drawImage(bitmap, 0, 0, width, height);
   bitmap.close();
-  const blob = await new Promise<Blob>((resolve, reject) => {
+  const optimizedBlob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Falha ao converter imagem.')), 'image/webp', 0.82);
   });
-  return { blob, width, height };
+  return { blob: optimizedBlob, width, height };
+}
+
+function storagePathFromUrl(url: string): string | null {
+  const marker = '/reward-images/';
+  const index = url.indexOf(marker);
+  if (index < 0) return null;
+  return decodeURIComponent(url.slice(index + marker.length).split('?')[0]);
+}
+
+function isCanonicalPath(path: string | null): boolean {
+  return Boolean(path && /\/library\/[0-9a-f-]{36}\/image\.webp$/i.test(path));
+}
+
+async function removeStorageObject(bucket: string, path: string): Promise<void> {
+  const { data, error } = await supabase.storage.from(bucket).remove([path]);
+  if (error) throw error;
+  if (!data?.some((item) => item.name === path || item.name.endsWith(path.split('/').pop() || ''))) {
+    throw new Error(`O Storage não confirmou a exclusão de ${path}.`);
+  }
 }
 
 export async function listRewardMediaAssets(storeId: string): Promise<RewardMediaAsset[]> {
@@ -185,10 +182,7 @@ export async function syncExistingRewardMediaAssets(storeId: string): Promise<{ 
   const currentAssets = await listRewardMediaAssets(storeId);
   let availableSlots = Math.max(0, REWARD_MEDIA_LIBRARY_LIMIT - currentAssets.length);
 
-  const { data: programs, error: programsError } = await supabase
-    .from('fidelity_programs')
-    .select('id')
-    .eq('store_id', storeId);
+  const { data: programs, error: programsError } = await supabase.from('fidelity_programs').select('id').eq('store_id', storeId);
   if (programsError) throw programsError;
   const programIds = (programs || []).map((program) => program.id);
   if (programIds.length === 0) return { imported: 0, linked: 0, skipped: 0 };
@@ -197,7 +191,6 @@ export async function syncExistingRewardMediaAssets(storeId: string): Promise<{ 
     .from('fidelity_rewards')
     .select('id, title, image_url, media_asset_id, product_id')
     .in('program_id', programIds)
-    .is('media_asset_id', null)
     .not('image_url', 'is', null);
   if (rewardsError) throw rewardsError;
 
@@ -220,63 +213,98 @@ export async function syncExistingRewardMediaAssets(storeId: string): Promise<{ 
 
   for (const [url, relatedRewards] of groups) {
     try {
+      const oldPath = storagePathFromUrl(url);
+      const currentAssetId = relatedRewards.find((reward) => reward.media_asset_id)?.media_asset_id as string | undefined;
+      const currentAsset = currentAssetId ? currentAssets.find((asset) => asset.id === currentAssetId) : undefined;
+
+      if (currentAsset && isCanonicalPath(currentAsset.storage_path) && currentAsset.mime_type === 'image/webp') continue;
+
       const response = await fetch(url, { cache: 'no-store' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      const contentHash = await sha256(blob);
+      const optimized = await optimizeImage(await response.blob());
+      const contentHash = await sha256(optimized.blob);
 
-      const { data: existing, error: existingError } = await supabase
+      const { data: duplicate, error: duplicateError } = await supabase
         .from('reward_media_assets')
         .select('*')
         .eq('store_id', storeId)
         .eq('content_hash', contentHash)
         .is('archived_at', null)
+        .neq('id', currentAssetId || '00000000-0000-0000-0000-000000000000')
         .maybeSingle();
-      if (existingError) throw existingError;
+      if (duplicateError) throw duplicateError;
 
-      let assetId = existing?.id as string | undefined;
-      if (!assetId) {
-        if (availableSlots <= 0) {
+      let assetId: string;
+      let publicUrl: string;
+
+      if (duplicate) {
+        assetId = duplicate.id;
+        publicUrl = duplicate.public_url;
+      } else {
+        if (!currentAsset && availableSlots <= 0) {
           skipped += relatedRewards.length;
           continue;
         }
-        const size = await dimensions(blob);
-        const storagePath = decodeURIComponent(url.split('/reward-images/')[1].split('?')[0]);
-        const id = uuidv4();
+
+        assetId = currentAsset?.id || uuidv4();
+        const newPath = `${storeId}/library/${assetId}/image.webp`;
+        const { error: uploadError } = await supabase.storage
+          .from('reward-images')
+          .upload(newPath, optimized.blob, { contentType: 'image/webp', cacheControl: '31536000', upsert: true });
+        if (uploadError) throw uploadError;
+
+        publicUrl = supabase.storage.from('reward-images').getPublicUrl(newPath).data.publicUrl;
         const payload = {
-          id,
+          id: assetId,
           store_id: storeId,
-          name: relatedRewards[0]?.title?.trim() || 'Imagem de prêmio',
-          description: 'Imagem relacionada automaticamente a partir de prêmio existente.',
+          name: currentAsset?.name || relatedRewards[0]?.title?.trim() || 'Imagem de prêmio',
+          description: currentAsset?.description || 'Imagem migrada automaticamente para o pipeline da biblioteca.',
           storage_bucket: 'reward-images',
-          storage_path: storagePath,
-          public_url: url,
-          mime_type: blob.type || 'image/webp',
-          size_bytes: blob.size,
-          width: size.width,
-          height: size.height,
+          storage_path: newPath,
+          public_url: publicUrl,
+          mime_type: 'image/webp',
+          size_bytes: optimized.blob.size,
+          width: optimized.width,
+          height: optimized.height,
           content_hash: contentHash,
         };
-        const { data: inserted, error: insertError } = await supabase
-          .from('reward_media_assets')
-          .insert(payload)
-          .select('id')
-          .single();
-        if (insertError) throw insertError;
-        assetId = inserted.id;
-        imported += 1;
-        availableSlots -= 1;
+
+        const { error: assetError } = currentAsset
+          ? await supabase.from('reward_media_assets').update(payload).eq('id', currentAsset.id)
+          : await supabase.from('reward_media_assets').insert(payload);
+        if (assetError) {
+          await supabase.storage.from('reward-images').remove([newPath]);
+          throw assetError;
+        }
+        if (!currentAsset) {
+          imported += 1;
+          availableSlots -= 1;
+        }
       }
 
-      const ids = relatedRewards.map((reward) => reward.id);
+      const rewardIds = relatedRewards.map((reward) => reward.id);
       const { error: updateError } = await supabase
         .from('fidelity_rewards')
-        .update({ media_asset_id: assetId })
-        .in('id', ids);
+        .update({ media_asset_id: assetId, image_url: publicUrl })
+        .in('id', rewardIds);
       if (updateError) throw updateError;
-      linked += ids.length;
+      linked += rewardIds.length;
+
+      if (currentAsset && duplicate && currentAsset.id !== duplicate.id) {
+        const { error: deleteOldAssetError } = await supabase.from('reward_media_assets').delete().eq('id', currentAsset.id);
+        if (deleteOldAssetError) throw deleteOldAssetError;
+      }
+
+      const newPath = storagePathFromUrl(publicUrl);
+      if (oldPath && oldPath !== newPath) {
+        try {
+          await removeStorageObject('reward-images', oldPath);
+        } catch (cleanupError) {
+          console.warn('Imagem legada migrada, mas o arquivo antigo não pôde ser removido:', oldPath, cleanupError);
+        }
+      }
     } catch (error) {
-      console.warn('Não foi possível relacionar imagem existente de prêmio:', url, error);
+      console.warn('Não foi possível migrar/relacionar imagem existente de prêmio:', url, error);
       skipped += relatedRewards.length;
     }
   }
@@ -304,9 +332,7 @@ export async function uploadRewardMediaAsset(storeId: string, file: File, name?:
     .eq('store_id', storeId)
     .is('archived_at', null);
   if (countError) throw countError;
-  if ((count || 0) >= REWARD_MEDIA_LIBRARY_LIMIT) {
-    throw new Error(`A biblioteca atingiu o limite de ${REWARD_MEDIA_LIBRARY_LIMIT} imagens.`);
-  }
+  if ((count || 0) >= REWARD_MEDIA_LIBRARY_LIMIT) throw new Error(`A biblioteca atingiu o limite de ${REWARD_MEDIA_LIBRARY_LIMIT} imagens.`);
 
   const id = uuidv4();
   const storagePath = `${storeId}/library/${id}/image.webp`;
@@ -315,25 +341,21 @@ export async function uploadRewardMediaAsset(storeId: string, file: File, name?:
     .upload(storagePath, optimized.blob, { contentType: 'image/webp', cacheControl: '31536000', upsert: false });
   if (uploadError) throw uploadError;
 
-  const { data: publicData } = supabase.storage.from('reward-images').getPublicUrl(storagePath);
+  const publicUrl = supabase.storage.from('reward-images').getPublicUrl(storagePath).data.publicUrl;
   const payload = {
     id,
     store_id: storeId,
     name: (name || file.name.replace(/\.[^.]+$/, '') || 'Imagem de prêmio').trim(),
     storage_bucket: 'reward-images',
     storage_path: storagePath,
-    public_url: publicData.publicUrl,
+    public_url: publicUrl,
     mime_type: 'image/webp',
     size_bytes: optimized.blob.size,
     width: optimized.width,
     height: optimized.height,
     content_hash: contentHash,
   };
-  const { data: inserted, error: insertError } = await supabase
-    .from('reward_media_assets')
-    .insert(payload)
-    .select('*')
-    .single();
+  const { data: inserted, error: insertError } = await supabase.from('reward_media_assets').insert(payload).select('*').single();
   if (insertError) {
     await supabase.storage.from('reward-images').remove([storagePath]);
     throw insertError;
@@ -350,20 +372,14 @@ export async function renameRewardMediaAsset(assetId: string, name: string): Pro
 
 export async function deleteRewardMediaAsset(asset: RewardMediaAsset): Promise<void> {
   const activeUsages = (asset.usages || []).filter((usage) => usage.status === 'active');
-  if (activeUsages.length > 0) {
-    throw new Error(`Esta imagem está vinculada a ${activeUsages.length} prêmio(s) ativo(s).`);
-  }
+  if (activeUsages.length > 0) throw new Error(`Esta imagem está vinculada a ${activeUsages.length} prêmio(s) ativo(s).`);
 
-  if ((asset.usages || []).length > 0) {
-    const { error: detachError } = await supabase
-      .from('fidelity_rewards')
-      .update({ media_asset_id: null, image_url: null })
-      .eq('media_asset_id', asset.id);
-    if (detachError) throw detachError;
-  }
+  const { data, error } = await supabase.rpc('delete_reward_media_asset_atomic', { p_asset_id: asset.id });
+  if (error) throw error;
+  const removedAsset = data?.[0] as { storage_bucket?: string; storage_path?: string } | undefined;
+  const bucket = removedAsset?.storage_bucket || asset.storage_bucket;
+  const path = removedAsset?.storage_path || asset.storage_path;
+  await removeStorageObject(bucket, path);
 
-  const { error: deleteError } = await supabase.from('reward_media_assets').delete().eq('id', asset.id);
-  if (deleteError) throw deleteError;
-  const { error: storageError } = await supabase.storage.from(asset.storage_bucket).remove([asset.storage_path]);
-  if (storageError) throw storageError;
+  window.setTimeout(() => window.location.reload(), 250);
 }
