@@ -28,76 +28,16 @@ type QuickAccess = {
 };
 
 const QUICK_ACCESS: QuickAccess[] = [
-  {
-    label: 'Abrir PDV',
-    description: 'Inicie uma venda presencial.',
-    path: '/admin/pdv',
-    permission: 'pdv.view',
-    icon: PointOfSale,
-  },
-  {
-    label: 'Pedidos',
-    description: 'Acompanhe pedidos e vendas.',
-    path: '/admin/orders',
-    permission: 'orders.view',
-    icon: ShoppingBag,
-  },
-  {
-    label: 'Produtos',
-    description: 'Consulte e gerencie o catálogo.',
-    path: '/admin/products',
-    permission: 'products.manage',
-    icon: Package,
-  },
-  {
-    label: 'Estoque',
-    description: 'Veja saldos e locais de estoque.',
-    path: '/admin/inventory',
-    permission: 'stock.view',
-    icon: Boxes,
-  },
-  {
-    label: 'Clientes',
-    description: 'Acesse a carteira de clientes.',
-    path: '/admin/customers',
-    permission: 'customers.view',
-    icon: Users,
-  },
-  {
-    label: 'Livro Diário',
-    description: 'Acompanhe o caixa operacional.',
-    path: '/admin/cashbook',
-    permission: 'cashbook.view',
-    icon: BookOpen,
-  },
-  {
-    label: 'Painel operacional',
-    description: 'Abra indicadores e alertas da operação.',
-    path: '/admin/dashboard',
-    permission: 'dashboard.view',
-    icon: LayoutDashboard,
-  },
-  {
-    label: 'Dashboard comercial',
-    description: 'Analise vendas, canais e clientes.',
-    path: '/admin/commercial-dashboard',
-    permission: 'commercial.dashboard.view',
-    icon: BarChart3,
-  },
-  {
-    label: 'Relatórios',
-    description: 'Consulte relatórios disponíveis.',
-    path: '/admin/reports',
-    permission: 'reports.view',
-    icon: ReceiptText,
-  },
-  {
-    label: 'Configurações',
-    description: 'Ajuste a operação da loja.',
-    path: '/admin/settings',
-    permission: 'settings.view',
-    icon: Settings,
-  },
+  { label: 'Abrir PDV', description: 'Inicie uma venda presencial.', path: '/admin/pdv', permission: 'pdv.view', icon: PointOfSale },
+  { label: 'Pedidos', description: 'Acompanhe pedidos e vendas.', path: '/admin/orders', permission: 'orders.view', icon: ShoppingBag },
+  { label: 'Produtos', description: 'Consulte e gerencie o catálogo.', path: '/admin/products', permission: 'products.manage', icon: Package },
+  { label: 'Estoque', description: 'Veja saldos e locais de estoque.', path: '/admin/inventory', permission: 'stock.view', icon: Boxes },
+  { label: 'Clientes', description: 'Acesse a carteira de clientes.', path: '/admin/customers', permission: 'customers.view', icon: Users },
+  { label: 'Livro Diário', description: 'Acompanhe o caixa operacional.', path: '/admin/cashbook', permission: 'cashbook.view', icon: BookOpen },
+  { label: 'Painel operacional', description: 'Abra indicadores e alertas da operação.', path: '/admin/dashboard', permission: 'dashboard.view', icon: LayoutDashboard },
+  { label: 'Dashboard comercial', description: 'Analise vendas, canais e clientes.', path: '/admin/commercial-dashboard', permission: 'commercial.dashboard.view', icon: BarChart3 },
+  { label: 'Relatórios', description: 'Consulte relatórios disponíveis.', path: '/admin/reports', permission: 'reports.view', icon: ReceiptText },
+  { label: 'Configurações', description: 'Ajuste a operação da loja.', path: '/admin/settings', permission: 'settings.view', icon: Settings },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
@@ -126,11 +66,7 @@ export default function AdminHome() {
     !permission || isOwner || hasEffectivePermission(permissions, permission);
 
   const visibleQuickAccess = QUICK_ACCESS.filter((item) => canAccess(item.permission));
-  const displayName =
-    profile?.full_name?.trim() ||
-    profile?.name?.trim() ||
-    user?.email?.split('@')[0] ||
-    'usuário';
+  const displayName = profile?.full_name?.trim() || user?.email?.split('@')[0] || 'usuário';
   const storeName = activeMembership?.store_name || 'Unidade atual';
   const roleLabel = ROLE_LABELS[activeMembership?.role ?? ''] || activeMembership?.role || 'Membro';
 
