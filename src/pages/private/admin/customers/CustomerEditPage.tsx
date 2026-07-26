@@ -115,11 +115,6 @@ export default function CustomerEditPage() {
             return;
         }
 
-        if (isProtected) {
-            toast.error('Este cliente foi criado pelo canal público e não pode ter dados pessoais editados pela administração.');
-            return;
-        }
-
         if (!storeId || !customerId) return;
 
         try {
@@ -395,7 +390,9 @@ export default function CustomerEditPage() {
                                     Aceita marketing
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Usado futuramente para campanhas.
+                                    {isProtected
+                                        ? 'Consentimento preservado: somente o cliente pode conceder autorização para campanhas.'
+                                        : 'Usado futuramente para campanhas.'}
                                 </p>
                             </div>
 
@@ -403,7 +400,9 @@ export default function CustomerEditPage() {
                                 type="checkbox"
                                 checked={marketingConsent}
                                 onChange={(event) => setMarketingConsent(event.target.checked)}
-                                className="h-5 w-5"
+                                disabled={isProtected}
+                                title={isProtected ? 'O consentimento de marketing pertence ao cliente e não pode ser concedido pela administração.' : undefined}
+                                className="h-5 w-5 disabled:cursor-not-allowed disabled:opacity-50"
                             />
                         </div>
                     </label>
@@ -438,20 +437,18 @@ export default function CustomerEditPage() {
                         Cancelar
                     </button>
 
-                    {canManageCustomers && !isProtected ? (
+                    {canManageCustomers ? (
                         <button
                             type="submit"
                             disabled={saving}
                             className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                            Salvar alterações
+                            {isProtected ? 'Salvar campos internos' : 'Salvar alterações'}
                         </button>
                     ) : (
                         <p className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3 text-sm font-bold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200">
-                            {!canManageCustomers
-                                ? 'Você não tem permissão para salvar alterações.'
-                                : 'Dados pessoais protegidos. Apenas campos internos podem ser alterados.'}
+                            Você não tem permissão para salvar alterações.
                         </p>
                     )}
                 </div>
