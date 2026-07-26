@@ -22,6 +22,7 @@
     "images:finalize-reward-actions": "node scripts/finalize-reward-image-actions.mjs",
     "orders:finalize-expiration-ui": "node scripts/finalize-expired-orders-ui.mjs",
     "stores:finalize-slug-governance-ui": "node scripts/finalize-store-slug-governance-ui.mjs",
+    "customers:finalize-protected-edit-ui": "node scripts/finalize-protected-customer-edit-ui.mjs",
     "storage:images:inventory": "node scripts/storage-image-inventory.mjs --inventory",
     "storage:images:dry-run": "node scripts/storage-image-inventory.mjs --dry-run",
     "storage:images:migrate-product": "node scripts/storage-image-migrate-product.mjs",
