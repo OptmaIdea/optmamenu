@@ -35,12 +35,13 @@ Para permitir que qualquer subdomínio dinâmico (ex: `qualquercoisa.optmaidea.c
 
 1. Acesse o painel do **Registro.br** no domínio `optmaidea.com.br`.
 2. Vá em **Editar Zona DNS**.
-3. Adicione uma nova entrada do tipo **CNAME Wildcard**:
-   - **Nome / Host:** `*` *(ou `*.optmaidea.com.br`)*
-   - **Tipo:** `CNAME`
-   - **Valor / Destino:** `cname.vercel-dns.com` *(ou o alias da Vercel fornecido no seu projeto)*
+3. Adicione uma nova entrada do tipo **A (IPv4)**:
+   - **Tipo:** `A`
+   - **Nome:** `*`
+   - **Endereço IP / Servidor:** `76.76.21.21` *(IP Oficial da Vercel para registros A)*
 
-> 💡 **Nota:** Se você utilizar o Cloudflare como gerenciador de DNS do domínio `optmaidea.com.br`, adicione uma entrada `CNAME` com nome `*` apontando para `cname.vercel-dns.com` mantendo a nuvem laranja (Proxy) ou cinza (DNS Only).
+> ⚠️ **Por que usar o Tipo A no Registro.br?** O painel do Registro.br bloqueia nativamente o caractere `*` para registros do tipo `CNAME`. Ao utilizar o tipo `A` apontando para o IP `76.76.21.21`, o wildcard funciona perfeitamente.
+> 💡 **Alternativa Cloudflare:** Se preferir usar CNAME Wildcard com proxy, ative o Cloudflare gratuito apontando os NameServers do Registro.br para o Cloudflare.
 
 ### Etapa B: Configuração no Projeto da Vercel
 1. Acesse o painel da **Vercel** -> Selecione o projeto `optmamenu`.
