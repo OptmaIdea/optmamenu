@@ -62,6 +62,9 @@ replaceRequired(
   'o fallback é apenas visual',
 );
 
+// DEFAULT_REWARD_IMAGE ficou obsoleto: o fallback permanece apenas na apresentação.
+source = source.replace(/^const DEFAULT_REWARD_IMAGE = IMAGE_FALLBACKS\.reward;\n\n/m, '');
+
 const required = [
   'image_url?: string | null;',
   'const handleRemoveImage = () =>',
@@ -72,6 +75,9 @@ const required = [
 ];
 const missing = required.filter((token) => !source.includes(token));
 if (missing.length) throw new Error(`Reparo incompleto; nada foi salvo. Ausentes: ${missing.join(', ')}`);
+if (source.includes('const DEFAULT_REWARD_IMAGE =')) {
+  throw new Error('Reparo incompleto; constante DEFAULT_REWARD_IMAGE ainda presente.');
+}
 
 if (source === original) {
   console.log('Ações de imagem já finalizadas.');
