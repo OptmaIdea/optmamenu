@@ -18,6 +18,12 @@ function replaceRegex(pattern, replacement, label, integratedToken) {
   source = source.replace(pattern, replacement);
 }
 
+// Remove o upload legado. Todo upload próprio passa pela biblioteca.
+source = source.replace(
+  /\n\/\/ --- Image Upload Helper ---\nconst uploadRewardImage = async[\s\S]*?\n\};\n\n(?=const deleteRewardImage)/,
+  '\n',
+);
+
 replaceRegex(
   /import \{ toast \} from 'sonner';/,
   "import { toast } from 'sonner';\nimport RewardImageLibrary from './RewardImageLibrary';\nimport { uploadRewardMediaAsset, type RewardMediaAsset } from '@/services/rewardMediaLibrary';",
@@ -64,21 +70,7 @@ replaceRegex(
   '<ImageIcon size={16} /> Biblioteca',
 );
 
-if (!source.includes('selectedId={formData.media_asset_id}')) {
-  const marker = '// --- MAIN Rewards Component ---';
-  const markerIndex = source.indexOf(marker);
-  if (markerIndex < 0) throw new Error('Ponto de integração não encontrado: marcador do componente principal');
-
-  const beforeMarker = source.slice(0, markerIndex);
-  const afterMarker = source.slice(markerIndex);
-  const formClosingPattern = /(\n\s*<\/div>\s*\n\s*\);\s*\n\}\);\s*\n\s*)$/;
-
-  if (!formClosingPattern.test(beforeMarker)) {
-    throw new Error('Ponto de integração não encontrado: fechamento estrutural do RewardForm');
-  }
-
-  const modal = `
-            <RewardImageLibrary
+const formModal = `            <RewardImageLibrary
                 storeId={storeId}
                 open={libraryOpen}
                 selectable
@@ -93,9 +85,27 @@ if (!source.includes('selectedId={formData.media_asset_id}')) {
             />
 `;
 
+// Retira qualquer modal seletor inserido fora do RewardForm em tentativas anteriores.
+source = source.replace(
+  /\s*<RewardImageLibrary\s+storeId=\{storeId\}\s+open=\{libraryOpen\}\s+selectable\s+selectedId=\{formData\.media_asset_id\}[\s\S]*?\/>\s*/g,
+  '\n',
+);
+
+// Reinsere o modal dentro do RewardForm, imediatamente antes do fechamento do componente.
+{
+  const marker = '// --- MAIN Rewards Component ---';
+  const markerIndex = source.indexOf(marker);
+  if (markerIndex < 0) throw new Error('Ponto de integração não encontrado: marcador do componente principal');
+
+  const beforeMarker = source.slice(0, markerIndex);
+  const afterMarker = source.slice(markerIndex);
+  const closing = /\n(\s*)<\/div>\s*\n\s*\);\s*\n\}\);\s*\n\s*$/;
+  const match = beforeMarker.match(closing);
+  if (!match) throw new Error('Ponto de integração não encontrado: fechamento estrutural do RewardForm');
+
   source = beforeMarker.replace(
-    formClosingPattern,
-    `${modal}        </div>\n    );\n});\n\n\n`,
+    closing,
+    `\n${formModal}${match[1]}</div>\n    );\n});\n\n\n`,
   ) + afterMarker;
 }
 
@@ -157,12 +167,14 @@ replaceRegex(
   '<RewardImageLibrary storeId={storeId} open={libraryOpen} onClose={() => setLibraryOpen(false)} />',
 );
 
+const mainMarkerIndex = source.indexOf('// --- MAIN Rewards Component ---');
+const formSection = mainMarkerIndex >= 0 ? source.slice(0, mainMarkerIndex) : '';
 const requiredTokens = [
   "import RewardImageLibrary from './RewardImageLibrary';",
   'media_asset_id?: string | null;',
   'selectedId={formData.media_asset_id}',
   'const { asset, reused } = await uploadRewardMediaAsset',
-  'storeId={storeId}',
+  'products={products}\n                storeId={storeId}',
   '<ImageIcon size={16} /> Biblioteca',
   '<RewardImageLibrary storeId={storeId} open={libraryOpen} onClose={() => setLibraryOpen(false)} />',
 ];
@@ -171,12 +183,18 @@ const missing = requiredTokens.filter((token) => !source.includes(token));
 if (missing.length > 0) {
   throw new Error(`Integração incompleta; arquivo não foi gravado. Ausentes: ${missing.join(', ')}`);
 }
+if (source.includes('const uploadRewardImage = async')) {
+  throw new Error('Integração incompleta; helper legado de upload ainda está presente.');
+}
+if (!formSection.includes('storeId: string') || !formSection.includes('selectedId={formData.media_asset_id}')) {
+  throw new Error('Integração incompleta; modal seletor não ficou dentro do RewardForm.');
+}
 
 if (source === original) {
-  console.log('Biblioteca de imagens já integrada.');
+  console.log('Biblioteca de imagens já integrada e validada.');
   process.exit(0);
 }
 
 const output = usesCrlf ? source.replace(/\n/g, '\r\n') : source;
 fs.writeFileSync(target, output, 'utf8');
-console.log('Biblioteca de imagens integrada e validada em RewardsConfig.tsx.');
+console.log('Biblioteca de imagens integrada, reparada e validada em RewardsConfig.tsx.');
