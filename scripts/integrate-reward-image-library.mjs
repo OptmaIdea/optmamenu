@@ -16,6 +16,12 @@ function replaceOnce(search, replacement, label) {
   source = source.replace(search, replacement);
 }
 
+function replaceRegexOnce(pattern, replacement, alreadyIntegratedMarker, label) {
+  if (source.includes(alreadyIntegratedMarker)) return;
+  if (!pattern.test(source)) throw new Error(`Ponto de integração não encontrado: ${label}`);
+  source = source.replace(pattern, replacement);
+}
+
 replaceOnce(
   "import { toast } from 'sonner';",
   "import { toast } from 'sonner';\nimport RewardImageLibrary from './RewardImageLibrary';\nimport { uploadRewardMediaAsset, type RewardMediaAsset } from '@/services/rewardMediaLibrary';",
@@ -46,9 +52,10 @@ replaceOnce(
   'limpeza de vínculo ao selecionar produto',
 );
 
-replaceOnce(
-  "                     <div className=\"absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center backdrop-blur-sm\">\n                         <label className=\"cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg\">",
-  "                     <div className=\"absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm\">\n                         <button type=\"button\" onClick={() => setLibraryOpen(true)} className=\"bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg\">\n                             <ImageIcon size={16} /> Biblioteca\n                         </button>\n                         <label className=\"cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg\">",
+replaceRegexOnce(
+  /([ \t]*)<div className="absolute inset-0 bg-black\/40 opacity-0 group-hover\/image:opacity-100 transition flex items-center justify-center backdrop-blur-sm">\n[ \t]*<label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">/,
+  `$1<div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">\n$1    <button type="button" onClick={() => setLibraryOpen(true)} className="bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">\n$1        <ImageIcon size={16} /> Biblioteca\n$1    </button>\n$1    <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">`,
+  '<ImageIcon size={16} /> Biblioteca',
   'botão da biblioteca no formulário',
 );
 
