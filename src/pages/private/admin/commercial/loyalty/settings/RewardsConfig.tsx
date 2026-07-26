@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, memo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Loader, Plus, Trash2, Upload, Image as ImageIcon, Search, Box, AlertCircle, Edit, ArrowLeft, LayoutList, Save, Clock } from 'lucide-react';
 import { toast } from 'sonner';
+import RewardImageLibrary from './RewardImageLibrary';
+import { uploadRewardMediaAsset, type RewardMediaAsset } from '@/services/rewardMediaLibrary';
 import { applyImageFallback, imageOrFallback, IMAGE_FALLBACKS } from '@/lib/imageFallbacks';
 
 const DEFAULT_REWARD_IMAGE = IMAGE_FALLBACKS.reward;
@@ -25,6 +27,7 @@ interface Reward {
     max_redemptions_per_customer: number | null;
     voucher_validity_days: number;
     image_url?: string;
+    media_asset_id?: string | null;
     additional_cash_cost?: number;
     offer_valid_until?: string;
 }
@@ -55,44 +58,6 @@ const getDaysUntilExpiration = (dateString?: string) => {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;
 };
-
-// --- Image Upload Helper ---
-const uploadRewardImage = async (file: File, storeId: string): Promise<string | null> => {
-    try {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${storeId}/${Math.random().toString(36).substring(2)}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('reward-images')
-            .upload(filePath, file);
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage.from('reward-images').getPublicUrl(filePath);
-        return data.publicUrl;
-    } catch (error) {
-        console.error('Error uploading image:', error);
-        toast.error('Erro ao fazer upload da imagem.');
-        return null;
-    }
-};
-
-const deleteRewardImage = async (imageUrl: string) => {
-    try {
-        // Protected images check
-        if (!imageUrl) return;
-        if (imageUrl === DEFAULT_REWARD_IMAGE || imageUrl.startsWith('/fallbacks/')) return;
-        if (!imageUrl.includes('/reward-images/')) return; // Likely a product image or external
-
-        const path = imageUrl.split('/reward-images/')[1];
-        if (path) {
-            await supabase.storage.from('reward-images').remove([path]);
-        }
-    } catch (e) {
-        console.error("Error cleaning up image", e);
-    }
-}
 
 // --- List Item Component (Row) ---
 const RewardRow = ({ reward, onEdit }: { reward: Reward, onEdit: (r: Reward) => void }) => {
@@ -179,19 +144,21 @@ const RewardRow = ({ reward, onEdit }: { reward: Reward, onEdit: (r: Reward) => 
 
 
 // --- Reward Form ---
-const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, isNew }: {
+const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, isNew, storeId }: {
     initialData: Reward,
     onSave: (data: Reward, imageFile: File | null) => Promise<void>,
-    onDelete: (id: string, imageUrl?: string) => void,
+    onDelete: (id: string) => void,
     products: Product[],
     onCancel: () => void,
-    isNew: boolean
+    isNew: boolean,
+    storeId: string
 }) => {
     // Local State
     const [formData, setFormData] = useState<Reward>(initialData);
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string>(imageOrFallback(initialData.image_url, 'reward'));
     const [saving, setSaving] = useState(false);
+    const [libraryOpen, setLibraryOpen] = useState(false);
 
     // Group Products by Category
     const productsByCategory = products.reduce((acc, product) => {
@@ -246,7 +213,8 @@ const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, is
                 ...prev,
                 product_id: prod.id,
                 title: prev.title === 'Novo Prêmio' || !prev.title ? prod.name : prev.title,
-                image_url: prodImage || prev.image_url // Use product image if available
+                image_url: prodImage || prev.image_url, // Use product image if available
+                media_asset_id: null
             }));
 
             // If they haven't uploaded a custom file, show the product image
@@ -289,7 +257,7 @@ const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, is
                 <div className="ml-auto flex items-center gap-2">
                     {!isNew && (
                         <button
-                            onClick={() => onDelete(formData.id, formData.image_url)}
+                            onClick={() => onDelete(formData.id)}
                             className="px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 shadow-sm transition text-sm font-bold flex items-center gap-2"
                         >
                             <Trash2 size={16} /> <span className="hidden sm:inline">Excluir</span>
@@ -323,8 +291,11 @@ const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, is
                             <span className="text-xs font-bold">Sem Foto</span>
                         </div>
                     )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center backdrop-blur-sm">
-                        <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/image:opacity-100 transition flex items-center justify-center gap-2 backdrop-blur-sm">
+                         <button type="button" onClick={() => setLibraryOpen(true)} className="bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">
+                             <ImageIcon size={16} /> Biblioteca
+                         </button>
+                         <label className="cursor-pointer bg-white text-gray-900 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-gray-50 transition transform hover:scale-105 shadow-lg">
                             <Upload size={16} />
                             Alterar Imagem
                             <input type="file" className="hidden" accept="image/*" onChange={handleImageSelect} />
@@ -535,6 +506,19 @@ const RewardForm = memo(({ initialData, onSave, onDelete, products, onCancel, is
 
                 </div>
             </div>
+            <RewardImageLibrary
+                storeId={storeId}
+                open={libraryOpen}
+                selectable
+                selectedId={formData.media_asset_id}
+                onClose={() => setLibraryOpen(false)}
+                onSelect={(asset: RewardMediaAsset) => {
+                    setFormData(prev => ({ ...prev, image_url: asset.public_url, media_asset_id: asset.id }));
+                    setPreviewUrl(asset.public_url);
+                    setImageFile(null);
+                    setLibraryOpen(false);
+                }}
+            />
         </div>
     );
 });
@@ -547,6 +531,7 @@ export default function RewardsConfig({ storeId, programId }: RewardsConfigProps
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState<'all' | 'product' | 'discount' | 'gift'>('all');
+    const [libraryOpen, setLibraryOpen] = useState(false);
 
     // UI State
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -615,18 +600,19 @@ export default function RewardsConfig({ storeId, programId }: RewardsConfigProps
     const handleSaveReward = async (data: Reward, imageFile: File | null) => {
         let finalImageUrl = data.image_url;
 
-        // 1. Handle File Upload
+        // 1. Todo upload próprio entra na biblioteca, com otimização e deduplicação.
         if (imageFile) {
-            const uploadedUrl = await uploadRewardImage(imageFile, storeId);
-            if (uploadedUrl) {
-                finalImageUrl = uploadedUrl;
-            }
+            const { asset, reused } = await uploadRewardMediaAsset(storeId, imageFile, data.title || undefined);
+            finalImageUrl = asset.public_url;
+            data.media_asset_id = asset.id;
+            if (reused) toast.info('Imagem já existente na biblioteca; o arquivo foi reutilizado.');
         }
 
         // 2. Logic for Default/Product Image if NO file uploaded
         if (!imageFile) {
             if (!finalImageUrl) {
                 finalImageUrl = DEFAULT_REWARD_IMAGE;
+                data.media_asset_id = null;
             }
         }
 
@@ -659,12 +645,8 @@ export default function RewardsConfig({ storeId, programId }: RewardsConfigProps
         }
     };
 
-    const handleDeleteReward = useCallback(async (id: string, imageUrl?: string) => {
+    const handleDeleteReward = useCallback(async (id: string) => {
         if (!confirm('Tem certeza que deseja excluir esta recompensa?')) return;
-
-        if (imageUrl) {
-            await deleteRewardImage(imageUrl);
-        }
 
         const { error } = await supabase.from('fidelity_rewards').delete().eq('id', id);
         if (error) {
@@ -711,6 +693,7 @@ export default function RewardsConfig({ storeId, programId }: RewardsConfigProps
                 onSave={handleSaveReward}
                 onDelete={handleDeleteReward}
                 products={products}
+                storeId={storeId}
                 onCancel={() => setEditingId(null)}
                 isNew={editingId === 'new'}
             />
@@ -740,6 +723,13 @@ export default function RewardsConfig({ storeId, programId }: RewardsConfigProps
                         />
                     </div>
                     <button
+                        type="button"
+                        onClick={() => setLibraryOpen(true)}
+                        className="border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700 transition whitespace-nowrap text-sm"
+                    >
+                        <ImageIcon size={16} /> Biblioteca
+                    </button>
+                    <button
                         onClick={handleAddReward}
                         className="bg-brand-green text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 shadow-md hover:bg-green-600 transition whitespace-nowrap text-sm"
                     >
@@ -756,6 +746,10 @@ export default function RewardsConfig({ storeId, programId }: RewardsConfigProps
                     <span></span>
                 </div>
             )}
+
+            <RewardImageLibrary storeId={storeId} open={libraryOpen} onClose={() => setLibraryOpen(false)} />
+
+
 
             {loading ? (
                 <div className="flex justify-center py-10"><Loader className="animate-spin text-brand-green" /></div>
