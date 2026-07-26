@@ -5,9 +5,10 @@ interface OrderStatusFilterProps {
   value: string;
   onChange: (value: string) => void;
 }
+
 export default function OrderStatusFilter({ value, onChange }: OrderStatusFilterProps) {
   return createPortal(
-    <div className="relative flex-1 md:w-48">
+    <div className="relative flex-1 md:w-56">
       <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={15} />
       <select
         value={value}
@@ -21,6 +22,7 @@ export default function OrderStatusFilter({ value, onChange }: OrderStatusFilter
         <option value="ready">Prontos</option>
         <option value="completed">Finalizados</option>
         <option value="cancelled">Cancelados</option>
+        <option value="expired_auto">Expirados automaticamente</option>
       </select>
     </div>,
     document.getElementById('quick-access-actions-portal')!
