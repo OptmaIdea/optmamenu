@@ -9,6 +9,13 @@ import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
 import OrderPaymentModal, { type FinalPaymentMethodCode } from '@/components/orders/OrderPaymentModal';
 
+function getAutomaticExpirationAt(order: Order): string | null {
+    const metadata = (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata;
+    if (metadata?.cancelled_reason !== 'reservation_expired') return null;
+    const cancelledAt = metadata.cancelled_at;
+    return typeof cancelledAt === 'string' && cancelledAt ? cancelledAt : null;
+}
+
 export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
@@ -29,7 +36,9 @@ export default function Orders() {
 
     const emptyStateMessage = filterStatus === 'current'
         ? 'Nenhum pedido aguardando atendimento agora. Vendas de balcão concluídas ficam no dashboard, vida do cliente e histórico comercial.'
-        : 'Nenhum pedido encontrado para o filtro selecionado.';
+        : filterStatus === 'expired_auto'
+            ? 'Nenhum pedido foi cancelado automaticamente por expiração.'
+            : 'Nenhum pedido encontrado para o filtro selecionado.';
 
     // Fetch orders
     const fetchOrders = useCallback(async () => {
@@ -383,6 +392,7 @@ export default function Orders() {
             ) : (
                 <div className="grid grid-cols-1 gap-4">
                     {displayedOrders.map(order => {
+                        const automaticExpirationAt = getAutomaticExpirationAt(order);
                         // Calculate timer for this order if reserved
                         let timerDisplay = null;
                         let isExpiring = false;
@@ -426,6 +436,11 @@ export default function Orders() {
                                                 <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>
                                                     {statusLabels[order.status]}
                                                 </span>
+                                                {automaticExpirationAt && (
+                                                    <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800">
+                                                        <Clock size={11} /> Expirado automaticamente · {formatDate(automaticExpirationAt)}
+                                                    </span>
+                                                )}
                                                 {/* Timer Badge */}
                                                 {['reserved', 'confirmed', 'ready'].includes(order.status) && timerDisplay && (
                                                     <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}>
