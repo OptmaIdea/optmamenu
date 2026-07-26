@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
@@ -52,6 +53,61 @@ function timestamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
 
+function sha256(buffer) {
+  return crypto.createHash('sha256').update(buffer).digest('hex');
+}
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function downloadObject(supabase, target) {
+  const { data, error } = await supabase.storage.from(target.bucket).download(target.objectPath);
+  if (error || !data) throw error || new Error(`${target.key}: arquivo não encontrado.`);
+  return Buffer.from(await data.arrayBuffer());
+}
+
+async function uploadObject(supabase, target, buffer, cacheControl = '3600') {
+  const { error } = await supabase.storage.from(target.bucket).upload(target.objectPath, buffer, {
+    upsert: true,
+    contentType: 'image/png',
+    cacheControl,
+  });
+  if (error) throw error;
+}
+
+async function verifyUploadedObject(supabase, target, expectedBuffer) {
+  const expectedHash = sha256(expectedBuffer);
+  const attempts = [];
+
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    if (attempt > 1) await sleep(Math.min(500 * attempt, 3000));
+
+    try {
+      const downloaded = await downloadObject(supabase, target);
+      const actualHash = sha256(downloaded);
+      attempts.push({
+        attempt,
+        sizeBytes: downloaded.length,
+        sha256: actualHash,
+        matched: actualHash === expectedHash,
+      });
+
+      if (actualHash === expectedHash) {
+        return { verifiedBuffer: downloaded, attempts };
+      }
+    } catch (error) {
+      attempts.push({
+        attempt,
+        error: error instanceof Error ? error.message : String(error),
+        matched: false,
+      });
+    }
+  }
+
+  return { verifiedBuffer: null, attempts };
+}
+
 async function main() {
   loadLocalEnv();
 
@@ -83,14 +139,7 @@ async function main() {
   };
 
   for (const target of targets) {
-    const { data: originalBlob, error: downloadError } = await supabase.storage
-      .from(target.bucket)
-      .download(target.objectPath);
-    if (downloadError || !originalBlob) {
-      throw downloadError || new Error(`${target.key}: arquivo original não encontrado.`);
-    }
-
-    const originalBuffer = Buffer.from(await originalBlob.arrayBuffer());
+    const originalBuffer = await downloadObject(supabase, target);
     const metadata = await sharp(originalBuffer).metadata();
     const backupPath = path.join(runDir, `${target.key}-original.png`);
     fs.writeFileSync(backupPath, originalBuffer);
@@ -114,32 +163,54 @@ async function main() {
         status: 'skipped-no-saving',
         originalSizeBytes: originalBuffer.length,
         optimizedSizeBytes: optimizedBuffer.length,
+        originalSha256: sha256(originalBuffer),
+        optimizedSha256: sha256(optimizedBuffer),
         backupPath,
       });
       continue;
     }
 
-    const { error: uploadError } = await supabase.storage.from(target.bucket).upload(
-      target.objectPath,
-      optimizedBuffer,
-      {
-        upsert: true,
-        contentType: 'image/png',
-        cacheControl: '3600',
-      },
-    );
-    if (uploadError) throw uploadError;
+    await uploadObject(supabase, target, optimizedBuffer);
 
-    const { data: verificationBlob, error: verificationError } = await supabase.storage
-      .from(target.bucket)
-      .download(target.objectPath);
-    if (verificationError || !verificationBlob) {
-      throw verificationError || new Error(`${target.key}: falha ao reler o arquivo otimizado.`);
-    }
+    const verification = await verifyUploadedObject(supabase, target, optimizedBuffer);
+    if (!verification.verifiedBuffer) {
+      let rollbackVerified = false;
+      let rollbackVerificationAttempts = [];
 
-    const verifiedBuffer = Buffer.from(await verificationBlob.arrayBuffer());
-    if (verifiedBuffer.length !== optimizedBuffer.length) {
-      throw new Error(`${target.key}: tamanho pós-upload divergente.`);
+      try {
+        await uploadObject(supabase, target, originalBuffer);
+        const rollbackVerification = await verifyUploadedObject(supabase, target, originalBuffer);
+        rollbackVerified = Boolean(rollbackVerification.verifiedBuffer);
+        rollbackVerificationAttempts = rollbackVerification.attempts;
+      } catch (rollbackError) {
+        rollbackVerificationAttempts.push({
+          error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+          matched: false,
+        });
+      }
+
+      report.results.push({
+        key: target.key,
+        bucket: target.bucket,
+        objectPath: target.objectPath,
+        status: rollbackVerified ? 'verification-failed-rolled-back' : 'verification-failed-rollback-unconfirmed',
+        originalSizeBytes: originalBuffer.length,
+        optimizedSizeBytes: optimizedBuffer.length,
+        originalSha256: sha256(originalBuffer),
+        optimizedSha256: sha256(optimizedBuffer),
+        backupPath,
+        verificationAttempts: verification.attempts,
+        rollbackVerificationAttempts,
+      });
+
+      const partialReportPath = path.join(runDir, 'result.json');
+      fs.writeFileSync(partialReportPath, JSON.stringify(report, null, 2), 'utf8');
+
+      throw new Error(
+        rollbackVerified
+          ? `${target.key}: upload não confirmado; original restaurado e verificado.`
+          : `${target.key}: upload não confirmado e rollback não pôde ser confirmado. Consulte ${partialReportPath}.`,
+      );
     }
 
     report.writeOperationsPerformed = true;
@@ -154,6 +225,9 @@ async function main() {
       savingPercent: Number((((originalBuffer.length - optimizedBuffer.length) / originalBuffer.length) * 100).toFixed(1)),
       originalWidth: metadata.width || null,
       originalHeight: metadata.height || null,
+      originalSha256: sha256(originalBuffer),
+      optimizedSha256: sha256(optimizedBuffer),
+      verificationAttempts: verification.attempts,
       backupPath,
     });
   }
@@ -171,6 +245,7 @@ async function main() {
 
   console.log('\nFallbacks legados otimizados com segurança');
   console.log(`Arquivos otimizados: ${report.summary.optimized}`);
+  console.log(`Arquivos ignorados: ${report.summary.skipped}`);
   console.log(`Economia total: ${report.summary.savingBytes} bytes`);
   console.log(`Relatório: ${reportPath}\n`);
 }
