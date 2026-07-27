@@ -5,6 +5,7 @@ import { useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { getActiveStoreId } from '@/utils/activeStore';
+import { untrackAllStorePresences } from '@/hooks/useStoreMemberPresence';
 
 const ACTIVITY_EVENTS = [
     'mousemove',
@@ -207,6 +208,7 @@ export function useIdleSessionTimeout() {
             // Limpa as flags do sessionStorage e executa signOut
             sessionStorage.removeItem('optmamenu.session_active');
             sessionStorage.removeItem('optmamenu.last_unload_timestamp');
+            await untrackAllStorePresences();
             await supabase.auth.signOut();
         }
 

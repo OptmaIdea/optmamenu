@@ -17,6 +17,7 @@ import { hasEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import { useIdleSessionTimeout } from '@/hooks/useIdleSessionTimeout';
+import { untrackAllStorePresences } from '@/hooks/useStoreMemberPresence';
 import {
     PERMISSIONS_CHANGED_EVENT,
     type PermissionsChangedPayload,
@@ -913,6 +914,7 @@ export default function PrivateLayout() {
         clearActiveStoreId();
         sessionStorage.removeItem('optmamenu.session.start');
         clearSessionSecurity();
+        await untrackAllStorePresences();
         await supabase.auth.signOut({ scope: 'local' });
         navigate('/login', { replace: true });
     };

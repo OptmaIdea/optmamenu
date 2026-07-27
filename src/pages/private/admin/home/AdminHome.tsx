@@ -21,6 +21,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { hasEffectivePermission } from '@/utils/permissions';
 import { getStoreMembers } from '@/services/securityService';
+import { useStoreMemberPresence } from '@/hooks/useStoreMemberPresence';
+import { supabase } from '@/lib/supabase';
 import type { StoreMemberAdmin } from '@/types/security';
 
 type QuickAccess = {
@@ -83,21 +85,36 @@ function getGreetingName(
   return 'usuário';
 }
 
-function getPresenceInfo(lastSeenAt?: string | null) {
+function getPresenceInfo(
+  isOnline: boolean,
+  isCurrentSession: boolean,
+  presenceStatus: string,
+  lastSeenAt?: string | null
+) {
+  if (isOnline) {
+    if (isCurrentSession && presenceStatus === 'connecting') {
+      return { status: 'online', label: 'Conectando...', colorClass: 'bg-emerald-400 animate-pulse' };
+    }
+    return { status: 'online', label: 'Online agora', colorClass: 'bg-emerald-500 animate-pulse' };
+  }
+
   if (!lastSeenAt) {
     return { status: 'offline', label: 'Sem registro', colorClass: 'bg-slate-400 dark:bg-slate-500' };
   }
+
   const date = new Date(lastSeenAt);
   if (isNaN(date.getTime())) {
     return { status: 'offline', label: 'Sem registro', colorClass: 'bg-slate-400 dark:bg-slate-500' };
   }
+
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
 
-  if (diffMin <= 5) {
-    return { status: 'online', label: 'Online agora', colorClass: 'bg-emerald-500 animate-pulse' };
-  } else if (diffMin <= 30) {
-    return { status: 'recent', label: 'Ativo recentemente', colorClass: 'bg-amber-500' };
+  if (diffMin <= 30 && diffMin >= 0) {
+    if (diffMin < 2) {
+      return { status: 'recent', label: 'Ativo recentemente', colorClass: 'bg-amber-500' };
+    }
+    return { status: 'recent', label: `Visto há ${diffMin} min`, colorClass: 'bg-amber-500' };
   } else if (diffMin < 120) {
     return { status: 'offline', label: `Visto há ${diffMin} min`, colorClass: 'bg-slate-400 dark:bg-slate-500' };
   } else {
@@ -136,6 +153,12 @@ export default function AdminHome() {
 
   const canViewTeam = canAccess('users.view');
 
+  const { isMemberOnline, presenceStatus } = useStoreMemberPresence(
+    activeStoreId,
+    activeMembership?.member_id,
+    canViewTeam
+  );
+
   const visibleQuickAccess = QUICK_ACCESS.filter((item) => canAccess(item.permission));
   const displayName = getGreetingName(activeMembership, profile, user?.email);
   const storeName = activeMembership?.store_name || 'Unidade atual';
@@ -159,10 +182,38 @@ export default function AdminHome() {
     return () => clearInterval(timer);
   }, [loadTeam]);
 
+  // Heartbeat discreto a cada 5 minutos enquanto a aba está visível e o usuário autenticado
+  useEffect(() => {
+    if (!activeStoreId || !user?.id) return;
+
+    const sendHeartbeat = async () => {
+      if (document.visibilityState !== 'visible') return;
+      try {
+        await supabase.rpc('log_user_session_event', {
+          p_store_id: activeStoreId,
+          p_action: 'session_heartbeat',
+          p_details: { source: 'admin_home_heartbeat' },
+          p_outcome: 'success',
+        });
+      } catch {
+        // Ignora silenciosamente
+      }
+    };
+
+    void sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [activeStoreId, user?.id]);
+
   const sortedTeamMembers = useMemo(() => {
     return [...teamMembers].sort((a, b) => {
-      const pA = getPresenceInfo(a.last_seen_at);
-      const pB = getPresenceInfo(b.last_seen_at);
+      const isOnlineA = isMemberOnline(a.user_id, a.member_id);
+      const isOnlineB = isMemberOnline(b.user_id, b.member_id);
+      const isCurrA = a.user_id === user?.id || a.member_id === activeMembership?.member_id;
+      const isCurrB = b.user_id === user?.id || b.member_id === activeMembership?.member_id;
+
+      const pA = getPresenceInfo(isOnlineA, isCurrA, presenceStatus, a.last_seen_at);
+      const pB = getPresenceInfo(isOnlineB, isCurrB, presenceStatus, b.last_seen_at);
 
       const weight = (member: StoreMemberAdmin, p: ReturnType<typeof getPresenceInfo>) => {
         if (p.status === 'online') return 1;
@@ -180,7 +231,7 @@ export default function AdminHome() {
       const nameB = (b.internal_alias || b.profile_name || b.user_email || '').toLowerCase();
       return nameA.localeCompare(nameB);
     });
-  }, [teamMembers]);
+  }, [teamMembers, isMemberOnline, user?.id, activeMembership?.member_id, presenceStatus]);
 
   if (securityLoading || permissionsLoading) {
     return (
@@ -262,7 +313,7 @@ export default function AdminHome() {
         )}
       </section>
 
-      {/* Seção Equipe desta unidade (somente para usuários com permissão users.view) */}
+      {/* Seção Equipe desta unidade (somente para usuários com permissão users.view ou owner) */}
       {canViewTeam && (
         <section className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
@@ -272,7 +323,7 @@ export default function AdminHome() {
                 Equipe desta unidade
               </h2>
               <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-candara">
-                Colaboradores vinculados à unidade ativa e registro recente de atividade.
+                Colaboradores vinculados à unidade ativa e presença em tempo real.
               </p>
             </div>
             <Link
@@ -287,7 +338,9 @@ export default function AdminHome() {
           {sortedTeamMembers.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {sortedTeamMembers.map((member) => {
-                const presence = getPresenceInfo(member.last_seen_at);
+                const isOnline = isMemberOnline(member.user_id, member.member_id);
+                const isCurrSession = member.user_id === user?.id || member.member_id === activeMembership?.member_id;
+                const presence = getPresenceInfo(isOnline, isCurrSession, presenceStatus, member.last_seen_at);
                 const name = member.internal_alias || member.profile_name || 'Colaborador';
                 const role = member.custom_role_name || ROLE_LABELS[member.role] || member.role;
                 const statusText = STATUS_LABELS[member.status] || member.status;
