@@ -66,6 +66,7 @@ import {
     FolderTree,
     MonitorSmartphone,
     TriangleAlert,
+    Home,
 } from 'lucide-react';
 
 type MenuItem = {
@@ -381,9 +382,10 @@ export default function PrivateLayout() {
             },
         ],
         dashboard: [
+            { path: '/admin', icon: Home, label: 'Início', alwaysVisible: true },
             { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas', permission: 'dashboard.alerts.view' },
             { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'dashboard.activity.view' },
-            { path: '/admin', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
+            { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
             { path: '/admin/reports', icon: FileStack, label: 'Relatórios', permission: 'reports.view' },
         ],
         commercial: [

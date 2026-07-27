@@ -8,34 +8,19 @@ import CreateStore from '@/pages/CreateStore';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { getActiveStoreId } from '@/utils/activeStore';
-import { hasEffectivePermission, hasOnlyPdvOperationalAccess } from '@/utils/permissions';
-import { useState, useEffect } from 'react';
+import { hasOnlyPdvOperationalAccess } from '@/utils/permissions';
 
 function AdminLanding() {
   const activeStoreId = getActiveStoreId();
   const { securityContext, loading: securityLoading } = useSecurityContext();
   const { permissions, loading: permissionsLoading } = usePermissions(activeStoreId);
-  const [redirectPath, setRedirectPath] = useState<string | null>(null);
 
   const activeMembership = securityContext?.memberships?.find(
-    (m) => m.store_id === activeStoreId && m.status === 'active'
+    (membership) => membership.store_id === activeStoreId && membership.status === 'active'
   ) || securityContext?.primary_membership || null;
 
   const isOwner = activeMembership?.role === 'owner';
-  const hasDashboardView = isOwner || hasEffectivePermission(permissions, 'dashboard.view');
   const onlyPdvAccess = !isOwner && hasOnlyPdvOperationalAccess(permissions);
-
-  useEffect(() => {
-    if (securityLoading || permissionsLoading || !activeStoreId) return;
-
-    if (hasDashboardView) {
-      setRedirectPath('/admin');
-    } else if (onlyPdvAccess) {
-      setRedirectPath('/admin/pdv');
-    } else {
-      setRedirectPath('/admin/my-profile');
-    }
-  }, [securityLoading, permissionsLoading, activeStoreId, hasDashboardView, onlyPdvAccess]);
 
   if (securityLoading || permissionsLoading) {
     return (
@@ -45,19 +30,11 @@ function AdminLanding() {
     );
   }
 
-  if (hasDashboardView) {
-    return <Dashboard />;
+  if (onlyPdvAccess) {
+    return <Navigate to="/admin/pdv" replace />;
   }
 
-  if (redirectPath) {
-    return <Navigate to={redirectPath} replace />;
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#19A999]"></div>
-    </div>
-  );
+  return <AdminHome />;
 }
 
 // Layouts
@@ -80,7 +57,8 @@ const Checkout = lazy(() => import('@/pages/store/Checkout'));
 const PublicOrderTracking = lazy(() => import('@/pages/store/PublicOrderTracking'));
 const StoreLayout = lazy(() => import('@/components/layouts/StoreLayout').then(m => ({ default: m.StoreLayout })));
 
-// Dashboard Section
+// Admin home and Dashboard Section
+const AdminHome = lazy(() => import('@/pages/private/admin/home/AdminHome'));
 const Dashboard = lazy(() => import('@/pages/private/admin/dashboard/Dashboard'));
 const Activity = lazy(() => import('@/pages/private/admin/dashboard/Activity'));
 const Alerts = lazy(() => import('@/pages/private/admin/dashboard/Alerts'));
@@ -187,6 +165,7 @@ export default function AppRoutes() {
           />
           <Route element={<PrivateLayout />}>
             <Route path="/admin" element={<AdminLanding />} />
+            <Route path="/admin/dashboard" element={<RequirePermission permission="dashboard.view"><Dashboard /></RequirePermission>} />
             <Route path="/admin/activity" element={<RequirePermission permission="dashboard.activity.view"><Activity /></RequirePermission>} />
             <Route path="/admin/alerts" element={<RequirePermission permission="dashboard.alerts.view"><Alerts /></RequirePermission>} />
             <Route path="/admin/reports" element={<RequirePermission permission="reports.view"><Reports /></RequirePermission>} />
