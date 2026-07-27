@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
 import OrderStatusFilter from '@/components/common/OrderStatusFilter';
@@ -392,25 +392,40 @@ export default function Orders() {
             subtitle="Gerencie os pedidos chegando em tempo real."
             category="Comercial"
             icon={<ShoppingBag className="text-[#19A999]" size={28} />}
-            onRefresh={fetchOrders}
             flat
         >
-            <div className="space-y-4 mb-6">
-                <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                    <DateRangeFilter
-                        periodFilter={periodFilter}
-                        onPeriodChange={setPeriodFilter}
-                        startDate={startDate}
-                        onStartDateChange={setStartDate}
-                        endDate={endDate}
-                        onEndDateChange={setEndDate}
-                    />
+            <div className="flex flex-col h-[calc(100vh-210px)] overflow-hidden">
+                {/* Unified Filter Panel (Fixed) */}
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4 mb-4 shrink-0 font-candara">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                        <button
+                            type="button"
+                            onClick={fetchOrders}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
+                            title="Atualizar lista de pedidos"
+                        >
+                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+                            <span>Atualizar</span>
+                        </button>
+                    </div>
+
+                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <DateRangeFilter
+                            periodFilter={periodFilter}
+                            onPeriodChange={setPeriodFilter}
+                            startDate={startDate}
+                            onStartDateChange={setStartDate}
+                            endDate={endDate}
+                            onEndDateChange={setEndDate}
+                        />
+                    </div>
                 </div>
-            </div>
-            {/* Kanban / List */}
-            {displayedOrders.length === 0 && !loading ? (
-                <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl text-center px-6">
+
+                {/* Scrollable Orders List Area */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-0">
+                    {displayedOrders.length === 0 && !loading ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl text-center px-6">
                     <ShoppingBag size={64} className="opacity-20 mb-4" />
                     <h2 className="text-xl font-bold">Nenhum pedido encontrado</h2>
                     <p className="text-sm max-w-md">{emptyStateMessage}</p>
@@ -650,6 +665,8 @@ export default function Orders() {
                     })}
                 </div>
             )}
+            </div>
+            </div>
             <OrderPaymentModal
                 order={finalizingOrder}
                 loading={finalizationLoading}

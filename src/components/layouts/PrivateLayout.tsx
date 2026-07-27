@@ -1293,6 +1293,9 @@ export default function PrivateLayout() {
                                 )}
                             </Link>
 
+                            {/* Separador visual entre Início e os grupos */}
+                            <div className="border-b border-gray-200/80 dark:border-gray-700/80 my-2" />
+
                             {Object.entries(navigationItems).map(([section, items]) => {
                                 const visibleItems = items.filter((item) =>
                                     isMenuItemVisible(section, item)
@@ -1462,6 +1465,15 @@ export default function PrivateLayout() {
                         {userData && storeSlug && (
                             <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden lg:block shrink-0" />
                         )}
+
+                        {/* Atalho Home (Início) */}
+                        <Link
+                            to="/admin"
+                            title="Ir para o Início (/admin)"
+                            className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                        >
+                            <Home size={19} className="text-[#19A999]" />
+                        </Link>
 
                         {/* Store Slug Icon (Casinha para slug) - cor brand green #19A999 */}
                         {storeSlug && (
@@ -1690,14 +1702,16 @@ export default function PrivateLayout() {
                         {/* Target DOM para o portal de ações rápidas da rota filha */}
                         <div id="quick-access-actions-portal" className="flex items-center gap-2" />
 
-                        <button
-                            onClick={handleRefresh}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#19A999]/35 shrink-0 shadow-sm cursor-pointer"
-                            title="Atualizar dados da página"
-                        >
-                            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
-                            <span>Atualizar</span>
-                        </button>
+                        {pathname !== '/admin/orders' && (
+                            <button
+                                onClick={handleRefresh}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition hover:border-[#19A999]/35 shrink-0 shadow-sm cursor-pointer"
+                                title="Atualizar dados da página"
+                            >
+                                <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+                                <span>Atualizar</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
