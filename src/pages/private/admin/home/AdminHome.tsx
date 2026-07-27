@@ -91,11 +91,23 @@ function getPresenceInfo(
   presenceStatus: string,
   lastSeenAt?: string | null
 ) {
+  if (
+    isCurrentSession &&
+    (presenceStatus === 'idle' || presenceStatus === 'connecting')
+  ) {
+    return {
+      status: 'connecting',
+      label: 'Conectando...',
+      colorClass: 'bg-emerald-400 animate-pulse',
+    };
+  }
+
   if (isOnline) {
-    if (isCurrentSession && presenceStatus === 'connecting') {
-      return { status: 'online', label: 'Conectando...', colorClass: 'bg-emerald-400 animate-pulse' };
-    }
-    return { status: 'online', label: 'Online agora', colorClass: 'bg-emerald-500 animate-pulse' };
+    return {
+      status: 'online',
+      label: 'Online agora',
+      colorClass: 'bg-emerald-500 animate-pulse',
+    };
   }
 
   if (!lastSeenAt) {
@@ -216,7 +228,7 @@ export default function AdminHome() {
       const pB = getPresenceInfo(isOnlineB, isCurrB, presenceStatus, b.last_seen_at);
 
       const weight = (member: StoreMemberAdmin, p: ReturnType<typeof getPresenceInfo>) => {
-        if (p.status === 'online') return 1;
+        if (p.status === 'online' || p.status === 'connecting') return 1;
         if (p.status === 'recent') return 2;
         if (member.status === 'active') return 3;
         if (member.status === 'invited') return 4;
