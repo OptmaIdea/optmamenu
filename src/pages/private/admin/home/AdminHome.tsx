@@ -255,6 +255,7 @@ export default function AdminHome() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-7 pb-10">
+      {/* Banner de Saudação e Informações da Unidade */}
       <section className="overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-cyan-50 p-6 shadow-sm dark:border-emerald-900/40 dark:from-emerald-950/40 dark:via-slate-900 dark:to-cyan-950/30 md:p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-3">
@@ -286,48 +287,9 @@ export default function AdminHome() {
         </div>
       ) : null}
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-black text-slate-900 dark:text-white font-candara-bold">Acessos rápidos</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-candara">
-            Os atalhos abaixo respeitam as permissões do seu perfil nesta unidade.
-          </p>
-        </div>
-
-        {visibleQuickAccess.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleQuickAccess.map((item) => {
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className="group flex min-h-[140px] flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-emerald-700"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                      <Icon size={22} />
-                    </div>
-                    <ArrowRight className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-emerald-600" size={20} />
-                  </div>
-                  <div className="mt-4">
-                    <h3 className="font-black text-slate-900 dark:text-white font-candara-bold">{item.label}</h3>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-candara">{item.description}</p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 font-candara">
-            Seu perfil não possui atalhos operacionais nesta unidade. Use “Meus Dados” ou fale com o administrador responsável pelas permissões.
-          </div>
-        )}
-      </section>
-
-      {/* Seção Equipe desta unidade (somente para usuários com permissão users.view ou owner) */}
+      {/* Seção Equipe desta unidade (posicionada acima dos acessos rápidos) */}
       {canViewTeam && (
-        <section className="space-y-4 pt-2">
+        <section className="space-y-4 pt-1">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-black text-slate-900 dark:text-white font-candara-bold flex items-center gap-2">
@@ -410,6 +372,46 @@ export default function AdminHome() {
           )}
         </section>
       )}
+
+      {/* Seção Acessos rápidos */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 dark:text-white font-candara-bold">Acessos rápidos</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 font-candara">
+            Os atalhos abaixo respeitam as permissões do seu perfil nesta unidade.
+          </p>
+        </div>
+
+        {visibleQuickAccess.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleQuickAccess.map((item) => {
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="group flex min-h-[140px] flex-col justify-between rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-900 dark:hover:border-emerald-700"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <Icon size={22} />
+                    </div>
+                    <ArrowRight className="text-slate-300 transition group-hover:translate-x-1 group-hover:text-emerald-600" size={20} />
+                  </div>
+                  <div className="mt-4">
+                    <h3 className="font-black text-slate-900 dark:text-white font-candara-bold">{item.label}</h3>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 font-candara">{item.description}</p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 font-candara">
+            Seu perfil não possui atalhos operacionais nesta unidade. Use “Meus Dados” ou fale com o administrador responsável pelas permissões.
+          </div>
+        )}
+      </section>
     </div>
   );
 }
