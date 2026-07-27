@@ -83,6 +83,7 @@ export default function CommercialDashboardPage() {
   const [data, setData] = useState<CommercialDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState('current_month');
   const [startDate, setStartDate] = useState(monthStartIsoDate());
   const [endDate, setEndDate] = useState(todayIsoDate());
 
@@ -113,8 +114,7 @@ export default function CommercialDashboardPage() {
     if (!loadingStore && storeId) {
       fetchData();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadingStore, storeId, fetchData]);
+  }, [fetchData, loadingStore, storeId]);
 
   const statusTotal = useMemo(() => {
     return (data?.orders_by_status || []).reduce(
@@ -145,17 +145,20 @@ export default function CommercialDashboardPage() {
       flat
     >
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200 mb-4">
           {error}
         </div>
       )}
-      <DateRangeFilter
-        onChange={(s, e) => {
-          setStartDate(s);
-          setEndDate(e);
-          fetchData();
-        }}
-      />
+      <div className="mb-6 bg-white dark:bg-gray-900 p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
+        <DateRangeFilter
+          periodFilter={periodFilter}
+          onPeriodChange={setPeriodFilter}
+          startDate={startDate}
+          onStartDateChange={setStartDate}
+          endDate={endDate}
+          onEndDateChange={setEndDate}
+        />
+      </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
           <div className="flex items-center gap-2 text-emerald-600">

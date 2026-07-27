@@ -230,6 +230,8 @@ export default function AppRoutes() {
             <Route path="/admin/legal" element={<RequirePermission permission="support.view"><Legal /></RequirePermission>} />
             <Route path="/admin/faq" element={<RequirePermission permission="support.view"><FAQ /></RequirePermission>} />
             <Route path="/admin/docs" element={<RequirePermission permission="support.view"><Documentation /></RequirePermission>} />
+
+            <Route path="/admin/*" element={<Navigate to="/admin" replace />} />
           </Route>
         </Route>
 

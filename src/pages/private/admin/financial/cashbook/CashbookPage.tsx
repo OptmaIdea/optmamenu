@@ -8,7 +8,6 @@ import {
     ArrowUpCircle,
     ArrowDownCircle,
     Ban,
-    Calendar,
     Edit2,
     Eye,
     History,
@@ -29,13 +28,7 @@ import PendingReceivablesPanel from './components/PendingReceivablesPanel';
 import CashbookClassificationFields, {
     buildManualCashbookClassification,
 } from './components/CashbookClassificationFields';
-
-function getDateInputValue(value: Date) {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
+import DateRangeFilter, { getPeriodDates, getDateInputValue } from '@/components/common/DateRangeFilter';
 
 function getEntryDateKey(entry: CashbookEntry) {
     if (entry.entry_date) return entry.entry_date.slice(0, 10);
@@ -124,110 +117,6 @@ function getPaymentMethodLabel(value?: string | null) {
         dinheiro: 'Dinheiro',
     };
     return labels[lower] || value;
-}
-
-function getPeriodDates(period: string) {
-    const today = new Date();
-    
-    switch (period) {
-        case 'today': {
-            return {
-                start: getDateInputValue(today),
-                end: getDateInputValue(today)
-            };
-        }
-        case 'yesterday': {
-            const yesterday = new Date(today);
-            yesterday.setDate(today.getDate() - 1);
-            return {
-                start: getDateInputValue(yesterday),
-                end: getDateInputValue(yesterday)
-            };
-        }
-        case 'current_month': {
-            const start = new Date(today.getFullYear(), today.getMonth(), 1);
-            const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            return {
-                start: getDateInputValue(start),
-                end: getDateInputValue(end)
-            };
-        }
-        case 'last_month': {
-            const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-            const end = new Date(today.getFullYear(), today.getMonth(), 0);
-            return {
-                start: getDateInputValue(start),
-                end: getDateInputValue(end)
-            };
-        }
-        case 'fortnight': {
-            // Quinzena atual: 1 a 15, ou 16 a fim do mês
-            const day = today.getDate();
-            if (day <= 15) {
-                const start = new Date(today.getFullYear(), today.getMonth(), 1);
-                const end = new Date(today.getFullYear(), today.getMonth(), 15);
-                return {
-                    start: getDateInputValue(start),
-                    end: getDateInputValue(end)
-                };
-            } else {
-                const start = new Date(today.getFullYear(), today.getMonth(), 16);
-                const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-                return {
-                    start: getDateInputValue(start),
-                    end: getDateInputValue(end)
-                };
-            }
-        }
-        case 'last_fortnight': {
-            // Quinzena anterior: se dia <= 15, 2ª quinzena do mês anterior. Se dia >= 16, 1ª quinzena do mês atual.
-            const day = today.getDate();
-            if (day <= 15) {
-                const start = new Date(today.getFullYear(), today.getMonth() - 1, 16);
-                const end = new Date(today.getFullYear(), today.getMonth(), 0);
-                return {
-                    start: getDateInputValue(start),
-                    end: getDateInputValue(end)
-                };
-            } else {
-                const start = new Date(today.getFullYear(), today.getMonth(), 1);
-                const end = new Date(today.getFullYear(), today.getMonth(), 15);
-                return {
-                    start: getDateInputValue(start),
-                    end: getDateInputValue(end)
-                };
-            }
-        }
-        case 'week': {
-            // Semana: de Domingo a Sábado
-            const dayOfWeek = today.getDay(); // 0 is Sunday, 6 is Saturday
-            const sunday = new Date(today);
-            sunday.setDate(today.getDate() - dayOfWeek);
-            const saturday = new Date(sunday);
-            saturday.setDate(sunday.getDate() + 6);
-            return {
-                start: getDateInputValue(sunday),
-                end: getDateInputValue(saturday)
-            };
-        }
-        case 'last_week': {
-            // Semana anterior: de Domingo a Sábado da semana anterior
-            const dayOfWeek = today.getDay();
-            const sunday = new Date(today);
-            sunday.setDate(today.getDate() - dayOfWeek - 7);
-            const saturday = new Date(sunday);
-            saturday.setDate(sunday.getDate() + 6);
-            return {
-                start: getDateInputValue(sunday),
-                end: getDateInputValue(saturday)
-            };
-        }
-        case 'all': {
-            return { start: '', end: '' };
-        }
-        default:
-            return { start: '', end: '' };
-    }
 }
 
 export default function CashbookPage() {
@@ -844,68 +733,15 @@ export default function CashbookPage() {
                 </div>
 
                 <div className={`grid grid-cols-1 gap-3 border-b border-gray-100 p-4 dark:border-gray-700 ${viewMode === 'extrato' ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
-                    <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Período</span>
-                        <select
-                            value={periodFilter}
-                            onChange={(event) => {
-                                const newPeriod = event.target.value;
-                                setPeriodFilter(newPeriod);
-                                if (newPeriod !== 'custom') {
-                                    const dates = getPeriodDates(newPeriod);
-                                    setStartDate(dates.start);
-                                    setEndDate(dates.end);
-                                }
-                            }}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                        >
-                            <option value="today">Hoje</option>
-                            <option value="yesterday">Ontem</option>
-                            <option value="current_month">Mês Atual</option>
-                            <option value="last_month">Mês Anterior</option>
-                            <option value="fortnight">Quinzena Atual</option>
-                            <option value="last_fortnight">Quinzena Anterior</option>
-                            <option value="week">Semana (Dom-Sáb)</option>
-                            <option value="last_week">Semana Anterior</option>
-                            <option value="all">Todo o período</option>
-                            <option value="custom">Personalizado</option>
-                        </select>
-                    </label>
-
-                    <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data inicial</span>
-                        <div className="relative">
-                            <Calendar size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(event) => {
-                                    setStartDate(event.target.value);
-                                    setPeriodFilter('custom');
-                                }}
-                                disabled={periodFilter === 'all'}
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 disabled:opacity-50"
-                            />
-                        </div>
-                    </label>
-
-                    <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data final</span>
-                        <div className="relative">
-                            <Calendar size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(event) => {
-                                    setEndDate(event.target.value);
-                                    setPeriodFilter('custom');
-                                }}
-                                disabled={periodFilter === 'all'}
-                                max={getDateInputValue(new Date())}
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 disabled:opacity-50"
-                            />
-                        </div>
-                    </label>
+                    <DateRangeFilter
+                        periodFilter={periodFilter}
+                        onPeriodChange={setPeriodFilter}
+                        startDate={startDate}
+                        onStartDateChange={setStartDate}
+                        endDate={endDate}
+                        onEndDateChange={setEndDate}
+                        className="col-span-1 md:col-span-3"
+                    />
 
                     <label className="space-y-1">
                         <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cliente em venda</span>

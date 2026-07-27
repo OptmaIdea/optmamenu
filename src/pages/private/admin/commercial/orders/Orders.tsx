@@ -4,6 +4,7 @@ import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, Che
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
 import OrderStatusFilter from '@/components/common/OrderStatusFilter';
+import DateRangeFilter, { getPeriodDates } from '@/components/common/DateRangeFilter';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
@@ -20,19 +21,32 @@ export default function Orders() {
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('current');
+    const [periodFilter, setPeriodFilter] = useState<string>('all');
+    const initialDates = getPeriodDates('all');
+    const [startDate, setStartDate] = useState<string>(initialDates.start);
+    const [endDate, setEndDate] = useState<string>(initialDates.end);
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
     const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
     const [finalizingOrder, setFinalizingOrder] = useState<Order | null>(null);
     const [finalizationLoading, setFinalizationLoading] = useState(false);
 
-    // Filter displayed orders locally if 'current' is selected
+    // Filter displayed orders locally if 'current' or date range is selected
     const displayedOrders = useMemo(() => {
-        if (filterStatus === 'current') {
-            return orders.filter(o => o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready');
-        }
-        return orders;
-    }, [orders, filterStatus]);
+        return orders.filter(o => {
+            if (filterStatus === 'current') {
+                if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready')) {
+                    return false;
+                }
+            }
+            if (startDate || endDate) {
+                const orderDate = o.created_at ? o.created_at.slice(0, 10) : '';
+                if (startDate && orderDate < startDate) return false;
+                if (endDate && orderDate > endDate) return false;
+            }
+            return true;
+        });
+    }, [orders, filterStatus, startDate, endDate]);
 
     const emptyStateMessage = filterStatus === 'current'
         ? 'Nenhum pedido aguardando atendimento agora. Vendas de balcão concluídas ficam no dashboard, vida do cliente e histórico comercial.'
@@ -381,7 +395,19 @@ export default function Orders() {
             onRefresh={fetchOrders}
             flat
         >
-            <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+            <div className="space-y-4 mb-6">
+                <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                    <DateRangeFilter
+                        periodFilter={periodFilter}
+                        onPeriodChange={setPeriodFilter}
+                        startDate={startDate}
+                        onStartDateChange={setStartDate}
+                        endDate={endDate}
+                        onEndDateChange={setEndDate}
+                    />
+                </div>
+            </div>
             {/* Kanban / List */}
             {displayedOrders.length === 0 && !loading ? (
                 <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl text-center px-6">

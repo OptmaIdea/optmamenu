@@ -1,3 +1,4 @@
+import React, { Fragment } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState, useMemo, useLayoutEffect, useCallback, useRef } from 'react';
 import type { LucideIcon } from 'lucide-react';
@@ -367,22 +368,7 @@ export default function PrivateLayout() {
     const [popoverTimeoutId, setPopoverTimeoutId] = useState<ReturnType<typeof setTimeout> | null>(null);
 
     const navigationItems = useMemo<MenuSection>(() => ({
-        personal: [
-            {
-                path: '/admin/my-history',
-                icon: ScrollText,
-                label: 'Meu Histórico',
-                alwaysVisible: true,
-            },
-            {
-                path: '/admin/my-profile',
-                icon: UserCircle,
-                label: 'Meus Dados',
-                alwaysVisible: true,
-            },
-        ],
         dashboard: [
-            { path: '/admin', icon: Home, label: 'Início', alwaysVisible: true },
             { path: '/admin/alerts', icon: AlertCircle, label: 'Alertas', permission: 'dashboard.alerts.view' },
             { path: '/admin/activity', icon: BarChart2, label: 'Atividades recentes', permission: 'dashboard.activity.view' },
             { path: '/admin/dashboard', icon: LayoutDashboard, label: 'Painel operacional', permission: 'dashboard.view' },
@@ -445,12 +431,25 @@ export default function PrivateLayout() {
             { path: '/admin/docs', icon: BookOpen, label: 'Documentação', permission: 'support.view' },
             { path: '/admin/faq', icon: HelpCircle, label: 'FAQ', permission: 'support.view' },
             { path: '/admin/legal', icon: FileText, label: 'Termos Legais', permission: 'support.view' },
+        ],
+        my_data: [
+            {
+                path: '/admin/my-profile',
+                icon: UserCircle,
+                label: 'Dados pessoais',
+                alwaysVisible: true,
+            },
+            {
+                path: '/admin/my-history',
+                icon: ScrollText,
+                label: 'Histórico de uso',
+                alwaysVisible: true,
+            },
         ]
     }), []);
 
     const SIDEBAR_GROUPS_STORAGE_KEY = 'optmamenu.sidebar.groups';
     const defaultOpenSections = {
-        personal: true,
         dashboard: true,
         commercial: false,
         financial: false,
@@ -459,6 +458,7 @@ export default function PrivateLayout() {
         settings: false,
         security: false,
         support: false,
+        my_data: false,
     };
     const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
         try {
@@ -991,6 +991,9 @@ export default function PrivateLayout() {
 
     // Resolve o grupo e item ativo
     const currentItem = useMemo(() => {
+        if (pathname === '/admin') {
+            return { group: 'home', item: { path: '/admin', icon: Home, label: 'Início' } };
+        }
         const search = location.search || '';
         // 1. Tenta correspondência exata de caminho e query string
         for (const [group, items] of Object.entries(navigationItems)) {
@@ -1073,7 +1076,6 @@ export default function PrivateLayout() {
         setOpenSections((prev) => {
             const isOpening = !prev[section];
             const next = {
-                personal: false,
                 dashboard: false,
                 commercial: false,
                 financial: false,
@@ -1082,6 +1084,7 @@ export default function PrivateLayout() {
                 settings: false,
                 security: false,
                 support: false,
+                my_data: false,
             };
             if (isOpening) {
                 next[section as keyof typeof next] = true;
@@ -1269,6 +1272,27 @@ export default function PrivateLayout() {
                             </div>
                         )}
                         <nav className="space-y-4">
+                            {/* Item Fixo e Independente: Início */}
+                            <Link
+                                to="/admin"
+                                title={isSidebarCollapsed ? 'Início' : ''}
+                                className={`flex items-center gap-3 rounded-xl font-bold text-sm transition-all relative mb-3 ${
+                                    isSidebarCollapsed ? 'justify-center px-2 py-3' : 'px-3 py-2.5'
+                                } ${
+                                    pathname === '/admin'
+                                        ? 'bg-[#19A999]/10 text-[#19A999] border border-[#19A999]/20 dark:bg-[#19A999]/20 font-black'
+                                        : 'text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700'
+                                }`}
+                            >
+                                <Home
+                                    size={isSidebarCollapsed ? 22 : 18}
+                                    className={pathname === '/admin' ? 'text-[#19A999]' : 'text-gray-400'}
+                                />
+                                {!isSidebarCollapsed && (
+                                    <span className="font-candara font-bold">Início</span>
+                                )}
+                            </Link>
+
                             {Object.entries(navigationItems).map(([section, items]) => {
                                 const visibleItems = items.filter((item) =>
                                     isMenuItemVisible(section, item)
@@ -1280,34 +1304,38 @@ export default function PrivateLayout() {
 
                                 const isCurrentGroup = currentItem?.group === section;
                                 return (
-                                    <div key={section} className="space-y-1">
-                                        {!isSidebarCollapsed && (
-                                            <button
-                                                type="button"
-                                                onClick={() => toggleSection(section)}
-                                                className={`w-full flex items-center justify-between px-3 py-1 mb-1 text-xs tracking-wider font-candara transition-all ${isCurrentGroup
-                                                    ? 'font-black text-gray-800 dark:text-gray-200 text-[13px] uppercase'
-                                                    : 'font-bold text-gray-400 dark:text-gray-500 uppercase'
-                                                    }`}
-                                            >
-                                                <span>
-                                                    {section === 'personal' && 'Pessoal'}
-                                                    {section === 'dashboard' && 'Dashboard'}
-                                                    {section === 'commercial' && 'Comercial'}
-                                                    {section === 'financial' && 'Financeiro'}
-                                                    {section === 'products' && 'Produtos'}
-                                                    {section === 'team' && 'Usuários e Equipe'}
-                                                    {section === 'settings' && 'Configurações'}
-                                                    {section === 'security' && 'Segurança'}
-                                                    {section === 'support' && 'Suporte'}
-                                                </span>
-                                                <ChevronDown
-                                                    size={14}
-                                                    className={`text-gray-400 transition-transform duration-200 ${openSections[section] ? 'rotate-180' : ''
-                                                        }`}
-                                                />
-                                            </button>
+                                    <Fragment key={section}>
+                                        {section === 'my_data' && (
+                                            <div className="pt-2 my-2 border-t border-gray-200/80 dark:border-gray-700/80" />
                                         )}
+                                        <div className="space-y-1">
+                                            {!isSidebarCollapsed && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => toggleSection(section)}
+                                                    className={`w-full flex items-center justify-between px-3 py-1 mb-1 text-xs tracking-wider font-candara transition-all ${isCurrentGroup
+                                                        ? 'font-black text-gray-800 dark:text-gray-200 text-[13px] uppercase'
+                                                        : 'font-bold text-gray-400 dark:text-gray-500 uppercase'
+                                                        }`}
+                                                >
+                                                    <span>
+                                                        {section === 'dashboard' && 'Dashboard'}
+                                                        {section === 'commercial' && 'Comercial'}
+                                                        {section === 'financial' && 'Financeiro'}
+                                                        {section === 'products' && 'Produtos'}
+                                                        {section === 'team' && 'Usuários e Equipe'}
+                                                        {section === 'settings' && 'Configurações'}
+                                                        {section === 'security' && 'Segurança'}
+                                                        {section === 'support' && 'Suporte'}
+                                                        {section === 'my_data' && 'Meus dados'}
+                                                    </span>
+                                                    <ChevronDown
+                                                        size={14}
+                                                        className={`text-gray-400 transition-transform duration-200 ${openSections[section] ? 'rotate-180' : ''
+                                                            }`}
+                                                    />
+                                                </button>
+                                            )}
                                         {(openSections[section] || isSidebarCollapsed) && visibleItems
                                             .map(item => {
                                                 const IconComponent = item.icon;
@@ -1352,7 +1380,8 @@ export default function PrivateLayout() {
                                                     </Link>
                                                 );
                                             })}
-                                    </div>
+                                        </div>
+                                    </Fragment>
                                 );
                             })}
                         </nav>

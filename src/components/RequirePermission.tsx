@@ -37,7 +37,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
     targetPermission !== 'pdv.view' &&
     hasOnlyPdvOperationalAccess(permissions)
       ? '/admin/pdv'
-      : '/admin/my-profile';
+      : '/admin';
   const hasAccess = Boolean(
     activeStoreId &&
     activeMembership &&
@@ -105,7 +105,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
           )}
         </p>
         <p className="mt-4 text-xs font-bold text-[#19A999]">
-          Redirecionando para {fallbackPath === '/admin/pdv' ? 'o PDV' : 'Meus Dados'} em {countdown} segundo{countdown !== 1 ? 's' : ''}...
+          Redirecionando para {fallbackPath === '/admin/pdv' ? 'o PDV' : 'o Início'} em {countdown} segundo{countdown !== 1 ? 's' : ''}...
         </p>
         <div className="mt-8 flex gap-3">
           <button
@@ -118,7 +118,7 @@ export function RequirePermission({ permission, permissions: permissionsProp, ch
             onClick={() => navigate(fallbackPath)}
             className="bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-bold px-6 py-2.5 rounded-xl transition cursor-pointer"
           >
-            {fallbackPath === '/admin/pdv' ? 'Ir para o PDV' : 'Ir para Meus Dados'}
+            {fallbackPath === '/admin/pdv' ? 'Ir para o PDV' : 'Ir para o Início'}
           </button>
         </div>
       </div>
