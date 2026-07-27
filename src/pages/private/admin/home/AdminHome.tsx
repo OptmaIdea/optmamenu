@@ -5,8 +5,8 @@ import {
   BookOpen,
   Boxes,
   LayoutDashboard,
+  MonitorSmartphone,
   Package,
-  PointOfSale,
   ReceiptText,
   Settings,
   ShoppingBag,
@@ -28,7 +28,7 @@ type QuickAccess = {
 };
 
 const QUICK_ACCESS: QuickAccess[] = [
-  { label: 'Abrir PDV', description: 'Inicie uma venda presencial.', path: '/admin/pdv', permission: 'pdv.view', icon: PointOfSale },
+  { label: 'Abrir PDV', description: 'Inicie uma venda presencial.', path: '/admin/pdv', permission: 'pdv.view', icon: MonitorSmartphone },
   { label: 'Pedidos', description: 'Acompanhe pedidos e vendas.', path: '/admin/orders', permission: 'orders.view', icon: ShoppingBag },
   { label: 'Produtos', description: 'Consulte e gerencie o catálogo.', path: '/admin/products', permission: 'products.manage', icon: Package },
   { label: 'Estoque', description: 'Veja saldos e locais de estoque.', path: '/admin/inventory', permission: 'stock.view', icon: Boxes },
