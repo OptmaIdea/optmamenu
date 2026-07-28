@@ -19,7 +19,6 @@ import {
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/empty-state/EmptyState';
-import AdminProductEditModal from '@/pages/private/admin/products/products/components/AdminProductEditModal/AdminProductEditModal';
 
 import { useProductDetail } from './hooks/useProductDetail';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
@@ -44,7 +43,6 @@ export default function ProductDetailPage() {
 
     const [activeTab, setActiveTab] = useState<DetailTab>('overview');
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     // Retorno inteligente para a listagem
     const handleBack = () => {
@@ -187,11 +185,6 @@ export default function ProductDetailPage() {
     // Código principal
     const primaryCode = product.codes?.find((c) => c.is_primary) || product.codes?.[0];
 
-    const handleProductSaved = async () => {
-        setIsEditModalOpen(false);
-        await refetch();
-    };
-
     return (
         <>
             <PageContainer
@@ -213,7 +206,7 @@ export default function ProductDetailPage() {
 
                     {canManageProducts && (
                         <button
-                            onClick={() => setIsEditModalOpen(true)}
+                            onClick={() => navigate(`/admin/products/${product.id}/edit`)}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-semibold rounded-xl transition-colors shadow-sm cursor-pointer shrink-0"
                         >
                             <Edit size={16} />
@@ -514,7 +507,7 @@ export default function ProductDetailPage() {
                             </h3>
                             {canManageProducts && (
                                 <button
-                                    onClick={() => setIsEditModalOpen(true)}
+                                    onClick={() => navigate(`/admin/products/${product.id}/edit`)}
                                     className="inline-flex items-center gap-1.5 text-xs font-bold text-[#19A999] hover:underline cursor-pointer"
                                 >
                                     <Edit size={14} />
@@ -776,16 +769,6 @@ export default function ProductDetailPage() {
                     </div>
                 )}
             </PageContainer>
-
-            {/* Modal de edição (apenas se gerencia) */}
-            {canManageProducts && (
-                <AdminProductEditModal
-                    isOpen={isEditModalOpen}
-                    onClose={() => setIsEditModalOpen(false)}
-                    product={product}
-                    onSuccess={handleProductSaved}
-                />
-            )}
         </>
     );
 }

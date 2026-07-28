@@ -93,6 +93,7 @@ export default function ProductActionModal({
                         <button
                             onClick={() => {
                                 onEdit();
+                                navigate(`/admin/products/${product.id}/edit`);
                                 onClose();
                             }}
                             className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left cursor-pointer"

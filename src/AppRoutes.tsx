@@ -87,6 +87,7 @@ const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/s
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
 const ProductDetailPage = lazy(() => import('@/pages/private/admin/products/detail/ProductDetailPage'));
+const ProductFormPage = lazy(() => import('@/pages/private/admin/products/form/ProductFormPage'));
 const InventoryByLocationPage = lazy(() => import('@/pages/private/admin/products/inventory/InventoryByLocationPage'));
 const StockDiscrepanciesPage = lazy(() => import('@/pages/private/admin/products/inventory/StockDiscrepanciesPage'));
 const StockReservationsPage = lazy(() => import('@/pages/private/admin/products/inventory/StockReservationsPage'));
@@ -195,13 +196,29 @@ export default function AppRoutes() {
             <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
 
             <Route path="/admin/products" element={<RequirePermission permission="products.view"><Products /></RequirePermission>} />
+            <Route
+              path="/admin/products/new"
+              element={
+                <RequirePermission permission="products.manage">
+                  <ProductFormPage mode="create" />
+                </RequirePermission>
+              }
+            />
+            <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecycleSelectorPage /></RequirePermission>} />
+            <Route
+              path="/admin/products/:id/edit"
+              element={
+                <RequirePermission permission="products.manage">
+                  <ProductFormPage mode="edit" />
+                </RequirePermission>
+              }
+            />
+            <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecyclePage /></RequirePermission>} />
             <Route path="/admin/products/:id" element={<RequirePermission permission="products.view"><ProductDetailPage /></RequirePermission>} />
             <Route path="/admin/categories" element={<RequirePermission permission="categories.view"><Categories /></RequirePermission>} />
             <Route path="/admin/inventory" element={<RequirePermission permission="stock.view"><InventoryByLocationPage /></RequirePermission>} />
             <Route path="/admin/stock/divergences" element={<RequirePermission permission="stock.view"><StockDiscrepanciesPage /></RequirePermission>} />
             <Route path="/admin/stock/reservations" element={<RequirePermission permission="stock.view"><StockReservationsPage /></RequirePermission>} />
-            <Route path="/admin/products/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecycleSelectorPage /></RequirePermission>} />
-            <Route path="/admin/products/:id/lifecycle" element={<RequirePermission permission="products.manage"><ProductLifecyclePage /></RequirePermission>} />
             <Route path="/admin/transfers" element={<RequirePermission permission="transfers.view"><TransfersPage /></RequirePermission>} />
             <Route path="/admin/transfers/:id" element={<RequirePermission permission="transfers.view"><TransferDetailPage /></RequirePermission>} />
             <Route path="/admin/suppliers" element={<RequirePermission permission="suppliers.view"><Suppliers /></RequirePermission>} />

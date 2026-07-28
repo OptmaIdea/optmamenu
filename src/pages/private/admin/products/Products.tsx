@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import AdminProductViewModal from '@/pages/private/admin/products/products/components/AdminProductViewModal';
 import ProductDeleteConfirmModal from '@/pages/private/admin/products/products/components/ProductDeleteConfirmModal';
 import type { Product, ModalFilterType } from './products/types/product.types';
-import AdminProductEditModal from '@/pages/private/admin/products/products/components/AdminProductEditModal/AdminProductEditModal';
 
 // Hooks
 import { useProducts } from '@/pages/private/admin/products/products/hooks/useProducts';
@@ -78,25 +77,15 @@ export default function ProductsPage() {
         setDeleteProduct(product);
     };
 
-    const [editModalProduct, setEditModalProduct] = useState<Product | null>(null);
-    const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
-
-    // Funções para abrir os modais de escrita (protegidas)
+    // Funções para navegar até as páginas de escrita (protegidas)
     const handleEditProduct = (product: Product) => {
         if (!canManageProducts) return;
-        setEditModalProduct(product);
+        navigate(`/admin/products/${product.id}/edit`);
     };
 
     const handleNewProduct = () => {
         if (!canManageProducts) return;
-        setIsNewProductModalOpen(true);
-    };
-
-    // Callback após salvar/editar
-    const handleProductSaved = () => {
-        setEditModalProduct(null);
-        setIsNewProductModalOpen(false);
-        handleRefresh();
+        navigate('/admin/products/new');
     };
 
     // Callback após exclusão bem-sucedida
@@ -305,25 +294,6 @@ export default function ProductsPage() {
                 canManageProducts={canManageProducts}
             />
 
-            {/* Modal de edição de produto (apenas para quem gerencia) */}
-            {canManageProducts && (
-                <AdminProductEditModal
-                    isOpen={editModalProduct !== null}
-                    onClose={() => setEditModalProduct(null)}
-                    product={editModalProduct}
-                    onSuccess={handleProductSaved}
-                />
-            )}
-
-            {/* Modal de novo produto (apenas para quem gerencia) */}
-            {canManageProducts && (
-                <AdminProductEditModal
-                    isOpen={isNewProductModalOpen}
-                    onClose={() => setIsNewProductModalOpen(false)}
-                    product={null}
-                    onSuccess={handleProductSaved}
-                />
-            )}
 
             {/* Render condicional do modal de visualização (mantido como fallback se viewProduct estiver setado manualmente) */}
             <AdminProductViewModal
