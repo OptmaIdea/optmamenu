@@ -165,7 +165,7 @@ export default function DirectSalesPage() {
             quantity: item.quantity,
             unitPrice: quote?.unit_price,
             originalUnitPrice: quote?.base_price,
-            discount: item.manualDiscount,
+            manualDiscountTotal: item.manualDiscount > 0 ? item.manualDiscount : null,
             discountReason: item.manualDiscount > 0 ? 'desconto_adicional_venda_direta' : null,
             pricingSource: quote?.pricing_source,
             priceRule: quote?.applied_tier || null,

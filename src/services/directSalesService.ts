@@ -8,7 +8,10 @@ export interface DirectSaleItemInput {
   productId: string;
   quantity: number;
   unitPrice?: number | null;
+  /** @deprecated Usar manualUnitDiscount ou manualDiscountTotal para semântica de desconto manual explícita */
   discount?: number | null;
+  manualUnitDiscount?: number | null;
+  manualDiscountTotal?: number | null;
   originalUnitPrice?: number | null;
   discountReason?: string | null;
   pricingSource?: string | null;
@@ -128,21 +131,28 @@ function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
   return items.map((item) => {
     const quantity = Math.max(0, Number(item.quantity || 0));
     const basePrice = Number(item.originalUnitPrice ?? item.unitPrice ?? 0);
-    const rawUnitPrice = Number(item.unitPrice ?? basePrice);
-    const itemDiscountInput = Math.max(0, Number(item.discount || 0));
+    const quotedUnitPrice = Number(item.unitPrice ?? basePrice);
 
-    // Se o desconto informado for por item ou manual, calcula o unitDiscount adicional
-    // Se a cotação já deu o unitPrice efetivo após atacado/categoria, effectiveUnitPrice = rawUnitPrice
-    const manualDiscountPerUnit = quantity > 0 && itemDiscountInput > 0 && itemDiscountInput < rawUnitPrice ? itemDiscountInput : 0;
-    const effectiveUnitPrice = Math.max(0, rawUnitPrice - manualDiscountPerUnit);
+    let effectiveUnitPrice = quotedUnitPrice;
+    let netSubtotal = quantity * quotedUnitPrice;
+
+    if (item.manualUnitDiscount != null) {
+      const unitDiscountVal = Math.max(0, Number(item.manualUnitDiscount));
+      effectiveUnitPrice = Math.max(0, quotedUnitPrice - unitDiscountVal);
+      netSubtotal = quantity * effectiveUnitPrice;
+    } else if (item.manualDiscountTotal != null) {
+      const discountTotalVal = Math.max(0, Number(item.manualDiscountTotal));
+      netSubtotal = Math.max(0, (quantity * quotedUnitPrice) - discountTotalVal);
+      effectiveUnitPrice = quantity > 0 ? netSubtotal / quantity : 0;
+    }
 
     const grossSubtotal = quantity * basePrice;
-    const netSubtotal = quantity * effectiveUnitPrice;
     const discountTotal = Math.max(0, grossSubtotal - netSubtotal);
     const unitDiscount = quantity > 0 ? discountTotal / quantity : 0;
 
     const meta = item.metadata ?? {};
-    const pricingSource = item.pricingSource ?? (meta.pricing_source ? String(meta.pricing_source) : 'product_base_price');
+    const rawPricingSource = item.pricingSource || meta.pricing_source;
+    const pricingSource = rawPricingSource ? String(rawPricingSource) : 'unregistered_legacy';
 
     const categoryNameSnapshot = meta.category_name_snapshot ?? meta.category_name ?? null;
     const pricingGroupNameSnapshot = meta.pricing_group_name_snapshot ?? meta.pricing_group_name ?? null;
@@ -152,7 +162,7 @@ function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
       product_id: item.productId,
       quantity,
       unit_price: effectiveUnitPrice,
-      discount: 0, // Envia 0 para a RPC pois unit_price já é o valor unitário efetivo faturado
+      discount: 0, // Envia 0 para a RPC pois unit_price já é o valor unitário efetivo faturado líquido
       original_unit_price: basePrice,
       discount_reason: item.discountReason ?? null,
       pricing_source: pricingSource,

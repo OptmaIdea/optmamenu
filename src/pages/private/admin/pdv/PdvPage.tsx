@@ -674,7 +674,6 @@ export default function PdvPage() {
             quantity: line.quantity,
             unitPrice: quote?.unit_price ?? line.product.price,
             originalUnitPrice: quote?.base_price ?? line.product.price,
-            discount: quote?.discount_total ?? 0,
             pricingSource: quote?.pricing_source ?? (line.product.use_category_pricing ? 'category_standard' : 'product_base_price'),
             priceRule: quote?.applied_tier ?? null,
             metadata: {
