@@ -21,11 +21,13 @@ export interface FetchPricingHistoryResult<T> {
   data: T[];
   hasTruncatedData: boolean;
   totalCandidateCount: number;
+  totalResultCount: number;
 }
 
 /**
- * Converte strings YYYY-MM-DD em limites de data no fuso horário operacional local (00:00:00.000 e 23:59:59.999).
+ * Converte strings YYYY-MM-DD em limites de data no fuso horário operacional local do navegador (00:00:00.000 e 23:59:59.999).
  * Evita deslocamentos por conversão UTC (sufixo Z).
+ * Nota de arquitetura: O fuso operacional utilizado é o fuso local do navegador do usuário.
  */
 export function parseLocalDateBounds(startDateStr?: string, endDateStr?: string) {
   let startBound: Date | null = null;
@@ -45,6 +47,7 @@ export function parseLocalDateBounds(startDateStr?: string, endDateStr?: string)
 }
 
 const CANDIDATE_FETCH_LIMIT = 1000;
+const DOCUMENT_ID_BATCH_SIZE = 100;
 
 export const ProductPricingHistoryService = {
   /**
@@ -52,13 +55,14 @@ export const ProductPricingHistoryService = {
    * Consulta A: completed_at no período
    * Consulta B: completed_at IS NULL e created_at no período
    * Resultados unidos e deduplicados por order_item.id.
+   * Retorna separadamente totalCandidateCount (candidatos deduplicados) e totalResultCount (após filtros em memória).
    */
   async fetchSalesSnapshots(
     params: FetchPricingHistoryParams
   ): Promise<FetchPricingHistoryResult<ProductItemPricingSnapshot>> {
     const storeId = getActiveStoreId();
     if (!storeId || !params.productId) {
-      return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
+      return { data: [], hasTruncatedData: false, totalCandidateCount: 0, totalResultCount: 0 };
     }
 
     // Se o período estiver ausente, padronizar para últimos 30 dias
@@ -163,6 +167,8 @@ export const ProductPricingHistoryService = {
       }
     }
 
+    const totalCandidateCount = itemMap.size;
+
     // Normalizar snapshots (sold_at = completed_at ?? created_at)
     let snapshots = Array.from(itemMap.values()).map((item) => normalizeOrderItemSnapshot(item));
 
@@ -192,7 +198,8 @@ export const ProductPricingHistoryService = {
     return {
       data: snapshots,
       hasTruncatedData,
-      totalCandidateCount: snapshots.length,
+      totalCandidateCount,
+      totalResultCount: snapshots.length,
     };
   },
 
@@ -200,14 +207,15 @@ export const ProductPricingHistoryService = {
    * Busca compras confirmadas consultando documentos candidatos por período efetivo em 2 rotas:
    * Consulta A: entry_date no período
    * Consulta B: entry_date IS NULL e created_at no período
-   * Deduplica os documentos e busca apenas os itens vinculados ao produto.
+   * Divide docIds em lotes de no máximo 100 documentos por chamada para evitar URLs extensas.
+   * Deduplica itens por purchase_document_item.id e retorna estatísticas precisas de candidatos vs resultados.
    */
   async fetchPurchaseHistory(
     params: FetchPricingHistoryParams
   ): Promise<FetchPricingHistoryResult<ProductPurchaseHistoryItem>> {
     const storeId = getActiveStoreId();
     if (!storeId || !params.productId) {
-      return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
+      return { data: [], hasTruncatedData: false, totalCandidateCount: 0, totalResultCount: 0 };
     }
 
     let startDateStr = params.startDate;
@@ -274,27 +282,51 @@ export const ProductPricingHistoryService = {
     }
 
     if (docMap.size === 0) {
-      return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
+      return { data: [], hasTruncatedData: false, totalCandidateCount: 0, totalResultCount: 0 };
     }
 
     const docIds = Array.from(docMap.keys());
 
-    // Buscar itens APENAS para os documentos encontrados no período
-    const { data: itemRows, error: itemErr } = await supabase
-      .from('purchase_document_items')
-      .select('id, purchase_document_id, product_id, quantity, unit_cost, total_cost')
-      .eq('store_id', storeId)
-      .eq('product_id', params.productId)
-      .in('purchase_document_id', docIds)
-      .limit(CANDIDATE_FETCH_LIMIT);
-
-    if (itemErr) {
-      console.error('Erro ao buscar itens de compra dos documentos:', itemErr);
-      throw itemErr;
+    // 1. Dividir docIds em lotes de DOCUMENT_ID_BATCH_SIZE (100) para evitar URLs gigantescas no Supabase
+    const docIdChunks: string[][] = [];
+    for (let i = 0; i < docIds.length; i += DOCUMENT_ID_BATCH_SIZE) {
+      docIdChunks.push(docIds.slice(i, i + DOCUMENT_ID_BATCH_SIZE));
     }
 
-    const rawItemRows = (itemRows ?? []) as any[];
-    const hasTruncatedItems = rawItemRows.length >= CANDIDATE_FETCH_LIMIT;
+    // 2. Consultar os itens em paralelo por lote
+    const batchPromises = docIdChunks.map((chunk) =>
+      supabase
+        .from('purchase_document_items')
+        .select('id, purchase_document_id, product_id, quantity, unit_cost, total_cost')
+        .eq('store_id', storeId)
+        .eq('product_id', params.productId)
+        .in('purchase_document_id', chunk)
+        .limit(CANDIDATE_FETCH_LIMIT)
+    );
+
+    const batchResults = await Promise.all(batchPromises);
+
+    let hasTruncatedItems = false;
+    const itemMap = new Map<string, any>();
+
+    for (const res of batchResults) {
+      if (res.error) {
+        console.error('Erro ao buscar lote de itens de compra dos documentos:', res.error);
+        throw res.error;
+      }
+      const rows = (res.data ?? []) as any[];
+      if (rows.length >= CANDIDATE_FETCH_LIMIT) {
+        hasTruncatedItems = true;
+      }
+      for (const row of rows) {
+        if (!itemMap.has(row.id)) {
+          itemMap.set(row.id, row);
+        }
+      }
+    }
+
+    const rawItemRows = Array.from(itemMap.values());
+    const totalCandidateCount = rawItemRows.length;
     const hasTruncatedData = hasTruncatedDocs || hasTruncatedItems;
 
     let result: ProductPurchaseHistoryItem[] = [];
@@ -336,7 +368,8 @@ export const ProductPricingHistoryService = {
     return {
       data: result,
       hasTruncatedData,
-      totalCandidateCount: result.length,
+      totalCandidateCount,
+      totalResultCount: result.length,
     };
   },
 };
