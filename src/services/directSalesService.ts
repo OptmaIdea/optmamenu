@@ -99,18 +99,61 @@ function getDirectSaleErrorMessage(result: AdminDirectSaleResult | null | undefi
   return 'Não foi possível concluir a venda. Atualize o PDV e tente novamente.';
 }
 
+function getPricingOriginLabel(source?: string | null): string {
+  if (!source) return 'Preço do produto';
+  switch (source) {
+    case 'pricing_group_combined_volume':
+      return 'Grupo de precificação por quantidade';
+    case 'category_combined_volume':
+      return 'Categoria por quantidade combinada';
+    case 'category_per_product_volume':
+      return 'Categoria por quantidade do produto';
+    case 'category_standard':
+      return 'Preço herdado da categoria';
+    case 'product_volume':
+      return 'Faixa de atacado do produto';
+    case 'product_standard':
+    case 'product_base_price':
+      return 'Preço próprio do produto';
+    case 'custom_manual':
+      return 'Preço ajustado manualmente';
+    default:
+      return 'Preço do produto';
+  }
+}
+
 function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
-  return items.map((item) => ({
-    product_id: item.productId,
-    quantity: item.quantity,
-    unit_price: item.unitPrice ?? null,
-    discount: item.discount ?? 0,
-    original_unit_price: item.originalUnitPrice ?? item.unitPrice ?? null,
-    discount_reason: item.discountReason ?? null,
-    pricing_source: item.pricingSource ?? null,
-    price_rule: item.priceRule ?? null,
-    metadata: item.metadata ?? {},
-  }));
+  return items.map((item) => {
+    const basePrice = item.originalUnitPrice ?? item.unitPrice ?? 0;
+    const unitPrice = item.unitPrice ?? basePrice;
+    const discount = item.discount ?? 0;
+    const pricingSource = item.pricingSource ?? 'product_base_price';
+
+    return {
+      product_id: item.productId,
+      quantity: item.quantity,
+      unit_price: unitPrice,
+      discount,
+      original_unit_price: basePrice,
+      discount_reason: item.discountReason ?? null,
+      pricing_source: pricingSource,
+      price_rule: item.priceRule ?? null,
+      metadata: {
+        ...(item.metadata ?? {}),
+        base_price: basePrice,
+        effective_unit_price: unitPrice,
+        unit_price: Math.max(0, unitPrice - discount),
+        quantity: item.quantity,
+        gross_subtotal: item.quantity * basePrice,
+        discount,
+        net_subtotal: item.quantity * Math.max(0, unitPrice - discount),
+        pricing_source: pricingSource,
+        pricing_origin_label: getPricingOriginLabel(pricingSource),
+        applied_tier: item.priceRule ?? null,
+        snapshot_version: '1.0',
+      },
+    };
+  });
 }
 
 function getPosCustomerStorageKey(storeId: string) {

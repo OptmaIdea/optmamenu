@@ -76,9 +76,12 @@ function paymentLabel(code?: string | null): string {
 }
 
 function pricingSourceLabel(metadata?: Record<string, unknown> | null): string {
-  const source = String(metadata?.pricing_source || 'product_base_price');
-  const groupName = metadata?.pricing_group_name;
-  const quantity = metadata?.pricing_quantity;
+  if (!metadata || (!metadata.pricing_source && !metadata.source)) {
+    return 'Origem não registrada';
+  }
+  const source = String(metadata.pricing_source || metadata.source || '');
+  const groupName = metadata.pricing_group_name || metadata.pricing_group_name_snapshot;
+  const quantity = metadata.pricing_quantity || metadata.applied_tier_min_quantity || metadata.quantity;
 
   if (source === 'pricing_group_combined_volume') {
     return `Grupo ${groupName || 'de preços'} • ${quantity || 0} un. combinadas`;
@@ -93,7 +96,8 @@ function pricingSourceLabel(metadata?: Record<string, unknown> | null): string {
     return `Faixa do produto • ${quantity || 0} un.`;
   }
   if (source === 'category_standard') return 'Preço da categoria';
-  return 'Preço do produto';
+  if (source === 'product_base_price' || source === 'product_standard') return 'Preço do produto';
+  return 'Origem não registrada';
 }
 
 export default function PdvSalesHistoryPage() {

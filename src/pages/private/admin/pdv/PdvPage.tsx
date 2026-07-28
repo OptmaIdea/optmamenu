@@ -662,14 +662,32 @@ export default function PdvPage() {
           shortage: line.quantity - line.product.available_stock,
         }));
 
+      const quoteMap = new Map((pricingQuote?.items || []).map((item) => [item.product_id, item]));
+
       const result = await DirectSalesService.createAdminDirectSale({
         storeId,
         locationId: bootstrap.selected_location_id,
-        items: cart.map((line) => ({
-          productId: line.product.id,
-          quantity: line.quantity,
-          unitPrice: line.product.price,
-        })),
+        items: cart.map((line) => {
+          const quote = quoteMap.get(line.product.id);
+          return {
+            productId: line.product.id,
+            quantity: line.quantity,
+            unitPrice: quote?.unit_price ?? line.product.price,
+            originalUnitPrice: quote?.base_price ?? line.product.price,
+            discount: quote?.discount_total ?? 0,
+            pricingSource: quote?.pricing_source ?? (line.product.use_category_pricing ? 'category_standard' : 'product_base_price'),
+            priceRule: quote?.applied_tier ?? null,
+            metadata: {
+              category_id: quote?.category_id ?? line.product.category_id,
+              category_name: quote?.category_name ?? null,
+              pricing_group_id: quote?.pricing_group_id ?? null,
+              pricing_group_name: quote?.pricing_group_name ?? null,
+              pricing_quantity: quote?.pricing_quantity ?? line.quantity,
+              applied_tier_min_quantity: quote?.applied_tier?.min ?? null,
+              applied_tier_price: quote?.applied_tier?.price ?? null,
+            },
+          };
+        }),
         paymentMethodCode,
         salesChannel: 'in_person',
         fulfillmentType: 'in_person',
