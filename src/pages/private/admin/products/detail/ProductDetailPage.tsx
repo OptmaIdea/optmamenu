@@ -427,9 +427,9 @@ export default function ProductDetailPage() {
                                         </p>
                                     </div>
                                     <div className="bg-gray-50 dark:bg-gray-700/40 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
-                                        <span className="text-xs text-gray-500 dark:text-gray-400">Locais Ativos</span>
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Locais com Posição</span>
                                         <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">
-                                            {product.active_locations ?? 0}
+                                            {product.locations_with_position ?? product.active_locations ?? 0}
                                         </p>
                                     </div>
                                 </div>

@@ -233,43 +233,94 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 }
             }
 
-            // Fallback para last_sale_at via movimentações de saída se a coluna do produto estiver vazia
+            // Fallback para last_sale_at via movimentações ESTRITAMENTE DE VENDA se a coluna do produto estiver vazia
             if (!p.last_sale_at) {
                 try {
-                    const { data: lastSaleRow } = await supabase
+                    const { data: exitMovements } = await supabase
                         .from('stock_movements')
-                        .select('created_at')
+                        .select('created_at, source, order_id, type, reason, reason_code')
                         .eq('store_id', activeStoreId)
                         .eq('product_id', productId)
                         .eq('type', 'exit')
                         .order('created_at', { ascending: false })
-                        .limit(1)
-                        .maybeSingle();
+                        .limit(50);
 
-                    if (lastSaleRow?.created_at) {
-                        p.last_sale_at = lastSaleRow.created_at;
+                    if (Array.isArray(exitMovements) && exitMovements.length > 0) {
+                        const actualSaleMovement = exitMovements.find((m: any) => {
+                            const source = String(m.source ?? '').toLowerCase();
+                            const reason = String(m.reason ?? '').toLowerCase();
+                            const reasonCode = String(m.reason_code ?? '').toLowerCase();
+                            return (
+                                Boolean(m.order_id) ||
+                                ['order', 'public_order', 'direct_sale', 'pos_sale', 'sale', 'sales'].includes(source) ||
+                                reason.includes('venda') ||
+                                reason.includes('sale') ||
+                                reasonCode.includes('venda') ||
+                                reasonCode.includes('sale')
+                            );
+                        });
+
+                        if (actualSaleMovement?.created_at) {
+                            p.last_sale_at = actualSaleMovement.created_at;
+                        }
                     }
                 } catch (e) {
-                    console.warn('Erro ao buscar última venda em stock_movements:', e);
+                    console.warn('Erro ao buscar movimentações de venda em stock_movements:', e);
                 }
             }
 
-            // Fallback para quantidade real de locais ativos do produto
-            let actualLocationCount = 0;
+            // Consultar locais realmente ATIVOS em stock_locations para a loja ativa
+            const activeLocationSet = new Set<string>();
+            try {
+                const { data: activeLocs } = await supabase
+                    .from('stock_locations')
+                    .select('id')
+                    .eq('store_id', activeStoreId)
+                    .eq('active', true);
+
+                if (Array.isArray(activeLocs)) {
+                    activeLocs.forEach((loc: any) => {
+                        if (loc.id) activeLocationSet.add(loc.id);
+                    });
+                }
+            } catch (e) {
+                console.warn('Erro ao consultar stock_locations ativas:', e);
+            }
+
+            const activeLocationsRegistered = activeLocationSet.size;
+
+            // Consultar posições do produto em inventory_location_balances e deduplicar por location_id
+            let locationsWithPositionCount = 0;
+            let locationsWithAvailableStockCount = 0;
+
             try {
                 const { data: locBalances } = await supabase
                     .from('inventory_location_balances')
-                    .select('location_id')
+                    .select('location_id, on_hand, available')
                     .eq('store_id', activeStoreId)
                     .eq('product_id', productId);
 
-                actualLocationCount = locBalances ? locBalances.length : 0;
-            } catch (e) {
-                console.warn('Erro ao consultar locais do produto em inventory_location_balances:', e);
-            }
+                if (Array.isArray(locBalances)) {
+                    const positionLocationSet = new Set<string>();
+                    const availableLocationSet = new Set<string>();
 
-            const activeLocationsCount = Math.max(mgmtData?.active_locations ?? 0, actualLocationCount);
-            const totalLocationsCount = Math.max(mgmtData?.total_locations ?? 0, actualLocationCount);
+                    locBalances.forEach((row: any) => {
+                        // Considerar apenas locais que estejam ATIVOS no cadastro da loja
+                        if (row.location_id && (activeLocationSet.size === 0 || activeLocationSet.has(row.location_id))) {
+                            positionLocationSet.add(row.location_id);
+                            const avail = Number(row.available ?? row.on_hand ?? 0);
+                            if (avail > 0) {
+                                availableLocationSet.add(row.location_id);
+                            }
+                        }
+                    });
+
+                    locationsWithPositionCount = positionLocationSet.size;
+                    locationsWithAvailableStockCount = availableLocationSet.size;
+                }
+            } catch (e) {
+                console.warn('Erro ao consultar inventory_location_balances:', e);
+            }
 
             const parsedProduct: Product = {
                 ...p,
@@ -290,13 +341,15 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 global_max_stock: mgmtData?.global_max_stock ?? p.max_stock ?? 0,
                 global_status: (mgmtData?.global_status as any) ?? 'global_ok',
                 recommended_action: (mgmtData?.recommended_action as any) ?? 'ok',
-                total_locations: totalLocationsCount,
-                active_locations: activeLocationsCount,
+                total_locations: mgmtData?.total_locations ?? activeLocationsRegistered,
+                active_locations: Math.max(mgmtData?.active_locations ?? 0, locationsWithPositionCount),
+                active_locations_registered: activeLocationsRegistered,
+                locations_with_position: locationsWithPositionCount,
                 sales_locations: mgmtData?.sales_locations ?? 0,
                 location_stockout_count: mgmtData?.location_stockout_count ?? 0,
                 location_critical_count: mgmtData?.location_critical_count ?? 0,
                 location_excess_count: mgmtData?.location_excess_count ?? 0,
-                locations_with_available_stock: mgmtData?.locations_with_available_stock ?? 0,
+                locations_with_available_stock: Math.max(mgmtData?.locations_with_available_stock ?? 0, locationsWithAvailableStockCount),
                 possible_source_locations: mgmtData?.possible_source_locations ?? 0,
                 alert_locations: mgmtData?.alert_locations ?? [],
             };

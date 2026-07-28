@@ -98,6 +98,8 @@ export interface Product {
 
     total_locations?: number;
     active_locations?: number;
+    active_locations_registered?: number;
+    locations_with_position?: number;
     sales_locations?: number;
     location_stockout_count?: number;
     location_critical_count?: number;
