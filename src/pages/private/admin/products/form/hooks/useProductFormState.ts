@@ -219,6 +219,26 @@ export function useProductFormState({ product, categories, isEditing }: UseProdu
       if (isNaN(parsedPrice) || parsedPrice < 0) {
         errs.price = 'Informe um preço válido maior ou igual a zero.';
       }
+
+      if (pricingMode === 'category_volume') {
+        const mins = new Set<number>();
+        for (const rule of priceRules) {
+          if (rule.min < 1) {
+            toast.error('A quantidade mínima nas faixas de atacado deve ser maior ou igual a 1.');
+            return false;
+          }
+          const rulePrice = parseFloat(String(rule.price).replace(',', '.'));
+          if (isNaN(rulePrice) || rulePrice < 0) {
+            toast.error('O preço em cada faixa de atacado deve ser maior ou igual a zero.');
+            return false;
+          }
+          if (mins.has(rule.min)) {
+            toast.error(`Não são permitidas faixas duplicadas para a mesma quantidade (${rule.min} un).`);
+            return false;
+          }
+          mins.add(rule.min);
+        }
+      }
     }
 
     if (minStock < 0) {
@@ -248,6 +268,11 @@ export function useProductFormState({ product, categories, isEditing }: UseProdu
       return { success: false };
     }
 
+    // Ordenar faixas de atacado por quantidade min
+    const sortedPriceRules = [...priceRules]
+      .sort((a, b) => a.min - b.min)
+      .map((r) => ({ min: r.min, price: Number(r.price) || 0 }));
+
     let saveSuccess = false;
 
     await saveProduct({
@@ -261,7 +286,7 @@ export function useProductFormState({ product, categories, isEditing }: UseProdu
       imagesToDelete,
       pricingMode: useCategoryPricing ? 'inherit' : 'custom',
       priceLogicType: pricingMode,
-      priceRules: priceRules.map((r) => ({ min: r.min, price: Number(r.price) || 0 })),
+      priceRules: sortedPriceRules,
       stockQuantity,
       minStock,
       maxStock,

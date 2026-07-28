@@ -13,7 +13,8 @@ import {
     ExternalLink,
     ChevronLeft,
     ChevronRight,
-    RefreshCw
+    RefreshCw,
+    Info
 } from 'lucide-react';
 
 import PageContainer from '@/components/common/PageContainer';
@@ -583,30 +584,41 @@ export default function ProductDetailPage() {
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                             <div className="bg-gray-50 dark:bg-gray-700/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
-                                <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Preço Base</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Preço Base Cadastrado</span>
                                 <span className="text-2xl font-bold text-[#19A999] mt-1 block">{formattedPrice}</span>
                             </div>
 
                             <div className="bg-gray-50 dark:bg-gray-700/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Origem da Precificação</span>
                                 <span className="text-sm font-semibold text-gray-900 dark:text-white mt-1 block">
-                                    {product.use_category_pricing ? 'Preço da Categoria' : 'Regra Própria'}
+                                    {product.use_category_pricing ? `Herdado da Categoria (${product.category?.name || 'Sem categoria'})` : 'Preço Próprio'}
                                 </span>
                             </div>
 
                             <div className="bg-gray-50 dark:bg-gray-700/40 p-4 rounded-xl border border-gray-100 dark:border-gray-700">
                                 <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Tipo de Lógica</span>
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white mt-1 block uppercase">
-                                    {product.price_logic_type || 'standard'}
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white mt-1 block">
+                                    {product.price_logic_type === 'category_volume'
+                                        ? 'Atacado por Faixas de Quantidade'
+                                        : 'Preço Único Padrão'}
                                 </span>
                             </div>
                         </div>
+
+                        {product.use_category_pricing && (
+                            <div className="flex items-center gap-2 p-3.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-blue-800 dark:text-blue-300 text-xs">
+                                <Info size={16} className="shrink-0" />
+                                <span>
+                                    <strong>Precificação da Categoria:</strong> Este produto herda a precificação da categoria <strong>{product.category?.name || 'associada'}</strong>. O valor aplicado no carrinho/checkout é determinado pelas regras da categoria e grupos de precificação ativos.
+                                </span>
+                            </div>
+                        )}
 
                         {/* Faixas / Regras de preço configuradas */}
                         {product.price_rules && Array.isArray(product.price_rules) && product.price_rules.length > 0 ? (
                             <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-3">
-                                    Faixas de Preço por Quantidade
+                                    Faixas de Preço por Quantidade (Atacado Próprio)
                                 </h4>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-xs text-left">
@@ -619,7 +631,7 @@ export default function ProductDetailPage() {
                                         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                                             {product.price_rules.map((rule: any, idx: number) => (
                                                 <tr key={idx}>
-                                                    <td className="px-3 py-2 font-medium">{rule.min ?? rule.min_quantity} un</td>
+                                                    <td className="px-3 py-2 font-medium">A partir de {rule.min ?? rule.min_quantity} un</td>
                                                     <td className="px-3 py-2 font-bold text-[#19A999]">
                                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(rule.price)}
                                                     </td>
@@ -630,7 +642,9 @@ export default function ProductDetailPage() {
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-xs text-gray-500 italic">Nenhuma faixa de preço especial configurada.</p>
+                            !product.use_category_pricing && (
+                                <p className="text-xs text-gray-500 italic">Nenhuma faixa de atacado por quantidade configurada para este produto.</p>
+                            )
                         )}
                     </div>
                 )}

@@ -18,6 +18,14 @@ export const CodesSection: React.FC<CodesSectionProps> = ({
   ean,
   setEan,
 }) => {
+  const hasInternal = Boolean(internalCode.trim());
+  const hasSku = Boolean(sku.trim());
+  const hasEan = Boolean(ean.trim());
+
+  const isInternalPrimary = hasInternal;
+  const isSkuPrimary = !hasInternal && hasSku;
+  const isEanPrimary = !hasInternal && !hasSku && hasEan;
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm space-y-4">
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-gray-700 pb-3">
@@ -35,8 +43,13 @@ export const CodesSection: React.FC<CodesSectionProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Código Interno */}
         <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-            Código interno
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+            <span>Código interno</span>
+            {isInternalPrimary && (
+              <span className="text-[10px] font-bold text-[#19A999] bg-[#19A999]/10 px-1.5 py-0.5 rounded">
+                Principal
+              </span>
+            )}
           </label>
           <input
             type="text"
@@ -50,8 +63,13 @@ export const CodesSection: React.FC<CodesSectionProps> = ({
 
         {/* SKU */}
         <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-            SKU
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+            <span>SKU</span>
+            {isSkuPrimary && (
+              <span className="text-[10px] font-bold text-[#19A999] bg-[#19A999]/10 px-1.5 py-0.5 rounded">
+                Principal
+              </span>
+            )}
           </label>
           <input
             type="text"
@@ -65,8 +83,13 @@ export const CodesSection: React.FC<CodesSectionProps> = ({
 
         {/* EAN / Código de Barras */}
         <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-            EAN / Código de barras
+          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1 flex items-center justify-between">
+            <span>EAN / Código de barras</span>
+            {isEanPrimary && (
+              <span className="text-[10px] font-bold text-[#19A999] bg-[#19A999]/10 px-1.5 py-0.5 rounded">
+                Principal
+              </span>
+            )}
           </label>
           <input
             type="text"

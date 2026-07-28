@@ -124,6 +124,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
         onAddRule={handleAddPriceRule}
         onRuleChange={handleRuleChange}
         onRemoveRule={handleRemovePriceRule}
+        selectedCategoryName={categories.find((c) => c.id === values.categoryId)?.name}
         errors={errors}
       />
 

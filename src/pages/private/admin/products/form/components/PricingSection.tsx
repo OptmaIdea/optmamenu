@@ -14,6 +14,7 @@ interface PricingSectionProps {
   onAddRule: () => void;
   onRuleChange: (index: number, field: 'min' | 'price', value: string) => void;
   onRemoveRule: (index: number) => void;
+  selectedCategoryName?: string | null;
   errors?: { price?: string };
 }
 
@@ -28,6 +29,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
   onAddRule,
   onRuleChange,
   onRemoveRule,
+  selectedCategoryName,
   errors,
 }) => {
   return (
@@ -53,7 +55,8 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
           <select
             value={pricingMode}
             onChange={(e) => setPricingMode(e.target.value as 'standard' | 'category_volume')}
-            className="w-full px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#19A999] text-gray-900 dark:text-white"
+            disabled={useCategoryPricing}
+            className="w-full px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#19A999] text-gray-900 dark:text-white disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:text-gray-500"
           >
             <option value="standard">Preço único padrão</option>
             <option value="category_volume">Atacado por faixas de quantidade</option>
@@ -105,7 +108,7 @@ export const PricingSection: React.FC<PricingSectionProps> = ({
         <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl text-blue-800 dark:text-blue-300 text-xs">
           <Info size={16} className="shrink-0" />
           <span>
-            O preço deste produto é calculado automaticamente com base na categoria associada.
+            Herdando regras da categoria{selectedCategoryName ? `: "${selectedCategoryName}"` : ''}. O preço final e faixas de atacado serão regidos pela categoria.
           </span>
         </div>
       )}
