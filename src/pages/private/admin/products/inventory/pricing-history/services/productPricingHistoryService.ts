@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import {
   normalizeOrderItemSnapshot,
+  getDatesForPreset,
 } from '../utils/pricingHistoryCalculations';
 import type {
   ProductItemPricingSnapshot,
@@ -23,8 +24,8 @@ export interface FetchPricingHistoryResult<T> {
 }
 
 /**
- * Converte strings YYYY-MM-DD em limites de data no fuso horario operacional local (00:00:00.000 e 23:59:59.999).
- * Evita deslocamentos por conversao UTC (sufixo Z).
+ * Converte strings YYYY-MM-DD em limites de data no fuso horário operacional local (00:00:00.000 e 23:59:59.999).
+ * Evita deslocamentos por conversão UTC (sufixo Z).
  */
 export function parseLocalDateBounds(startDateStr?: string, endDateStr?: string) {
   let startBound: Date | null = null;
@@ -47,7 +48,10 @@ const CANDIDATE_FETCH_LIMIT = 1000;
 
 export const ProductPricingHistoryService = {
   /**
-   * Busca vendas concluídas do produto e filtra estritamente pela data efetiva (completed_at ?? created_at).
+   * Busca vendas concluídas do produto consultando candidatos por período efetivo em 2 rotas:
+   * Consulta A: completed_at no período
+   * Consulta B: completed_at IS NULL e created_at no período
+   * Resultados unidos e deduplicados por order_item.id.
    */
   async fetchSalesSnapshots(
     params: FetchPricingHistoryParams
@@ -57,11 +61,25 @@ export const ProductPricingHistoryService = {
       return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
     }
 
+    // Se o período estiver ausente, padronizar para últimos 30 dias
+    let startDateStr = params.startDate;
+    let endDateStr = params.endDate;
+
+    if (!startDateStr || !endDateStr) {
+      const defaultDates = getDatesForPreset('last_30_days');
+      startDateStr = startDateStr || defaultDates.startDate;
+      endDateStr = endDateStr || defaultDates.endDate;
+    }
+
+    const { startBound, endBound } = parseLocalDateBounds(startDateStr, endDateStr);
+    const startIso = startBound ? startBound.toISOString() : undefined;
+    const endIso = endBound ? endBound.toISOString() : undefined;
+
     // Status autoritativos de venda concluída no OptmaMenu
-    // Excluídos: reserved, confirmed (em preparo), ready (pronto), cancelled, expired_auto, draft
     const COMPLETED_ORDER_STATUSES = ['completed', 'delivered', 'paid', 'closed', 'finished'];
 
-    const { data, error } = await supabase
+    // Consulta A: completed_at dentro do período
+    let queryA = supabase
       .from('order_items')
       .select(`
         id,
@@ -84,23 +102,71 @@ export const ProductPricingHistoryService = {
       .eq('product_id', params.productId)
       .eq('orders.store_id', storeId)
       .in('orders.status', COMPLETED_ORDER_STATUSES)
+      .order('completed_at', { referencedTable: 'orders', ascending: false })
+      .limit(CANDIDATE_FETCH_LIMIT);
+
+    if (startIso) queryA = queryA.gte('orders.completed_at', startIso);
+    if (endIso) queryA = queryA.lte('orders.completed_at', endIso);
+
+    // Consulta B: completed_at NULO e created_at dentro do período
+    let queryB = supabase
+      .from('order_items')
+      .select(`
+        id,
+        order_id,
+        product_id,
+        quantity,
+        unit_price,
+        discount,
+        commercial_metadata,
+        orders!inner (
+          id,
+          order_code,
+          sales_channel,
+          status,
+          created_at,
+          completed_at,
+          store_id
+        )
+      `)
+      .eq('product_id', params.productId)
+      .eq('orders.store_id', storeId)
+      .in('orders.status', COMPLETED_ORDER_STATUSES)
+      .is('orders.completed_at', null)
       .order('created_at', { referencedTable: 'orders', ascending: false })
       .limit(CANDIDATE_FETCH_LIMIT);
 
-    if (error) {
-      console.error('Erro ao buscar histórico de vendas do produto:', error);
-      throw error;
+    if (startIso) queryB = queryB.gte('orders.created_at', startIso);
+    if (endIso) queryB = queryB.lte('orders.created_at', endIso);
+
+    const [resA, resB] = await Promise.all([queryA, queryB]);
+
+    if (resA.error) {
+      console.error('Erro na Consulta A de vendas:', resA.error);
+      throw resA.error;
+    }
+    if (resB.error) {
+      console.error('Erro na Consulta B de vendas:', resB.error);
+      throw resB.error;
     }
 
-    const rawItems = (data ?? []) as any[];
-    const hasTruncatedData = rawItems.length >= CANDIDATE_FETCH_LIMIT;
+    const rawA = (resA.data ?? []) as any[];
+    const rawB = (resB.data ?? []) as any[];
 
-    // Normaliza os snapshots (sold_at = completed_at ?? created_at)
-    let snapshots = rawItems.map((item) => normalizeOrderItemSnapshot(item));
+    const hasTruncatedData = rawA.length >= CANDIDATE_FETCH_LIMIT || rawB.length >= CANDIDATE_FETCH_LIMIT;
 
-    // Filtra em memória estritamente pela data efetiva de venda (sold_at) no fuso operacional local
-    const { startBound, endBound } = parseLocalDateBounds(params.startDate, params.endDate);
+    // Deduplicação estrita por order_item.id
+    const itemMap = new Map<string, any>();
+    for (const item of [...rawA, ...rawB]) {
+      if (!itemMap.has(item.id)) {
+        itemMap.set(item.id, item);
+      }
+    }
 
+    // Normalizar snapshots (sold_at = completed_at ?? created_at)
+    let snapshots = Array.from(itemMap.values()).map((item) => normalizeOrderItemSnapshot(item));
+
+    // Validação final em memória estritamente pela data efetiva (sold_at) em fuso operacional local
     if (startBound || endBound) {
       snapshots = snapshots.filter((s) => {
         const soldAtTime = new Date(s.sold_at).getTime();
@@ -126,12 +192,15 @@ export const ProductPricingHistoryService = {
     return {
       data: snapshots,
       hasTruncatedData,
-      totalCandidateCount: rawItems.length,
+      totalCandidateCount: snapshots.length,
     };
   },
 
   /**
-   * Busca compras confirmadas do produto e filtra estritamente pela data efetiva de entrada (entry_date ?? created_at).
+   * Busca compras confirmadas consultando documentos candidatos por período efetivo em 2 rotas:
+   * Consulta A: entry_date no período
+   * Consulta B: entry_date IS NULL e created_at no período
+   * Deduplica os documentos e busca apenas os itens vinculados ao produto.
    */
   async fetchPurchaseHistory(
     params: FetchPricingHistoryParams
@@ -141,50 +210,99 @@ export const ProductPricingHistoryService = {
       return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
     }
 
-    // 1. Buscar itens de documentos de compra
+    let startDateStr = params.startDate;
+    let endDateStr = params.endDate;
+
+    if (!startDateStr || !endDateStr) {
+      const defaultDates = getDatesForPreset('last_30_days');
+      startDateStr = startDateStr || defaultDates.startDate;
+      endDateStr = endDateStr || defaultDates.endDate;
+    }
+
+    const { startBound, endBound } = parseLocalDateBounds(startDateStr, endDateStr);
+    const startIso = startBound ? startBound.toISOString() : undefined;
+    const endIso = endBound ? endBound.toISOString() : undefined;
+
+    // Consulta A: entry_date no período
+    let docQueryA = supabase
+      .from('purchase_documents')
+      .select('id, document_number, invoice_number, supplier_id, issue_date, entry_date, created_at, status, cancelled_at, suppliers(name)')
+      .eq('store_id', storeId)
+      .eq('status', 'confirmed')
+      .is('cancelled_at', null)
+      .order('entry_date', { ascending: false })
+      .limit(CANDIDATE_FETCH_LIMIT);
+
+    if (startIso) docQueryA = docQueryA.gte('entry_date', startIso);
+    if (endIso) docQueryA = docQueryA.lte('entry_date', endIso);
+
+    // Consulta B: entry_date IS NULL e created_at no período
+    let docQueryB = supabase
+      .from('purchase_documents')
+      .select('id, document_number, invoice_number, supplier_id, issue_date, entry_date, created_at, status, cancelled_at, suppliers(name)')
+      .eq('store_id', storeId)
+      .eq('status', 'confirmed')
+      .is('cancelled_at', null)
+      .is('entry_date', null)
+      .order('created_at', { ascending: false })
+      .limit(CANDIDATE_FETCH_LIMIT);
+
+    if (startIso) docQueryB = docQueryB.gte('created_at', startIso);
+    if (endIso) docQueryB = docQueryB.lte('created_at', endIso);
+
+    const [docResA, docResB] = await Promise.all([docQueryA, docQueryB]);
+
+    if (docResA.error) {
+      console.error('Erro na Consulta A de documentos de compra:', docResA.error);
+      throw docResA.error;
+    }
+    if (docResB.error) {
+      console.error('Erro na Consulta B de documentos de compra:', docResB.error);
+      throw docResB.error;
+    }
+
+    const docsA = (docResA.data ?? []) as any[];
+    const docsB = (docResB.data ?? []) as any[];
+    const hasTruncatedDocs = docsA.length >= CANDIDATE_FETCH_LIMIT || docsB.length >= CANDIDATE_FETCH_LIMIT;
+
+    // Deduplicar documentos de compra por id
+    const docMap = new Map<string, any>();
+    for (const doc of [...docsA, ...docsB]) {
+      if (!docMap.has(doc.id)) {
+        docMap.set(doc.id, doc);
+      }
+    }
+
+    if (docMap.size === 0) {
+      return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
+    }
+
+    const docIds = Array.from(docMap.keys());
+
+    // Buscar itens APENAS para os documentos encontrados no período
     const { data: itemRows, error: itemErr } = await supabase
       .from('purchase_document_items')
       .select('id, purchase_document_id, product_id, quantity, unit_cost, total_cost')
       .eq('store_id', storeId)
       .eq('product_id', params.productId)
+      .in('purchase_document_id', docIds)
       .limit(CANDIDATE_FETCH_LIMIT);
 
     if (itemErr) {
-      console.error('Erro ao buscar itens de compra do produto:', itemErr);
+      console.error('Erro ao buscar itens de compra dos documentos:', itemErr);
       throw itemErr;
     }
 
-    if (!itemRows || itemRows.length === 0) {
-      return { data: [], hasTruncatedData: false, totalCandidateCount: 0 };
-    }
-
-    const hasTruncatedData = itemRows.length >= CANDIDATE_FETCH_LIMIT;
-    const docIds = Array.from(new Set(itemRows.map((r: any) => r.purchase_document_id)));
-
-    // 2. Buscar documentos de compra autoritativamente confirmados e não cancelados
-    const { data: docRows, error: docErr } = await supabase
-      .from('purchase_documents')
-      .select('id, document_number, invoice_number, supplier_id, issue_date, entry_date, created_at, status, cancelled_at, suppliers(name)')
-      .eq('store_id', storeId)
-      .in('id', docIds)
-      .eq('status', 'confirmed')
-      .is('cancelled_at', null);
-
-    if (docErr) {
-      console.error('Erro ao buscar documentos de compra:', docErr);
-      throw docErr;
-    }
-
-    const docMap = new Map((docRows ?? []).map((d: any) => [d.id, d]));
-    const { startBound, endBound } = parseLocalDateBounds(params.startDate, params.endDate);
+    const rawItemRows = (itemRows ?? []) as any[];
+    const hasTruncatedItems = rawItemRows.length >= CANDIDATE_FETCH_LIMIT;
+    const hasTruncatedData = hasTruncatedDocs || hasTruncatedItems;
 
     let result: ProductPurchaseHistoryItem[] = [];
 
-    for (const item of itemRows) {
+    for (const item of rawItemRows) {
       const doc = docMap.get(item.purchase_document_id);
-      if (!doc) continue; // Ignora documentos não confirmados ou cancelados
+      if (!doc) continue;
 
-      // Data efetiva autoritativa de entrada: entry_date ?? created_at
       const effectiveEntryDate = doc.entry_date || doc.created_at;
       const entryTime = new Date(effectiveEntryDate).getTime();
 
@@ -218,7 +336,7 @@ export const ProductPricingHistoryService = {
     return {
       data: result,
       hasTruncatedData,
-      totalCandidateCount: itemRows.length,
+      totalCandidateCount: result.length,
     };
   },
 };
