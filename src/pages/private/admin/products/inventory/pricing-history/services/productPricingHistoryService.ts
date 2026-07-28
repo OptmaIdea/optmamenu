@@ -80,7 +80,7 @@ export const ProductPricingHistoryService = {
     const endIso = endBound ? endBound.toISOString() : undefined;
 
     // Status autoritativos de venda concluída no OptmaMenu
-    const COMPLETED_ORDER_STATUSES = ['completed', 'delivered', 'paid', 'closed', 'finished'];
+    const COMPLETED_ORDER_STATUSES = ['completed'];
 
     // Consulta A: completed_at dentro do período
     let queryA = supabase
@@ -231,27 +231,27 @@ export const ProductPricingHistoryService = {
     const startIso = startBound ? startBound.toISOString() : undefined;
     const endIso = endBound ? endBound.toISOString() : undefined;
 
-    // Consulta A: entry_date no período
+    // Consulta A: issue_date no período
     let docQueryA = supabase
       .from('purchase_documents')
-      .select('id, document_number, invoice_number, supplier_id, issue_date, entry_date, created_at, status, cancelled_at, suppliers(name)')
+      .select('id, document_code, invoice_number, supplier_id, issue_date, created_at, status, cancelled_at, suppliers(name)')
       .eq('store_id', storeId)
       .eq('status', 'confirmed')
       .is('cancelled_at', null)
-      .order('entry_date', { ascending: false })
+      .order('issue_date', { ascending: false })
       .limit(CANDIDATE_FETCH_LIMIT);
 
-    if (startIso) docQueryA = docQueryA.gte('entry_date', startIso);
-    if (endIso) docQueryA = docQueryA.lte('entry_date', endIso);
+    if (startDateStr) docQueryA = docQueryA.gte('issue_date', startDateStr);
+    if (endDateStr) docQueryA = docQueryA.lte('issue_date', endDateStr);
 
-    // Consulta B: entry_date IS NULL e created_at no período
+    // Consulta B: issue_date IS NULL e created_at no período
     let docQueryB = supabase
       .from('purchase_documents')
-      .select('id, document_number, invoice_number, supplier_id, issue_date, entry_date, created_at, status, cancelled_at, suppliers(name)')
+      .select('id, document_code, invoice_number, supplier_id, issue_date, created_at, status, cancelled_at, suppliers(name)')
       .eq('store_id', storeId)
       .eq('status', 'confirmed')
       .is('cancelled_at', null)
-      .is('entry_date', null)
+      .is('issue_date', null)
       .order('created_at', { ascending: false })
       .limit(CANDIDATE_FETCH_LIMIT);
 
@@ -335,7 +335,7 @@ export const ProductPricingHistoryService = {
       const doc = docMap.get(item.purchase_document_id);
       if (!doc) continue;
 
-      const effectiveEntryDate = doc.entry_date || doc.created_at;
+      const effectiveEntryDate = doc.issue_date || doc.created_at;
       const entryTime = new Date(effectiveEntryDate).getTime();
 
       if (!Number.isNaN(entryTime)) {
@@ -350,7 +350,7 @@ export const ProductPricingHistoryService = {
       result.push({
         id: item.id,
         purchase_document_id: doc.id,
-        document_number: doc.document_number ?? doc.invoice_number ?? null,
+        document_number: doc.document_code ?? doc.invoice_number ?? null,
         invoice_number: doc.invoice_number ?? null,
         supplier_id: doc.supplier_id ?? null,
         supplier_name: doc.suppliers?.name ?? null,
