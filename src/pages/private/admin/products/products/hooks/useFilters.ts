@@ -1,5 +1,4 @@
 import { useState, useMemo, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
 import type {
     Product,
     SortConfig,
@@ -8,9 +7,8 @@ import type {
     FilterAction,
     Category
 } from '../types/product.types';
-import { getActiveStoreId } from '@/utils/activeStore';
 
-export const useFilters = (products: Product[]) => {
+export const useFilters = (products: Product[], categories: Category[] = []) => {
     // Search
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -29,31 +27,6 @@ export const useFilters = (products: Product[]) => {
         key: 'name',
         direction: 'asc',
     });
-
-    // Categories (for filter dropdown)
-    const [categories, setCategories] = useState<Category[]>([]);
-
-    // Fetch categories from Supabase
-    const fetchCategories = useCallback(async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const activeStoreId = getActiveStoreId();
-
-            if (!activeStoreId) {
-                throw new Error('Nenhuma loja ativa selecionada.');
-            }
-
-            const { data } = await supabase
-                .from('categories')
-                .select('*')
-                .eq('store_id', activeStoreId);
-
-            if (data) setCategories(data);
-        } catch (error) {
-            console.error('Error fetching categories:', error);
-        }
-    }, []);
 
     // Clear search
     const clearSearch = useCallback(() => setSearchTerm(''), []);
@@ -88,6 +61,7 @@ export const useFilters = (products: Product[]) => {
 
     // Get stock status for a product (usado internamente para compatibilidade)
     const getInventoryStatus = useCallback((product: Product) => {
+        if (product.is_discontinued) return 'inactive';
         if (!product.active) return 'inactive';
         if (product.global_status === 'global_stockout') return 'zero';
         if (product.global_status === 'global_critical') return 'low';
@@ -130,11 +104,20 @@ export const useFilters = (products: Product[]) => {
             result = result.filter((p) => p.category?.name === filterCategory);
         }
 
+        // Status filter (Situação cadastral/comercial)
+        if (filterStatus !== 'all') {
+            if (filterStatus === 'active') {
+                result = result.filter((p) => p.active === true && !p.is_discontinued);
+            } else if (filterStatus === 'inactive') {
+                result = result.filter((p) => p.active === false && !p.is_discontinued);
+            } else if (filterStatus === 'discontinued') {
+                result = result.filter((p) => Boolean(p.is_discontinued));
+            }
+        }
+
         // Stock filter (baseado em display_stock_status / global_status)
         if (filterStock !== 'all') {
             result = result.filter((product) => {
-                if (!product.active) return false;
-
                 if (filterStock === 'zero') {
                     return product.display_stock_status === 'out';
                 }
@@ -157,12 +140,6 @@ export const useFilters = (products: Product[]) => {
 
                 return true;
             });
-        }
-
-        // Status filter
-        if (filterStatus !== 'all') {
-            const isActive = filterStatus === 'active';
-            result = result.filter((p) => p.active === isActive);
         }
 
         // Action filter (ação gerencial recomendada)
@@ -282,8 +259,6 @@ export const useFilters = (products: Product[]) => {
 
         // Categories
         categories,
-        setCategories,
-        fetchCategories,
 
         // Derived data
         filteredAndSortedProducts,

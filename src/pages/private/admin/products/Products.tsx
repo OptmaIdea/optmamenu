@@ -1,22 +1,22 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Plus, Archive, Package } from 'lucide-react';
+import { Plus, Package, PackageSearch } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AdminProductViewModal from '@/pages/private/admin/products/products/components/AdminProductViewModal';
 import ProductDeleteConfirmModal from '@/pages/private/admin/products/products/components/ProductDeleteConfirmModal';
-import type { Product } from './products/types/product.types';
+import type { Product, ModalFilterType } from './products/types/product.types';
 import AdminProductEditModal from '@/pages/private/admin/products/products/components/AdminProductEditModal/AdminProductEditModal';
 
 // Hooks
 import { useProducts } from '@/pages/private/admin/products/products/hooks/useProducts';
 import { useFilters } from '@/pages/private/admin/products/products/hooks/useFilters';
+import { useProductCategories } from '@/pages/private/admin/products/products/hooks/useProductCategories';
 import { useModals } from '@/pages/private/admin/products/products/hooks/useModals';
 import { useExport } from '@/pages/private/admin/products/products/hooks/useExport';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
-
 
 // Components
 import PageContainer from '@/components/common/PageContainer';
@@ -26,19 +26,23 @@ import ProductTable from '@/pages/private/admin/products/products/components/Pro
 import FilteredProductsModal from '@/pages/private/admin/products/products/components/FilteredProductsModal';
 import ProductActionModal from '@/pages/private/admin/products/products/components/ProductActionModal';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import DiscontinuedProductsModal from '@/pages/private/admin/products/products/components/DiscontinuedProductsModal';
 import EmptyState from '@/components/common/empty-state/EmptyState';
-import { PackageSearch } from 'lucide-react';
 
 export default function ProductsPage() {
     // Permissões
     const { storeId } = useCurrentStore();
     const { hasPermission } = usePermissions(storeId ?? null);
-    // const canViewProducts = hasPermission('products.view');
     const canManageProducts = hasPermission('products.manage');
 
+    // Categorias centralizadas
+    const { categories, fetchCategories } = useProductCategories();
+
     // Products data
-    const { products, loading, deletingId, lastUpdated, handleRefresh } = useProducts();
+    const { products, loading, deletingId, lastUpdated, handleRefresh: rawHandleRefresh } = useProducts();
+
+    const handleRefresh = async () => {
+        await Promise.all([rawHandleRefresh(), fetchCategories()]);
+    };
 
     useRefreshFrame(handleRefresh);
 
@@ -48,19 +52,15 @@ export default function ProductsPage() {
         setPortalContainer(document.getElementById('quick-access-actions-portal'));
     }, []);
 
-    // ✅ Produtos NÃO descontinuados (para listagem principal e estatísticas)
-    const nonDiscontinuedProducts = useMemo(() => {
-        return products.filter(p => !p.is_discontinued);
-    }, [products]);
-
-    // ✅ Produtos descontinuados (para o modal específico)
-    const discontinuedProducts = useMemo(() => {
-        return products.filter(p => p.is_discontinued === true);
-    }, [products]);
-
     // Estados para modais de visualização e exclusão
     const [viewProduct, setViewProduct] = useState<Product | null>(null);
     const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
+
+    // Navegação / callback central de detalhe
+    const handleOpenProduct = (productId: string) => {
+        const prod = products.find((p) => p.id === productId);
+        if (prod) setViewProduct(prod);
+    };
 
     // Abrir modal de visualização
     const handleViewProduct = (product: Product) => {
@@ -69,18 +69,21 @@ export default function ProductsPage() {
 
     // Abrir modal de exclusão
     const handleDeleteProduct = (product: Product) => {
+        if (!canManageProducts) return;
         setDeleteProduct(product);
     };
 
     const [editModalProduct, setEditModalProduct] = useState<Product | null>(null);
     const [isNewProductModalOpen, setIsNewProductModalOpen] = useState(false);
 
-    // Funções para abrir os modais
+    // Funções para abrir os modais de escrita (protegidas)
     const handleEditProduct = (product: Product) => {
+        if (!canManageProducts) return;
         setEditModalProduct(product);
     };
 
     const handleNewProduct = () => {
+        if (!canManageProducts) return;
         setIsNewProductModalOpen(true);
     };
 
@@ -88,16 +91,16 @@ export default function ProductsPage() {
     const handleProductSaved = () => {
         setEditModalProduct(null);
         setIsNewProductModalOpen(false);
-        handleRefresh(); // recarrega a lista
+        handleRefresh();
     };
 
     // Callback após exclusão bem-sucedida
     const handleDeleteSuccess = () => {
         setDeleteProduct(null);
-        handleRefresh(); // recarrega a lista
+        handleRefresh();
     };
 
-    // Filters, sorting, grouping – agora usando produtos não descontinuados
+    // Filters, sorting, grouping usando todos os produtos e categorias carregadas
     const {
         searchTerm,
         setSearchTerm,
@@ -119,33 +122,10 @@ export default function ProductsPage() {
         groupedProducts,
         clearFilters,
         clearSearch,
-        categories,
-        setCategories,
-    } = useFilters(nonDiscontinuedProducts);
+    } = useFilters(products, categories);
 
     const [storeName, setStoreName] = useState('Minha Loja');
     const [userEmail, setUserEmail] = useState('Admin');
-
-    // Fetch categories
-    useEffect(() => {
-        const fetchCategories = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-            const activeStoreId = getActiveStoreId();
-
-            if (!activeStoreId) {
-                throw new Error('Nenhuma loja ativa selecionada.');
-            }
-
-            const { data } = await supabase
-                .from('categories')
-                .select('*')
-                .eq('store_id', activeStoreId);
-
-            if (data) setCategories(data);
-        };
-        fetchCategories();
-    }, [setCategories]);
 
     useEffect(() => {
         const fetchStoreAndUser = async () => {
@@ -154,14 +134,12 @@ export default function ProductsPage() {
 
             setUserEmail(user.email || 'Admin');
 
-            // Primeiro busca a loja do usuário via RPC
             const activeStoreId = getActiveStoreId();
 
             if (!activeStoreId) {
-                throw new Error('Nenhuma loja ativa selecionada.');
+                return;
             }
 
-            // Agora usa o store.id correto para buscar a config
             const { data, error } = await supabase.rpc(
                 'get_store_config_admin',
                 { p_store_id: activeStoreId }
@@ -173,22 +151,27 @@ export default function ProductsPage() {
         fetchStoreAndUser();
     }, []);
 
-    // Modals – usando produtos não descontinuados para estatísticas e ações
+    // Modals – usando todos os produtos
     const { stats, modalState, openStatsModal, openActionModal, closeModal, selectedProduct } =
-        useModals(nonDiscontinuedProducts);
+        useModals(products);
+
+    // Clique nos cards de estatística
+    const handleStatsClick = (filterType: ModalFilterType) => {
+        if (filterType === 'discontinued') {
+            setFilterStatus('discontinued');
+            return;
+        }
+        openStatsModal(filterType);
+    };
 
     // Export
     const { exportData } = useExport();
-
-    // Discontinued products – já calculado acima
-
-    const [showDiscontinuedModal, setShowDiscontinuedModal] = useState(false);
 
     if (loading) {
         return <LoadingSpinner />;
     }
 
-    const hasAnyProducts = nonDiscontinuedProducts.length > 0;
+    const hasAnyProducts = products.length > 0;
     const hasFilteredProducts = filteredAndSortedProducts.length > 0;
     const isFilteredEmpty = hasAnyProducts && !hasFilteredProducts;
 
@@ -219,11 +202,11 @@ export default function ProductsPage() {
                     <EmptyState
                         icon={<PackageSearch className="h-5 w-5" />}
                         title="Nenhum produto cadastrado"
-                        description="Quando você cadastrar produtos ativos, eles aparecerão aqui com estoque consolidado, preço e status."
+                        description="Quando você cadastrar produtos, eles aparecerão aqui com estoque consolidado, preço e status."
                     />
                 ) : (
                     <>
-                        <StatsCards stats={stats} onStatsClick={openStatsModal} />
+                        <StatsCards stats={stats} onStatsClick={handleStatsClick} />
 
                         <FilterBar
                             searchTerm={searchTerm}
@@ -240,25 +223,11 @@ export default function ProductsPage() {
                             onFilterStatusChange={setFilterStatus}
                             groupByCategory={groupByCategory}
                             onGroupByCategoryChange={setGroupByCategory}
+                            totalCount={products.length}
+                            filteredCount={filteredAndSortedProducts.length}
                             onClearFilters={clearFilters}
                             onExport={(format) => exportData(filteredAndSortedProducts, format)}
                         />
-
-                        {/* Botão de Produtos Descontinuados reposicionado para o bloco principal */}
-                        <div className="flex justify-end mt-2 mb-4">
-                            <button
-                                onClick={() => setShowDiscontinuedModal(true)}
-                                className="px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md flex items-center gap-1.5"
-                            >
-                                <Archive size={16} />
-                                <span className="hidden sm:inline">Descontinuados</span>
-                                {discontinuedProducts.length > 0 && (
-                                    <span className="ml-1 px-1.5 py-0.5 bg-gray-200 dark:bg-gray-600 rounded-full text-xs">
-                                        {discontinuedProducts.length}
-                                    </span>
-                                )}
-                            </button>
-                        </div>
 
                         <ProductTable
                             groupedProducts={groupedProducts}
@@ -312,7 +281,7 @@ export default function ProductsPage() {
                 type={modalState.filterType ?? 'all'}
                 storeName={storeName}
                 userEmail={userEmail}
-                onViewProduct={handleViewProduct}
+                onViewProduct={(prod) => handleOpenProduct(prod.id)}
             />
 
             {/* Product Action Modal */}
@@ -326,7 +295,7 @@ export default function ProductsPage() {
                 canManageProducts={canManageProducts}
             />
 
-            {/* Modal de edição de produto */}
+            {/* Modal de edição de produto (apenas para quem gerencia) */}
             {canManageProducts && (
                 <AdminProductEditModal
                     isOpen={editModalProduct !== null}
@@ -336,7 +305,7 @@ export default function ProductsPage() {
                 />
             )}
 
-            {/* Modal de novo produto */}
+            {/* Modal de novo produto (apenas para quem gerencia) */}
             {canManageProducts && (
                 <AdminProductEditModal
                     isOpen={isNewProductModalOpen}
@@ -346,14 +315,15 @@ export default function ProductsPage() {
                 />
             )}
 
-            {/* Render condicional dos modais */}
+            {/* Render condicional do modal de visualização */}
             <AdminProductViewModal
                 isOpen={viewProduct !== null}
                 onClose={() => setViewProduct(null)}
                 product={viewProduct}
-                onEdit={handleEditProduct}
+                onEdit={canManageProducts ? handleEditProduct : undefined}
             />
 
+            {/* Modal de confirmação de exclusão (apenas para quem gerencia) */}
             {canManageProducts && (
                 <ProductDeleteConfirmModal
                     isOpen={deleteProduct !== null}
@@ -362,13 +332,6 @@ export default function ProductsPage() {
                     onSuccess={handleDeleteSuccess}
                 />
             )}
-
-            {/* Discontinued Products Modal */}
-            <DiscontinuedProductsModal
-                isOpen={showDiscontinuedModal}
-                onClose={() => setShowDiscontinuedModal(false)}
-                products={discontinuedProducts}
-            />
         </>
     );
 }

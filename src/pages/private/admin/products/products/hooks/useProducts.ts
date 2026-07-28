@@ -22,14 +22,30 @@ export const useProducts = () => {
                 throw new Error('Nenhuma loja ativa selecionada.');
             }
 
-            // Busca principal de produtos (cadastro, categoria, imagens, preço)
+            // Busca principal de produtos (colunas explícitas)
             const { data: productsRaw, error: productsError } = await supabase
                 .from('products')
                 .select(`
-          *,
-          product_codes(id, code_type, code_value, normalized_code, is_primary, active),
-          category:categories(id, name, price_logic_type, price_rules)
-        `)
+                  id,
+                  store_id,
+                  name,
+                  description,
+                  price,
+                  active,
+                  images,
+                  use_category_pricing,
+                  price_logic_type,
+                  price_rules,
+                  min_stock,
+                  max_stock,
+                  is_discontinued,
+                  last_sale_at,
+                  last_stock_entry_at,
+                  created_at,
+                  category_id,
+                  product_codes(id, code_type, code_value, normalized_code, is_primary, active),
+                  category:categories(id, name, price_logic_type, price_rules)
+                `)
                 .eq('store_id', activeStoreId)
                 .order('created_at', { ascending: false });
 
@@ -54,7 +70,7 @@ export const useProducts = () => {
                 (managementRows || []).map((row: any) => [row.product_id, row])
             );
 
-            const parsedData: Product[] = (productsRaw || []).map(p => {
+            const parsedData: Product[] = (productsRaw || []).map((p: any) => {
                 let parsedImages = p.images;
                 if (typeof p.images === 'string') {
                     try {
@@ -87,6 +103,16 @@ export const useProducts = () => {
                                         ? 'over'
                                         : 'ok';
 
+                const rawCategory: any = Array.isArray(p.category) ? p.category[0] : p.category;
+                const categoryParsed = rawCategory ? {
+                    id: rawCategory.id,
+                    name: rawCategory.name,
+                    price_logic_type: rawCategory.price_logic_type,
+                    price_rules: typeof rawCategory.price_rules === 'string'
+                        ? JSON.parse(rawCategory.price_rules)
+                        : rawCategory.price_rules
+                } : undefined;
+
                 return {
                     ...p,
 
@@ -99,12 +125,7 @@ export const useProducts = () => {
                         ? p.product_codes.filter((code: any) => code.active !== false)
                         : [],
 
-                    category: p.category ? {
-                        ...p.category,
-                        price_rules: typeof p.category.price_rules === 'string'
-                            ? JSON.parse(p.category.price_rules)
-                            : p.category.price_rules
-                    } : undefined,
+                    category: categoryParsed,
 
                     display_on_hand: globalOnHand,
                     display_reserved: globalReserved,

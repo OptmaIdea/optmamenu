@@ -121,7 +121,9 @@ export type StockStatus = 'inactive' | 'zero' | 'low' | 'attention' | 'normal' |
 export interface Category {
     id: string;
     name: string;
-    store_id: string;
+    store_id?: string;
+    active?: boolean;
+    sort_order?: number;
     price_logic_type?: 'standard' | 'category_volume';
     price_rules?: any[];
     created_at?: string;
@@ -133,6 +135,7 @@ export interface ProductStats {
     total: number;
     totalActive: number;
     totalInactive: number;
+    totalDiscontinued: number;
     totalValue: number;
 
     zeroStock: number;
@@ -152,6 +155,7 @@ export interface ProductStats {
     highStockProducts: Product[];
     recommendedBuyProducts: Product[];
     recommendedTransferProducts: Product[];
+    discontinuedProducts: Product[];
     allProducts: Product[];
 }
 
@@ -171,7 +175,7 @@ export type SortConfig = {
 // ─── Filtros ──────────────────────────────────────────────────────────────────
 
 export type FilterStock = 'all' | 'zero' | 'low' | 'attention' | 'normal' | 'high';
-export type FilterStatus = 'all' | 'active' | 'inactive';
+export type FilterStatus = 'all' | 'active' | 'inactive' | 'discontinued';
 export type FilterAction = 'all' | 'buy' | 'transfer' | 'monitor' | 'review_excess' | 'ok';
 
 // ─── Tipos de modal ───────────────────────────────────────────────────────────
@@ -183,6 +187,7 @@ export type ModalFilterType =
     | 'buy'
     | 'transfer'
     | 'attention'
+    | 'discontinued'
     | 'all';
 
 export interface ModalState {

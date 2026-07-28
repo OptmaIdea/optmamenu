@@ -4,6 +4,7 @@ import {
   ArrowUp,
   CheckCircle,
   XCircle,
+  Archive,
   MoreVertical,
 } from 'lucide-react';
 import type { Product } from '../types/product.types';
@@ -21,7 +22,7 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
   const available = Number(product.display_available ?? 0);
 
   const getInventoryStatus = (p: Product) => {
-    if (!p.active) return 'inactive';
+    if (p.is_discontinued || !p.active) return 'inactive';
     if (p.global_status === 'global_stockout') return 'zero';
     if (p.global_status === 'global_critical') return 'low';
     if (p.global_status === 'global_attention') return 'attention';
@@ -32,7 +33,10 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
   const stockStatus = getInventoryStatus(product);
 
   let rowBgClass = '';
-  if (!product.active) {
+  if (product.is_discontinued) {
+    rowBgClass =
+      'bg-gray-100/70 dark:bg-gray-800/40 opacity-80 hover:bg-gray-100 dark:hover:bg-gray-800/60';
+  } else if (!product.active) {
     rowBgClass =
       'bg-gray-50/50 dark:bg-gray-800/50 hover:bg-gray-100/80 dark:hover:bg-gray-700/50';
   } else if (stockStatus === 'zero') {
@@ -58,6 +62,12 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
 
   // Badge de ação gerencial
   const actionMeta = (() => {
+    if (product.is_discontinued) {
+      return {
+        label: 'Descontinuado',
+        className: 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+      };
+    }
     switch (product.recommended_action) {
       case 'buy':
         return {
@@ -110,7 +120,7 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
 
       <td className="px-4 py-2.5">
         <div className="flex flex-col items-center sm:items-start">
-          {!product.active ? (
+          {product.is_discontinued || !product.active ? (
             <span className="font-medium text-gray-500 dark:text-gray-400">-</span>
           ) : (
             <>
@@ -170,13 +180,13 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
             {actionMeta.label}
           </span>
 
-          {(product.location_stockout_count ?? 0) > 0 && (
+          {!product.is_discontinued && (product.location_stockout_count ?? 0) > 0 && (
             <span className="text-[11px] text-gray-500 dark:text-gray-400">
               {product.location_stockout_count} local(is) sem estoque
             </span>
           )}
 
-          {(product.possible_source_locations ?? 0) > 0 &&
+          {!product.is_discontinued && (product.possible_source_locations ?? 0) > 0 &&
             (product.recommended_action === 'transfer' ||
               product.recommended_action === 'transfer_or_redistribute') && (
               <span className="text-[11px] text-blue-600 dark:text-blue-300">
@@ -188,7 +198,18 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
 
       <td className="px-4 py-2.5">
         <div className="flex items-center justify-center sm:justify-start">
-          {product.active ? (
+          {product.is_discontinued ? (
+            <div className="flex items-center gap-1.5">
+              <Archive
+                size={16}
+                className="text-purple-600 dark:text-purple-400"
+                aria-label="Descontinuado"
+              />
+              <span className="text-xs font-medium text-purple-700 dark:text-purple-300 hidden sm:inline">
+                descontinuado
+              </span>
+            </div>
+          ) : product.active ? (
             <div className="flex items-center gap-1.5">
               <CheckCircle
                 size={16}
@@ -218,7 +239,7 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
         <button
           onClick={() => onActionClick(product.id)}
           disabled={deletingId === product.id}
-          className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           aria-label="Ações do produto"
         >
           {deletingId === product.id ? (

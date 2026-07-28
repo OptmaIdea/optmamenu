@@ -24,11 +24,16 @@ export const useModals = (products: Product[]) => {
     }, [modalState, products]);
 
     const stats = useMemo<ProductStats>(() => {
-        const total = products.length;
-        const activeProducts = products.filter((p) => p.active);
+        // Separação entre produtos operacionais (não descontinuados) e descontinuados
+        const operationalProducts = products.filter((p) => !p.is_discontinued);
+        const discontinuedProducts = products.filter((p) => Boolean(p.is_discontinued));
+
+        const total = operationalProducts.length;
+        const activeProducts = operationalProducts.filter((p) => p.active);
 
         const totalActive = activeProducts.length;
-        const totalInactive = products.filter((p) => !p.active).length;
+        const totalInactive = operationalProducts.filter((p) => !p.active).length;
+        const totalDiscontinued = discontinuedProducts.length;
 
         const totalValue = activeProducts.reduce(
             (acc, p) => acc + (p.price * Number(p.display_on_hand ?? 0)),
@@ -77,6 +82,7 @@ export const useModals = (products: Product[]) => {
             total,
             totalActive,
             totalInactive,
+            totalDiscontinued,
             totalValue,
 
             zeroStock: zeroStockProducts.length,
@@ -96,6 +102,7 @@ export const useModals = (products: Product[]) => {
             highStockProducts,
             recommendedBuyProducts,
             recommendedTransferProducts,
+            discontinuedProducts,
             allProducts: products,
         };
     }, [products]);

@@ -193,7 +193,7 @@ export default function AppRoutes() {
             <Route path="/admin/account-plan" element={<RequirePermission permission="financial.account_plan.view"><AccountPlanPage /></RequirePermission>} />
             <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
 
-            <Route path="/admin/products" element={<RequirePermission permission="products.manage"><Products /></RequirePermission>} />
+            <Route path="/admin/products" element={<RequirePermission permission="products.view"><Products /></RequirePermission>} />
             <Route path="/admin/categories" element={<RequirePermission permission="categories.view"><Categories /></RequirePermission>} />
             <Route path="/admin/inventory" element={<RequirePermission permission="stock.view"><InventoryByLocationPage /></RequirePermission>} />
             <Route path="/admin/stock/divergences" element={<RequirePermission permission="stock.view"><StockDiscrepanciesPage /></RequirePermission>} />

@@ -1,4 +1,4 @@
-import { Package, AlertCircle, AlertTriangle, ArrowUp, CheckCircle, XCircle, Layers } from 'lucide-react';
+import { Package, AlertCircle, AlertTriangle, ArrowUp, CheckCircle, XCircle, Layers, Archive } from 'lucide-react';
 import type { ProductStats, ModalFilterType } from '../types/product.types';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 
@@ -9,7 +9,7 @@ interface StatsCardsProps {
 
 export default function StatsCards({ stats, onStatsClick }: StatsCardsProps) {
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6 overflow-visible">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6 overflow-visible">
             {/* Total de Produtos */}
             <div
                 onClick={() => onStatsClick('all')}
@@ -20,7 +20,7 @@ export default function StatsCards({ stats, onStatsClick }: StatsCardsProps) {
                 </div>
                 <div className="min-w-0 flex-1">
                     <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 truncate">
-                        Total
+                        Total Ativos
                     </p>
                     <div className="flex items-baseline gap-1">
                         <p className="text-sm md:text-base lg:text-lg font-semibold text-gray-900 dark:text-white truncate">
@@ -108,6 +108,25 @@ export default function StatsCards({ stats, onStatsClick }: StatsCardsProps) {
                     </p>
                     <p className="text-sm md:text-base lg:text-lg font-semibold text-purple-600 dark:text-purple-400 truncate">
                         {stats.highStock}
+                    </p>
+                </div>
+            </div>
+
+            {/* Descontinuados */}
+            <div
+                onClick={() => onStatsClick('discontinued')}
+                className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors relative overflow-visible shadow-sm"
+            >
+                <div className="p-1.5 md:p-2 bg-gray-100 dark:bg-gray-700 rounded-md shrink-0">
+                    <Archive size={16} className="md:w-[18px] md:h-[18px] text-gray-600 dark:text-gray-300" />
+                </div>
+                <div className="min-w-0 flex-1">
+                    <p className="text-[10px] md:text-xs text-gray-500 dark:text-gray-400 truncate flex items-center gap-1">
+                        Descontinuados
+                        <InfoTooltip text="Produtos retirados de linha/descontinuados. Clique para filtrar na listagem." />
+                    </p>
+                    <p className="text-sm md:text-base lg:text-lg font-semibold text-gray-700 dark:text-gray-300 truncate">
+                        {stats.totalDiscontinued ?? 0}
                     </p>
                 </div>
             </div>

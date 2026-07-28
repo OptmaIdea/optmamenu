@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, X, /* RefreshCw, */ Download, FilterX } from 'lucide-react';
+import { Search, X, Download, FilterX } from 'lucide-react';
 import type { Category, FilterStock, FilterStatus, FilterAction } from '../types/product.types';
 import type { ExportFormat } from '@/pages/private/admin/products/products/hooks/useExport';
 
@@ -30,6 +30,10 @@ interface FilterBarProps {
     groupByCategory: boolean;
     onGroupByCategoryChange: (checked: boolean) => void;
 
+    // Counters
+    totalCount?: number;
+    filteredCount?: number;
+
     // Clear all filters
     onClearFilters: () => void;
 
@@ -52,13 +56,15 @@ export default function FilterBar({
     onFilterStatusChange,
     groupByCategory,
     onGroupByCategoryChange,
+    totalCount,
+    filteredCount,
     onClearFilters,
     onExport,
 }: FilterBarProps) {
     const [isExportOpen, setIsExportOpen] = useState(false);
 
     return (
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl mb-6">
+        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl mb-6 shadow-sm">
             <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
                 {/* Busca com botão X */}
                 <div className="relative min-w-0">
@@ -95,6 +101,18 @@ export default function FilterBar({
                     ))}
                 </select>
 
+                {/* Filtro Situação (Status) com descontinuados */}
+                <select
+                    value={filterStatus}
+                    onChange={(e) => onFilterStatusChange(e.target.value as FilterStatus)}
+                    className="w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#19A999]"
+                >
+                    <option value="all">Todas situações</option>
+                    <option value="active">Ativos</option>
+                    <option value="inactive">Inativos</option>
+                    <option value="discontinued">Descontinuados</option>
+                </select>
+
                 {/* Filtro Estoque */}
                 <select
                     value={filterStock}
@@ -123,17 +141,6 @@ export default function FilterBar({
                     <option value="ok">OK</option>
                 </select>
 
-                {/* Filtro Status */}
-                <select
-                    value={filterStatus}
-                    onChange={(e) => onFilterStatusChange(e.target.value as FilterStatus)}
-                    className="w-full min-w-0 h-10 px-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-1 focus:ring-[#19A999]"
-                >
-                    <option value="all">Todos status</option>
-                    <option value="active">Ativos</option>
-                    <option value="inactive">Inativos</option>
-                </select>
-
                 {/* Agrupar por categoria */}
                 <div className="flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
                     <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 w-full cursor-pointer">
@@ -151,7 +158,7 @@ export default function FilterBar({
                 <div className="flex items-center gap-2 h-10">
                     <button
                         onClick={onClearFilters}
-                        className="flex-shrink-0 h-10 w-10 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl transition"
+                        className="flex-shrink-0 h-10 w-10 flex items-center justify-center text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl transition cursor-pointer"
                         title="Limpar filtros"
                     >
                         <FilterX size={16} />
@@ -159,7 +166,7 @@ export default function FilterBar({
                     <div className="relative flex-1">
                         <button
                             onClick={() => setIsExportOpen(!isExportOpen)}
-                            className="w-full h-10 px-3 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-xl flex items-center justify-center gap-1.5 transition"
+                            className="w-full h-10 px-3 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 rounded-xl flex items-center justify-center gap-1.5 transition cursor-pointer"
                         >
                             <Download size={16} />
                             <span className="hidden sm:inline">Exportar</span>
@@ -171,7 +178,7 @@ export default function FilterBar({
                                         onExport('json');
                                         setIsExportOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                                 >
                                     JSON
                                 </button>
@@ -180,7 +187,7 @@ export default function FilterBar({
                                         onExport('csv');
                                         setIsExportOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                                 >
                                     CSV
                                 </button>
@@ -189,7 +196,7 @@ export default function FilterBar({
                                         onExport('txt');
                                         setIsExportOpen(false);
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer"
                                 >
                                     Texto
                                 </button>
@@ -198,6 +205,16 @@ export default function FilterBar({
                     </div>
                 </div>
             </div>
+
+            {totalCount !== undefined && filteredCount !== undefined && (
+                <div className="px-3 py-1.5 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700/50">
+                    <span>
+                        {filteredCount === totalCount
+                            ? `${totalCount} ${totalCount === 1 ? 'produto encontrado' : 'produtos encontrados'}`
+                            : `${filteredCount} de ${totalCount} produtos`}
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
