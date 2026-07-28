@@ -60,33 +60,7 @@ export default function ProductDetailPage() {
         return <LoadingSpinner />;
     }
 
-    if (errorType === 'not_found' || !product) {
-        return (
-            <PageContainer
-                title="Produtos"
-                subtitle="Detalhes do produto"
-                category="Produtos"
-                icon={<Package size={28} className="text-[#19A999]" />}
-                flat
-            >
-                <EmptyState
-                    icon={<Package className="h-8 w-8 text-gray-400" />}
-                    title="Produto não encontrado"
-                    description="O produto solicitado não existe ou você não possui permissão para acessá-lo nesta loja."
-                    action={
-                        <button
-                            onClick={() => navigate('/admin/products')}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#19A999] text-white text-sm font-medium rounded-xl hover:bg-[#14887B] transition-colors cursor-pointer"
-                        >
-                            <ArrowLeft size={16} />
-                            <span>Voltar para Produtos</span>
-                        </button>
-                    }
-                />
-            </PageContainer>
-        );
-    }
-
+    // 1. Avalia erro de carregamento PRIMEIRO para não mascarar falhas reais
     if (errorType === 'fetch_error') {
         return (
             <PageContainer
@@ -117,6 +91,34 @@ export default function ProductDetailPage() {
                                 <span>Voltar para Produtos</span>
                             </button>
                         </div>
+                    }
+                />
+            </PageContainer>
+        );
+    }
+
+    // 2. Avalia produto não encontrado ou fora da store ativa
+    if (errorType === 'not_found' || !product) {
+        return (
+            <PageContainer
+                title="Produtos"
+                subtitle="Detalhes do produto"
+                category="Produtos"
+                icon={<Package size={28} className="text-[#19A999]" />}
+                flat
+            >
+                <EmptyState
+                    icon={<Package className="h-8 w-8 text-gray-400" />}
+                    title="Produto não encontrado"
+                    description="O produto solicitado não existe ou você não possui permissão para acessá-lo nesta loja."
+                    action={
+                        <button
+                            onClick={() => navigate('/admin/products')}
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-[#19A999] text-white text-sm font-medium rounded-xl hover:bg-[#14887B] transition-colors cursor-pointer"
+                        >
+                            <ArrowLeft size={16} />
+                            <span>Voltar para Produtos</span>
+                        </button>
                     }
                 />
             </PageContainer>
@@ -480,6 +482,12 @@ export default function ProductDetailPage() {
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
+                                        <span className="text-gray-500">Última atualização:</span>
+                                        <span className="font-medium text-gray-900 dark:text-white">
+                                            {product.updated_at ? new Date(product.updated_at).toLocaleDateString('pt-BR') : '—'}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between">
                                         <span className="text-gray-500">Última entrada de estoque:</span>
                                         <span className="font-medium text-gray-900 dark:text-white">
                                             {product.last_stock_entry_at ? new Date(product.last_stock_entry_at).toLocaleDateString('pt-BR') : '—'}
@@ -540,6 +548,12 @@ export default function ProductDetailPage() {
                                 <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Data de Criação</span>
                                 <span className="text-gray-900 dark:text-white font-semibold">
                                     {product.created_at ? new Date(product.created_at).toLocaleString('pt-BR') : '—'}
+                                </span>
+                            </div>
+                            <div>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Última Atualização</span>
+                                <span className="text-gray-900 dark:text-white font-semibold">
+                                    {product.updated_at ? new Date(product.updated_at).toLocaleString('pt-BR') : '—'}
                                 </span>
                             </div>
                         </div>
@@ -697,7 +711,7 @@ export default function ProductDetailPage() {
 
                                 {canCreateTransfer && (
                                     <button
-                                        onClick={() => navigate(`/admin/transfers?product_id=${product.id}`)}
+                                        onClick={() => navigate('/admin/transfers')}
                                         className="inline-flex items-center gap-2 px-3.5 py-2 bg-[#19A999]/10 hover:bg-[#19A999]/20 text-[#19A999] text-xs font-semibold rounded-xl transition cursor-pointer"
                                     >
                                         <ExternalLink size={14} />

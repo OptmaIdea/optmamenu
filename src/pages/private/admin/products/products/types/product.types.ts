@@ -81,6 +81,7 @@ export interface Product {
     last_sale_at?: string;
     last_stock_entry_at?: string;
     created_at?: string;
+    updated_at?: string;
 
     // Multiestoque consolidado para exibição
     display_on_hand?: number;

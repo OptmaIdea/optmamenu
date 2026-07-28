@@ -64,7 +64,7 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 return;
             }
 
-            // 1. Busca produto por id com colunas explícitas
+            // 1. Busca produto por id e store_id com colunas explícitas
             const { data: productRaw, error: productError } = await supabase
                 .from('products')
                 .select(`
@@ -85,15 +85,17 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                   last_sale_at,
                   last_stock_entry_at,
                   created_at,
+                  updated_at,
                   product_codes(id, code_type, code_value, normalized_code, is_primary, active),
                   category:categories(id, name, price_logic_type, price_rules)
                 `)
                 .eq('id', productId)
+                .eq('store_id', activeStoreId)
                 .maybeSingle();
 
             if (productError) throw productError;
 
-            // Validação de segurança: se o produto não existir ou pertencer a outra loja
+            // Validação de segurança adicional: se o produto não existir ou pertencer a outra loja
             if (!productRaw || (productRaw as any).store_id !== activeStoreId) {
                 setProduct(null);
                 setStockManagement(null);
