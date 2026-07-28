@@ -305,7 +305,7 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 try {
                     const { data: locBalances, error: locBalancesError } = await supabase
                         .from('inventory_location_balances')
-                        .select('location_id, on_hand, available')
+                        .select('location_id, on_hand, reserved')
                         .eq('store_id', activeStoreId)
                         .eq('product_id', productId);
 
@@ -317,7 +317,7 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                             // Considerar apenas locais que estejam ESTRITAMENTE ATIVOS no cadastro da loja
                             if (row.location_id && activeLocationSet.has(row.location_id)) {
                                 positionLocationSet.add(row.location_id);
-                                const avail = Number(row.available ?? row.on_hand ?? 0);
+                                const avail = Number(row.on_hand ?? 0) - Number(row.reserved ?? 0);
                                 if (avail > 0) {
                                     availableLocationSet.add(row.location_id);
                                 }
