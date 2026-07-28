@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Search, X, Download, FilterX } from 'lucide-react';
 import type { Category, FilterStock, FilterStatus, FilterAction } from '../types/product.types';
 import type { ExportFormat } from '@/pages/private/admin/products/products/hooks/useExport';
+import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
 
 interface FilterBarProps {
     // Search
@@ -25,6 +26,10 @@ interface FilterBarProps {
     // Status filter
     filterStatus: FilterStatus;
     onFilterStatusChange: (value: FilterStatus) => void;
+
+    // Discontinued filter
+    hideDiscontinued: boolean;
+    onHideDiscontinuedChange: (checked: boolean) => void;
 
     // Grouping
     groupByCategory: boolean;
@@ -54,6 +59,8 @@ export default function FilterBar({
     onFilterActionChange,
     filterStatus,
     onFilterStatusChange,
+    hideDiscontinued,
+    onHideDiscontinuedChange,
     groupByCategory,
     onGroupByCategoryChange,
     totalCount,
@@ -65,7 +72,7 @@ export default function FilterBar({
 
     return (
         <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl mb-6 shadow-sm">
-            <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-7 gap-3">
+            <div className="p-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8 gap-3">
                 {/* Busca com botão X */}
                 <div className="relative min-w-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -113,6 +120,20 @@ export default function FilterBar({
                     <option value="discontinued">Descontinuados</option>
                 </select>
 
+                {/* Ocultar descontinuados */}
+                <div className="flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 w-full cursor-pointer min-w-0">
+                        <input
+                            type="checkbox"
+                            checked={hideDiscontinued}
+                            onChange={(e) => onHideDiscontinuedChange(e.target.checked)}
+                            className="rounded border-gray-300 text-[#19A999] focus:ring-[#19A999] shrink-0"
+                        />
+                        <span className="truncate">Ocultar descontinuados</span>
+                        <InfoTooltip text="Produtos descontinuados permanecem no histórico e podem ser exibidos a qualquer momento." />
+                    </label>
+                </div>
+
                 {/* Filtro Estoque */}
                 <select
                     value={filterStock}
@@ -143,14 +164,14 @@ export default function FilterBar({
 
                 {/* Agrupar por categoria */}
                 <div className="flex items-center h-10 px-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 w-full cursor-pointer">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 w-full cursor-pointer min-w-0">
                         <input
                             type="checkbox"
                             checked={groupByCategory}
                             onChange={(e) => onGroupByCategoryChange(e.target.checked)}
-                            className="rounded border-gray-300 text-[#19A999] focus:ring-[#19A999]"
+                            className="rounded border-gray-300 text-[#19A999] focus:ring-[#19A999] shrink-0"
                         />
-                        Agrupar categorias
+                        <span className="truncate">Agrupar categorias</span>
                     </label>
                 </div>
 

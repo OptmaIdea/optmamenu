@@ -15,8 +15,24 @@ export const useFilters = (products: Product[], categories: Category[] = []) => 
     // Filters
     const [filterCategory, setFilterCategory] = useState<string>('all');
     const [filterStock, setFilterStock] = useState<FilterStock>('all');
-    const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+    const [filterStatus, setFilterStatusState] = useState<FilterStatus>('all');
     const [filterAction, setFilterAction] = useState<FilterAction>('all');
+    const [hideDiscontinued, setHideDiscontinuedState] = useState(true);
+
+    // Handlers coerentes com as regras do negócio
+    const setFilterStatus = useCallback((status: FilterStatus) => {
+        setFilterStatusState(status);
+        if (status === 'discontinued') {
+            setHideDiscontinuedState(false);
+        }
+    }, []);
+
+    const setHideDiscontinued = useCallback((hide: boolean) => {
+        setHideDiscontinuedState(hide);
+        if (hide) {
+            setFilterStatusState((prev) => (prev === 'discontinued' ? 'all' : prev));
+        }
+    }, []);
 
     // Grouping
     const [groupByCategory, setGroupByCategory] = useState(false);
@@ -54,9 +70,10 @@ export const useFilters = (products: Product[], categories: Category[] = []) => 
         setSearchTerm('');
         setFilterCategory('all');
         setFilterStock('all');
-        setFilterStatus('all');
+        setFilterStatusState('all');
         setFilterAction('all');
         setGroupByCategory(false);
+        setHideDiscontinuedState(true);
     }, []);
 
     // Get stock status for a product (usado internamente para compatibilidade)
@@ -73,6 +90,11 @@ export const useFilters = (products: Product[], categories: Category[] = []) => 
     // Filtered and sorted products
     const filteredAndSortedProducts = useMemo(() => {
         let result = products;
+
+        // Regra 1: Ocultar descontinuados por padrão se a opção estiver ativa (exceto quando o filtro de situação é especificamente 'discontinued')
+        if (hideDiscontinued && filterStatus !== 'discontinued') {
+            result = result.filter((p) => !p.is_discontinued);
+        }
 
         // Search filter
         if (searchTerm) {
@@ -204,6 +226,7 @@ export const useFilters = (products: Product[], categories: Category[] = []) => 
         return result;
     }, [
         products,
+        hideDiscontinued,
         searchTerm,
         filterCategory,
         filterStock,
@@ -246,6 +269,8 @@ export const useFilters = (products: Product[], categories: Category[] = []) => 
         setFilterStatus,
         filterAction,
         setFilterAction,
+        hideDiscontinued,
+        setHideDiscontinued,
 
         // Grouping
         groupByCategory,

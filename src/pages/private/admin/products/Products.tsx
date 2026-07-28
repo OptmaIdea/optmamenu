@@ -112,6 +112,8 @@ export default function ProductsPage() {
         setFilterStatus,
         filterAction,
         setFilterAction,
+        hideDiscontinued,
+        setHideDiscontinued,
         groupByCategory,
         setGroupByCategory,
         collapsedCategories,
@@ -221,6 +223,8 @@ export default function ProductsPage() {
                             onFilterActionChange={setFilterAction}
                             filterStatus={filterStatus}
                             onFilterStatusChange={setFilterStatus}
+                            hideDiscontinued={hideDiscontinued}
+                            onHideDiscontinuedChange={setHideDiscontinued}
                             groupByCategory={groupByCategory}
                             onGroupByCategoryChange={setGroupByCategory}
                             totalCount={products.length}
