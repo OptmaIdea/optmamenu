@@ -1,5 +1,3 @@
-// components/ProductActionModal.tsx
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Eye, Edit, Trash2, Activity } from 'lucide-react';
@@ -35,7 +33,7 @@ export default function ProductActionModal({
             onView(product);
             onClose();
             setActionLoading(null);
-        }, 150);
+        }, 100);
     };
 
     const handleDelete = () => {
@@ -45,7 +43,7 @@ export default function ProductActionModal({
             onDelete(product);
             onClose();
             setActionLoading(null);
-        }, 150);
+        }, 100);
     };
 
     if (!isOpen || !product) return null;
@@ -75,7 +73,7 @@ export default function ProductActionModal({
                     <button
                         onClick={handleView}
                         disabled={actionLoading !== null}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left disabled:opacity-50"
+                        className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left disabled:opacity-50 cursor-pointer"
                     >
                         {actionLoading === 'view' ? (
                             <div className="w-4 h-4 border-2 border-gray-500 border-t-transparent rounded-full animate-spin" />
@@ -85,7 +83,7 @@ export default function ProductActionModal({
                         <div>
                             <div className="font-medium text-gray-900 dark:text-white">Visualizar</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                                Ver detalhes do produto
+                                Ver página de detalhe do produto
                             </div>
                         </div>
                     </button>
@@ -94,10 +92,10 @@ export default function ProductActionModal({
                     {canManageProducts && (
                         <button
                             onClick={() => {
-                                onEdit();  // agora chama handleEditProduct no pai
+                                onEdit();
                                 onClose();
                             }}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left"
+                            className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg text-left cursor-pointer"
                         >
                             <Edit size={18} className="text-blue-500" />
                             <div>
@@ -115,7 +113,7 @@ export default function ProductActionModal({
                             navigate(`/admin/products/${product.id}/lifecycle`);
                             onClose();
                         }}
-                        className="w-full flex items-center gap-3 p-3 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg text-left"
+                        className="w-full flex items-center gap-3 p-3 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg text-left cursor-pointer"
                     >
                         <Activity size={18} className="text-[#19A999]" />
                         <div>
@@ -131,7 +129,7 @@ export default function ProductActionModal({
                         <button
                             onClick={handleDelete}
                             disabled={actionLoading !== null}
-                            className="w-full flex items-center gap-3 p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-left disabled:opacity-50"
+                            className="w-full flex items-center gap-3 p-3 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-left disabled:opacity-50 cursor-pointer"
                         >
                             {actionLoading === 'delete' ? (
                                 <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />

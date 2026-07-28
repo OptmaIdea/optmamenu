@@ -13,10 +13,11 @@ import ProductThumb from '@/pages/private/admin/products/products/components/Pro
 interface ProductRowProps {
   product: Product;
   onActionClick: (productId: string) => void;
+  onOpenProduct?: (productId: string) => void;
   deletingId: string | null;
 }
 
-export default function ProductRow({ product, onActionClick, deletingId }: ProductRowProps) {
+export default function ProductRow({ product, onActionClick, onOpenProduct, deletingId }: ProductRowProps) {
   const onHand = Number(product.display_on_hand ?? 0);
   const reserved = Number(product.display_reserved ?? 0);
   const available = Number(product.display_available ?? 0);
@@ -101,12 +102,13 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
   return (
     <tr className={`transition-colors ${rowBgClass}`}>
       <td
-        className="w-[320px] max-w-[320px] px-4 py-2.5"
+        className="w-[320px] max-w-[320px] px-4 py-2.5 cursor-pointer"
+        onClick={() => onOpenProduct?.(product.id)}
       >
         <div className="flex items-center gap-3">
           <ProductThumb product={product} />
           <div className="min-w-0">
-            <div className="font-medium text-gray-900 dark:text-white truncate max-w-[200px]">
+            <div className="font-medium text-gray-900 dark:text-white truncate max-w-[200px] hover:text-[#19A999] hover:underline">
               {product.name}
             </div>
             {product.category?.name && (
@@ -118,7 +120,7 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
         </div>
       </td>
 
-      <td className="px-4 py-2.5">
+      <td className="px-4 py-2.5 cursor-pointer" onClick={() => onOpenProduct?.(product.id)}>
         <div className="flex flex-col items-center sm:items-start">
           {product.is_discontinued || !product.active ? (
             <span className="font-medium text-gray-500 dark:text-gray-400">-</span>
@@ -167,12 +169,15 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
         </div>
       </td>
 
-      <td className="px-4 py-2.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+      <td
+        className="px-4 py-2.5 font-medium text-gray-900 dark:text-white whitespace-nowrap cursor-pointer"
+        onClick={() => onOpenProduct?.(product.id)}
+      >
         {formattedPrice}
       </td>
 
       {/* Coluna Ação Gerencial */}
-      <td className="px-4 py-2.5">
+      <td className="px-4 py-2.5 cursor-pointer" onClick={() => onOpenProduct?.(product.id)}>
         <div className="flex flex-col gap-1">
           <span
             className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${actionMeta.className}`}
@@ -196,7 +201,7 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
         </div>
       </td>
 
-      <td className="px-4 py-2.5">
+      <td className="px-4 py-2.5 cursor-pointer" onClick={() => onOpenProduct?.(product.id)}>
         <div className="flex items-center justify-center sm:justify-start">
           {product.is_discontinued ? (
             <div className="flex items-center gap-1.5">
@@ -237,7 +242,10 @@ export default function ProductRow({ product, onActionClick, deletingId }: Produ
 
       <td className="px-4 py-2.5 text-right">
         <button
-          onClick={() => onActionClick(product.id)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onActionClick(product.id);
+          }}
           disabled={deletingId === product.id}
           className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
           aria-label="Ações do produto"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Plus, Package, PackageSearch } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -29,6 +30,9 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 
 export default function ProductsPage() {
+    const navigate = useNavigate();
+    const location = useLocation();
+
     // Permissões
     const { storeId } = useCurrentStore();
     const { hasPermission } = usePermissions(storeId ?? null);
@@ -58,13 +62,14 @@ export default function ProductsPage() {
 
     // Navegação / callback central de detalhe
     const handleOpenProduct = (productId: string) => {
-        const prod = products.find((p) => p.id === productId);
-        if (prod) setViewProduct(prod);
+        navigate(`/admin/products/${productId}`, {
+            state: { returnTo: location.pathname + location.search },
+        });
     };
 
-    // Abrir modal de visualização
+    // Abrir detalhe por clique em objeto
     const handleViewProduct = (product: Product) => {
-        setViewProduct(product);
+        handleOpenProduct(product.id);
     };
 
     // Abrir modal de exclusão
@@ -241,6 +246,7 @@ export default function ProductsPage() {
                             sortConfig={sortConfig}
                             onSort={handleSort}
                             onActionClick={openActionModal}
+                            onOpenProduct={handleOpenProduct}
                             deletingId={deletingId}
                             isFilteredEmpty={isFilteredEmpty}
                         />
@@ -319,7 +325,7 @@ export default function ProductsPage() {
                 />
             )}
 
-            {/* Render condicional do modal de visualização */}
+            {/* Render condicional do modal de visualização (mantido como fallback se viewProduct estiver setado manualmente) */}
             <AdminProductViewModal
                 isOpen={viewProduct !== null}
                 onClose={() => setViewProduct(null)}

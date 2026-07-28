@@ -17,6 +17,7 @@ interface ProductTableProps {
     sortConfig: SortConfig;
     onSort: (key: SortConfig['key']) => void;
     onActionClick: (productId: string) => void;
+    onOpenProduct?: (productId: string) => void;
     deletingId: string | null;
     isFilteredEmpty?: boolean;
 }
@@ -29,6 +30,7 @@ export default function ProductTable({
     sortConfig,
     onSort,
     onActionClick,
+    onOpenProduct,
     deletingId,
     isFilteredEmpty,
 }: ProductTableProps) {
@@ -68,16 +70,16 @@ export default function ProductTable({
                 aria-label="Tabela de produtos com rolagem horizontal"
                 tabIndex={0}
             >
-            <table className="min-w-[1120px] w-full table-fixed text-sm">
-                <colgroup>
-                    <col className="w-[320px]" />
-                    <col className="w-[190px]" />
-                    <col className="w-[150px]" />
-                    <col className="w-[220px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[120px]" />
-                </colgroup>
-                <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                <table className="min-w-[1120px] w-full table-fixed text-sm">
+                    <colgroup>
+                        <col className="w-[320px]" />
+                        <col className="w-[190px]" />
+                        <col className="w-[150px]" />
+                        <col className="w-[220px]" />
+                        <col className="w-[120px]" />
+                        <col className="w-[120px]" />
+                    </colgroup>
+                    <thead className="bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
                         <tr>
                             <th
                                 className="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:text-[#19A999] bg-gray-50 dark:bg-gray-900/50"
@@ -152,6 +154,7 @@ export default function ProductTable({
                                                 key={product.id}
                                                 product={product}
                                                 onActionClick={onActionClick}
+                                                onOpenProduct={onOpenProduct}
                                                 deletingId={deletingId}
                                             />
                                         ))}
