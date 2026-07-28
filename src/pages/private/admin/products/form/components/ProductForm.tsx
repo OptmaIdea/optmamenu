@@ -21,6 +21,7 @@ interface ProductFormProps {
   onSave: () => void;
   onCancel: () => void;
   canManage: boolean;
+  codesLoaded: boolean;
 }
 
 export const ProductForm: React.FC<ProductFormProps> = ({
@@ -32,6 +33,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
   onSave,
   onCancel,
   canManage,
+  codesLoaded,
 }) => {
   const isEditing = mode === 'edit';
   const activeStoreId = getActiveStoreId();
@@ -149,7 +151,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({
 
         <button
           type="submit"
-          disabled={saving || !canManage}
+          disabled={saving || !canManage || (isEditing && !codesLoaded)}
           className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-6 py-2.5 bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-semibold rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
         >
           {saving ? (

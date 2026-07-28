@@ -77,6 +77,7 @@ export default function AdminProductEditModal({
     const [internalCode, setInternalCode] = useState('');
     const [sku, setSku] = useState('');
     const [ean, setEan] = useState('');
+    const [codesLoaded, setCodesLoaded] = useState(!isEditing);
 
     // Imagens
     const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
@@ -166,6 +167,7 @@ export default function AdminProductEditModal({
 
     const loadProductData = async () => {
         if (!product) return;
+        setCodesLoaded(false);
         setName(product.name);
         setDescription(product.description || '');
         setPrice(product.price.toString());
@@ -174,9 +176,22 @@ export default function AdminProductEditModal({
         setStockQuantity(product.stock_quantity || 0);
         setMinStock(product.min_stock || 0);
         setMaxStock(product.max_stock || 0);
-        setInternalCode(product.codes?.find((code) => code.code_type === 'internal')?.code_value ?? '');
-        setSku(product.codes?.find((code) => code.code_type === 'sku')?.code_value ?? '');
-        setEan(product.codes?.find((code) => code.code_type === 'ean')?.code_value ?? '');
+        try {
+            const { data: codes, error: codesError } = await supabase
+                .from('product_codes')
+                .select('code_type, code_value')
+                .eq('store_id', product.store_id)
+                .eq('product_id', product.id)
+                .eq('active', true);
+            if (codesError) throw codesError;
+            setInternalCode(codes?.find((code) => code.code_type === 'internal')?.code_value ?? '');
+            setSku(codes?.find((code) => code.code_type === 'sku')?.code_value ?? '');
+            setEan(codes?.find((code) => code.code_type === 'ean')?.code_value ?? '');
+            setCodesLoaded(true);
+        } catch (error) {
+            console.error('Erro ao carregar códigos do produto:', error);
+            toast.error('Não foi possível carregar os códigos do produto. O salvamento foi bloqueado.');
+        }
 
         setUseCategoryPricing(product.use_category_pricing ?? true);
         setPricingMode(product.price_logic_type || 'standard');
@@ -217,6 +232,7 @@ export default function AdminProductEditModal({
         setInternalCode('');
         setSku('');
         setEan('');
+        setCodesLoaded(!isEditing);
         setPricingMode('standard');
         setPriceLogicType('standard');
         setUseCategoryPricing(true);
@@ -404,6 +420,7 @@ export default function AdminProductEditModal({
                 { type: 'sku', value: sku },
                 { type: 'ean', value: ean },
             ],
+            codesLoaded,
             isEditing,
             canManageProducts,
             onSuccess: () => {
@@ -511,7 +528,7 @@ export default function AdminProductEditModal({
                     maxStock={maxStock}
                     setMaxStock={setMaxStock}
                     saving={saving}
-                    canSave={Boolean(name)}
+        canSave={Boolean(name) && (!isEditing || codesLoaded)}
                     onSaveClick={handleSaveConfirmed}
                     onCancel={onClose}
                 />

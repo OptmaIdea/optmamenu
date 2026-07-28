@@ -35,6 +35,7 @@ export default function ProductFormPage({ mode }: ProductFormPageProps) {
     loadingProduct,
     loadingCategories,
     notFound,
+    codesLoaded,
     refetchCategories,
   } = useProductFormData(isEditing ? id : undefined);
 
@@ -43,6 +44,7 @@ export default function ProductFormPage({ mode }: ProductFormPageProps) {
     product,
     categories,
     isEditing,
+    codesLoaded,
   });
 
   const { isDirty, handleSave } = formState;
@@ -157,6 +159,7 @@ export default function ProductFormPage({ mode }: ProductFormPageProps) {
           onSave={onSaveSubmit}
           onCancel={() => confirmCancel()}
           canManage={canManageProducts}
+          codesLoaded={codesLoaded}
         />
       </div>
     </PageContainer>

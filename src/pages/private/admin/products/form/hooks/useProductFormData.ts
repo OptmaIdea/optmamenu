@@ -10,6 +10,8 @@ export interface UseProductFormDataResult {
   loadingCategories: boolean;
   notFound: boolean;
   error: string | null;
+  codesLoaded: boolean;
+  codesLoadError: string | null;
   refetchCategories: () => Promise<void>;
   refetchProduct: () => Promise<void>;
 }
@@ -21,6 +23,8 @@ export function useProductFormData(productId?: string): UseProductFormDataResult
   const [loadingCategories, setLoadingCategories] = useState<boolean>(true);
   const [notFound, setNotFound] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [codesLoaded, setCodesLoaded] = useState<boolean>(!productId);
+  const [codesLoadError, setCodesLoadError] = useState<string | null>(null);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -50,6 +54,8 @@ export function useProductFormData(productId?: string): UseProductFormDataResult
       setProduct(null);
       setNotFound(false);
       setLoadingProduct(false);
+      setCodesLoaded(true);
+      setCodesLoadError(null);
       return;
     }
 
@@ -57,6 +63,8 @@ export function useProductFormData(productId?: string): UseProductFormDataResult
       setLoadingProduct(true);
       setError(null);
       setNotFound(false);
+      setCodesLoaded(false);
+      setCodesLoadError(null);
 
       const activeStoreId = getActiveStoreId();
       if (!activeStoreId) {
@@ -97,12 +105,20 @@ export function useProductFormData(productId?: string): UseProductFormDataResult
         setProduct(null);
         setNotFound(true);
       } else {
-        setProduct((data as unknown) as Product);
+        const rawCodes = Array.isArray((data as any).product_codes)
+          ? (data as any).product_codes
+          : [];
+        setProduct({
+          ...((data as unknown) as Product),
+          codes: rawCodes.filter((code: any) => code.active !== false),
+        });
         setNotFound(false);
+        setCodesLoaded(true);
       }
     } catch (err: any) {
       console.error('Erro ao carregar produto para edição:', err);
       setError(err.message || 'Erro ao carregar produto.');
+      setCodesLoadError(err.message || 'Não foi possível carregar os códigos do produto.');
       setNotFound(true);
     } finally {
       setLoadingProduct(false);
@@ -129,6 +145,8 @@ export function useProductFormData(productId?: string): UseProductFormDataResult
     loadingCategories,
     notFound,
     error,
+    codesLoaded,
+    codesLoadError,
     refetchCategories: fetchCategories,
     refetchProduct: fetchProduct,
   };

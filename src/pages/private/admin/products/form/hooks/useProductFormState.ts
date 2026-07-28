@@ -10,9 +10,10 @@ interface UseProductFormStateProps {
   product?: Product | null;
   categories: Category[];
   isEditing: boolean;
+  codesLoaded: boolean;
 }
 
-export function useProductFormState({ product, categories, isEditing }: UseProductFormStateProps) {
+export function useProductFormState({ product, categories, isEditing, codesLoaded }: UseProductFormStateProps) {
   const { handleSave: saveProduct, saving } = useProductSave();
 
   // Estados dos campos
@@ -268,6 +269,11 @@ export function useProductFormState({ product, categories, isEditing }: UseProdu
       return { success: false };
     }
 
+    if (targetIsEditing && !codesLoaded) {
+      toast.error('Aguarde o carregamento dos códigos do produto antes de salvar.');
+      return { success: false };
+    }
+
     // Ordenar faixas de atacado por quantidade min
     const sortedPriceRules = [...priceRules]
       .sort((a, b) => a.min - b.min)
@@ -295,6 +301,7 @@ export function useProductFormState({ product, categories, isEditing }: UseProdu
         { type: 'sku', value: sku },
         { type: 'ean', value: ean },
       ],
+      codesLoaded,
       isEditing: targetIsEditing,
       canManageProducts: canManage,
       onSuccess: () => {

@@ -30,6 +30,7 @@ async function syncProductCodes(
             .from('product_codes')
             .select('id, product_id, normalized_code')
             .eq('store_id', storeId)
+            .eq('active', true)
             .in('normalized_code', normalizedCodes);
         if (conflictError) throw conflictError;
         const conflict = (conflicts ?? []).find((row) => row.product_id !== productId);
@@ -40,17 +41,12 @@ async function syncProductCodes(
 
     const { data: existing, error: existingError } = await supabase
         .from('product_codes')
-        .select('id, code_type')
+        .select('id, code_type, code_value, normalized_code, is_primary, active')
         .eq('store_id', storeId)
         .eq('product_id', productId)
+        .eq('active', true)
         .in('code_type', ['internal', 'sku', 'ean']);
     if (existingError) throw existingError;
-
-    await supabase
-        .from('product_codes')
-        .update({ is_primary: false })
-        .eq('store_id', storeId)
-        .eq('product_id', productId);
 
     const primaryType = desired.find((code) => code.type === 'internal')?.type
         ?? desired.find((code) => code.type === 'sku')?.type
@@ -64,12 +60,18 @@ async function syncProductCodes(
             active: true,
         };
         if (current) {
-            const { error } = await supabase
-                .from('product_codes')
-                .update(payload)
-                .eq('id', current.id)
-                .eq('store_id', storeId);
-            if (error) throw error;
+            if (
+                current.code_value !== payload.code_value ||
+                current.is_primary !== payload.is_primary ||
+                current.active !== payload.active
+            ) {
+                const { error } = await supabase
+                    .from('product_codes')
+                    .update(payload)
+                    .eq('id', current.id)
+                    .eq('store_id', storeId);
+                if (error) throw error;
+            }
         } else {
             const { error } = await supabase.from('product_codes').insert({
                 store_id: storeId,
@@ -82,15 +84,15 @@ async function syncProductCodes(
     }
 
     const desiredTypes = new Set(desired.map((code) => code.type));
-    const idsToDelete = (existing ?? [])
+    const idsToDeactivate = (existing ?? [])
         .filter((row) => !desiredTypes.has(row.code_type as ProductCodeInput['type']))
         .map((row) => row.id);
-    if (idsToDelete.length > 0) {
+    if (idsToDeactivate.length > 0) {
         const { error } = await supabase
             .from('product_codes')
-            .delete()
+            .update({ active: false, is_primary: false })
             .eq('store_id', storeId)
-            .in('id', idsToDelete);
+            .in('id', idsToDeactivate);
         if (error) throw error;
     }
 }
@@ -113,6 +115,7 @@ interface SaveParams {
     minStock: number;
     maxStock: number;
     productCodes: ProductCodeInput[];
+    codesLoaded: boolean;
     isEditing: boolean;
     canManageProducts: boolean;
     onSuccess: () => void;
@@ -138,6 +141,7 @@ export const useProductSave = () => {
         minStock,
         maxStock,
         productCodes,
+        codesLoaded,
         isEditing,
         canManageProducts,
         onSuccess,
@@ -239,7 +243,9 @@ export const useProductSave = () => {
                 }
             }
 
-            await syncProductCodes(activeStoreId, productId, productCodes);
+            if (!isEditing || codesLoaded) {
+                await syncProductCodes(activeStoreId, productId, productCodes);
+            }
 
             // 4. Limpar imagens removidas
             if (imagesToDelete.length > 0) {
