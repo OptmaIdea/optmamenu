@@ -39,7 +39,7 @@ export default function ProductDetailPage() {
     const canViewStock = hasPermission('stock.view');
     const canCreateTransfer = hasPermission('transfers.create');
 
-    const { product, loading, error, errorType, refetch } = useProductDetail(id);
+    const { product, loading, errorType, refetch } = useProductDetail(id);
 
     const [activeTab, setActiveTab] = useState<DetailTab>('overview');
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -71,7 +71,7 @@ export default function ProductDetailPage() {
                 <EmptyState
                     icon={<AlertCircle className="h-8 w-8 text-red-500" />}
                     title="Erro ao carregar produto"
-                    description={error || 'Ocorreu um erro ao buscar as informações do produto.'}
+                    description="Não foi possível carregar as informações do produto."
                     action={
                         <div className="flex gap-3">
                             <button
@@ -475,12 +475,6 @@ export default function ProductDetailPage() {
                                         </span>
                                     </div>
                                     <div className="flex justify-between">
-                                        <span className="text-gray-500">Última atualização:</span>
-                                        <span className="font-medium text-gray-900 dark:text-white">
-                                            {product.updated_at ? new Date(product.updated_at).toLocaleDateString('pt-BR') : '—'}
-                                        </span>
-                                    </div>
-                                    <div className="flex justify-between">
                                         <span className="text-gray-500">Última entrada de estoque:</span>
                                         <span className="font-medium text-gray-900 dark:text-white">
                                             {product.last_stock_entry_at ? new Date(product.last_stock_entry_at).toLocaleDateString('pt-BR') : '—'}
@@ -541,12 +535,6 @@ export default function ProductDetailPage() {
                                 <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Data de Criação</span>
                                 <span className="text-gray-900 dark:text-white font-semibold">
                                     {product.created_at ? new Date(product.created_at).toLocaleString('pt-BR') : '—'}
-                                </span>
-                            </div>
-                            <div>
-                                <span className="text-xs text-gray-500 dark:text-gray-400 block font-medium">Última Atualização</span>
-                                <span className="text-gray-900 dark:text-white font-semibold">
-                                    {product.updated_at ? new Date(product.updated_at).toLocaleString('pt-BR') : '—'}
                                 </span>
                             </div>
                         </div>

@@ -85,7 +85,6 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                   last_sale_at,
                   last_stock_entry_at,
                   created_at,
-                  updated_at,
                   product_codes(id, code_type, code_value, normalized_code, is_primary, active),
                   category:categories(id, name, price_logic_type, price_rules)
                 `)

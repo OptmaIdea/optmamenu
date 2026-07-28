@@ -134,7 +134,7 @@ export const useProductSave = () => {
         pricingMode,
         priceLogicType,
         priceRules,
-        stockQuantity,
+        stockQuantity: _stockQuantity,
         minStock,
         maxStock,
         productCodes,
@@ -190,7 +190,7 @@ export const useProductSave = () => {
                 }
             }
 
-            // 2. Preparar payload base
+            // 2. Preparar payload base (apenas campos cadastrais permitidos)
             const basePayload = {
                 name,
                 description,
@@ -201,7 +201,6 @@ export const useProductSave = () => {
                 use_category_pricing: pricingMode === 'inherit',
                 price_logic_type: priceLogicType,
                 price_rules: priceRules,
-                stock_quantity: stockQuantity || 0,
                 min_stock: minStock || 0,
                 max_stock: maxStock || 0,
             };
@@ -230,7 +229,7 @@ export const useProductSave = () => {
 
                 if (error) {
                     console.error('Erro ao salvar produto:', error);
-                    throw new Error('Não foi possível salvar o produto.');
+                    throw error;
                 }
 
                 if (!data) {
@@ -262,7 +261,13 @@ export const useProductSave = () => {
             onSuccess();
             onClose();
         } catch (error: any) {
-            toast.error('Erro ao salvar: ' + error.message);
+            const rawMessage = error?.message || '';
+            if (rawMessage.includes('P0001') || rawMessage.includes('stock_quantity')) {
+                toast.error('O saldo de estoque não pode ser alterado pelo cadastro do produto. Use a tela de movimentações de estoque.');
+            } else {
+                toast.error('Erro ao salvar: ' + rawMessage);
+            }
+
             // Rollback das imagens enviadas em caso de erro
             if (uploadedPaths.length > 0) {
                 await supabase.storage.from('products').remove(uploadedPaths);
