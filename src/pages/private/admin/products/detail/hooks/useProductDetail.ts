@@ -233,10 +233,11 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 }
             }
 
-            // Fallback para last_sale_at via movimentações ESTRITAMENTE DE VENDA se a coluna do produto estiver vazia
+            // Fallback para last_sale_at via movimentações ESTRITAMENTE DE VENDA se a coluna do produto estiver vazia.
+            // Consulta as últimas 50 movimentações de saída ('exit') em stock_movements para identificar a venda mais recente.
             if (!p.last_sale_at) {
                 try {
-                    const { data: exitMovements } = await supabase
+                    const { data: exitMovements, error: exitMovementsError } = await supabase
                         .from('stock_movements')
                         .select('created_at, source, order_id, type, reason, reason_code')
                         .eq('store_id', activeStoreId)
@@ -245,7 +246,7 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                         .order('created_at', { ascending: false })
                         .limit(50);
 
-                    if (Array.isArray(exitMovements) && exitMovements.length > 0) {
+                    if (!exitMovementsError && Array.isArray(exitMovements) && exitMovements.length > 0) {
                         const actualSaleMovement = exitMovements.find((m: any) => {
                             const source = String(m.source ?? '').toLowerCase();
                             const reason = String(m.reason ?? '').toLowerCase();
@@ -269,57 +270,66 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 }
             }
 
-            // Consultar locais realmente ATIVOS em stock_locations para a loja ativa
+            // Consultar locais realmente ATIVOS em stock_locations para a loja ativa.
+            // Utiliza flag de controle de sucesso para evitar inferências incorretas em caso de falha da consulta.
             const activeLocationSet = new Set<string>();
+            let stockLocationsLoaded = false;
+
             try {
-                const { data: activeLocs } = await supabase
+                const { data: activeLocs, error: activeLocsError } = await supabase
                     .from('stock_locations')
                     .select('id')
                     .eq('store_id', activeStoreId)
                     .eq('active', true);
 
-                if (Array.isArray(activeLocs)) {
+                if (!activeLocsError && Array.isArray(activeLocs)) {
                     activeLocs.forEach((loc: any) => {
                         if (loc.id) activeLocationSet.add(loc.id);
                     });
+                    stockLocationsLoaded = true;
                 }
             } catch (e) {
                 console.warn('Erro ao consultar stock_locations ativas:', e);
+                stockLocationsLoaded = false;
             }
 
-            const activeLocationsRegistered = activeLocationSet.size;
+            const activeLocationsRegistered = stockLocationsLoaded
+                ? activeLocationSet.size
+                : (mgmtData?.active_locations ?? 0);
 
             // Consultar posições do produto em inventory_location_balances e deduplicar por location_id
-            let locationsWithPositionCount = 0;
-            let locationsWithAvailableStockCount = 0;
+            let locationsWithPositionCount = mgmtData?.active_locations ?? 0;
+            let locationsWithAvailableStockCount = mgmtData?.locations_with_available_stock ?? 0;
 
-            try {
-                const { data: locBalances } = await supabase
-                    .from('inventory_location_balances')
-                    .select('location_id, on_hand, available')
-                    .eq('store_id', activeStoreId)
-                    .eq('product_id', productId);
+            if (stockLocationsLoaded) {
+                try {
+                    const { data: locBalances, error: locBalancesError } = await supabase
+                        .from('inventory_location_balances')
+                        .select('location_id, on_hand, available')
+                        .eq('store_id', activeStoreId)
+                        .eq('product_id', productId);
 
-                if (Array.isArray(locBalances)) {
-                    const positionLocationSet = new Set<string>();
-                    const availableLocationSet = new Set<string>();
+                    if (!locBalancesError && Array.isArray(locBalances)) {
+                        const positionLocationSet = new Set<string>();
+                        const availableLocationSet = new Set<string>();
 
-                    locBalances.forEach((row: any) => {
-                        // Considerar apenas locais que estejam ATIVOS no cadastro da loja
-                        if (row.location_id && (activeLocationSet.size === 0 || activeLocationSet.has(row.location_id))) {
-                            positionLocationSet.add(row.location_id);
-                            const avail = Number(row.available ?? row.on_hand ?? 0);
-                            if (avail > 0) {
-                                availableLocationSet.add(row.location_id);
+                        locBalances.forEach((row: any) => {
+                            // Considerar apenas locais que estejam ESTRITAMENTE ATIVOS no cadastro da loja
+                            if (row.location_id && activeLocationSet.has(row.location_id)) {
+                                positionLocationSet.add(row.location_id);
+                                const avail = Number(row.available ?? row.on_hand ?? 0);
+                                if (avail > 0) {
+                                    availableLocationSet.add(row.location_id);
+                                }
                             }
-                        }
-                    });
+                        });
 
-                    locationsWithPositionCount = positionLocationSet.size;
-                    locationsWithAvailableStockCount = availableLocationSet.size;
+                        locationsWithPositionCount = positionLocationSet.size;
+                        locationsWithAvailableStockCount = availableLocationSet.size;
+                    }
+                } catch (e) {
+                    console.warn('Erro ao consultar inventory_location_balances:', e);
                 }
-            } catch (e) {
-                console.warn('Erro ao consultar inventory_location_balances:', e);
             }
 
             const parsedProduct: Product = {
