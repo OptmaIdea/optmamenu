@@ -22,6 +22,7 @@ import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import EmptyState from '@/components/common/empty-state/EmptyState';
 import InfoTooltip from '@/components/common/tooltip/InfoTooltip';
+import { ProductPricingHistoryTab } from './pricing-history/ProductPricingHistoryTab';
 import { getShortDocumentReference, getDocumentReferenceTitle, humanizeTextReferences } from '@/utils/documentReference';
 import {
   ArrowLeft,
@@ -33,7 +34,8 @@ import {
   ShieldCheck,
   BarChart3,
   RefreshCw,
-  Tag
+  Tag,
+  DollarSign
 } from 'lucide-react';
 import {
   getMovementDirectionLabel,
@@ -49,7 +51,7 @@ import {
   getTransferDivergenceResolutionLabel,
 } from './utils/productMovementNarrative';
 
-type LifecycleTab = 'summary' | 'locations' | 'movements' | 'suppliers' | 'audit';
+type LifecycleTab = 'summary' | 'locations' | 'movements' | 'suppliers' | 'audit' | 'pricing_history';
 
 type MovementOperationFilter =
   | 'all'
@@ -220,6 +222,7 @@ export default function ProductLifecyclePage() {
       { key: 'locations' as const, label: 'Estoque por Local', icon: MapPinned },
       { key: 'movements' as const, label: 'Movimentações', icon: History },
       { key: 'suppliers' as const, label: 'Fornecedores & Custos', icon: Truck },
+      { key: 'pricing_history' as const, label: 'Preços e margens', icon: DollarSign },
       { key: 'audit' as const, label: 'Auditoria', icon: ShieldCheck },
     ],
     []
@@ -1155,6 +1158,11 @@ export default function ProductLifecyclePage() {
             loading={productSupplierLoading}
             error={productSupplierError}
           />
+        )}
+
+        {/* ── ABA: PREÇOS E MARGENS ── */}
+        {activeTab === 'pricing_history' && (
+          <ProductPricingHistoryTab productId={id} productName={productName} />
         )}
 
         {/* ── ABA 5: AUDITORIA ── */}
