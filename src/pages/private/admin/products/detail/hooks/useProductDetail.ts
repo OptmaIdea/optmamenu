@@ -233,6 +233,44 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 }
             }
 
+            // Fallback para last_sale_at via movimentações de saída se a coluna do produto estiver vazia
+            if (!p.last_sale_at) {
+                try {
+                    const { data: lastSaleRow } = await supabase
+                        .from('stock_movements')
+                        .select('created_at')
+                        .eq('store_id', activeStoreId)
+                        .eq('product_id', productId)
+                        .eq('type', 'exit')
+                        .order('created_at', { ascending: false })
+                        .limit(1)
+                        .maybeSingle();
+
+                    if (lastSaleRow?.created_at) {
+                        p.last_sale_at = lastSaleRow.created_at;
+                    }
+                } catch (e) {
+                    console.warn('Erro ao buscar última venda em stock_movements:', e);
+                }
+            }
+
+            // Fallback para quantidade real de locais ativos do produto
+            let actualLocationCount = 0;
+            try {
+                const { data: locBalances } = await supabase
+                    .from('inventory_location_balances')
+                    .select('location_id')
+                    .eq('store_id', activeStoreId)
+                    .eq('product_id', productId);
+
+                actualLocationCount = locBalances ? locBalances.length : 0;
+            } catch (e) {
+                console.warn('Erro ao consultar locais do produto em inventory_location_balances:', e);
+            }
+
+            const activeLocationsCount = Math.max(mgmtData?.active_locations ?? 0, actualLocationCount);
+            const totalLocationsCount = Math.max(mgmtData?.total_locations ?? 0, actualLocationCount);
+
             const parsedProduct: Product = {
                 ...p,
                 price_rules: typeof p.price_rules === 'string' ? JSON.parse(p.price_rules) : p.price_rules,
@@ -252,8 +290,8 @@ export function useProductDetail(productId: string | undefined): UseProductDetai
                 global_max_stock: mgmtData?.global_max_stock ?? p.max_stock ?? 0,
                 global_status: (mgmtData?.global_status as any) ?? 'global_ok',
                 recommended_action: (mgmtData?.recommended_action as any) ?? 'ok',
-                total_locations: mgmtData?.total_locations ?? 0,
-                active_locations: mgmtData?.active_locations ?? 0,
+                total_locations: totalLocationsCount,
+                active_locations: activeLocationsCount,
                 sales_locations: mgmtData?.sales_locations ?? 0,
                 location_stockout_count: mgmtData?.location_stockout_count ?? 0,
                 location_critical_count: mgmtData?.location_critical_count ?? 0,

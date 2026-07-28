@@ -746,7 +746,9 @@ export default function ProductDetailPage() {
 
                             {canManageProducts && (
                                 <button
-                                    onClick={() => navigate(`/admin/products/${product.id}/lifecycle`)}
+                                    onClick={() => navigate(`/admin/products/${product.id}/lifecycle`, {
+                                        state: { returnTo: location.pathname + location.search }
+                                    })}
                                     className="inline-flex items-center gap-2 px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-semibold rounded-xl transition cursor-pointer"
                                 >
                                     <Activity size={14} />

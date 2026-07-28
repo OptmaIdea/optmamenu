@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
@@ -102,6 +102,8 @@ const stockStatusClassMap: Record<string, string> = {
 
 export default function ProductLifecyclePage() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [product, setProduct] = useState<any>(null);
   const { storeId } = useCurrentStore();
   const { hasPermission } = usePermissions(storeId ?? null);
@@ -188,7 +190,20 @@ export default function ProductLifecyclePage() {
   const categoryName = product?.categories?.name || product?.category_name || (row as Record<string, any>)?.category_name || 'Sem categoria';
   const sku = product?.sku || product?.barcode || product?.code || null;
   const price = product?.price ?? row?.price ?? 0;
-  const imageUrl = product?.image_url || null;
+  const imageUrl = (Array.isArray(product?.images) && product.images.length > 0)
+    ? product.images[0]
+    : (product?.image_url || null);
+
+  const handleBack = () => {
+    const returnTo = (location.state as any)?.returnTo;
+    if (returnTo) {
+      navigate(returnTo);
+    } else if (id) {
+      navigate(`/admin/products/${id}`);
+    } else {
+      navigate('/admin/products');
+    }
+  };
 
   const totalOnHand = row?.total_on_hand ?? 0;
   const minStock = row?.min_stock ?? product?.min_stock ?? 0;
@@ -585,14 +600,15 @@ export default function ProductLifecyclePage() {
             <span>Atualizar</span>
           </button>
 
-          <Link
-            to="/admin/products"
-            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-2xs"
-            title="Voltar para a lista de produtos"
+          <button
+            type="button"
+            onClick={handleBack}
+            className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-2xs cursor-pointer"
+            title="Voltar para a tela anterior"
           >
             <ArrowLeft size={13} />
-            <span>Produtos</span>
-          </Link>
+            <span>Voltar</span>
+          </button>
         </div>,
         portalContainer
       )}
