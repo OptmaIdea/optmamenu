@@ -29,6 +29,7 @@ export const ProductPricingHistoryTab: React.FC<ProductPricingHistoryTabProps> =
     filters,
     snapshots,
     purchases,
+    hasTruncatedData,
     loading,
     error,
     salesSummary,
@@ -107,6 +108,16 @@ export const ProductPricingHistoryTab: React.FC<ProductPricingHistoryTabProps> =
         onRefresh={() => void refetch()}
         loading={loading}
       />
+
+      {/* Aviso Gerencial de Limite de Segurança */}
+      {hasTruncatedData && (
+        <div className="rounded-2xl bg-amber-50 dark:bg-amber-900/20 p-4 border border-amber-200 dark:border-amber-800/60 flex items-center gap-3 text-xs text-amber-800 dark:text-amber-300">
+          <AlertCircle size={18} className="text-amber-600 shrink-0" />
+          <span>
+            <strong>Aviso de Limite de Segurança:</strong> O volume de candidatos consultados atingiu o limite de segurança de 1.000 itens. Para análises históricas com volumes muito elevados, considere filtrar por intervalos de data menores.
+          </span>
+        </div>
+      )}
 
       {/* Barra de Ações de Exportação */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">

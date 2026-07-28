@@ -70,6 +70,7 @@ export function useProductPricingHistory(productId?: string) {
 
   const [snapshots, setSnapshots] = useState<ProductItemPricingSnapshot[]>([]);
   const [purchases, setPurchases] = useState<ProductPurchaseHistoryItem[]>([]);
+  const [hasTruncatedData, setHasTruncatedData] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -108,6 +109,7 @@ export function useProductPricingHistory(productId?: string) {
     if (!productId) {
       setSnapshots([]);
       setPurchases([]);
+      setHasTruncatedData(false);
       setLoading(false);
       return;
     }
@@ -116,7 +118,7 @@ export function useProductPricingHistory(productId?: string) {
     setError(null);
 
     try {
-      const [salesData, purchaseData] = await Promise.all([
+      const [salesRes, purchaseRes] = await Promise.all([
         ProductPricingHistoryService.fetchSalesSnapshots({
           productId,
           startDate: filters.startDate,
@@ -131,8 +133,9 @@ export function useProductPricingHistory(productId?: string) {
         }),
       ]);
 
-      setSnapshots(salesData);
-      setPurchases(purchaseData);
+      setSnapshots(salesRes.data);
+      setPurchases(purchaseRes.data);
+      setHasTruncatedData(salesRes.hasTruncatedData || purchaseRes.hasTruncatedData);
     } catch (err: unknown) {
       console.error('Erro ao carregar histórico de preços e compras:', err);
       const msg = err instanceof Error ? err.message : 'Não foi possível carregar os dados históricos.';
@@ -170,6 +173,7 @@ export function useProductPricingHistory(productId?: string) {
     filters,
     snapshots,
     purchases,
+    hasTruncatedData,
     loading,
     error,
     salesSummary,
