@@ -100,7 +100,7 @@ function getDirectSaleErrorMessage(result: AdminDirectSaleResult | null | undefi
 }
 
 function getPricingOriginLabel(source?: string | null): string {
-  if (!source) return 'Preço do produto';
+  if (!source) return 'Origem não registrada';
   switch (source) {
     case 'pricing_group_combined_volume':
       return 'Grupo de precificação por quantidade';
@@ -117,39 +117,68 @@ function getPricingOriginLabel(source?: string | null): string {
       return 'Preço próprio do produto';
     case 'custom_manual':
       return 'Preço ajustado manualmente';
+    case 'unregistered_legacy':
+      return 'Origem não registrada';
     default:
-      return 'Preço do produto';
+      return 'Origem não registrada';
   }
 }
 
 function normalizeDirectSaleItems(items: DirectSaleItemInput[]) {
   return items.map((item) => {
-    const basePrice = item.originalUnitPrice ?? item.unitPrice ?? 0;
-    const unitPrice = item.unitPrice ?? basePrice;
-    const discount = item.discount ?? 0;
-    const pricingSource = item.pricingSource ?? 'product_base_price';
+    const quantity = Math.max(0, Number(item.quantity || 0));
+    const basePrice = Number(item.originalUnitPrice ?? item.unitPrice ?? 0);
+    const rawUnitPrice = Number(item.unitPrice ?? basePrice);
+    const itemDiscountInput = Math.max(0, Number(item.discount || 0));
+
+    // Se o desconto informado for por item ou manual, calcula o unitDiscount adicional
+    // Se a cotação já deu o unitPrice efetivo após atacado/categoria, effectiveUnitPrice = rawUnitPrice
+    const manualDiscountPerUnit = quantity > 0 && itemDiscountInput > 0 && itemDiscountInput < rawUnitPrice ? itemDiscountInput : 0;
+    const effectiveUnitPrice = Math.max(0, rawUnitPrice - manualDiscountPerUnit);
+
+    const grossSubtotal = quantity * basePrice;
+    const netSubtotal = quantity * effectiveUnitPrice;
+    const discountTotal = Math.max(0, grossSubtotal - netSubtotal);
+    const unitDiscount = quantity > 0 ? discountTotal / quantity : 0;
+
+    const meta = item.metadata ?? {};
+    const pricingSource = item.pricingSource ?? (meta.pricing_source ? String(meta.pricing_source) : 'product_base_price');
+
+    const categoryNameSnapshot = meta.category_name_snapshot ?? meta.category_name ?? null;
+    const pricingGroupNameSnapshot = meta.pricing_group_name_snapshot ?? meta.pricing_group_name ?? null;
+    const ruleNameSnapshot = meta.rule_name_snapshot ?? meta.rule_name ?? null;
 
     return {
       product_id: item.productId,
-      quantity: item.quantity,
-      unit_price: unitPrice,
-      discount,
+      quantity,
+      unit_price: effectiveUnitPrice,
+      discount: 0, // Envia 0 para a RPC pois unit_price já é o valor unitário efetivo faturado
       original_unit_price: basePrice,
       discount_reason: item.discountReason ?? null,
       pricing_source: pricingSource,
       price_rule: item.priceRule ?? null,
       metadata: {
-        ...(item.metadata ?? {}),
+        ...meta,
         base_price: basePrice,
-        effective_unit_price: unitPrice,
-        unit_price: Math.max(0, unitPrice - discount),
-        quantity: item.quantity,
-        gross_subtotal: item.quantity * basePrice,
-        discount,
-        net_subtotal: item.quantity * Math.max(0, unitPrice - discount),
+        effective_unit_price: effectiveUnitPrice,
+        unit_price: effectiveUnitPrice,
+        quantity,
+        gross_subtotal: grossSubtotal,
+        unit_discount: unitDiscount,
+        discount_total: discountTotal,
+        discount: discountTotal, // Mantido por compatibilidade como desconto total da linha
+        net_subtotal: netSubtotal,
         pricing_source: pricingSource,
         pricing_origin_label: getPricingOriginLabel(pricingSource),
-        applied_tier: item.priceRule ?? null,
+        category_id: meta.category_id ?? null,
+        category_name_snapshot: categoryNameSnapshot,
+        pricing_group_id: meta.pricing_group_id ?? null,
+        pricing_group_name_snapshot: pricingGroupNameSnapshot,
+        rule_id: meta.rule_id ?? null,
+        rule_name_snapshot: ruleNameSnapshot,
+        applied_tier: item.priceRule ?? meta.applied_tier ?? null,
+        applied_tier_min_quantity: meta.applied_tier_min_quantity ?? (item.priceRule as any)?.min ?? null,
+        applied_tier_price: meta.applied_tier_price ?? (item.priceRule as any)?.price ?? null,
         snapshot_version: '1.0',
       },
     };

@@ -15,7 +15,9 @@ export interface ProductItemPricingSnapshot {
   unit_price: number;
   quantity: number;
   gross_subtotal: number;
-  discount: number;
+  unit_discount: number;
+  discount_total: number;
+  discount: number; // Mantido por compatibilidade como o desconto total da linha
   net_subtotal: number;
   pricing_source:
     | 'product_base_price'
