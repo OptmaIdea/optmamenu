@@ -33,7 +33,7 @@
 | Ecossistema | Optma (OptmaMenu + OptmaIdea) |
 | Tipo | SaaS — painel administrativo para estabelecimentos alimentícios |
 | Idioma do Produto | Português (Brasil) |
-| Versão Atual | `0.9.14` (Pós-Fase 9.14 Hardening) |
+| Versão Atual | `0.10.0-rc.1` (Início da Fase 10 — Loja Pública, Microsite Comercial e Experiência do Cliente) |
 | Repositório local | `d:\optmamenu` |
 
 O OptmaMenu oferece cardápio digital, gestão de pedidos, controle de estoque, compras, transferências, fornecedores, clientes, fidelidade, marketing, financeiro e configurações.
@@ -356,4 +356,4 @@ Arquivo:
 
 ---
 
-*Última atualização: 2026-07-16 | Definição da versão 0.9.14 (pós-Fase 9 e 9.14 hardening), atualização do package.json/package-lock.json e consolidação das pendências para o lançamento.*
+*Última atualização: 2026-07-29 | Definição da versão 0.10.0-rc.1 (Início da Fase 10 — Loja Pública, Microsite Comercial e Experiência do Cliente).*

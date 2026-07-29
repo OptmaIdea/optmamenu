@@ -46,3 +46,7 @@
 - Geração/impressão de QR Code por mesa/comanda
 - Fechamento da versão estável v1.0.0 no lançamento oficial
 
+## Fase 10 / Versão 0.10.0-rc.1 — Início (29/07/2026)
+- Versão de início da Fase 10: `0.10.0-rc.1`
+- Frente: Loja Pública, Microsite Comercial e Experiência do Cliente
+- Data: 29/07/2026
