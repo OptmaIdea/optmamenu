@@ -125,11 +125,17 @@ Consulte `.env.example` para um modelo completo.
 
 ## 📚 Documentação
 
-Documentação detalhada pode ser encontrada na pasta `docs/` e nas regras/skills do agente de IA em `.agents/`.
+A documentação do OptmaMenu foi consolidada na pasta `docs/`. O mapa principal encontra-se em [`docs/README.md`](file:///d:/OptmaIdea/optmamenu/docs/README.md):
 
-- `.agents/AGENTS.md` - Contexto geral e regras do projeto
-- `.agents/skills/design_system/SKILL.md` - Identidade visual completa
-- `.agents/skills/page_layout_standard/SKILL.md` - Padrão de layout das páginas admin
+- [`docs/PROJECT_STATUS.md`](file:///d:/OptmaIdea/optmamenu/docs/PROJECT_STATUS.md) - Status executivo v0.10.0-rc.1 e pendências
+- [`docs/ARCHITECTURE.md`](file:///d:/OptmaIdea/optmamenu/docs/ARCHITECTURE.md) - Arquitetura técnica e convenções de código
+- [`docs/SECURITY_AND_PERMISSIONS.md`](file:///d:/OptmaIdea/optmamenu/docs/SECURITY_AND_PERMISSIONS.md) - Permissões em realtime, RLS e segurança
+- [`docs/DATABASE_REFERENCE.md`](file:///d:/OptmaIdea/optmamenu/docs/DATABASE_REFERENCE.md) - Modelo de dados, RPCs e Views
+- [`docs/OPERATIONS_GUIDE.md`](file:///d:/OptmaIdea/optmamenu/docs/OPERATIONS_GUIDE.md) - Operação de Produtos, Estoque multilocal, PDV e Caixa
+- [`docs/COMMERCIAL_AND_CUSTOMERS.md`](file:///d:/OptmaIdea/optmamenu/docs/COMMERCIAL_AND_CUSTOMERS.md) - Pedidos, Clientes 360º, Fidelidade, Marketing e Atacado
+- [`docs/PUBLIC_STORE_PHASE_10.md`](file:///d:/OptmaIdea/optmamenu/docs/PUBLIC_STORE_PHASE_10.md) - Especificação da Fase 10 (Loja Pública e Microsite)
+- `.agents/AGENTS.md` - Contexto geral e regras do projeto para agentes AI
+
 
 ## 🧪 Testes
 
