@@ -1416,12 +1416,12 @@ export default function PrivateLayout() {
             {/* Main Content Area */}
             <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden bg-[#F8F6F2] dark:bg-gray-950">
                 {/* Unified Header */}
-                <header className="h-[73px] shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center px-4 md:px-8 z-30 shadow-sm transition-colors duration-300">
+                <header className="h-[73px] shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center px-3 sm:px-4 md:px-8 z-30 shadow-sm transition-colors duration-300">
                     {/* Left Side: Hamburguer & Active Route Icon/Name */}
-                    <div className="flex items-center gap-2 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button
                             onClick={() => setIsMobileOpen(true)}
-                            className="md:hidden text-gray-500 dark:text-gray-400 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors mr-1 shrink-0"
+                            className="md:hidden relative z-40 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                             aria-label="Abrir menu"
                         >
                             <Menu size={22} />
@@ -1430,7 +1430,7 @@ export default function PrivateLayout() {
                         {currentItem && (
                             <div className="flex items-center gap-2 min-w-0">
                                 <currentItem.item.icon className="w-5 h-5 md:w-6 md:h-6 text-brand-light shrink-0" />
-                                <h1 className="font-extrabold text-sm md:text-lg text-brand-orange truncate font-candara-bold select-none">
+                                <h1 className="hidden sm:block font-extrabold text-sm md:text-lg text-brand-orange truncate font-candara-bold select-none">
                                     {currentItem.item.label}
                                 </h1>
                             </div>
@@ -1438,7 +1438,7 @@ export default function PrivateLayout() {
                     </div>
 
                     {/* Right Side: Quick actions */}
-                    <div className="flex items-center gap-1.5 ml-auto">
+                    <div className="flex items-center gap-0 sm:gap-1.5 ml-auto shrink-0">
                         {/* User Identity Chip   apelido + avatar do usuário logado */}
                         {userData && (
                             <div
@@ -1472,7 +1472,7 @@ export default function PrivateLayout() {
                         <Link
                             to="/admin"
                             title="Ir para o Início (/admin)"
-                            className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition shrink-0 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                         >
                             <Home size={19} className="text-[#19A999]" />
                         </Link>
@@ -1485,7 +1485,7 @@ export default function PrivateLayout() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     title={`Acessar loja: /s/${storeSlug}`}
-                                    className="p-2 rounded-lg text-[#19A999] hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                                    className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#19A999] transition shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 >
                                     <StoreIcon size={19} className="text-[#19A999]" />
                                 </a>
@@ -1494,7 +1494,7 @@ export default function PrivateLayout() {
                                     type="button"
                                     disabled
                                     title="Loja pública desativada"
-                                    className="p-2 rounded-lg text-gray-300 dark:text-gray-600 cursor-not-allowed shrink-0"
+                                    className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-300 cursor-not-allowed shrink-0 dark:text-gray-600"
                                 >
                                     <StoreIcon size={19} />
                                 </button>
@@ -1505,7 +1505,7 @@ export default function PrivateLayout() {
                             <Link
                                 to="/pdv"
                                 title="Abrir PDV"
-                                className="p-2 rounded-lg text-[#F26541] hover:bg-[#F26541]/10 transition shrink-0"
+                                className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#F26541] transition shrink-0 hover:bg-[#F26541]/10"
                             >
                                 <MonitorSmartphone size={19} />
                             </Link>
@@ -1515,7 +1515,7 @@ export default function PrivateLayout() {
                             <Link
                                 to="/admin/orders"
                                 title={activeOrderCount > 0 ? `${activeOrderCount} pedidos ativos` : 'Abrir pedidos'}
-                                className={`relative p-2 rounded-lg transition shrink-0 ${activeOrderCount > 0 ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                className={`relative hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg transition shrink-0 ${activeOrderCount > 0 ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                             >
                                 <ShoppingBag size={19} className={activeOrderCount > 0 ? 'animate-pulse' : ''} />
                                 {activeOrderCount > 0 && (
@@ -1528,7 +1528,7 @@ export default function PrivateLayout() {
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
 
                         {/* Mensagens Sininho Relógio */}
-                        <div className="flex items-center gap-1">
+                        <div className="hidden md:flex items-center gap-1">
                             {/* Messages Icon */}
                             <button
                                 type="button"
@@ -1608,12 +1608,12 @@ export default function PrivateLayout() {
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
 
                         {/* Seletor de tema Botão desligar */}
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-0 sm:gap-1">
                             {/* Theme Toggle */}
                             <button
                                 onClick={toggleDarkMode}
                                 title="Alternar Tema"
-                                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition shrink-0"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition shrink-0 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                             >
                                 {isDark ? <Sun size={19} /> : <Moon size={19} />}
                             </button>
@@ -1622,7 +1622,7 @@ export default function PrivateLayout() {
                             <button
                                 onClick={handleLogout}
                                 title="Sair do painel"
-                                className="p-2 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors shrink-0"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-600 transition-colors shrink-0 hover:bg-red-50 dark:hover:bg-red-950/20"
                             >
                                 <Power size={19} className="stroke-[2.5]" />
                             </button>
