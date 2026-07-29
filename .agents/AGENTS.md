@@ -34,7 +34,7 @@
 | Tipo | SaaS — painel administrativo para estabelecimentos alimentícios |
 | Idioma do Produto | Português (Brasil) |
 | Versão Atual | `0.10.0-rc.1` (Início da Fase 10 — Loja Pública, Microsite Comercial e Experiência do Cliente) |
-| Repositório local | `d:\optmamenu` |
+| Repositório local | `OptmaMenu (Workspace)` |
 
 O OptmaMenu oferece cardápio digital, gestão de pedidos, controle de estoque, compras, transferências, fornecedores, clientes, fidelidade, marketing, financeiro e configurações.
 

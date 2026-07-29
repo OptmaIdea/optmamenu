@@ -148,15 +148,15 @@ As funcionalidades ativas no microsite público são controladas pelas feature f
 
 ## 12. Detalhamento Completo das Subfases 10.1 a 10.9
 
-- **Fase 10.1 — Governança de Slugs e Roteamento**: Mapeamento de `/loja/:slug`, `/s/:slug` e `/cardapio/:slug`. (`HOMOLOGADA`)
-- **Fase 10.2 — Microsite Comercial e Catálogo Mobile-First**: Apresentação visual, busca de produtos e filtros. (`EXISTENTE`)
-- **Fase 10.3 — Carrinho e Checkout Público**: Fluxo de checkout e reserva temporária em `stock_reservations`. (`EXISTENTE`)
-- **Fase 10.4 — Rastreamento Público por Token**: Acompanhamento de status em tempo real via `/p/:publicOrderToken`. (`EXISTENTE`)
-- **Fase 10.5 — Identidade do Cliente e Integração SMSGate**: Autenticação OTP via gateway externo. (`DEPENDENTE DO SMSGATE`)
-- **Fase 10.6 — Atendimento em Mesa / Comanda por QR Code**: Pedidos presenciais via `/mesa/:storeSlug/:tableCode`. (`EXISTENTE`)
-- **Fase 10.7 — Banners Promocionais e Gestão de Anúncios**: Banners de destaque e anúncios patrocinados. (`PLANEJADA`)
-- **Fase 10.8 — Pix Dinâmico e Conciliação Automática**: Cobrança Pix com baixa automática via webhook. (`PLANEJADA`)
-- **Fase 10.9 — Homologação Piloto e Preparação v1.0.0**: Testes reais em estabelecimentos parceiros antes do lançamento oficial. (`PLANEJADA`)
+- **Fase 10.1 — Governança de Slugs e Roteamento**: Mapeamento de `/loja/:slug`, `/s/:slug` e `/cardapio/:slug`. (`10.1 — EM AUDITORIA / BLUEPRINT`)
+- **Fase 10.2 — Microsite Comercial e Catálogo Mobile-First**: Apresentação visual, busca de produtos e catálogo. (`10.2 — PLANEJADA, COM CATÁLOGO LEGADO EXISTENTE`)
+- **Fase 10.3 — Carrinho e Checkout Público**: Fluxo de checkout e reserva temporária em `stock_reservations`. (`10.3 — PLANEJADA, COM CHECKOUT E RESERVAS LEGADAS A AUDITAR`)
+- **Fase 10.4 — Rastreamento Público por Token**: Acompanhamento de status em tempo real via `/p/:publicOrderToken`. (`10.4 — BASE DE RASTREAMENTO EXISTENTE A AUDITAR`)
+- **Fase 10.5 — Identidade do Cliente e Integração SMSGate**: Autenticação OTP via gateway externo OptmaSMSGate. (`10.5 — DEPENDENTE DO SMSGATE`)
+- **Fase 10.6 — Atendimento em Mesa / Comanda por QR Code**: Pedidos presenciais via `/mesa/:storeSlug/:tableCode`. (`10.6 — BASE DE ROTAS EXISTENTE; FLUXO A HOMOLOGAR`)
+- **Fase 10.7 — Banners Promocionais e Gestão de Anúncios**: Banners de destaque e anúncios patrocinados. (`10.7 — PLANEJADA`)
+- **Fase 10.8 — Pix Dinâmico e Conciliação Automática**: Cobrança Pix com baixa automática via webhook. (`10.8 — PLANEJADA`)
+- **Fase 10.9 — Homologação Piloto e Preparação v1.0.0**: Testes reais em estabelecimentos parceiros antes do lançamento oficial. (`10.9 — PLANEJADA`)
 
 ---
 
