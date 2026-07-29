@@ -329,7 +329,7 @@ export const ProductPricingHistoryService = {
     const totalCandidateCount = rawItemRows.length;
     const hasTruncatedData = hasTruncatedDocs || hasTruncatedItems;
 
-    let result: ProductPurchaseHistoryItem[] = [];
+    const result: ProductPurchaseHistoryItem[] = [];
 
     for (const item of rawItemRows) {
       const doc = docMap.get(item.purchase_document_id);
