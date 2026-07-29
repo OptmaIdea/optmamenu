@@ -37,6 +37,7 @@ import {
     Layers,
     Menu,
     ChevronLeft,
+    ChevronRight,
     ChevronDown,
     Moon,
     Sun,
@@ -1428,7 +1429,7 @@ export default function PrivateLayout() {
                         </button>
 
                         {currentItem && (
-                            <div className="flex items-center gap-2 min-w-0">
+                            <div className="flex items-center gap-2 min-w-0 mr-3 md:mr-0">
                                 <currentItem.item.icon className="w-5 h-5 md:w-6 md:h-6 text-brand-light shrink-0" />
                                 <h1 className="hidden sm:block font-extrabold text-sm md:text-lg text-brand-orange truncate font-candara-bold select-none">
                                     {currentItem.item.label}
@@ -1438,7 +1439,13 @@ export default function PrivateLayout() {
                     </div>
 
                     {/* Right Side: Quick actions */}
-                    <div className="flex min-w-0 flex-1 items-center gap-0 sm:gap-1.5 ml-auto overflow-x-auto no-scrollbar touch-pan-x">
+                    <div className="flex min-w-0 flex-1 items-center gap-1 ml-auto">
+                        <ChevronRight
+                            size={16}
+                            aria-hidden="true"
+                            className="shrink-0 text-gray-400 dark:text-gray-500 md:hidden"
+                        />
+                        <div className="flex min-w-0 flex-1 items-center gap-0 sm:gap-1.5 overflow-x-auto no-scrollbar touch-pan-x">
                         {/* User Identity Chip   apelido + avatar do usuário logado */}
                         {userData && (
                             <div
@@ -1472,7 +1479,7 @@ export default function PrivateLayout() {
                         <Link
                             to="/admin"
                             title="Ir para o Início (/admin)"
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition shrink-0 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                            className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition shrink-0 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
                         >
                             <Home size={19} className="text-[#19A999]" />
                         </Link>
@@ -1505,7 +1512,7 @@ export default function PrivateLayout() {
                             <Link
                                 to="/pdv"
                                 title="Abrir PDV"
-                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#F26541] transition shrink-0 hover:bg-[#F26541]/10"
+                                className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#F26541] transition shrink-0 hover:bg-[#F26541]/10"
                             >
                                 <MonitorSmartphone size={19} />
                             </Link>
@@ -1608,7 +1615,7 @@ export default function PrivateLayout() {
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
 
                         {/* Seletor de tema Botão desligar */}
-                        <div className="flex items-center gap-0 sm:gap-1">
+                        <div className="hidden md:flex items-center gap-0 sm:gap-1">
                             {/* Theme Toggle */}
                             <button
                                 onClick={toggleDarkMode}
@@ -1623,6 +1630,39 @@ export default function PrivateLayout() {
                                 onClick={handleLogout}
                                 title="Sair do painel"
                                 className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-600 transition-colors shrink-0 hover:bg-red-50 dark:hover:bg-red-950/20"
+                            >
+                                <Power size={19} className="stroke-[2.5]" />
+                            </button>
+                        </div>
+                    </div>
+                        <div className="flex shrink-0 items-center gap-0 md:hidden">
+                            <Link
+                                to="/admin"
+                                title="Ir para o Início (/admin)"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                            >
+                                <Home size={19} className="text-[#19A999]" />
+                            </Link>
+                            {hasPermission('pdv.view') && (
+                                <Link
+                                    to="/pdv"
+                                    title="Abrir PDV"
+                                    className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#F26541] transition hover:bg-[#F26541]/10"
+                                >
+                                    <MonitorSmartphone size={19} />
+                                </Link>
+                            )}
+                            <button
+                                onClick={toggleDarkMode}
+                                title="Alternar Tema"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                            >
+                                {isDark ? <Sun size={19} /> : <Moon size={19} />}
+                            </button>
+                            <button
+                                onClick={handleLogout}
+                                title="Sair do painel"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
                             >
                                 <Power size={19} className="stroke-[2.5]" />
                             </button>
