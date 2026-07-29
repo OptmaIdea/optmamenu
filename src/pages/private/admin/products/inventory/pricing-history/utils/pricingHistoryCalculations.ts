@@ -79,8 +79,22 @@ export function normalizeOrderItemSnapshot(item: {
   const effectiveUnitPrice = Number(meta.effective_unit_price ?? meta.unit_price ?? item.unit_price ?? 0);
   const grossSubtotal = Number(meta.gross_subtotal ?? quantity * basePrice);
   const netSubtotal = Number(meta.net_subtotal ?? quantity * effectiveUnitPrice);
-  const discountTotal = Number(meta.discount_total ?? meta.discount ?? Math.max(0, grossSubtotal - netSubtotal));
-  const unitDiscount = Number(meta.unit_discount ?? (quantity > 0 ? discountTotal / quantity : 0));
+  const calculatedDiscountTotal = Math.max(0, grossSubtotal - netSubtotal);
+  const reportedDiscountTotal = Number(meta.discount_total ?? meta.discount ?? calculatedDiscountTotal);
+  const discountTotal = Math.abs(reportedDiscountTotal - calculatedDiscountTotal) <= 0.01
+    ? reportedDiscountTotal
+    : calculatedDiscountTotal;
+  const calculatedUnitDiscount = quantity > 0 ? discountTotal / quantity : 0;
+  const reportedUnitDiscount = Number(meta.unit_discount ?? calculatedUnitDiscount);
+  const unitDiscount = Math.abs(reportedUnitDiscount * quantity - discountTotal) <= 0.01
+    ? reportedUnitDiscount
+    : calculatedUnitDiscount;
+
+  if (Math.abs(reportedDiscountTotal - calculatedDiscountTotal) > 0.01 && import.meta.env.DEV) {
+    console.warn(
+      `Desconto do item ${item.id} reconciliado pela diferença entre bruto e líquido: ${reportedDiscountTotal} → ${calculatedDiscountTotal}`
+    );
+  }
 
   // Verificação leve de consistência contábil (tolerância de 2 centavos para arredondamentos)
   const expectedNet = quantity * effectiveUnitPrice;
