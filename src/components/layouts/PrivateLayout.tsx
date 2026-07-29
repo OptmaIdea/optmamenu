@@ -37,7 +37,6 @@ import {
     Layers,
     Menu,
     ChevronLeft,
-    ChevronRight,
     ChevronDown,
     Moon,
     Sun,
@@ -173,6 +172,7 @@ export default function PrivateLayout() {
     useIdleSessionTimeout();
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isMobileOpen, setIsMobileOpen] = useState(false);
+    const [isMobileShortcutMenuOpen, setIsMobileShortcutMenuOpen] = useState(false);
     const [isQuickAccessOpen, setIsQuickAccessOpen] = useState(false);
     const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
     const [userData, setUserData] = useState<{ name: string; alias: string; phone: string; email: string; avatar?: string } | null>(null);
@@ -860,6 +860,7 @@ export default function PrivateLayout() {
     // Close mobile menu on route change
     useLayoutEffect(() => {
         setIsMobileOpen(false);
+        setIsMobileShortcutMenuOpen(false);
     }, [pathname]);
 
     // 9.9K.3   Guarda de primeiro acesso: redireciona para /admin/my-profile se onboarding pendente
@@ -1417,7 +1418,7 @@ export default function PrivateLayout() {
             {/* Main Content Area */}
             <div className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden bg-[#F8F6F2] dark:bg-gray-950">
                 {/* Unified Header */}
-                <header className="h-[73px] shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center px-3 sm:px-4 md:px-8 z-30 shadow-sm transition-colors duration-300">
+                <header className="relative h-[73px] shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center px-3 sm:px-4 md:px-8 z-30 shadow-sm transition-colors duration-300">
                     {/* Left Side: Hamburguer & Active Route Icon/Name */}
                     <div className="flex items-center gap-2 min-w-0 shrink-0">
                         <button
@@ -1440,12 +1441,12 @@ export default function PrivateLayout() {
 
                     {/* Right Side: Quick actions */}
                     <div className="flex min-w-0 flex-1 items-center gap-1 ml-auto">
-                        <ChevronRight
-                            size={16}
-                            aria-hidden="true"
-                            className="shrink-0 text-gray-400 dark:text-gray-500 md:hidden"
-                        />
-                        <div className="flex min-w-0 flex-1 items-center gap-0 sm:gap-1.5 overflow-x-auto no-scrollbar touch-pan-x">
+                        <div
+                            className={`${isMobileShortcutMenuOpen
+                                ? 'absolute right-3 top-[61px] z-50 flex w-14 flex-col items-center gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-800'
+                                : 'hidden'
+                                } md:static md:flex md:min-w-0 md:flex-1 md:items-center md:gap-1.5 md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
+                        >
                         {/* User Identity Chip   apelido + avatar do usuário logado */}
                         {userData && (
                             <div
@@ -1535,7 +1536,7 @@ export default function PrivateLayout() {
                         <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
 
                         {/* Mensagens Sininho Relógio */}
-                        <div className="flex items-center gap-1 shrink-0">
+                        <div className="flex flex-col items-center gap-1 shrink-0 md:flex-row">
                             {/* Messages Icon */}
                             <button
                                 type="button"
@@ -1665,6 +1666,16 @@ export default function PrivateLayout() {
                                 className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/20"
                             >
                                 <Power size={19} className="stroke-[2.5]" />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsMobileShortcutMenuOpen((open) => !open)}
+                                aria-label={isMobileShortcutMenuOpen ? 'Recolher atalhos' : 'Abrir atalhos'}
+                                aria-expanded={isMobileShortcutMenuOpen}
+                                title={isMobileShortcutMenuOpen ? 'Recolher atalhos' : 'Abrir atalhos'}
+                                className="inline-flex h-11 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                            >
+                                {isMobileShortcutMenuOpen ? <ChevronDown size={19} className="rotate-180" /> : <ChevronDown size={19} />}
                             </button>
                         </div>
                     </div>
