@@ -1438,7 +1438,7 @@ export default function PrivateLayout() {
                     </div>
 
                     {/* Right Side: Quick actions */}
-                    <div className="flex items-center gap-0 sm:gap-1.5 ml-auto shrink-0">
+                    <div className="flex min-w-0 flex-1 items-center gap-0 sm:gap-1.5 ml-auto overflow-x-auto no-scrollbar touch-pan-x">
                         {/* User Identity Chip   apelido + avatar do usuário logado */}
                         {userData && (
                             <div
@@ -1485,7 +1485,7 @@ export default function PrivateLayout() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     title={`Acessar loja: /s/${storeSlug}`}
-                                    className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#19A999] transition shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#19A999] transition shrink-0 hover:bg-gray-100 dark:hover:bg-gray-700"
                                 >
                                     <StoreIcon size={19} className="text-[#19A999]" />
                                 </a>
@@ -1494,7 +1494,7 @@ export default function PrivateLayout() {
                                     type="button"
                                     disabled
                                     title="Loja pública desativada"
-                                    className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-300 cursor-not-allowed shrink-0 dark:text-gray-600"
+                                    className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-300 cursor-not-allowed shrink-0 dark:text-gray-600"
                                 >
                                     <StoreIcon size={19} />
                                 </button>
@@ -1505,7 +1505,7 @@ export default function PrivateLayout() {
                             <Link
                                 to="/pdv"
                                 title="Abrir PDV"
-                                className="hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#F26541] transition shrink-0 hover:bg-[#F26541]/10"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-[#F26541] transition shrink-0 hover:bg-[#F26541]/10"
                             >
                                 <MonitorSmartphone size={19} />
                             </Link>
@@ -1515,7 +1515,7 @@ export default function PrivateLayout() {
                             <Link
                                 to="/admin/orders"
                                 title={activeOrderCount > 0 ? `${activeOrderCount} pedidos ativos` : 'Abrir pedidos'}
-                                className={`relative hidden md:inline-flex h-11 w-11 items-center justify-center rounded-lg transition shrink-0 ${activeOrderCount > 0 ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
+                                className={`relative inline-flex h-11 w-11 items-center justify-center rounded-lg transition shrink-0 ${activeOrderCount > 0 ? 'text-amber-600 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'}`}
                             >
                                 <ShoppingBag size={19} className={activeOrderCount > 0 ? 'animate-pulse' : ''} />
                                 {activeOrderCount > 0 && (
@@ -1525,15 +1525,15 @@ export default function PrivateLayout() {
                                 )}
                             </Link>
                         )}
-                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
+                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
 
                         {/* Mensagens Sininho Relógio */}
-                        <div className="hidden md:flex items-center gap-1">
+                        <div className="flex items-center gap-1 shrink-0">
                             {/* Messages Icon */}
                             <button
                                 type="button"
                                 title="Mensagens (Sem novas mensagens)"
-                                className="p-2 rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition relative shrink-0"
+                                className="inline-flex h-11 w-11 items-center justify-center rounded-lg text-gray-400 transition relative shrink-0 hover:bg-gray-100 dark:text-gray-500 dark:hover:bg-gray-700"
                             >
                                 <MessageSquare size={19} />
                                 <span className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-brand-light" />
@@ -1543,7 +1543,7 @@ export default function PrivateLayout() {
                             <button
                                 type="button"
                                 title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
-                                className={`p-2 rounded-lg transition relative shrink-0 ${attentionCount > 0
+                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${attentionCount > 0
                                     ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
                                     : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
@@ -1562,7 +1562,7 @@ export default function PrivateLayout() {
                                     type="button"
                                     onClick={handleClockClick}
                                     title="Tempo de Sessão"
-                                    className={`p-2 rounded-lg transition relative shrink-0 ${isClockPopoverOpen
+                                    className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${isClockPopoverOpen
                                         ? 'text-[#19A999] bg-[#19A999]/10 hover:bg-[#19A999]/20'
                                         : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                         }`}
@@ -1605,7 +1605,7 @@ export default function PrivateLayout() {
                             </div>
                         </div>
 
-                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden md:block shrink-0" />
+                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
 
                         {/* Seletor de tema Botão desligar */}
                         <div className="flex items-center gap-0 sm:gap-1">
