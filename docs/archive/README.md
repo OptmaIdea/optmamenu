@@ -7,16 +7,16 @@
 
 Para consultar as diretrizes ativas, especificações vigentes, modelo de dados atualizado e guias operacionais, utilize **exclusivamente os documentos consolidados na raiz de `docs/`**:
 
-- [`docs/README.md`](file:///d:/OptmaIdea/optmamenu/docs/README.md) — Guia de início rápido e mapa da documentação ativa.
-- [`docs/PROJECT_STATUS.md`](file:///d:/OptmaIdea/optmamenu/docs/PROJECT_STATUS.md) — Status executivo do projeto, versão, ambiente e pendências.
-- [`docs/ARCHITECTURE.md`](file:///d:/OptmaIdea/optmamenu/docs/ARCHITECTURE.md) — Arquitetura técnica, convenções de código, rotas e infraestrutura.
-- [`docs/PRODUCT_AND_ROADMAP.md`](file:///d:/OptmaIdea/optmamenu/docs/PRODUCT_AND_ROADMAP.md) — Visão institucional, módulos entregues e roadmap futuro.
-- [`docs/SECURITY_AND_PERMISSIONS.md`](file:///d:/OptmaIdea/optmamenu/docs/SECURITY_AND_PERMISSIONS.md) — Usuários, permissões, RLS, audit logs e segurança de dados.
-- [`docs/DATABASE_REFERENCE.md`](file:///d:/OptmaIdea/optmamenu/docs/DATABASE_REFERENCE.md) — Referência oficial do banco PostgreSQL/Supabase, RPCs e Views.
-- [`docs/OPERATIONS_GUIDE.md`](file:///d:/OptmaIdea/optmamenu/docs/OPERATIONS_GUIDE.md) — Guia operacional de Produtos, Estoque, Fornecedores, Compras e PDV.
-- [`docs/COMMERCIAL_AND_CUSTOMERS.md`](file:///d:/OptmaIdea/optmamenu/docs/COMMERCIAL_AND_CUSTOMERS.md) — Pedidos, Venda Direta, Clientes, Fidelidade, Marketing e Atacado.
-- [`docs/PUBLIC_STORE_PHASE_10.md`](file:///d:/OptmaIdea/optmamenu/docs/PUBLIC_STORE_PHASE_10.md) — Especificação da Fase 10 (Loja Pública e Microsite Comercial).
-- [`docs/CHANGELOG_FASES.md`](file:///d:/OptmaIdea/optmamenu/docs/CHANGELOG_FASES.md) — Histórico resumido de fases e releases.
+- [`docs/README.md`](../README.md) — Guia de início rápido e mapa da documentação ativa.
+- [`docs/PROJECT_STATUS.md`](../PROJECT_STATUS.md) — Status executivo do projeto, versão, ambiente e pendências.
+- [`docs/ARCHITECTURE.md`](../ARCHITECTURE.md) — Arquitetura técnica, convenções de código, rotas e infraestrutura.
+- [`docs/PRODUCT_AND_ROADMAP.md`](../PRODUCT_AND_ROADMAP.md) — Visão institucional, módulos entregues e roadmap futuro.
+- [`docs/SECURITY_AND_PERMISSIONS.md`](../SECURITY_AND_PERMISSIONS.md) — Usuários, permissões, RLS, audit logs e segurança de dados.
+- [`docs/DATABASE_REFERENCE.md`](../DATABASE_REFERENCE.md) — Referência oficial do banco PostgreSQL/Supabase, RPCs e Views.
+- [`docs/OPERATIONS_GUIDE.md`](../OPERATIONS_GUIDE.md) — Guia operacional de Produtos, Estoque, Fornecedores, Compras e PDV.
+- [`docs/COMMERCIAL_AND_CUSTOMERS.md`](../COMMERCIAL_AND_CUSTOMERS.md) — Pedidos, Venda Direta, Clientes, Fidelidade, Marketing e Atacado.
+- [`docs/PUBLIC_STORE_PHASE_10.md`](../PUBLIC_STORE_PHASE_10.md) — Especificação da Fase 10 (Loja Pública e Microsite Comercial).
+- [`docs/CHANGELOG_FASES.md`](../CHANGELOG_FASES.md) — Histórico resumido de fases e releases.
 
 ## Estrutura de Arquivamento
 
