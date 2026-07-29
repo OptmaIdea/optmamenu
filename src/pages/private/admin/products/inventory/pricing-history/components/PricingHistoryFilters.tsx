@@ -17,10 +17,16 @@ interface PricingHistoryFiltersProps {
 
 const PRESET_OPTIONS: Array<{ key: PricingHistoryPeriodPreset; label: string }> = [
   { key: 'today', label: 'Hoje' },
+  { key: 'yesterday', label: 'Ontem' },
   { key: 'last_7_days', label: 'Últimos 7 dias' },
-  { key: 'last_30_days', label: 'Últimos 30 dias' },
+  { key: 'week', label: 'Esta semana' },
+  { key: 'last_week', label: 'Semana anterior' },
+  { key: 'fortnight', label: 'Quinzena atual' },
+  { key: 'last_fortnight', label: 'Quinzena anterior' },
   { key: 'this_month', label: 'Este mês' },
   { key: 'last_month', label: 'Mês anterior' },
+  { key: 'last_30_days', label: 'Últimos 30 dias' },
+  { key: 'all', label: 'Todo o período' },
   { key: 'custom', label: 'Personalizado' },
 ];
 

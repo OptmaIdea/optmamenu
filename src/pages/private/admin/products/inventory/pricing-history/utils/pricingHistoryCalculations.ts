@@ -1,3 +1,4 @@
+import { getPeriodDates } from '@/components/common/DateRangeFilter';
 import type {
   ProductItemPricingSnapshot,
   ProductPurchaseHistoryItem,
@@ -19,37 +20,8 @@ export function getDatesForPreset(preset: PricingHistoryPeriodPreset): {
   startDate: string;
   endDate: string;
 } {
-  const now = new Date();
-  const endDate = getLocalDateString(now);
-
-  if (preset === 'today') {
-    return { startDate: endDate, endDate };
-  }
-
-  if (preset === 'last_7_days') {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 6);
-    return { startDate: getLocalDateString(start), endDate };
-  }
-
-  if (preset === 'last_30_days') {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 29);
-    return { startDate: getLocalDateString(start), endDate };
-  }
-
-  if (preset === 'this_month') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { startDate: getLocalDateString(start), endDate };
-  }
-
-  if (preset === 'last_month') {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0);
-    return { startDate: getLocalDateString(start), endDate: getLocalDateString(end) };
-  }
-
-  return { startDate: endDate, endDate };
+  const dates = getPeriodDates(preset);
+  return { startDate: dates.start, endDate: dates.end };
 }
 
 /**

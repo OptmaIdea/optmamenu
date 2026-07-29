@@ -125,10 +125,17 @@ export interface EstimatedMarginSummary {
  */
 export type PricingHistoryPeriodPreset =
   | 'today'
+  | 'yesterday'
+  | 'week'
+  | 'last_week'
+  | 'fortnight'
+  | 'last_fortnight'
+  | 'this_month'
+  | 'current_month'
+  | 'last_month'
   | 'last_7_days'
   | 'last_30_days'
-  | 'this_month'
-  | 'last_month'
+  | 'all'
   | 'custom';
 
 /**

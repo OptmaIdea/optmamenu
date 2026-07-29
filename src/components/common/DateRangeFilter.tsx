@@ -39,6 +39,15 @@ export function getPeriodDates(period: string): { start: string; end: string } {
         end: getDateInputValue(yesterday),
       };
     }
+    case 'last_7_days': {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      return {
+        start: getDateInputValue(start),
+        end: getDateInputValue(today),
+      };
+    }
+    case 'this_month':
     case 'current_month': {
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
       const end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -53,6 +62,14 @@ export function getPeriodDates(period: string): { start: string; end: string } {
       return {
         start: getDateInputValue(start),
         end: getDateInputValue(end),
+      };
+    }
+    case 'last_30_days': {
+      const start = new Date(today);
+      start.setDate(today.getDate() - 29);
+      return {
+        start: getDateInputValue(start),
+        end: getDateInputValue(today),
       };
     }
     case 'fortnight': {
@@ -165,12 +182,14 @@ export default function DateRangeFilter({
         >
           <option value="today">Hoje</option>
           <option value="yesterday">Ontem</option>
-          <option value="current_month">Mês Atual</option>
-          <option value="last_month">Mês Anterior</option>
-          <option value="fortnight">Quinzena Atual</option>
-          <option value="last_fortnight">Quinzena Anterior</option>
+          <option value="last_7_days">Últimos 7 dias</option>
           <option value="week">Semana (Dom-Sáb)</option>
           <option value="last_week">Semana Anterior</option>
+          <option value="fortnight">Quinzena Atual</option>
+          <option value="last_fortnight">Quinzena Anterior</option>
+          <option value="current_month">Mês Atual</option>
+          <option value="last_month">Mês Anterior</option>
+          <option value="last_30_days">Últimos 30 dias</option>
           {showAllOption && <option value="all">Todo o período</option>}
           <option value="custom">Personalizado</option>
         </select>
