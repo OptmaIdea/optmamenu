@@ -61,9 +61,28 @@ export const PricingHistoryFilters: React.FC<PricingHistoryFiltersProps> = ({
   return (
     <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col gap-4">
       {/* Botões rápidos de período e canal */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        {/* Preset buttons */}
-        <div className="flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3">
+        {/* No mobile, um combobox evita que todos os presets ocupem a tela. */}
+        <div className="w-full lg:hidden">
+          <label className="sr-only" htmlFor="pricing-history-period">
+            Período de análise
+          </label>
+          <select
+            id="pricing-history-period"
+            value={filters.periodPreset}
+            onChange={(e) => onSelectPreset(e.target.value as PricingHistoryPeriodPreset)}
+            className="h-11 w-full rounded-xl border border-gray-200 bg-gray-50 px-3 text-sm font-bold text-gray-700 focus:border-[#19A999] focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          >
+            {PRESET_OPTIONS.map((preset) => (
+              <option key={preset.key} value={preset.key}>
+                Período: {preset.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Os atalhos permanecem disponíveis em telas amplas. */}
+        <div className="hidden lg:flex flex-wrap items-center gap-1.5 w-full lg:w-auto">
           {PRESET_OPTIONS.map((preset) => {
             const active = filters.periodPreset === preset.key;
             return (
@@ -88,7 +107,7 @@ export const PricingHistoryFilters: React.FC<PricingHistoryFiltersProps> = ({
           type="button"
           onClick={onRefresh}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-xs font-bold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition disabled:opacity-50"
+          className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-3 text-xs font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 lg:h-auto lg:w-auto lg:py-1.5"
         >
           <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
           <span>Atualizar</span>
@@ -98,22 +117,25 @@ export const PricingHistoryFilters: React.FC<PricingHistoryFiltersProps> = ({
       {/* Linha de seletores secundários (Datas livres, Canal, Origem) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-2 border-t border-gray-100 dark:border-gray-700/60">
         {/* Intervalo de datas personalizado */}
-        <div className="flex items-center gap-2 col-span-1 sm:col-span-2 lg:col-span-2 bg-gray-50 dark:bg-gray-900/60 p-2 rounded-xl border border-gray-200/80 dark:border-gray-700">
-          <Calendar size={15} className="text-gray-400 shrink-0 ml-1" />
-          <div className="flex items-center gap-2 text-xs font-medium w-full">
+        <div className="flex flex-col gap-2 col-span-1 sm:col-span-2 lg:col-span-2 bg-gray-50 dark:bg-gray-900/60 p-3 lg:flex-row lg:items-center lg:p-2 rounded-xl border border-gray-200/80 dark:border-gray-700">
+          <div className="flex items-center gap-2 text-xs font-bold text-gray-600 dark:text-gray-300 lg:shrink-0">
+            <Calendar size={15} className="text-gray-400" />
+            <span>Período personalizado</span>
+          </div>
+          <div className="flex flex-col gap-2 text-xs font-medium w-full sm:grid sm:grid-cols-[2rem_minmax(0,1fr)] sm:items-center lg:flex lg:flex-row">
             <span className="text-gray-500 dark:text-gray-400 shrink-0">De</span>
             <input
               type="date"
               value={filters.startDate}
               onChange={(e) => onChangeCustomDates(e.target.value, filters.endDate)}
-              className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#19A999]"
+              className="h-10 min-w-0 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#19A999] lg:h-auto lg:py-1"
             />
             <span className="text-gray-500 dark:text-gray-400 shrink-0">Até</span>
             <input
               type="date"
               value={filters.endDate}
               onChange={(e) => onChangeCustomDates(filters.startDate, e.target.value)}
-              className="w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#19A999]"
+              className="h-10 min-w-0 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-2 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:border-[#19A999] lg:h-auto lg:py-1"
             />
           </div>
         </div>
