@@ -1440,7 +1440,7 @@ export default function PrivateLayout() {
                     </div>
 
                     {/* Right Side: Quick actions */}
-                    <div className="flex min-w-0 flex-1 items-center gap-1 ml-auto">
+                    <div className="flex min-w-0 flex-1 items-center justify-end gap-1 ml-auto md:justify-start">
                         <div
                             className={`${isMobileShortcutMenuOpen
                                 ? 'absolute right-3 top-[61px] z-50 flex w-14 flex-col items-center gap-1 rounded-2xl border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-800'
@@ -1533,7 +1533,7 @@ export default function PrivateLayout() {
                                 )}
                             </Link>
                         )}
-                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
+                        <span className="hidden md:block w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
 
                         {/* Mensagens Sininho Relógio */}
                         <div className="flex flex-col items-center gap-1 shrink-0 md:flex-row">
@@ -1613,7 +1613,7 @@ export default function PrivateLayout() {
                             </div>
                         </div>
 
-                        <span className="w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
+                        <span className="hidden md:block w-[1px] h-6 bg-gray-200 dark:bg-gray-700 mx-1 shrink-0" />
 
                         {/* Seletor de tema Botão desligar */}
                         <div className="hidden md:flex items-center gap-0 sm:gap-1">
