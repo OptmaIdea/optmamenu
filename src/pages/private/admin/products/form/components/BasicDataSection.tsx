@@ -111,12 +111,12 @@ export const BasicDataSection: React.FC<BasicDataSectionProps> = ({
         <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
           Categoria
         </label>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <select
             value={categoryId ?? ''}
             onChange={(e) => setCategoryId(e.target.value || null)}
             disabled={categoriesLoading}
-            className="flex-1 px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#19A999] text-gray-900 dark:text-white"
+            className="w-full min-w-0 flex-1 px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#19A999] text-gray-900 dark:text-white"
           >
             <option value="">Sem categoria</option>
             {categories.map((cat) => (
@@ -128,10 +128,10 @@ export const BasicDataSection: React.FC<BasicDataSectionProps> = ({
           <button
             type="button"
             onClick={onOpenNewCategoryModal}
-            className="inline-flex items-center gap-1 px-3 py-2.5 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 text-xs font-semibold rounded-xl transition cursor-pointer"
+            className="inline-flex w-full shrink-0 items-center justify-center gap-1 px-3 py-2.5 bg-gray-100 text-xs font-semibold text-gray-700 transition hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 rounded-xl cursor-pointer sm:w-auto"
           >
             <Plus size={14} />
-            <span>Nova</span>
+            <span>Nova categoria</span>
           </button>
         </div>
       </div>
