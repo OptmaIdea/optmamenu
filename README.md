@@ -125,15 +125,15 @@ Consulte `.env.example` para um modelo completo.
 
 ## 📚 Documentação
 
-A documentação do OptmaMenu foi consolidada na pasta `docs/`. O mapa principal encontra-se em [`docs/README.md`](file:///d:/OptmaIdea/optmamenu/docs/README.md):
+A documentação do OptmaMenu foi consolidada na pasta `docs/`. O mapa principal encontra-se em [`docs/README.md`](./docs/README.md):
 
-- [`docs/PROJECT_STATUS.md`](file:///d:/OptmaIdea/optmamenu/docs/PROJECT_STATUS.md) - Status executivo v0.10.0-rc.1 e pendências
-- [`docs/ARCHITECTURE.md`](file:///d:/OptmaIdea/optmamenu/docs/ARCHITECTURE.md) - Arquitetura técnica e convenções de código
-- [`docs/SECURITY_AND_PERMISSIONS.md`](file:///d:/OptmaIdea/optmamenu/docs/SECURITY_AND_PERMISSIONS.md) - Permissões em realtime, RLS e segurança
-- [`docs/DATABASE_REFERENCE.md`](file:///d:/OptmaIdea/optmamenu/docs/DATABASE_REFERENCE.md) - Modelo de dados, RPCs e Views
-- [`docs/OPERATIONS_GUIDE.md`](file:///d:/OptmaIdea/optmamenu/docs/OPERATIONS_GUIDE.md) - Operação de Produtos, Estoque multilocal, PDV e Caixa
-- [`docs/COMMERCIAL_AND_CUSTOMERS.md`](file:///d:/OptmaIdea/optmamenu/docs/COMMERCIAL_AND_CUSTOMERS.md) - Pedidos, Clientes 360º, Fidelidade, Marketing e Atacado
-- [`docs/PUBLIC_STORE_PHASE_10.md`](file:///d:/OptmaIdea/optmamenu/docs/PUBLIC_STORE_PHASE_10.md) - Especificação da Fase 10 (Loja Pública e Microsite)
+- [`docs/PROJECT_STATUS.md`](./docs/PROJECT_STATUS.md) - Status executivo v0.10.0-rc.1 e pendências
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) - Arquitetura técnica e convenções de código
+- [`docs/SECURITY_AND_PERMISSIONS.md`](./docs/SECURITY_AND_PERMISSIONS.md) - Permissões em realtime, RLS e segurança
+- [`docs/DATABASE_REFERENCE.md`](./docs/DATABASE_REFERENCE.md) - Modelo de dados, RPCs e Views
+- [`docs/OPERATIONS_GUIDE.md`](./docs/OPERATIONS_GUIDE.md) - Operação de Produtos, Estoque multilocal, PDV e Caixa
+- [`docs/COMMERCIAL_AND_CUSTOMERS.md`](./docs/COMMERCIAL_AND_CUSTOMERS.md) - Pedidos, Clientes 360º, Fidelidade, Marketing e Atacado
+- [`docs/PUBLIC_STORE_PHASE_10.md`](./docs/PUBLIC_STORE_PHASE_10.md) - Especificação da Fase 10 (Loja Pública e Microsite)
 - `.agents/AGENTS.md` - Contexto geral e regras do projeto para agentes AI
 
 
