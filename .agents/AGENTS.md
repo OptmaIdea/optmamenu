@@ -208,14 +208,28 @@ Nunca buscar `internal_alias` em `profiles`; o apelido por loja fica em `store_m
 
 ---
 
-## 🔐 Sistema de permissões — Estado consolidado 9.13
+## 📚 Leituras Recomendadas para Agentes AI
+
+Novos agentes de IA devem consultar prioritariamente a documentação ativa autorizada na raiz de `docs/`:
+
+- `docs/README.md` — Guia de início rápido e índice da documentação
+- `docs/PROJECT_STATUS.md` — Status executivo v0.10.0-rc.1 e pendências
+- `docs/ARCHITECTURE.md` — Arquitetura técnica e convenções
+- `docs/SECURITY_AND_PERMISSIONS.md` — Governança de usuários, permissões e RLS
+- `docs/DATABASE_REFERENCE.md` — Modelo de dados, RPCs e Views
+- `docs/PUBLIC_STORE_PHASE_10.md` — Especificação da Fase 10 (Loja Pública e Microsite)
+
+> ⚠️ **Aviso**: Consultar `docs/archive/` apenas para investigação histórica. Não usar arquivo arquivado como fonte vigente sem confirmar a implementação real no código.
+
+---
+
+## 🔐 Sistema de permissões — Estado consolidado
 
 Documentos principais:
 
-- `docs/FASE_9_13_PERMISSOES_SEGURANCA.md`
-- `docs/GUIA_SISTEMA_PERMISSOES_REALTIME.md`
-- `docs/PERMISSOES_USUARIOS.md`
-- `docs/RPCS_AND_VIEWS.md`
+- `docs/SECURITY_AND_PERMISSIONS.md`
+- `docs/DATABASE_REFERENCE.md`
+
 
 ### Hierarquia final
 
