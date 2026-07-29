@@ -316,7 +316,6 @@ export default function MarketingCenterPage() {
         } catch (err: unknown) {
             console.error('Erro ao atualizar segmentos:', err);
             setError(err instanceof Error ? err.message : 'Erro ao atualizar segmentos.');
-        } finally {
         }
     }
 

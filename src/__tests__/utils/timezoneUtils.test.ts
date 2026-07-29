@@ -44,12 +44,10 @@ describe('timezoneUtils', () => {
         })
 
         it('should format an ISO string with timezone offset', () => {
-            // 2025-02-10T15:30:00-03:00 → should strip offset, force UTC, format to Brazil
             const result = timezoneUtils.formatBrazilDateTime('2025-02-10T15:30:00-03:00')
-            // After stripping -03:00 and adding Z: "2025-02-10T15:30:00Z"
-            // In São Paulo (UTC-3): 12:30 on 10/02/2025
+            // 2025-02-10T15:30:00-03:00 in São Paulo (UTC-3): 15:30 on 10/02/2025
             expect(result).toContain('10/02/2025')
-            expect(result).toContain('12:30')
+            expect(result).toContain('15:30')
         })
 
         it('should format an ISO string ending with Z', () => {
