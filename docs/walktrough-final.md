@@ -6,9 +6,23 @@ Commit verificado: `38e6a217f49145961843b1c8fc980b75d4044f53` — `fix: preserve
 
 ## Resultado executivo
 
-**REPROVADO para deploy nesta rodada.**
+**REPROVADO para deploy nesta rodada, pendente de reteste manual autenticado das duas correções mobile.**
 
 O código de Produtos compilou com sucesso e as correções de saldo por localização, SKU e histórico de preços foram confirmadas por inspeção e consulta remota somente-leitura. Porém, a homologação visual autenticada não pôde ser concluída: o ambiente local redirecionou `/admin/products` para `/login` e não havia uma sessão de homologação disponível. Assim, os fluxos que exigem usuário, permissões ou gravação não foram simulados. Não houve deploy na Vercel, nem alterações no banco, migrations, RPCs, tabelas, policies ou funções.
+
+## Atualização — homologação mobile
+
+As evidências manuais autenticadas recebidas nesta rodada confirmam que a sessão mobile, Home em modo escuro, novo produto em modo claro, lifecycle, SKU visível, detalhe sem erro 400 e abertura do CSV no Excel mobile já foram validados. Elas também comprovaram dois defeitos funcionais: o menu do painel era comprimido pelos atalhos superiores e a ação de categoria era cortada no formulário de novo produto.
+
+Foram aplicadas as correções pontuais abaixo, sem mudança de schema nem de regra de acesso:
+
+| Correção | Commit | Resultado técnico |
+|---|---|---|
+| Menu mobile do painel | `dc333adbb07528b0deee1a3b67e2e1614b31323a` | O botão recebeu área fixa de 44 × 44 px, `shrink-0` e z-index local; abaixo de `md` os atalhos secundários são reduzidos e permanecem Início, tema e sair. |
+| Categoria no novo produto | `d1ab8a486aa6f64bb8249cb5acf3926019ef538c` | Abaixo de `sm` o seletor e “Nova categoria” ficam empilhados, ambos em largura completa; em tablet/desktop permanecem lado a lado. |
+| Desconto consolidado | `b672a62025c53258ce2720aa0f7fd4e894c79d85` | Divergências acima de R$ 0,01 entre o metadado e `bruto − líquido` são reconciliadas pela diferença contábil; o CSV continua usando `Desconto Total Concedido`. |
+
+O conjunto de larguras a retestar manualmente é 320, 360, 375, 390, 412 e 480 px, em retrato e nos temas claro/escuro. Como não houve sessão autenticada disponível neste ambiente local, não foram geradas novas capturas de tela antes/depois nesta execução; as capturas devem ser coletadas no reteste autenticado antes de liberar deploy.
 
 ## Ambiente e preparação
 
@@ -21,7 +35,7 @@ O código de Produtos compilou com sucesso e as correções de saldo por localiz
 | Acesso a `/admin/products` sem sessão | Redirecionou corretamente para `/login`; heading `Acesse sua conta` presente |
 | Console do navegador nessa verificação | Sem erros |
 | `npm run build` | Aprovado |
-| `npm test -- --run` | 41/42 aprovados; 1 falha preexistente de timezone, detalhada abaixo |
+| `npm test -- --run` | 42/43 aprovados; 1 falha preexistente de timezone, detalhada abaixo |
 | Deploy Vercel | Não realizado |
 | Escrita no Supabase | Não realizada |
 
@@ -31,15 +45,15 @@ O código de Produtos compilou com sucesso e as correções de saldo por localiz
 |---|---|---|
 | Proteção da rota de Produtos | APROVADO | Sem sessão, `/admin/products` redireciona para `/login` sem erro de console. |
 | Listagem e filtros | NÃO TESTADO | Requer sessão autenticada; não foi possível validar cards, busca, filtros, paginação e navegação real. |
-| Novo produto | NÃO TESTADO | Requer sessão e submissão criaria dado de negócio. Nenhum registro de teste foi criado. |
+| Novo produto | APROVADO COM RESSALVA | Evidência manual autenticada em modo claro recebida. A ação de categoria foi corrigida e requer o reteste responsivo nos breakpoints definidos. |
 | Edição e preservação de SKU | APROVADO COM RESSALVA | Código confirma mapeamento de `product_codes` para `codes`, bloqueio de salvar enquanto os códigos não carregam e desativação em vez de exclusão. A interação visual autenticada permanece pendente. |
 | Detalhe do produto e estoque por local | APROVADO COM RESSALVA | Consulta corrigida para `location_id, on_hand, reserved` e disponibilidade calculada como `on_hand - reserved`. A contagem real de requisições na tela não pôde ser capturada sem sessão. |
-| Ativo / inativo / ciclo de vida | NÃO TESTADO | Requer sessão e alteração de estado; não foi efetuada escrita de homologação. |
+| Ativo / inativo / ciclo de vida | APROVADO | Validado manualmente em sessão autenticada. |
 | Preços e margens — Abacaxi | APROVADO COM RESSALVA | Dados remotos de referência coerentes com a regra atual: 18 linhas, 64 unidades, preço médio efetivo R$ 3,515625; 1 entrada, 50 unidades, custo médio R$ 1,19; margem unitária estimada R$ 2,325625. A apresentação visual autenticada está pendente. |
 | PDV, baixa de estoque e novo preço | NÃO TESTADO | Requer sessão, permissão e criação de transação comercial; não autorizado/executado nesta rodada. |
 | Entrada de compra e histórico de custo | NÃO TESTADO | Requer sessão, permissão e criação de documento/entrada; não autorizado/executado nesta rodada. |
 | Perfis e permissões | NÃO TESTADO | Não há sessões dos perfis necessários no ambiente local. |
-| Responsividade e modo escuro | NÃO TESTADO | As telas autenticadas não foram abertas. |
+| Responsividade e modo escuro | REPROVADO PENDENTE DE RETESTE | Home em modo escuro e novo produto em modo claro foram validados manualmente, mas havia dois defeitos mobile corrigidos nesta rodada. Falta o reteste autenticado em 320–480 px, retrato e ambos os temas. |
 
 ## Regressões específicas verificadas
 
@@ -84,11 +98,23 @@ O commit `c90b2ff7a429bd94bdfe0078f818549042dcc5d4` restringe vendas concluídas
 | Custo médio | R$ 1,19 |
 | Margem unitária estimada | R$ 2,325625 |
 
+### Semântica do desconto na exportação consolidada
+
+O rótulo final é **Desconto Total Concedido**: ele representa o total monetário descontado do subtotal bruto, não desconto unitário nem percentual. A tela e o CSV consomem o mesmo `salesSummary.total_discount`.
+
+No cenário do Abacaxi, a fonte exibiu receita bruta de R$ 240,00, receita líquida de R$ 225,00 e um metadado de desconto de R$ 0,05. Esse último valor era incompatível com o fechamento. A normalização agora reconcilia a métrica quando a diferença supera R$ 0,01:
+
+```text
+R$ 240,00 − R$ 15,00 = R$ 225,00
+```
+
+Assim, o valor correto de desconto total no consolidado é **R$ 15,00**. O teste automatizado `pricingHistoryCalculations.test.ts` cobre esse caso de divergência.
+
 ## Testes automatizados
 
 `npm run build` concluiu sem erro.
 
-`npm test -- --run` executou quatro arquivos: 41 testes passaram e um falhou em `src/__tests__/utils/timezoneUtils.test.ts`.
+`npm test -- --run` executou cinco arquivos: 42 testes passaram e um falhou em `src/__tests__/utils/timezoneUtils.test.ts`.
 
 ```text
 timezoneUtils > formatBrazilDateTime > should format an ISO string with timezone offset
