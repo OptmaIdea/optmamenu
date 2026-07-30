@@ -76,75 +76,16 @@ export default function Checkout() {
     const discountTotal = Math.max(0, baseSubtotal - totalValue);
     const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
 
-    const discountOpportunity = useMemo(() => {
-        const candidates: Array<{ missing: number; text: string }> = [];
-        const processedGroups = new Set<string>();
-        const processedCategories = new Set<string>();
-
-        items.forEach((item) => {
-            if (!item.category_id || !item.use_category_pricing) return;
-
+    const hasEligibleDiscountProducts = useMemo(() => (
+        items.some((item) => {
+            if (!item.category_id || !item.use_category_pricing) return false;
             const categoryRule = categoryRules[item.category_id];
-            if (!categoryRule) return;
-
-            if (categoryRule.pricingGroup) {
-                const groupId = categoryRule.pricingGroup.id;
-                if (processedGroups.has(groupId)) return;
-                processedGroups.add(groupId);
-
-                const groupQuantity = items.reduce((sum, cartItem) => {
-                    if (!cartItem.category_id || !cartItem.use_category_pricing) return sum;
-                    const cartItemRule = categoryRules[cartItem.category_id];
-                    return cartItemRule?.pricingGroup?.id === groupId
-                        ? sum + cartItem.quantity
-                        : sum;
-                }, 0);
-
-                const nextRule = [...categoryRule.pricingGroup.rules]
-                    .sort((a, b) => a.min - b.min)
-                    .find((rule) => rule.min > groupQuantity);
-
-                if (nextRule) {
-                    const missing = nextRule.min - groupQuantity;
-                    candidates.push({
-                        missing,
-                        text: `Adicione mais ${missing} ${missing === 1 ? 'item elegível' : 'itens elegíveis'} para alcançar a próxima faixa de preço.`,
-                    });
-                }
-                return;
-            }
-
-            if (categoryRule.type !== 'category_volume') return;
-
-            const key = categoryRule.volumeScope === 'per_product'
-                ? `product:${item.id}`
-                : `category:${item.category_id}`;
-            if (processedCategories.has(key)) return;
-            processedCategories.add(key);
-
-            const pricingQuantity = categoryRule.volumeScope === 'per_product'
-                ? item.quantity
-                : items.reduce((sum, cartItem) => (
-                    cartItem.category_id === item.category_id && cartItem.use_category_pricing
-                        ? sum + cartItem.quantity
-                        : sum
-                ), 0);
-
-            const nextRule = [...categoryRule.rules]
-                .sort((a, b) => a.min - b.min)
-                .find((rule) => rule.min > pricingQuantity);
-
-            if (nextRule) {
-                const missing = nextRule.min - pricingQuantity;
-                candidates.push({
-                    missing,
-                    text: `Adicione mais ${missing} ${missing === 1 ? 'unidade elegível' : 'unidades elegíveis'} para alcançar a próxima faixa de preço.`,
-                });
-            }
-        });
-
-        return candidates.sort((a, b) => a.missing - b.missing)[0]?.text || null;
-    }, [categoryRules, items]);
+            return Boolean(
+                categoryRule?.pricingGroup?.rules?.length
+                || categoryRule?.rules?.length,
+            );
+        })
+    ), [categoryRules, items]);
 
     const handleClearCart = () => {
         if (!window.confirm('Deseja realmente limpar seu carrinho?')) return;
@@ -345,21 +286,23 @@ export default function Checkout() {
                                             </button>
 
                                             <div className="mt-2 flex items-end justify-between gap-3">
-                                                <div>
-                                                    <p className="text-xl font-black text-emerald-700">R$ {formatBRL(lineTotal)}</p>
+                                                <div className="min-w-0">
+                                                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                                        <p className="text-xl font-black text-emerald-700">R$ {formatBRL(lineTotal)}</p>
+                                                        <p className="text-xs font-semibold text-emerald-700">R$ {formatBRL(appliedUnitPrice)} un</p>
+                                                    </div>
+
                                                     {lineDiscount > 0.009 ? (
-                                                        <div className="mt-1 space-y-0.5 text-xs leading-tight">
-                                                            <p className="font-semibold text-emerald-700">
-                                                                R$ {formatBRL(appliedUnitPrice)} cada com desconto
+                                                        <div className="mt-1 text-xs leading-tight">
+                                                            <p className="flex flex-wrap items-baseline gap-x-2 text-slate-400 line-through decoration-slate-400">
+                                                                <span>R$ {formatBRL(lineBaseTotal)}</span>
+                                                                <span>R$ {formatBRL(originalUnitPrice)} un</span>
                                                             </p>
-                                                            <p className="text-slate-400">
-                                                                <span className="line-through">R$ {formatBRL(originalUnitPrice)} cada</span>
-                                                                <span className="ml-2 font-bold text-emerald-700">Economizou R$ {formatBRL(lineDiscount)}</span>
+                                                            <p className="mt-1 font-bold text-emerald-700">
+                                                                Economizou R$ {formatBRL(lineDiscount)}
                                                             </p>
                                                         </div>
-                                                    ) : (
-                                                        <p className="mt-1 text-xs text-slate-500">R$ {formatBRL(appliedUnitPrice)} cada</p>
-                                                    )}
+                                                    ) : null}
                                                 </div>
 
                                                 <div className="inline-flex h-11 items-center rounded-full border border-slate-300 bg-white px-1">
@@ -411,12 +354,17 @@ export default function Checkout() {
                         <Plus size={20} /> Adicionar mais itens
                     </Link>
 
-                    <section className="my-5 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
-                        <h2 className="text-base font-black">Compre mais e aumente seu desconto</h2>
-                        <p className="mt-1 text-sm font-medium leading-relaxed text-emerald-800">
-                            {discountOpportunity || 'Os preços são recalculados automaticamente conforme as quantidades e os grupos de produtos do carrinho.'}
-                        </p>
-                    </section>
+                    {hasEligibleDiscountProducts && (
+                        <section className="my-5 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+                            <h2 className="text-base font-black">Compre mais e aumente seu desconto</h2>
+                            <p className="mt-1 text-sm font-medium leading-relaxed text-emerald-800">
+                                Comprando mais unidades dos produtos elegíveis o seu desconto aumenta!{' '}
+                                <button type="button" className="font-black underline decoration-emerald-400 underline-offset-2">
+                                    Saiba mais →
+                                </button>
+                            </p>
+                        </section>
+                    )}
                 </main>
 
                 <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
