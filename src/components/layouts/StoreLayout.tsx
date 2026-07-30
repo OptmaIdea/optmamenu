@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
@@ -29,14 +30,19 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
         ? `/checkout?store=${encodeURIComponent(storeSlug)}`
         : '/checkout';
     const isTableContext = context?.type === 'table';
+    const isCheckoutRoute = location.pathname === '/checkout';
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [location.pathname, location.search]);
 
     return (
-        <div className="min-h-screen pb-24 sm:pb-0">
+        <div className={`min-h-screen ${isCheckoutRoute ? '' : 'pb-24 sm:pb-0'}`}>
             <main className="transition-all duration-300">
                 {children}
             </main>
 
-            {cartCount > 0 && (
+            {!isCheckoutRoute && cartCount > 0 && (
                 <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[26rem] sm:px-0 sm:pb-0">
                     <Link
                         to={checkoutPath}
