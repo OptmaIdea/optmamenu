@@ -172,10 +172,6 @@ export default function Checkout() {
         setIsProductModalOpen(true);
     };
 
-    const closeProduct = () => {
-        setIsProductModalOpen(false);
-    };
-
     const goToDetails = () => {
         setError(null);
         setStep('details');
@@ -351,14 +347,18 @@ export default function Checkout() {
                                             <div className="mt-2 flex items-end justify-between gap-3">
                                                 <div>
                                                     <p className="text-xl font-black text-emerald-700">R$ {formatBRL(lineTotal)}</p>
-                                                    {lineDiscount > 0.009 && (
-                                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                                                            <span className="text-slate-400 line-through">R$ {formatBRL(lineBaseTotal)}</span>
-                                                            <span className="font-bold text-emerald-700">Economizou R$ {formatBRL(lineDiscount)}</span>
+                                                    {lineDiscount > 0.009 ? (
+                                                        <div className="mt-1 space-y-0.5 text-xs leading-tight">
+                                                            <p className="font-semibold text-emerald-700">
+                                                                R$ {formatBRL(appliedUnitPrice)} cada com desconto
+                                                            </p>
+                                                            <p className="text-slate-400">
+                                                                <span className="line-through">R$ {formatBRL(originalUnitPrice)} cada</span>
+                                                                <span className="ml-2 font-bold text-emerald-700">Economizou R$ {formatBRL(lineDiscount)}</span>
+                                                            </p>
                                                         </div>
-                                                    )}
-                                                    {lineDiscount <= 0.009 && (
-                                                        <p className="mt-1 text-sm text-slate-500">R$ {formatBRL(appliedUnitPrice)} cada</p>
+                                                    ) : (
+                                                        <p className="mt-1 text-xs text-slate-500">R$ {formatBRL(appliedUnitPrice)} cada</p>
                                                     )}
                                                 </div>
 
@@ -411,16 +411,11 @@ export default function Checkout() {
                         <Plus size={20} /> Adicionar mais itens
                     </Link>
 
-                    <section className="py-5">
-                        <h2 className="text-base font-black text-slate-950">Compre mais e aumente seu desconto</h2>
-                        <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                            Os preços são recalculados automaticamente conforme as quantidades e os grupos de produtos do carrinho.
+                    <section className="my-5 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+                        <h2 className="text-base font-black">Compre mais e aumente seu desconto</h2>
+                        <p className="mt-1 text-sm font-medium leading-relaxed text-emerald-800">
+                            {discountOpportunity || 'Os preços são recalculados automaticamente conforme as quantidades e os grupos de produtos do carrinho.'}
                         </p>
-                        {discountOpportunity && (
-                            <p className="mt-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold leading-relaxed text-emerald-800">
-                                {discountOpportunity}
-                            </p>
-                        )}
                     </section>
                 </main>
 
@@ -430,9 +425,6 @@ export default function Checkout() {
                             <p className="text-2xl font-black tracking-tight text-slate-950">R$ {formatBRL(totalValue)}</p>
                             {discountTotal > 0.009 && (
                                 <p className="mt-0.5 text-sm font-bold text-emerald-700">Economizou R$ {formatBRL(discountTotal)}</p>
-                            )}
-                            {discountOpportunity && (
-                                <p className="mt-0.5 truncate text-xs text-slate-500">Compre mais para ampliar o desconto</p>
                             )}
                         </div>
                         <button type="button" onClick={goToDetails} className="flex min-h-14 shrink-0 items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-6 text-lg font-black text-white transition hover:bg-emerald-700 active:scale-[0.99]">
@@ -447,7 +439,7 @@ export default function Checkout() {
                 <ProductModal
                     product={selectedProduct}
                     isOpen={isProductModalOpen}
-                    onClose={closeProduct}
+                    onClose={() => setIsProductModalOpen(false)}
                     onAddToCart={(product, quantity) => addToCart(product, quantity)}
                 />
             </div>
