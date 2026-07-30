@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     CheckCircle2,
-    ChevronRight,
     ImageOff,
     Minus,
     Plus,
@@ -13,7 +12,9 @@ import {
     Trash2,
     Wallet,
 } from 'lucide-react';
+import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
+import { ProductModal } from '@/pages/store/ProductModal';
 import { PublicOrderService } from '@/services/publicOrderService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
@@ -42,9 +43,19 @@ function getItemImage(item: {
 export default function Checkout() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { items, total, clearCart, updateQuantity, removeFromCart } = useCartStore();
+    const {
+        items,
+        total,
+        clearCart,
+        updateQuantity,
+        removeFromCart,
+        addToCart,
+        categoryRules,
+    } = useCartStore();
 
     const [step, setStep] = useState<CheckoutStep>('cart');
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>('pending');
@@ -65,6 +76,76 @@ export default function Checkout() {
     const discountTotal = Math.max(0, baseSubtotal - totalValue);
     const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
 
+    const discountOpportunity = useMemo(() => {
+        const candidates: Array<{ missing: number; text: string }> = [];
+        const processedGroups = new Set<string>();
+        const processedCategories = new Set<string>();
+
+        items.forEach((item) => {
+            if (!item.category_id || !item.use_category_pricing) return;
+
+            const categoryRule = categoryRules[item.category_id];
+            if (!categoryRule) return;
+
+            if (categoryRule.pricingGroup) {
+                const groupId = categoryRule.pricingGroup.id;
+                if (processedGroups.has(groupId)) return;
+                processedGroups.add(groupId);
+
+                const groupQuantity = items.reduce((sum, cartItem) => {
+                    if (!cartItem.category_id || !cartItem.use_category_pricing) return sum;
+                    const cartItemRule = categoryRules[cartItem.category_id];
+                    return cartItemRule?.pricingGroup?.id === groupId
+                        ? sum + cartItem.quantity
+                        : sum;
+                }, 0);
+
+                const nextRule = [...categoryRule.pricingGroup.rules]
+                    .sort((a, b) => a.min - b.min)
+                    .find((rule) => rule.min > groupQuantity);
+
+                if (nextRule) {
+                    const missing = nextRule.min - groupQuantity;
+                    candidates.push({
+                        missing,
+                        text: `Adicione mais ${missing} ${missing === 1 ? 'item elegível' : 'itens elegíveis'} para alcançar a próxima faixa de preço.`,
+                    });
+                }
+                return;
+            }
+
+            if (categoryRule.type !== 'category_volume') return;
+
+            const key = categoryRule.volumeScope === 'per_product'
+                ? `product:${item.id}`
+                : `category:${item.category_id}`;
+            if (processedCategories.has(key)) return;
+            processedCategories.add(key);
+
+            const pricingQuantity = categoryRule.volumeScope === 'per_product'
+                ? item.quantity
+                : items.reduce((sum, cartItem) => (
+                    cartItem.category_id === item.category_id && cartItem.use_category_pricing
+                        ? sum + cartItem.quantity
+                        : sum
+                ), 0);
+
+            const nextRule = [...categoryRule.rules]
+                .sort((a, b) => a.min - b.min)
+                .find((rule) => rule.min > pricingQuantity);
+
+            if (nextRule) {
+                const missing = nextRule.min - pricingQuantity;
+                candidates.push({
+                    missing,
+                    text: `Adicione mais ${missing} ${missing === 1 ? 'unidade elegível' : 'unidades elegíveis'} para alcançar a próxima faixa de preço.`,
+                });
+            }
+        });
+
+        return candidates.sort((a, b) => a.missing - b.missing)[0]?.text || null;
+    }, [categoryRules, items]);
+
     const handleClearCart = () => {
         if (!window.confirm('Deseja realmente limpar seu carrinho?')) return;
         clearCart();
@@ -84,6 +165,15 @@ export default function Checkout() {
         const parsed = Math.trunc(Number(rawValue));
         if (!Number.isFinite(parsed)) return;
         updateQuantity(productId, Math.max(1, parsed));
+    };
+
+    const openProduct = (product: Product) => {
+        setSelectedProduct(product);
+        setIsProductModalOpen(true);
+    };
+
+    const closeProduct = () => {
+        setIsProductModalOpen(false);
     };
 
     const goToDetails = () => {
@@ -202,7 +292,7 @@ export default function Checkout() {
                 <ShoppingBag size={64} className="text-gray-300 mb-4" />
                 <h1 className="text-xl font-black text-gray-800">Seu carrinho está vazio</h1>
                 <p className="mt-2 text-center text-gray-500 mb-6">Adicione produtos do cardápio para continuar.</p>
-                <Link to={storePath} className="bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-green-700 transition text-sm">
+                <Link to={storePath} className="bg-emerald-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-emerald-700 transition text-sm">
                     Ver cardápio
                 </Link>
             </div>
@@ -211,24 +301,24 @@ export default function Checkout() {
 
     if (step === 'cart') {
         return (
-            <div className="min-h-screen bg-slate-50 pb-28 font-sans text-slate-900">
-                <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-                    <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-4">
+            <div className="min-h-screen bg-white pb-32 font-sans text-slate-950">
+                <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+                    <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
                         <Link to={storePath} className="rounded-full p-2 transition hover:bg-slate-100" aria-label="Voltar ao cardápio">
-                            <ArrowLeft className="h-6 w-6" />
+                            <ArrowLeft className="h-7 w-7" />
                         </Link>
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-xl font-black tracking-tight">Seu carrinho</h1>
-                            <p className="text-sm text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'}</p>
+                            <h1 className="text-2xl font-black tracking-tight">Seu carrinho</h1>
+                            <p className="text-base text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'}</p>
                         </div>
-                        <button type="button" onClick={handleClearCart} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-bold text-red-600 transition hover:bg-red-50">
-                            <Trash2 size={16} /> Limpar
+                        <button type="button" onClick={handleClearCart} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-base font-bold text-red-600 transition hover:bg-red-50">
+                            <Trash2 size={18} /> Limpar
                         </button>
                     </div>
                 </header>
 
-                <main className="mx-auto grid max-w-6xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
-                    <section className="space-y-4">
+                <main className="mx-auto max-w-3xl px-4 py-5">
+                    <section className="divide-y divide-slate-100">
                         {items.map((item) => {
                             const imageUrl = getItemImage(item);
                             const originalUnitPrice = Number(item.originalPrice || item.price || 0);
@@ -238,43 +328,48 @@ export default function Checkout() {
                             const lineDiscount = Math.max(0, lineBaseTotal - lineTotal);
 
                             return (
-                                <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-                                    <div className="flex gap-4 p-4 sm:p-5">
-                                        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 sm:h-28 sm:w-28">
+                                <article key={item.id} className="py-5 first:pt-1">
+                                    <div className="flex gap-4">
+                                        <button
+                                            type="button"
+                                            onClick={() => openProduct(item)}
+                                            className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100 text-left transition active:scale-[0.98]"
+                                            aria-label={`Ver detalhes de ${item.name}`}
+                                        >
                                             {imageUrl ? (
                                                 <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" />
                                             ) : (
                                                 <ImageOff className="h-8 w-8 text-slate-300" aria-hidden="true" />
                                             )}
-                                        </div>
+                                        </button>
 
                                         <div className="min-w-0 flex-1">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <h2 className="text-base font-black leading-tight text-slate-900 sm:text-lg">{item.name}</h2>
-                                                    <p className="mt-1 text-sm text-slate-500">R$ {formatBRL(appliedUnitPrice)} cada</p>
-                                                </div>
-                                                <p className="shrink-0 text-base font-black text-slate-900 sm:text-lg">R$ {formatBRL(lineTotal)}</p>
-                                            </div>
+                                            <button type="button" onClick={() => openProduct(item)} className="block w-full text-left">
+                                                <h2 className="line-clamp-2 text-lg font-bold leading-snug text-slate-950">{item.name}</h2>
+                                            </button>
 
-                                            {lineDiscount > 0.009 && (
-                                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                                    <span className="text-slate-400 line-through">R$ {formatBRL(lineBaseTotal)}</span>
-                                                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 font-bold text-emerald-700">
-                                                        Economize R$ {formatBRL(lineDiscount)}
-                                                    </span>
+                                            <div className="mt-2 flex items-end justify-between gap-3">
+                                                <div>
+                                                    <p className="text-xl font-black text-emerald-700">R$ {formatBRL(lineTotal)}</p>
+                                                    {lineDiscount > 0.009 && (
+                                                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                                                            <span className="text-slate-400 line-through">R$ {formatBRL(lineBaseTotal)}</span>
+                                                            <span className="font-bold text-emerald-700">Economizou R$ {formatBRL(lineDiscount)}</span>
+                                                        </div>
+                                                    )}
+                                                    {lineDiscount <= 0.009 && (
+                                                        <p className="mt-1 text-sm text-slate-500">R$ {formatBRL(appliedUnitPrice)} cada</p>
+                                                    )}
                                                 </div>
-                                            )}
 
-                                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                                                <div className="inline-flex h-11 items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
+                                                <div className="inline-flex h-11 items-center rounded-full border border-slate-300 bg-white px-1">
                                                     <button
                                                         type="button"
                                                         onClick={() => changeQuantity(item.id, item.quantity, -1)}
-                                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-white hover:text-red-600"
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-950 transition hover:bg-slate-100"
                                                         aria-label={`Diminuir quantidade de ${item.name}`}
                                                     >
-                                                        <Minus size={16} />
+                                                        <Minus size={18} />
                                                     </button>
                                                     <input
                                                         type="number"
@@ -283,96 +378,78 @@ export default function Checkout() {
                                                         value={item.quantity}
                                                         onFocus={(event) => event.currentTarget.select()}
                                                         onChange={(event) => setDirectQuantity(item.id, event.target.value)}
-                                                        className="h-9 w-12 appearance-none bg-transparent text-center text-sm font-black outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                        className="h-9 w-10 appearance-none bg-transparent text-center text-base font-black outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                                         aria-label={`Quantidade de ${item.name}`}
                                                     />
                                                     <button
                                                         type="button"
                                                         onClick={() => changeQuantity(item.id, item.quantity, 1)}
-                                                        className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 transition hover:bg-white hover:text-emerald-700"
+                                                        className="flex h-9 w-9 items-center justify-center rounded-full text-slate-950 transition hover:bg-slate-100"
                                                         aria-label={`Aumentar quantidade de ${item.name}`}
                                                     >
-                                                        <Plus size={16} />
+                                                        <Plus size={18} />
                                                     </button>
                                                 </div>
+                                            </div>
 
+                                            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                                                <button type="button" className="text-left text-sm font-semibold text-emerald-700 hover:text-emerald-800">
+                                                    + Adicionar observação
+                                                </button>
                                                 <button type="button" onClick={() => removeFromCart(item.id)} className="text-sm font-bold text-red-600 hover:text-red-700">
                                                     Remover
                                                 </button>
                                             </div>
-
-                                            <button type="button" className="mt-3 text-left text-sm font-semibold text-emerald-700 hover:text-emerald-800">
-                                                + Adicionar observação
-                                            </button>
                                         </div>
                                     </div>
                                 </article>
                             );
                         })}
-
-                        <Link to={storePath} className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-emerald-300 bg-emerald-50 px-4 py-4 text-sm font-black text-emerald-700 transition hover:bg-emerald-100">
-                            <Plus size={18} /> Adicionar mais itens
-                        </Link>
-
-                        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:hidden">
-                            <p className="text-sm font-black text-slate-900">Entrega e retirada</p>
-                            <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                                As condições, taxas e mínimos serão calculados na próxima etapa.
-                            </p>
-                        </div>
                     </section>
 
-                    <aside className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm lg:sticky lg:top-24">
-                        <h2 className="text-lg font-black">Resumo do pedido</h2>
-                        <div className="mt-5 space-y-3 text-sm">
-                            <div className="flex items-center justify-between gap-4 text-slate-600">
-                                <span>Subtotal</span>
-                                <span>R$ {formatBRL(baseSubtotal)}</span>
-                            </div>
-                            {discountTotal > 0.009 && (
-                                <div className="flex items-center justify-between gap-4 font-bold text-emerald-700">
-                                    <span>Descontos</span>
-                                    <span>- R$ {formatBRL(discountTotal)}</span>
-                                </div>
-                            )}
-                            <div className="flex items-center justify-between gap-4 text-slate-600">
-                                <span>Entrega</span>
-                                <span>A calcular</span>
-                            </div>
-                            <div className="border-t border-slate-200 pt-4">
-                                <div className="flex items-end justify-between gap-4">
-                                    <span className="font-bold text-slate-700">Total parcial</span>
-                                    <span className="text-2xl font-black text-emerald-700">R$ {formatBRL(totalValue)}</span>
-                                </div>
-                            </div>
-                        </div>
+                    <Link to={storePath} className="mt-2 flex items-center justify-center gap-2 border-y border-slate-100 py-5 text-base font-black text-emerald-700 transition hover:bg-emerald-50">
+                        <Plus size={20} /> Adicionar mais itens
+                    </Link>
 
-                        <div className="mt-5 hidden rounded-2xl bg-slate-50 p-4 lg:block">
-                            <p className="text-sm font-black">Próxima etapa</p>
-                            <p className="mt-1 text-sm leading-relaxed text-slate-500">
-                                Escolha como deseja receber e confira seus dados antes do pagamento.
+                    <section className="py-5">
+                        <h2 className="text-base font-black text-slate-950">Compre mais e aumente seu desconto</h2>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                            Os preços são recalculados automaticamente conforme as quantidades e os grupos de produtos do carrinho.
+                        </p>
+                        {discountOpportunity && (
+                            <p className="mt-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold leading-relaxed text-emerald-800">
+                                {discountOpportunity}
                             </p>
-                        </div>
-
-                        <button type="button" onClick={goToDetails} className="mt-5 flex w-full items-center justify-between rounded-2xl bg-emerald-600 px-5 py-4 text-left font-black text-white shadow-lg shadow-emerald-200 transition hover:bg-emerald-700 active:scale-[0.99]">
-                            <span>
-                                <span className="block text-xs font-semibold text-emerald-100">Continuar</span>
-                                <span className="block">R$ {formatBRL(totalValue)}</span>
-                            </span>
-                            <ChevronRight size={22} />
-                        </button>
-                    </aside>
+                        )}
+                    </section>
                 </main>
 
-                <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-3 backdrop-blur lg:hidden">
-                    <button type="button" onClick={goToDetails} className="mx-auto flex min-h-16 w-full max-w-2xl items-center justify-between rounded-2xl bg-emerald-600 px-5 py-3 text-left font-black text-white shadow-xl">
-                        <span>
-                            <span className="block text-xs font-semibold text-emerald-100">Continuar para recebimento</span>
-                            <span className="block text-lg">R$ {formatBRL(totalValue)}</span>
-                        </span>
-                        <ChevronRight size={22} />
-                    </button>
+                <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.06)]">
+                    <div className="mx-auto flex max-w-3xl items-center gap-4">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-2xl font-black tracking-tight text-slate-950">R$ {formatBRL(totalValue)}</p>
+                            {discountTotal > 0.009 && (
+                                <p className="mt-0.5 text-sm font-bold text-emerald-700">Economizou R$ {formatBRL(discountTotal)}</p>
+                            )}
+                            {discountOpportunity && (
+                                <p className="mt-0.5 truncate text-xs text-slate-500">Compre mais para ampliar o desconto</p>
+                            )}
+                        </div>
+                        <button type="button" onClick={goToDetails} className="flex min-h-14 shrink-0 items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-6 text-lg font-black text-white transition hover:bg-emerald-700 active:scale-[0.99]">
+                            Continuar
+                            <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 text-sm font-black text-emerald-700">
+                                {totalUnits}
+                            </span>
+                        </button>
+                    </div>
                 </div>
+
+                <ProductModal
+                    product={selectedProduct}
+                    isOpen={isProductModalOpen}
+                    onClose={closeProduct}
+                    onAddToCart={(product, quantity) => addToCart(product, quantity)}
+                />
             </div>
         );
     }
