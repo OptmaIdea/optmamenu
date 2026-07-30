@@ -3,6 +3,17 @@ import { persist } from 'zustand/middleware';
 import type { CartItem, Product, PriceRule, Category } from '@/types';
 import { getPriceForQuantity } from '@/utils/pricing';
 
+export type PublicCartContextType = 'remote' | 'table';
+export type PublicCartFulfillmentType = 'pickup' | 'delivery' | 'table';
+
+export interface PublicCartContext {
+    storeId: string;
+    requestedSlug: string;
+    canonicalSlug: string;
+    type: PublicCartContextType;
+    tableCode?: string;
+}
+
 type CategoryPricingRule = {
     type: string;
     rules: PriceRule[];
@@ -15,15 +26,22 @@ type CategoryPricingRule = {
 };
 
 interface CartState {
+    schemaVersion: 2;
+    context: PublicCartContext | null;
+    fulfillmentType: PublicCartFulfillmentType | null;
+    deliveryMethodCode: string | null;
     items: CartItem[];
     isCartOpen: boolean;
     categoryRules: Record<string, CategoryPricingRule>;
+    bindContext: (context: PublicCartContext) => { changedStore: boolean; changedContext: boolean };
+    setFulfillment: (type: PublicCartFulfillmentType, deliveryMethodCode?: string | null) => void;
     setCategoryRules: (categories: Category[]) => void;
     syncCatalogPricing: (categories: Category[], products: Product[]) => void;
     addToCart: (product: Product, quantity: number) => void;
     removeFromCart: (productId: string) => void;
     updateQuantity: (productId: string, quantity: number) => void;
     clearCart: () => void;
+    resetCartContext: () => void;
     total: () => number;
     openCart: () => void;
     closeCart: () => void;
@@ -60,12 +78,64 @@ function buildCategoryRules(categories: Category[]) {
     }, {} as Record<string, CategoryPricingRule>);
 }
 
+function sameCartContext(current: PublicCartContext | null, next: PublicCartContext) {
+    if (!current) return false;
+
+    return current.storeId === next.storeId
+        && current.type === next.type
+        && (current.tableCode || null) === (next.tableCode || null);
+}
+
+function defaultFulfillmentForContext(context: PublicCartContext): PublicCartFulfillmentType {
+    return context.type === 'table' ? 'table' : 'pickup';
+}
+
 export const useCartStore = create<CartState>()(
     persist(
         (set, get) => ({
+            schemaVersion: 2,
+            context: null,
+            fulfillmentType: null,
+            deliveryMethodCode: null,
             items: [],
             isCartOpen: false,
             categoryRules: {},
+
+            bindContext: (context) => {
+                const current = get().context;
+                const changedStore = Boolean(current && current.storeId !== context.storeId);
+                const changedContext = Boolean(current && !sameCartContext(current, context));
+
+                set((state) => {
+                    if (!current || sameCartContext(current, context)) {
+                        return {
+                            context,
+                            fulfillmentType: state.fulfillmentType || defaultFulfillmentForContext(context),
+                        };
+                    }
+
+                    return {
+                        context,
+                        fulfillmentType: defaultFulfillmentForContext(context),
+                        deliveryMethodCode: null,
+                        items: [],
+                        categoryRules: {},
+                        isCartOpen: false,
+                    };
+                });
+
+                return { changedStore, changedContext };
+            },
+
+            setFulfillment: (type, deliveryMethodCode = null) => set((state) => {
+                if (state.context?.type === 'table' && type !== 'table') return state;
+                if (state.context?.type === 'remote' && type === 'table') return state;
+
+                return {
+                    fulfillmentType: type,
+                    deliveryMethodCode,
+                };
+            }),
 
             setCategoryRules: (categories) => set((state) => {
                 const categoryRules = buildCategoryRules(categories);
@@ -97,6 +167,7 @@ export const useCartStore = create<CartState>()(
             }),
 
             addToCart: (product, quantity) => set((state) => {
+                const safeQuantity = Math.max(1, Math.trunc(Number(quantity) || 1));
                 const newItems = [...state.items];
                 const existingItemIndex = newItems.findIndex(item => item.id === product.id);
 
@@ -104,13 +175,13 @@ export const useCartStore = create<CartState>()(
                     newItems[existingItemIndex] = {
                         ...newItems[existingItemIndex],
                         ...product,
-                        quantity: newItems[existingItemIndex].quantity + quantity,
+                        quantity: newItems[existingItemIndex].quantity + safeQuantity,
                         originalPrice: Number(product.price || 0),
                     };
                 } else {
                     newItems.push({
                         ...product,
-                        quantity,
+                        quantity: safeQuantity,
                         originalPrice: Number(product.price || 0),
                     });
                 }
@@ -124,13 +195,22 @@ export const useCartStore = create<CartState>()(
             }),
 
             updateQuantity: (productId, quantity) => set((state) => {
+                const normalizedQuantity = Math.max(0, Math.trunc(Number(quantity) || 0));
                 const newItems = state.items
-                    .map(item => item.id === productId ? { ...item, quantity } : item)
+                    .map(item => item.id === productId ? { ...item, quantity: normalizedQuantity } : item)
                     .filter(item => item.quantity > 0);
                 return { items: recalculatePrices(newItems, state.categoryRules) };
             }),
 
-            clearCart: () => set({ items: [] }),
+            clearCart: () => set({ items: [], isCartOpen: false }),
+            resetCartContext: () => set({
+                context: null,
+                fulfillmentType: null,
+                deliveryMethodCode: null,
+                items: [],
+                categoryRules: {},
+                isCartOpen: false,
+            }),
             total: () => get().items.reduce((acc, item) => acc + (item.price * item.quantity), 0),
             openCart: () => set({ isCartOpen: true }),
             closeCart: () => set({ isCartOpen: false }),
@@ -138,10 +218,27 @@ export const useCartStore = create<CartState>()(
         }),
         {
             name: 'optma-cart',
+            version: 2,
             partialize: (state) => ({
+                schemaVersion: state.schemaVersion,
+                context: state.context,
+                fulfillmentType: state.fulfillmentType,
+                deliveryMethodCode: state.deliveryMethodCode,
                 items: state.items,
                 categoryRules: state.categoryRules,
             }),
+            migrate: (persistedState) => {
+                const persisted = persistedState as Partial<CartState> | undefined;
+                return {
+                    schemaVersion: 2,
+                    context: persisted?.context || null,
+                    fulfillmentType: persisted?.fulfillmentType || null,
+                    deliveryMethodCode: persisted?.deliveryMethodCode || null,
+                    items: persisted?.items || [],
+                    categoryRules: persisted?.categoryRules || {},
+                    isCartOpen: false,
+                };
+            },
         }
     )
 );
