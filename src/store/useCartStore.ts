@@ -230,13 +230,12 @@ export const useCartStore = create<CartState>()(
             migrate: (persistedState) => {
                 const persisted = persistedState as Partial<CartState> | undefined;
                 return {
-                    schemaVersion: 2,
+                    schemaVersion: 2 as const,
                     context: persisted?.context || null,
                     fulfillmentType: persisted?.fulfillmentType || null,
                     deliveryMethodCode: persisted?.deliveryMethodCode || null,
                     items: persisted?.items || [],
                     categoryRules: persisted?.categoryRules || {},
-                    isCartOpen: false,
                 };
             },
         }
