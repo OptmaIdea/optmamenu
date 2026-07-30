@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
     ArrowLeft,
     CheckCircle2,
+    Home,
     ImageOff,
     Minus,
     Plus,
@@ -10,6 +11,7 @@ import {
     ShoppingBag,
     Store,
     Trash2,
+    Truck,
     Wallet,
 } from 'lucide-react';
 import type { Product } from '@/types';
@@ -22,7 +24,7 @@ import { formatBRL } from '@/utils/pricing';
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
 
 type PaymentChoice = 'pending';
-type CheckoutStep = 'cart' | 'details';
+type CheckoutStep = 'cart' | 'fulfillment' | 'details';
 
 function compactOrderCode(orderCode: string) {
     const suffix = orderCode.split('-').pop();
@@ -51,6 +53,9 @@ export default function Checkout() {
         removeFromCart,
         addToCart,
         categoryRules,
+        context,
+        fulfillmentType,
+        setFulfillment,
     } = useCartStore();
 
     const [step, setStep] = useState<CheckoutStep>('cart');
@@ -59,13 +64,19 @@ export default function Checkout() {
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
     const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>('pending');
+    const [street, setStreet] = useState('');
+    const [number, setNumber] = useState('');
+    const [neighborhood, setNeighborhood] = useState('');
+    const [city, setCity] = useState('');
+    const [stateCode, setStateCode] = useState('');
+    const [reference, setReference] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const storeSlug = useMemo(() => {
         const querySlug = new URLSearchParams(location.search).get('store')?.trim();
-        return querySlug || DEFAULT_STORE_SLUG;
-    }, [location.search]);
+        return querySlug || context?.canonicalSlug || DEFAULT_STORE_SLUG;
+    }, [context?.canonicalSlug, location.search]);
 
     const storePath = `/s/${encodeURIComponent(storeSlug)}`;
     const totalValue = total();
@@ -75,6 +86,8 @@ export default function Checkout() {
     );
     const discountTotal = Math.max(0, baseSubtotal - totalValue);
     const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+    const isTableContext = context?.type === 'table';
+    const selectedFulfillment = isTableContext ? 'table' : (fulfillmentType || 'pickup');
 
     const hasEligibleDiscountProducts = useMemo(() => (
         items.some((item) => {
@@ -113,16 +126,14 @@ export default function Checkout() {
         setIsProductModalOpen(true);
     };
 
-    const goToDetails = () => {
+    const changeStep = (nextStep: CheckoutStep) => {
         setError(null);
-        setStep('details');
+        setStep(nextStep);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const returnToCart = () => {
-        setError(null);
-        setStep('cart');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+    const chooseFulfillment = (type: 'pickup' | 'delivery') => {
+        setFulfillment(type, type);
     };
 
     const finishOrder = async () => {
@@ -135,6 +146,13 @@ export default function Checkout() {
         if (phoneDigits.length < 10) {
             setError('Informe um WhatsApp válido com DDD.');
             return;
+        }
+
+        if (selectedFulfillment === 'delivery') {
+            if (!street.trim() || !number.trim() || !neighborhood.trim() || !city.trim() || !stateCode.trim()) {
+                setError('Preencha o endereço completo para continuar com a entrega.');
+                return;
+            }
         }
 
         if (items.length === 0) {
@@ -150,16 +168,25 @@ export default function Checkout() {
                 slug: storeSlug,
                 customer_name: clientName.trim(),
                 customer_phone: phoneDigits,
-                fulfillment_type: 'pickup',
-                sales_channel: 'public_store',
+                fulfillment_type: selectedFulfillment,
+                sales_channel: isTableContext ? 'qr_table' : 'public_store',
                 payment_method_code: paymentMethod,
-                delivery_method_code: 'pickup',
+                delivery_method_code: selectedFulfillment,
                 items: items.map((item) => ({
                     product_id: item.id,
                     quantity: item.quantity,
                 })),
-                delivery_address: {},
-                table_code: null,
+                delivery_address: selectedFulfillment === 'delivery'
+                    ? {
+                        street: street.trim(),
+                        number: number.trim(),
+                        neighborhood: neighborhood.trim(),
+                        city: city.trim(),
+                        state: stateCode.trim().toUpperCase(),
+                        reference: reference.trim() || undefined,
+                    }
+                    : {},
+                table_code: selectedFulfillment === 'table' ? context?.tableCode || null : null,
                 notes: null,
             });
 
@@ -168,7 +195,7 @@ export default function Checkout() {
                     insufficient_stock: `Estoque insuficiente para ${result.product_name || 'um dos itens'}.`,
                     product_unavailable: 'Um dos produtos não está mais disponível.',
                     payment_method_disabled: 'Forma de pagamento indisponível.',
-                    delivery_method_disabled: 'Forma de retirada indisponível.',
+                    delivery_method_disabled: 'Forma de recebimento indisponível.',
                     invalid_customer_phone: 'WhatsApp inválido.',
                     empty_cart: 'Carrinho vazio.',
                 };
@@ -375,7 +402,7 @@ export default function Checkout() {
                                 <p className="mt-0.5 text-sm font-bold text-emerald-700">Economizou R$ {formatBRL(discountTotal)}</p>
                             )}
                         </div>
-                        <button type="button" onClick={goToDetails} className="flex min-h-14 shrink-0 items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-6 text-lg font-black text-white transition hover:bg-emerald-700 active:scale-[0.99]">
+                        <button type="button" onClick={() => changeStep(isTableContext ? 'details' : 'fulfillment')} className="flex min-h-14 shrink-0 items-center justify-center gap-3 rounded-2xl bg-emerald-600 px-6 text-lg font-black text-white transition hover:bg-emerald-700 active:scale-[0.99]">
                             Continuar
                             <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-white px-2 text-sm font-black text-emerald-700">
                                 {totalUnits}
@@ -394,27 +421,126 @@ export default function Checkout() {
         );
     }
 
+    if (step === 'fulfillment') {
+        return (
+            <div className="min-h-screen bg-white pb-28 font-sans text-slate-950">
+                <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+                    <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
+                        <button type="button" onClick={() => changeStep('cart')} className="rounded-full p-2 transition hover:bg-slate-100" aria-label="Voltar ao carrinho">
+                            <ArrowLeft className="h-7 w-7" />
+                        </button>
+                        <div>
+                            <h1 className="text-2xl font-black tracking-tight">Como deseja receber?</h1>
+                            <p className="text-sm text-slate-500">Escolha uma opção para continuar</p>
+                        </div>
+                    </div>
+                </header>
+
+                <main className="mx-auto max-w-2xl px-4 py-6">
+                    <div className="space-y-3">
+                        <button
+                            type="button"
+                            onClick={() => chooseFulfillment('pickup')}
+                            className={`flex w-full items-center gap-4 rounded-2xl border p-5 text-left transition ${selectedFulfillment === 'pickup' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        >
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-800">
+                                <Store size={23} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-lg font-black">Retirar na loja</span>
+                                <span className="mt-1 block text-sm text-slate-500">Sem taxa de entrega. Confira o tempo de preparo na revisão.</span>
+                            </span>
+                            {selectedFulfillment === 'pickup' && <CheckCircle2 className="shrink-0 text-emerald-600" />}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => chooseFulfillment('delivery')}
+                            className={`flex w-full items-center gap-4 rounded-2xl border p-5 text-left transition ${selectedFulfillment === 'delivery' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        >
+                            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-800">
+                                <Truck size={23} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                                <span className="block text-lg font-black">Receber em casa</span>
+                                <span className="mt-1 block text-sm text-slate-500">Informe o endereço na próxima etapa. Taxa e prazo dependem da região.</span>
+                            </span>
+                            {selectedFulfillment === 'delivery' && <CheckCircle2 className="shrink-0 text-emerald-600" />}
+                        </button>
+                    </div>
+
+                    <section className="mt-6 rounded-2xl bg-slate-50 p-4">
+                        <p className="text-sm font-bold text-slate-900">Seu carrinho está preservado</p>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-500">
+                            {totalUnits} {totalUnits === 1 ? 'item' : 'itens'} • R$ {formatBRL(totalValue)}
+                        </p>
+                    </section>
+                </main>
+
+                <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-100 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3">
+                    <div className="mx-auto flex max-w-2xl items-center gap-4">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-semibold text-slate-500">Total dos produtos</p>
+                            <p className="text-xl font-black">R$ {formatBRL(totalValue)}</p>
+                        </div>
+                        <button type="button" onClick={() => changeStep('details')} className="min-h-14 rounded-2xl bg-emerald-600 px-8 text-lg font-black text-white transition hover:bg-emerald-700">
+                            Continuar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-gray-50 pb-32 font-sans">
-            <header className="bg-white p-4 sticky top-0 z-40 border-b flex items-center gap-4">
-                <button type="button" onClick={returnToCart} className="p-2 hover:bg-gray-100 rounded-full transition" aria-label="Voltar ao carrinho">
-                    <ArrowLeft className="w-6 h-6 text-gray-700" />
-                </button>
-                <div>
-                    <h1 className="text-xl font-black text-gray-800 tracking-tight">Como deseja continuar?</h1>
-                    <p className="text-sm text-gray-500">Identificação e pagamento</p>
+        <div className="min-h-screen bg-slate-50 pb-32 font-sans">
+            <header className="sticky top-0 z-40 border-b border-slate-100 bg-white p-4">
+                <div className="mx-auto flex max-w-2xl items-center gap-4">
+                    <button type="button" onClick={() => changeStep(isTableContext ? 'cart' : 'fulfillment')} className="rounded-full p-2 transition hover:bg-slate-100" aria-label="Voltar">
+                        <ArrowLeft className="h-6 w-6 text-slate-700" />
+                    </button>
+                    <div>
+                        <h1 className="text-xl font-black tracking-tight text-slate-900">
+                            {selectedFulfillment === 'delivery' ? 'Dados para entrega' : selectedFulfillment === 'table' ? 'Dados da comanda' : 'Dados para retirada'}
+                        </h1>
+                        <p className="text-sm text-slate-500">Identificação e pagamento</p>
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-2xl mx-auto px-4 mt-6 space-y-6">
-                <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
-                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Identificação</h2>
+            <main className="mx-auto mt-6 max-w-2xl space-y-6 px-4">
+                {selectedFulfillment === 'delivery' && (
+                    <section className="space-y-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <Home className="text-emerald-600" />
+                            <div>
+                                <h2 className="font-black text-slate-900">Endereço de entrega</h2>
+                                <p className="text-sm text-slate-500">Informe onde deseja receber o pedido.</p>
+                            </div>
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-[1fr_8rem]">
+                            <input type="text" placeholder="Rua" value={street} onChange={(event) => setStreet(event.target.value)} className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400" />
+                            <input type="text" placeholder="Número" value={number} onChange={(event) => setNumber(event.target.value)} className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400" />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                            <input type="text" placeholder="Bairro" value={neighborhood} onChange={(event) => setNeighborhood(event.target.value)} className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400" />
+                            <input type="text" placeholder="Cidade" value={city} onChange={(event) => setCity(event.target.value)} className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400" />
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-[7rem_1fr]">
+                            <input type="text" maxLength={2} placeholder="UF" value={stateCode} onChange={(event) => setStateCode(event.target.value)} className="w-full rounded-2xl bg-slate-50 p-4 uppercase outline-none focus:ring-2 focus:ring-emerald-400" />
+                            <input type="text" placeholder="Ponto de referência (opcional)" value={reference} onChange={(event) => setReference(event.target.value)} className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400" />
+                        </div>
+                    </section>
+                )}
+
+                <section className="space-y-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Seus dados</h2>
                     <input
                         type="text"
                         placeholder="Seu nome"
                         value={clientName}
                         onChange={(event) => setClientName(event.target.value)}
-                        className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-green-400"
+                        className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400"
                     />
                     <input
                         type="tel"
@@ -422,36 +548,36 @@ export default function Checkout() {
                         placeholder="WhatsApp com DDD"
                         value={clientPhone}
                         onChange={(event) => setClientPhone(event.target.value)}
-                        className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-green-400"
+                        className="w-full rounded-2xl bg-slate-50 p-4 outline-none focus:ring-2 focus:ring-emerald-400"
                     />
                 </section>
 
-                <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-3">
-                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Pagamento</h2>
-                    <button type="button" disabled className="w-full flex items-center p-4 rounded-2xl border-2 border-gray-100 bg-gray-50 opacity-70 cursor-not-allowed">
-                        <Wallet className="w-5 h-5 mr-3 text-gray-400" />
+                <section className="space-y-3 rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-slate-400">Pagamento</h2>
+                    <button type="button" disabled className="flex w-full cursor-not-allowed items-center rounded-2xl border-2 border-slate-100 bg-slate-50 p-4 opacity-70">
+                        <Wallet className="mr-3 h-5 w-5 text-slate-400" />
                         <span className="text-left">
-                            <span className="block font-bold text-gray-600">Pagar aqui</span>
-                            <span className="block text-xs text-gray-400">PIX e cartão serão habilitados quando a integração online estiver configurada.</span>
+                            <span className="block font-bold text-slate-600">Pagar aqui</span>
+                            <span className="block text-xs text-slate-400">Pix e cartão online serão habilitados quando a integração estiver configurada.</span>
                         </span>
                     </button>
-                    <button type="button" onClick={() => setPaymentMethod('pending')} className={`w-full flex items-center p-4 rounded-2xl border-2 ${paymentMethod === 'pending' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}>
-                        <Store className="w-5 h-5 mr-3 text-gray-500" />
+                    <button type="button" onClick={() => setPaymentMethod('pending')} className={`flex w-full items-center rounded-2xl border-2 p-4 ${paymentMethod === 'pending' ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100'}`}>
+                        <Store className="mr-3 h-5 w-5 text-slate-500" />
                         <span className="text-left">
-                            <span className="block font-bold text-gray-700">Pagar na retirada</span>
-                            <span className="block text-xs text-gray-500">A forma real será informada ao finalizar: PIX, dinheiro ou cartão.</span>
+                            <span className="block font-bold text-slate-700">Pagar no atendimento</span>
+                            <span className="block text-xs text-slate-500">Pix, dinheiro ou cartão serão combinados no fechamento.</span>
                         </span>
-                        {paymentMethod === 'pending' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
+                        {paymentMethod === 'pending' && <CheckCircle2 className="ml-auto h-5 w-5 text-emerald-600" />}
                     </button>
                 </section>
 
-                <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
                     <div className="flex items-center justify-between gap-4">
                         <div>
-                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Resumo</p>
-                            <p className="mt-1 text-sm text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'} no pedido</p>
+                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Pedido</p>
+                            <p className="mt-1 text-sm text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'} • {selectedFulfillment === 'delivery' ? 'Entrega' : selectedFulfillment === 'table' ? 'Mesa' : 'Retirada'}</p>
                         </div>
-                        <button type="button" onClick={returnToCart} className="text-sm font-bold text-emerald-700">Editar carrinho</button>
+                        <button type="button" onClick={() => changeStep('cart')} className="text-sm font-bold text-emerald-700">Editar carrinho</button>
                     </div>
                 </section>
 
@@ -462,15 +588,15 @@ export default function Checkout() {
                 )}
             </main>
 
-            <div className="fixed bottom-0 left-0 right-0 p-5 bg-white/90 backdrop-blur-md border-t">
-                <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+            <div className="fixed inset-x-0 bottom-0 border-t border-slate-100 bg-white/95 p-4 backdrop-blur-md">
+                <div className="mx-auto flex max-w-2xl items-center justify-between gap-4">
                     <div>
-                        <span className="block text-xs font-bold text-gray-400 uppercase">Total</span>
-                        <span className="text-2xl font-black text-green-600">R$ {formatBRL(totalValue)}</span>
+                        <span className="block text-xs font-bold uppercase text-slate-400">Total</span>
+                        <span className="text-2xl font-black text-emerald-600">R$ {formatBRL(totalValue)}</span>
                     </div>
-                    <button type="button" onClick={finishOrder} disabled={loading} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 disabled:opacity-60">
+                    <button type="button" onClick={finishOrder} disabled={loading} className="flex flex-1 items-center justify-center gap-3 rounded-2xl bg-emerald-600 py-4 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60">
                         {loading ? 'Criando pedido...' : 'Finalizar pelo WhatsApp'}
-                        {!loading && <Send className="w-5 h-5" />}
+                        {!loading && <Send className="h-5 w-5" />}
                     </button>
                 </div>
             </div>
