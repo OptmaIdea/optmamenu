@@ -49,7 +49,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
             };
         }
 
-        const baseUnitPrice = Number(product.originalPrice || product.price || 0);
+        const baseUnitPrice = Number(product.price || 0);
         const existingProductQuantity = cartItems
             .filter((item) => item.id === product.id)
             .reduce((sum, item) => sum + item.quantity, 0);
@@ -197,7 +197,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                         {images.map((image, index) => (
                             <button
                                 type="button"
-                                key={image}
+                                key={`${image}-${index}`}
                                 onClick={() => setCurrentImageIndex(index)}
                                 className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all ${currentImageIndex === index ? 'border-brand-green opacity-100 scale-105' : 'border-transparent opacity-60 hover:opacity-100'}`}
                                 aria-label={`Ver imagem ${index + 1}`}
