@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
 import { useCartStore } from '@/store/useCartStore';
+import { formatBRL } from '@/utils/pricing';
 
 function getStoreSlugFromPath(pathname: string): string | null {
     const segments = pathname.split('/').filter(Boolean);
@@ -16,54 +17,55 @@ function getStoreSlugFromPath(pathname: string): string | null {
 
 export function StoreLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
-    const { items } = useCartStore();
+    const items = useCartStore((state) => state.items);
+    const context = useCartStore((state) => state.context);
     const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
-    const storeSlug = getStoreSlugFromPath(location.pathname);
+    const cartTotal = items.reduce(
+        (acc, item) => acc + Number(item.price || 0) * item.quantity,
+        0,
+    );
+    const storeSlug = context?.canonicalSlug || getStoreSlugFromPath(location.pathname);
     const checkoutPath = storeSlug
         ? `/checkout?store=${encodeURIComponent(storeSlug)}`
         : '/checkout';
+    const isTableContext = context?.type === 'table';
 
     return (
-        <div className="min-h-screen">
-            {/* StoreLayout now only provides the floating actions (WhatsApp, Cart)
-                The specific store header and content width are handled by the page components */}
-
-            {/* Main Content Area */}
+        <div className="min-h-screen pb-24 sm:pb-0">
             <main className="transition-all duration-300">
                 {children}
             </main>
 
-            {/* Floating Action Buttons */}
-            <div className="fixed bottom-6 right-4 z-40 flex flex-col gap-4 items-end">
-                {/* WhatsApp Button */}
-                <a
-                    href="https://wa.me/5532999999999"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bg-green-500 text-white p-3 rounded-full shadow-lg hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center w-12 h-12"
-                    aria-label="Fale Conosco no WhatsApp"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" />
-                    </svg>
-                </a>
-
-                {/* Cart FAB */}
-                <Link
-                    to={checkoutPath}
-                    className="bg-orange-500 text-white p-4 rounded-full shadow-2xl hover:bg-orange-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center relative"
-                    aria-label="Abrir Carrinho"
-                >
-                    <ShoppingCart size={28} />
-                    {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
-                            {cartCount}
+            {cartCount > 0 && (
+                <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[26rem] sm:px-0 sm:pb-0">
+                    <Link
+                        to={checkoutPath}
+                        className="flex min-h-16 items-center gap-3 rounded-2xl bg-emerald-600 px-4 py-3 text-white shadow-2xl transition hover:bg-emerald-700 active:scale-[0.99]"
+                        aria-label={isTableContext ? 'Ver comanda' : 'Ver carrinho'}
+                    >
+                        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                            <ShoppingCart size={23} aria-hidden="true" />
+                            <span className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full border-2 border-emerald-600 bg-white px-1 text-xs font-black text-emerald-700">
+                                {cartCount}
+                            </span>
                         </span>
-                    )}
-                </Link>
-            </div>
 
-            {/* Desktop Footer */}
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-semibold text-emerald-50">
+                                {cartCount} {cartCount === 1 ? 'item' : 'itens'}
+                            </span>
+                            <span className="block truncate text-lg font-black">
+                                R$ {formatBRL(cartTotal)}
+                            </span>
+                        </span>
+
+                        <span className="shrink-0 text-sm font-bold">
+                            {isTableContext ? 'Ver comanda' : 'Ver carrinho'}
+                        </span>
+                    </Link>
+                </div>
+            )}
+
             <footer className="hidden sm:block mt-12 text-center text-gray-400 text-sm pb-8">
                 <p>© {new Date().getFullYear()} <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="hover:underline">OptmaIdea</a>. Todos os direitos reservados.</p>
             </footer>
