@@ -1,6 +1,7 @@
 import { supabaseCustomer, supabasePublic } from '@/lib/supabase';
 
 export type PublicFulfillmentType = 'pickup' | 'delivery' | 'qr_table' | 'dine_in' | 'other';
+export type PublicOrderFulfillmentInput = PublicFulfillmentType | 'table';
 
 export type PublicSalesChannel =
     | 'whatsapp'
@@ -31,7 +32,7 @@ export interface CreatePublicOrderInput {
     slug: string;
     customer_name: string;
     customer_phone: string;
-    fulfillment_type: PublicFulfillmentType;
+    fulfillment_type: PublicOrderFulfillmentInput;
     sales_channel: PublicSalesChannel;
     payment_method_code?: string;
     delivery_method_code?: string;
@@ -175,11 +176,15 @@ export const PublicOrderService = {
     },
 
     async createPublicOrder(input: CreatePublicOrderInput): Promise<CreatePublicOrderResponse> {
+        const normalizedFulfillmentType: PublicFulfillmentType = input.fulfillment_type === 'table'
+            ? 'qr_table'
+            : input.fulfillment_type;
+
         const { data, error } = await supabaseCustomer.rpc('create_public_order_by_slug_v2', {
             p_slug: input.slug,
             p_customer_name: input.customer_name,
             p_customer_phone: input.customer_phone,
-            p_fulfillment_type: input.fulfillment_type,
+            p_fulfillment_type: normalizedFulfillmentType,
             p_sales_channel: input.sales_channel,
             p_payment_method_code: input.payment_method_code || 'pending',
             p_delivery_method_code: input.delivery_method_code || null,
