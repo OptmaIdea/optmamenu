@@ -4,8 +4,8 @@ import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
 
 const APP_VERSION = '0.10.0-rc.1';
-const OPTMAMENU_URL = '/';
-const OPTMAIDEA_URL = 'https://github.com/OptmaIdea';
+const OPTMAMENU_URL = 'https://optmamenu.optmaidea.com.br';
+const OPTMAIDEA_URL = 'https://optmaidea.com.br';
 
 const STATUS_LABELS: Record<string, string> = {
   reserved: 'Aguardando confirmação',
@@ -50,9 +50,14 @@ function AttributionFooter() {
   return (
     <footer className="pt-2 text-center text-[11px] leading-relaxed text-slate-400">
       Pedido gerado pelo{' '}
-      <Link to={OPTMAMENU_URL} className="font-semibold text-slate-500 hover:text-emerald-700 hover:underline">
+      <a
+        href={OPTMAMENU_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-slate-500 hover:text-emerald-700 hover:underline"
+      >
         OptmaMenu
-      </Link>{' '}
+      </a>{' '}
       versão {APP_VERSION}. ©{' '}
       <a
         href={OPTMAIDEA_URL}
