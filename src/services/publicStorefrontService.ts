@@ -1,5 +1,5 @@
 import { supabaseCustomer } from '@/lib/supabase';
-import type { Category, Product, StoreConfig } from '@/types';
+import type { Category, Product, PublicAvailability, StoreConfig } from '@/types';
 
 export interface PublicStorefrontStore {
     id: string;
@@ -157,6 +157,46 @@ function normalizeImages(value: unknown): string[] {
     return [];
 }
 
+function normalizePublicAvailability(value: unknown): PublicAvailability | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+    const raw = value as Record<string, unknown>;
+    const status = raw.status;
+    const displayMode = raw.displayMode ?? raw.display_mode;
+
+    if (
+        status !== 'available'
+        && status !== 'low_stock'
+        && status !== 'unavailable'
+        && status !== 'unknown'
+    ) {
+        return undefined;
+    }
+
+    if (
+        displayMode !== 'exact'
+        && displayMode !== 'low_stock_only'
+        && displayMode !== 'status_only'
+        && displayMode !== 'hidden'
+    ) {
+        return undefined;
+    }
+
+    const rawAvailableOnline = raw.availableOnline ?? raw.available_online;
+    const availableOnline = Number(rawAvailableOnline);
+
+    return {
+        status,
+        displayMode,
+        availableOnline: Number.isFinite(availableOnline)
+            ? Math.max(0, availableOnline)
+            : undefined,
+        message: typeof raw.message === 'string' && raw.message.trim()
+            ? raw.message.trim()
+            : undefined,
+    };
+}
+
 export const PublicStorefrontService = {
     async getStorefrontBySlug(slug: string): Promise<PublicStorefrontResponse> {
         const { data, error } = await supabaseCustomer.rpc(
@@ -198,6 +238,11 @@ export const PublicStorefrontService = {
                 },
                 products: (category.products || []).map((product) => {
                     const images = normalizeImages(product.images);
+                    const rawProduct = product as Product & {
+                        availability?: unknown;
+                        public_availability?: unknown;
+                    };
+
                     return {
                         ...product,
                         category_id: product.category_id || category.id,
@@ -213,6 +258,9 @@ export const PublicStorefrontService = {
                         featured: product.featured ?? false,
                         sales_count: product.sales_count ?? 0,
                         stock_quantity: product.stock_quantity ?? 0,
+                        public_availability: normalizePublicAvailability(
+                            rawProduct.public_availability ?? rawProduct.availability,
+                        ),
                         rating_avg: product.rating_avg ?? 5,
                         review_count: product.review_count ?? 0,
                         active: product.active ?? true,
