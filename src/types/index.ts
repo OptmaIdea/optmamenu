@@ -29,6 +29,13 @@ export interface Category {
     active?: boolean;
 }
 
+export interface PublicAvailability {
+    status: 'available' | 'low_stock' | 'unavailable' | 'unknown';
+    availableOnline?: number;
+    displayMode: 'exact' | 'low_stock_only' | 'status_only' | 'hidden';
+    message?: string;
+}
+
 export interface Product {
     id: string;
     category_id?: string | null;
@@ -45,6 +52,7 @@ export interface Product {
     featured: boolean;
     sales_count: number;
     stock_quantity: number;
+    public_availability?: PublicAvailability;
     rating_avg: number;
     review_count: number;
     active?: boolean;
