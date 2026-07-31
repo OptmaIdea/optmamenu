@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
@@ -119,6 +119,28 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
         };
     }, [cartItems, categoryRules, product, quantity]);
 
+    const availabilityNotice = useMemo(() => {
+        const availability = product?.public_availability;
+
+        if (
+            !availability
+            || availability.status !== 'low_stock'
+            || availability.displayMode === 'hidden'
+        ) {
+            return null;
+        }
+
+        if (
+            availability.displayMode === 'exact'
+            && typeof availability.availableOnline === 'number'
+        ) {
+            const units = Math.floor(availability.availableOnline);
+            return availability.message || `Restam ${units} unidade${units === 1 ? '' : 's'} disponível${units === 1 ? '' : 'is'} para venda online.`;
+        }
+
+        return availability.message || 'Poucas unidades disponíveis para venda online.';
+    }, [product]);
+
     if (!isVisible && !isOpen) return null;
 
     const hasDiscount = pricingPreview.discount > 0.009;
@@ -143,12 +165,12 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 aria-label="Fechar detalhes do produto"
             />
 
-            <section className={`fixed bottom-0 left-0 right-0 flex max-h-[90vh] flex-col overflow-hidden rounded-t-[2.5rem] bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-slate-800 md:inset-0 md:m-auto md:h-fit md:max-h-[85vh] md:max-w-xl md:rounded-[2.5rem] ${isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-full opacity-0 md:translate-y-0 md:scale-95'}`}>
-                <div className="relative flex h-64 shrink-0 items-center justify-center bg-gray-50 p-6 text-center dark:bg-slate-700 md:h-80">
+            <section className={`fixed bottom-0 left-0 right-0 flex max-h-[94dvh] flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-slate-800 md:inset-4 md:m-auto md:h-fit md:max-h-[calc(100dvh-2rem)] md:max-w-2xl md:rounded-[2rem] ${isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-full opacity-0 md:translate-y-0 md:scale-95'}`}>
+                <div className="relative flex h-56 shrink-0 items-center justify-center bg-gray-50 p-5 text-center dark:bg-slate-700 sm:h-64 md:h-72 md:p-7">
                     <button
                         type="button"
                         onClick={onClose}
-                        className="absolute right-4 top-4 z-10 rounded-full bg-white/80 p-2 text-gray-700 shadow-sm backdrop-blur hover:bg-gray-100 dark:bg-slate-900/80 dark:text-gray-200"
+                        className="absolute right-4 top-4 z-10 rounded-full bg-white/90 p-2 text-gray-700 shadow-sm backdrop-blur hover:bg-gray-100 dark:bg-slate-900/90 dark:text-gray-200"
                         aria-label="Fechar detalhes do produto"
                     >
                         <X size={20} />
@@ -160,7 +182,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                                 <button
                                     type="button"
                                     onClick={() => setCurrentImageIndex((previous) => previous === 0 ? images.length - 1 : previous - 1)}
-                                    className="absolute left-0 rounded-full bg-white/70 px-3 py-2 text-xl text-gray-700 shadow-sm"
+                                    className="absolute left-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm"
                                     aria-label="Imagem anterior"
                                 >
                                     ‹
@@ -170,14 +192,14 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                             <img
                                 src={images[currentImageIndex]}
                                 alt={product.name}
-                                className="h-full object-contain drop-shadow-xl"
+                                className="h-full max-w-full object-contain drop-shadow-xl"
                             />
 
                             {images.length > 1 && (
                                 <button
                                     type="button"
                                     onClick={() => setCurrentImageIndex((previous) => (previous + 1) % images.length)}
-                                    className="absolute right-0 rounded-full bg-white/70 px-3 py-2 text-xl text-gray-700 shadow-sm"
+                                    className="absolute right-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm"
                                     aria-label="Próxima imagem"
                                 >
                                     ›
@@ -187,16 +209,26 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                     )}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 md:p-8">
-                    <h2 className="text-2xl font-black uppercase leading-tight text-gray-800 dark:text-white">
+                <div className="flex-1 overflow-y-auto p-5 sm:p-6 md:p-8">
+                    <h2 className="text-2xl font-black leading-tight text-gray-800 dark:text-white">
                         {product?.name}
                     </h2>
 
-                    <p className="mt-3 text-base leading-relaxed text-gray-500 dark:text-gray-300">
+                    <p className="mt-3 text-sm leading-relaxed text-gray-500 dark:text-gray-300 sm:text-base">
                         {product?.description || 'Produto disponível para personalização e inclusão no pedido.'}
                     </p>
 
-                    <section className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                    {availabilityNotice && (
+                        <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
+                            <div>
+                                <p className="text-sm font-bold">Disponibilidade limitada</p>
+                                <p className="mt-1 text-sm leading-relaxed">{availabilityNotice}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <section className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20 sm:mt-6">
                         <div className="flex items-start justify-between gap-4">
                             <div>
                                 <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
@@ -228,13 +260,13 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                     </section>
                 </div>
 
-                <div className="safe-area-bottom mt-auto flex flex-col gap-3 border-t border-gray-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 md:p-6">
-                    <div className="flex items-center justify-between gap-4">
+                <div className="safe-area-bottom mt-auto flex flex-col gap-3 border-t border-gray-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 sm:p-5 md:p-6">
+                    <div className="flex items-center justify-between gap-3 sm:gap-4">
                         <div className="flex h-12 items-center rounded-xl bg-gray-100 p-1 dark:bg-slate-700">
                             <button
                                 type="button"
                                 onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                className="flex h-full w-10 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600"
+                                className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10"
                                 aria-label="Diminuir quantidade"
                             >
                                 <span className="text-2xl leading-none">−</span>
@@ -250,14 +282,14 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                                 onFocus={(event) => event.currentTarget.select()}
                                 onClick={(event) => event.currentTarget.select()}
                                 onChange={(event) => handleQuantityChange(event.target.value)}
-                                className="w-12 bg-transparent text-center text-lg font-bold text-gray-800 outline-none [appearance:textfield] dark:text-white [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                className="w-10 bg-transparent text-center text-lg font-bold text-gray-800 outline-none [appearance:textfield] dark:text-white sm:w-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                                 aria-label="Quantidade do produto"
                             />
 
                             <button
                                 type="button"
                                 onClick={() => setQuantity(quantity + 1)}
-                                className="flex h-full w-10 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600"
+                                className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10"
                                 aria-label="Aumentar quantidade"
                             >
                                 <span className="text-2xl leading-none">+</span>
@@ -267,7 +299,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                         <button
                             type="button"
                             onClick={handleAddToCart}
-                            className="flex min-h-12 flex-1 items-center justify-between gap-3 rounded-xl bg-brand-green px-5 text-sm font-black uppercase tracking-tight text-white shadow-lg shadow-green-200 transition active:scale-95 hover:bg-green-600 dark:shadow-none md:text-base"
+                            className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-xl bg-brand-green px-4 text-sm font-black text-white shadow-lg shadow-green-200 transition active:scale-95 hover:bg-green-600 dark:shadow-none sm:gap-3 sm:px-5 md:text-base"
                         >
                             <span>Adicionar {quantity}</span>
                             <span>R$ {formatBRL(pricingPreview.lineTotal)}</span>
