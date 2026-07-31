@@ -247,6 +247,10 @@ export default function Checkout() {
     const [showValidationTip, setShowValidationTip] = useState(false);
     const [draftLoaded, setDraftLoaded] = useState(false);
 
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [view]);
+
     const storeSlug = useMemo(
         () => new URLSearchParams(location.search).get('store')?.trim() || context?.canonicalSlug || DEFAULT_STORE_SLUG,
         [context?.canonicalSlug, location.search],
