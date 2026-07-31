@@ -519,7 +519,8 @@ export default function Checkout() {
                 '',
                 `Meu nome é *${firstName}*.`,
                 '',
-                'Acompanhar pedido:',
+                'Veja o link para acompanhamento do pedido ↓↓:',
+                '',
                 trackingUrl,
             ].join('\n');
             const whatsappUrl = result.whatsapp?.digits && canOpenWhatsapp(result.whatsapp.digits)
