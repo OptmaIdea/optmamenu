@@ -1,5 +1,4 @@
 import { BadgePercent, ChevronRight, ImageIcon, PackageX, Plus } from 'lucide-react';
-import type { MouseEvent } from 'react';
 import type { Product, PriceRule } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL, getPriceForQuantity } from '@/utils/pricing';
@@ -57,11 +56,6 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
         if (!isUnavailable) onOpenDetails(product);
     };
 
-    const handleConfiguratorButton = (event: MouseEvent<HTMLButtonElement>) => {
-        event.stopPropagation();
-        openConfigurator();
-    };
-
     return (
         <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-800 sm:rounded-3xl">
             <button
@@ -107,15 +101,12 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
                             Indisponível
                         </span>
                     ) : (
-                        <button
-                            type="button"
-                            onClick={handleConfiguratorButton}
-                            className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-green text-white shadow-md transition hover:scale-105 hover:bg-green-600 active:scale-95 sm:right-3 sm:top-3"
-                            aria-label={`Configurar ${product.name}`}
-                            title={`Configurar ${product.name}`}
+                        <span
+                            className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-green text-white shadow-md transition group-hover:scale-105 group-hover:bg-green-600 group-active:scale-95 sm:right-3 sm:top-3"
+                            aria-hidden="true"
                         >
-                            <Plus className="h-5 w-5" aria-hidden="true" />
-                        </button>
+                            <Plus className="h-5 w-5" />
+                        </span>
                     )}
                 </div>
 
