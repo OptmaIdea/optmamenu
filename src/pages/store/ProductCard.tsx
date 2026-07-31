@@ -1,6 +1,6 @@
-import { Plus, Star } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import type { Product } from '@/types';
+import { BadgePercent, ChevronRight, ImageIcon, PackageX, Plus } from 'lucide-react';
+import type { MouseEvent } from 'react';
+import type { Product, PriceRule } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL, getPriceForQuantity } from '@/utils/pricing';
 
@@ -14,97 +14,141 @@ interface ProductCardProps {
     onAddToCart?: (product: Product) => void;
 }
 
+function getFirstPromotionRule(rules: PriceRule[], basePrice: number) {
+    return [...rules]
+        .filter((rule) => rule.min > 1 && rule.price < basePrice)
+        .sort((left, right) => left.min - right.min)[0] || null;
+}
+
 export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
     const categoryRules = useCartStore((state) => state.categoryRules);
-    const images = Array.isArray(product.images) && product.images.length > 0
-        ? product.images
-        : [product.image_url || 'https://via.placeholder.com/300'];
-
-    const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const [isHovered, setIsHovered] = useState(false);
-
-    const rating = product.rating_avg || 5.0;
+    const imageUrl = product.images?.[0] || product.image_url || null;
 
     const pricing = product.use_category_pricing && product.category_id
         ? categoryRules[product.category_id]
         : undefined;
-    const effectivePrice = pricing
-        ? (getPriceForQuantity(pricing.rules, 1) ?? product.price)
-        : product.price;
-    const showFromLabel = Boolean(pricing && pricing.type === 'category_volume');
 
-    useEffect(() => {
-        if (!isHovered || images.length <= 1) {
-            setCurrentImageIndex(0);
-            return;
-        }
+    const pricingRules = pricing?.pricingGroup?.rules?.length
+        ? pricing.pricingGroup.rules
+        : pricing?.rules?.length
+            ? pricing.rules
+            : product.price_rules || [];
 
-        const interval = setInterval(() => {
-            setCurrentImageIndex((previous) => (previous + 1) % images.length);
-        }, 800);
+    const basePrice = Number(product.price || 0);
+    const currentUnitPrice = pricingRules.length
+        ? (getPriceForQuantity(pricingRules, 1) ?? basePrice)
+        : basePrice;
+    const promotionRule = getFirstPromotionRule(pricingRules, basePrice);
 
-        return () => clearInterval(interval);
-    }, [isHovered, images.length]);
+    const availability = product.public_availability;
+    const isUnavailable = availability?.status === 'unavailable';
+    const showLowStock = availability?.status === 'low_stock'
+        && availability.displayMode !== 'hidden';
 
-    const openConfigurator = () => onOpenDetails(product);
+    const lowStockLabel = showLowStock
+        && availability?.displayMode === 'exact'
+        && typeof availability.availableOnline === 'number'
+        ? `${Math.max(0, Math.floor(availability.availableOnline))} restantes`
+        : showLowStock
+            ? 'Poucas unidades'
+            : null;
 
-    const handleConfiguratorButton = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const openConfigurator = () => {
+        if (!isUnavailable) onOpenDetails(product);
+    };
+
+    const handleConfiguratorButton = (event: MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
         openConfigurator();
     };
 
     return (
-        <article className="bg-white dark:bg-slate-800 rounded-[2rem] p-3 shadow-sm relative group active:scale-95 transition-all h-full flex flex-col">
-            <button
-                type="button"
-                onClick={handleConfiguratorButton}
-                className="absolute top-3 right-3 z-10 bg-[#98FF98] p-2 rounded-full shadow-lg text-green-900 border-2 border-white hover:scale-110 transition-transform"
-                aria-label={`Ver opções de ${product.name}`}
-                title={`Ver opções de ${product.name}`}
-            >
-                <Plus className="w-5 h-5" />
-            </button>
-
+        <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-800 sm:rounded-3xl">
             <button
                 type="button"
                 onClick={openConfigurator}
-                className="flex-1 flex flex-col cursor-pointer text-left"
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-                aria-label={`Abrir detalhes de ${product.name}`}
+                disabled={isUnavailable}
+                className="flex min-h-full flex-1 flex-col text-left disabled:cursor-not-allowed"
+                aria-label={isUnavailable ? `${product.name} indisponível` : `Abrir detalhes de ${product.name}`}
             >
-                <div className="bg-gray-50 rounded-2xl mb-2 flex justify-center p-4 h-36 items-center overflow-hidden relative w-full">
-                    <img
-                        src={images[currentImageIndex]}
-                        alt={product.name}
-                        className="max-h-28 object-contain drop-shadow-md transition-all duration-300"
-                        loading="lazy"
-                    />
-
-                    {images.length > 1 && (
-                        <div className="absolute bottom-2 flex gap-1" aria-hidden="true">
-                            {images.map((_, index) => (
-                                <span
-                                    key={index}
-                                    className={`w-1.5 h-1.5 rounded-full transition-colors ${currentImageIndex === index ? 'bg-green-500' : 'bg-gray-300'}`}
-                                />
-                            ))}
+                <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-50 dark:bg-slate-700/70">
+                    {imageUrl ? (
+                        <img
+                            src={imageUrl}
+                            alt={product.name}
+                            className={`h-full w-full object-contain p-3 transition duration-300 sm:p-4 ${isUnavailable ? 'grayscale opacity-60' : 'group-hover:scale-[1.03]'}`}
+                            loading="lazy"
+                        />
+                    ) : (
+                        <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center text-stone-400 dark:text-slate-400">
+                            <ImageIcon className="h-8 w-8" aria-hidden="true" />
+                            <span className="text-[11px] font-semibold">Imagem não cadastrada</span>
                         </div>
+                    )}
+
+                    <div className="absolute left-2 top-2 flex max-w-[calc(100%-3.5rem)] flex-col items-start gap-1.5 sm:left-3 sm:top-3">
+                        {promotionRule && !isUnavailable && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700 shadow-sm backdrop-blur dark:bg-slate-900/90 dark:text-emerald-300">
+                                <BadgePercent className="h-3.5 w-3.5" aria-hidden="true" />
+                                Oferta por quantidade
+                            </span>
+                        )}
+
+                        {lowStockLabel && !isUnavailable && (
+                            <span className="rounded-full bg-amber-100/95 px-2.5 py-1 text-[10px] font-extrabold text-amber-900 shadow-sm backdrop-blur dark:bg-amber-950/90 dark:text-amber-200">
+                                {lowStockLabel}
+                            </span>
+                        )}
+                    </div>
+
+                    {isUnavailable ? (
+                        <span className="absolute inset-x-3 bottom-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900/90 px-3 py-2 text-xs font-bold text-white">
+                            <PackageX className="h-4 w-4" aria-hidden="true" />
+                            Indisponível
+                        </span>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={handleConfiguratorButton}
+                            className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-green text-white shadow-md transition hover:scale-105 hover:bg-green-600 active:scale-95 sm:right-3 sm:top-3"
+                            aria-label={`Configurar ${product.name}`}
+                            title={`Configurar ${product.name}`}
+                        >
+                            <Plus className="h-5 w-5" aria-hidden="true" />
+                        </button>
                     )}
                 </div>
 
-                <div className="flex items-center gap-1 mb-1">
-                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                    <span className="text-[10px] font-bold text-gray-500">{rating}</span>
+                <div className="flex flex-1 flex-col p-3 sm:p-4">
+                    <h3 className="line-clamp-2 min-h-10 text-sm font-extrabold leading-5 text-gray-900 dark:text-gray-100 sm:text-base">
+                        {product.name}
+                    </h3>
+
+                    {product.description && (
+                        <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                            {product.description}
+                        </p>
+                    )}
+
+                    <div className="mt-auto pt-3">
+                        <p className="text-lg font-black leading-none text-emerald-700 dark:text-emerald-300">
+                            R$ {formatBRL(currentUnitPrice)}
+                        </p>
+
+                        {promotionRule && !isUnavailable && (
+                            <p className="mt-2 text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">
+                                A partir de {promotionRule.min} itens: R$ {formatBRL(promotionRule.price)} cada
+                            </p>
+                        )}
+
+                        {!isUnavailable && (
+                            <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-gray-600 dark:text-gray-300">
+                                {promotionRule ? 'Saiba mais' : 'Ver detalhes'}
+                                <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                            </span>
+                        )}
+                    </div>
                 </div>
-
-                <h3 className="font-bold text-sm leading-tight mb-1 text-gray-900 dark:text-gray-100">
-                    {product.name}
-                </h3>
-
-                <p className="text-green-600 font-extrabold text-base mt-auto">
-                    {showFromLabel ? 'A partir de ' : ''}R$ {formatBRL(Number(effectivePrice))}
-                </p>
             </button>
         </article>
     );
