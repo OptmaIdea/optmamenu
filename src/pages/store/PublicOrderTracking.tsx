@@ -3,6 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 'lucide-react';
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
 
+const APP_VERSION = '0.10.0-rc.1';
+const OPTMAMENU_URL = '/';
+const OPTMAIDEA_URL = 'https://github.com/OptmaIdea';
+
 const STATUS_LABELS: Record<string, string> = {
   reserved: 'Aguardando confirmação',
   pending: 'Pendente',
@@ -40,6 +44,27 @@ function statusIcon(status?: string) {
   if (status === 'cancelled' || status === 'expired') return <XCircle className="h-6 w-6 text-red-600" />;
   if (status === 'confirmed' || status === 'ready') return <CheckCircle2 className="h-6 w-6 text-emerald-600" />;
   return <Clock3 className="h-6 w-6 text-amber-600" />;
+}
+
+function AttributionFooter() {
+  return (
+    <footer className="pt-2 text-center text-[11px] leading-relaxed text-slate-400">
+      Pedido gerado pelo{' '}
+      <Link to={OPTMAMENU_URL} className="font-semibold text-slate-500 hover:text-emerald-700 hover:underline">
+        OptmaMenu
+      </Link>{' '}
+      versão {APP_VERSION}. ©{' '}
+      <a
+        href={OPTMAIDEA_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-semibold text-slate-500 hover:text-emerald-700 hover:underline"
+      >
+        OptmaIdea
+      </a>{' '}
+      2026.
+    </footer>
+  );
 }
 
 export default function PublicOrderTracking() {
@@ -181,6 +206,8 @@ export default function PublicOrderTracking() {
             Voltar ao cardápio
           </Link>
         </div>
+
+        <AttributionFooter />
       </main>
     </div>
   );
