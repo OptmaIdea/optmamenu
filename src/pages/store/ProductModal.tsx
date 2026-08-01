@@ -97,7 +97,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 scope = 'group';
                 groupName = categoryRule.pricingGroup.name;
                 participantCategories = categoryRule.pricingGroup.categoryNames;
-                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? basePrice;
+                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
                 message = `Preço calculado com ${pricingQuantity} item(ns) das categorias participantes no carrinho.`;
             } else if (categoryRule?.type === 'category_volume') {
                 const currentCategoryQuantity = cartItems.reduce((sum, item) => (
@@ -112,13 +112,13 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 rules = categoryRule.rules;
                 scope = categoryRule.volumeScope === 'per_product' ? 'product' : 'category';
                 participantCategories = categoryName ? [categoryName] : [];
-                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? basePrice;
+                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
                 message = scope === 'product'
                     ? `Preço calculado com ${pricingQuantity} unidade(s) deste produto.`
                     : `Preço calculado com ${pricingQuantity} item(ns) da categoria ${categoryName || 'participante'} no carrinho.`;
             } else if (categoryRule?.rules?.length) {
                 rules = categoryRule.rules;
-                appliedUnitPrice = getPriceForQuantity(rules, 1) ?? basePrice;
+                appliedUnitPrice = getPriceForQuantity(rules, 1) ?? baseUnitPrice;
             }
         } else if (Array.isArray(product.price_rules) && product.price_rules.length > 0) {
             rules = product.price_rules;
@@ -126,25 +126,25 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 ? existingProductQuantity + quantity
                 : 1;
             scope = product.price_logic_type === 'category_volume' ? 'product' : null;
-            appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? basePrice;
+            appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
 
             if (pricingQuantity > 1) {
                 message = `Preço calculado com ${pricingQuantity} unidade(s) deste produto.`;
             }
         }
 
-        const lineBaseTotal = basePrice * quantity;
+        const lineBaseTotal = baseUnitPrice * quantity;
         const lineTotal = appliedUnitPrice * quantity;
 
         return {
-            baseUnitPrice: basePrice,
+            baseUnitPrice,
             appliedUnitPrice,
             lineTotal,
             discount: Math.max(0, lineBaseTotal - lineTotal),
             message,
             pricingQuantity,
             scope,
-            promotionRules: normalizePromotionRules(rules, basePrice),
+            promotionRules: normalizePromotionRules(rules, baseUnitPrice),
             categoryName,
             groupName,
             participantCategories,
