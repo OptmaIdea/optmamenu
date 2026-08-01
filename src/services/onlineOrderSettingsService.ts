@@ -146,13 +146,14 @@ export function normalizeOnlineOrderSettings(settings?: OnlineOrderSettingsPaylo
         ...DEFAULT_ONLINE_ORDER_SETTINGS,
         ...(settings || {}),
     };
+    const rawOnlineLimit: unknown = normalized.online_stock_limit_default;
 
     return {
         ...normalized,
         online_stock_local_reserve_default: Math.max(0, Number(normalized.online_stock_local_reserve_default || 0)),
-        online_stock_limit_default: normalized.online_stock_limit_default === null || normalized.online_stock_limit_default === undefined || normalized.online_stock_limit_default === ''
+        online_stock_limit_default: rawOnlineLimit === null || rawOnlineLimit === undefined || rawOnlineLimit === ''
             ? null
-            : Math.max(0, Number(normalized.online_stock_limit_default)),
+            : Math.max(0, Number(rawOnlineLimit)),
         online_stock_low_threshold: Math.max(0, Number(normalized.online_stock_low_threshold || 0)),
         online_stock_show_exact: Boolean(normalized.online_stock_show_exact),
         online_stock_publish_products_by_default: Boolean(normalized.online_stock_publish_products_by_default),
