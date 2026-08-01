@@ -1,6 +1,6 @@
-import { AlertTriangle, ImageIcon, X } from 'lucide-react';
+import { AlertTriangle, BadgePercent, ImageIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import type { Product } from '@/types';
+import type { PriceRule, Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL, getPriceForQuantity } from '@/utils/pricing';
 
@@ -9,6 +9,14 @@ interface ProductModalProps {
     isOpen: boolean;
     onClose: () => void;
     onAddToCart: (product: Product, quantity: number) => void;
+}
+
+type PricingScope = 'product' | 'category' | 'group' | null;
+
+function normalizePromotionRules(rules: PriceRule[], basePrice: number) {
+    return [...rules]
+        .filter((rule) => Number(rule.min) > 1 && Number(rule.price) < basePrice)
+        .sort((left, right) => Number(left.min) - Number(right.min));
 }
 
 export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductModalProps) {
@@ -47,6 +55,9 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 lineTotal: 0,
                 discount: 0,
                 message: null as string | null,
+                pricingQuantity: 1,
+                scope: null as PricingScope,
+                promotionRules: [] as PriceRule[],
             };
         }
 
@@ -55,9 +66,11 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
             .filter((item) => item.id === product.id)
             .reduce((sum, item) => sum + item.quantity, 0);
 
-        let projectedPricingQuantity = existingProductQuantity + quantity;
+        let pricingQuantity = existingProductQuantity + quantity;
         let appliedUnitPrice = baseUnitPrice;
         let message: string | null = null;
+        let scope: PricingScope = null;
+        let rules: PriceRule[] = [];
 
         if (product.use_category_pricing && product.category_id) {
             const categoryRule = categoryRules[product.category_id];
@@ -72,12 +85,11 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                         : sum;
                 }, 0);
 
-                projectedPricingQuantity = currentGroupQuantity + quantity;
-                appliedUnitPrice = getPriceForQuantity(
-                    categoryRule.pricingGroup.rules,
-                    projectedPricingQuantity,
-                ) ?? baseUnitPrice;
-                message = `Preço calculado com ${projectedPricingQuantity} item(ns) do mesmo grupo no carrinho.`;
+                pricingQuantity = currentGroupQuantity + quantity;
+                rules = categoryRule.pricingGroup.rules;
+                scope = 'group';
+                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
+                message = `Preço calculado com ${pricingQuantity} item(ns) do mesmo grupo no carrinho.`;
             } else if (categoryRule?.type === 'category_volume') {
                 const currentCategoryQuantity = cartItems.reduce((sum, item) => (
                     item.category_id === product.category_id && item.use_category_pricing
@@ -85,24 +97,26 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                         : sum
                 ), 0);
 
-                projectedPricingQuantity = categoryRule.volumeScope === 'per_product'
+                pricingQuantity = categoryRule.volumeScope === 'per_product'
                     ? existingProductQuantity + quantity
                     : currentCategoryQuantity + quantity;
-                appliedUnitPrice = getPriceForQuantity(
-                    categoryRule.rules,
-                    projectedPricingQuantity,
-                ) ?? baseUnitPrice;
-                message = categoryRule.volumeScope === 'per_product'
-                    ? `Preço calculado com ${projectedPricingQuantity} unidade(s) deste produto.`
-                    : `Preço calculado com ${projectedPricingQuantity} item(ns) da mesma categoria no carrinho.`;
+                rules = categoryRule.rules;
+                scope = categoryRule.volumeScope === 'per_product' ? 'product' : 'category';
+                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
+                message = scope === 'product'
+                    ? `Preço calculado com ${pricingQuantity} unidade(s) deste produto.`
+                    : `Preço calculado com ${pricingQuantity} item(ns) da mesma categoria no carrinho.`;
             } else if (categoryRule?.rules?.length) {
-                appliedUnitPrice = getPriceForQuantity(categoryRule.rules, 1) ?? baseUnitPrice;
+                rules = categoryRule.rules;
+                appliedUnitPrice = getPriceForQuantity(rules, 1) ?? baseUnitPrice;
             }
         } else if (Array.isArray(product.price_rules) && product.price_rules.length > 0) {
-            const pricingQuantity = product.price_logic_type === 'category_volume'
+            rules = product.price_rules;
+            pricingQuantity = product.price_logic_type === 'category_volume'
                 ? existingProductQuantity + quantity
                 : 1;
-            appliedUnitPrice = getPriceForQuantity(product.price_rules, pricingQuantity) ?? baseUnitPrice;
+            scope = product.price_logic_type === 'category_volume' ? 'product' : null;
+            appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
 
             if (pricingQuantity > 1) {
                 message = `Preço calculado com ${pricingQuantity} unidade(s) deste produto.`;
@@ -118,6 +132,9 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
             lineTotal,
             discount: Math.max(0, lineBaseTotal - lineTotal),
             message,
+            pricingQuantity,
+            scope,
+            promotionRules: normalizePromotionRules(rules, baseUnitPrice),
         };
     }, [cartItems, categoryRules, product, quantity]);
 
@@ -146,6 +163,18 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
     if (!isVisible && !isOpen) return null;
 
     const hasDiscount = pricingPreview.discount > 0.009;
+    const nextPromotionRule = pricingPreview.promotionRules.find(
+        (rule) => Number(rule.min) > pricingPreview.pricingQuantity,
+    );
+    const unitsToNextPrice = nextPromotionRule
+        ? Number(nextPromotionRule.min) - pricingPreview.pricingQuantity
+        : 0;
+
+    const scopeLabel = pricingPreview.scope === 'group'
+        ? 'A quantidade soma produtos participantes do mesmo grupo.'
+        : pricingPreview.scope === 'category'
+            ? 'A quantidade soma produtos participantes da mesma categoria.'
+            : 'A quantidade considera este produto.';
 
     const handleQuantityChange = (rawValue: string) => {
         const parsed = Number.parseInt(rawValue, 10);
@@ -181,31 +210,11 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                     {product && images.length > 0 ? (
                         <div className="relative flex h-full w-full items-center justify-center">
                             {images.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setCurrentImageIndex((previous) => previous === 0 ? images.length - 1 : previous - 1)}
-                                    className="absolute left-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm"
-                                    aria-label="Imagem anterior"
-                                >
-                                    ‹
-                                </button>
+                                <button type="button" onClick={() => setCurrentImageIndex((previous) => previous === 0 ? images.length - 1 : previous - 1)} className="absolute left-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm" aria-label="Imagem anterior">‹</button>
                             )}
-
-                            <img
-                                src={images[currentImageIndex]}
-                                alt={product.name}
-                                className="h-full max-w-full object-contain drop-shadow-xl"
-                            />
-
+                            <img src={images[currentImageIndex]} alt={product.name} className="h-full max-w-full object-contain drop-shadow-xl" />
                             {images.length > 1 && (
-                                <button
-                                    type="button"
-                                    onClick={() => setCurrentImageIndex((previous) => (previous + 1) % images.length)}
-                                    className="absolute right-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm"
-                                    aria-label="Próxima imagem"
-                                >
-                                    ›
-                                </button>
+                                <button type="button" onClick={() => setCurrentImageIndex((previous) => (previous + 1) % images.length)} className="absolute right-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm" aria-label="Próxima imagem">›</button>
                             )}
                         </div>
                     ) : (
@@ -217,10 +226,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-5 sm:p-6 md:p-8">
-                    <h2 className="text-2xl font-black leading-tight text-gray-800 dark:text-white">
-                        {product?.name}
-                    </h2>
-
+                    <h2 className="text-2xl font-black leading-tight text-gray-800 dark:text-white">{product?.name}</h2>
                     <p className="mt-3 text-sm leading-relaxed text-gray-500 dark:text-gray-300 sm:text-base">
                         {product?.description || 'Produto disponível para personalização e inclusão no pedido.'}
                     </p>
@@ -228,94 +234,65 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                     {availabilityNotice && (
                         <div className="mt-5 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
                             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-                            <div>
-                                <p className="text-sm font-bold">Disponibilidade limitada</p>
-                                <p className="mt-1 text-sm leading-relaxed">{availabilityNotice}</p>
-                            </div>
+                            <div><p className="text-sm font-bold">Disponibilidade limitada</p><p className="mt-1 text-sm leading-relaxed">{availabilityNotice}</p></div>
                         </div>
                     )}
 
                     <section className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20 sm:mt-6">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                                    Preço com o carrinho atual
-                                </p>
-                                <p className="mt-1 text-2xl font-black text-emerald-700 dark:text-emerald-300">
-                                    R$ {formatBRL(pricingPreview.appliedUnitPrice)} <span className="text-sm font-semibold">cada</span>
-                                </p>
+                                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Preço com o carrinho atual</p>
+                                <p className="mt-1 text-2xl font-black text-emerald-700 dark:text-emerald-300">R$ {formatBRL(pricingPreview.appliedUnitPrice)} <span className="text-sm font-semibold">cada</span></p>
+                            </div>
+                            {hasDiscount && <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">Economia de R$ {formatBRL(pricingPreview.discount)}</span>}
+                        </div>
+                        {hasDiscount && <p className="mt-2 text-sm text-gray-500 line-through dark:text-gray-400">Preço original: R$ {formatBRL(pricingPreview.baseUnitPrice)} cada</p>}
+                        {pricingPreview.message && <p className="mt-2 text-xs leading-relaxed text-emerald-800 dark:text-emerald-200">{pricingPreview.message}</p>}
+                    </section>
+
+                    {pricingPreview.promotionRules.length > 0 && (
+                        <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900/40">
+                            <div className="flex items-start gap-3">
+                                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><BadgePercent className="h-5 w-5" /></span>
+                                <div>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Compre mais, pague menos</h3>
+                                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{scopeLabel}</p>
+                                </div>
                             </div>
 
-                            {hasDiscount && (
-                                <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
-                                    Economia de R$ {formatBRL(pricingPreview.discount)}
-                                </span>
+                            <div className="mt-4 space-y-2">
+                                {pricingPreview.promotionRules.map((rule) => {
+                                    const reached = pricingPreview.pricingQuantity >= Number(rule.min);
+                                    return (
+                                        <div key={`${rule.min}-${rule.price}`} className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm ${reached ? 'border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-100' : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>
+                                            <span className="font-semibold">A partir de {rule.min} itens</span>
+                                            <span className="font-black">R$ {formatBRL(rule.price)} cada</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {nextPromotionRule ? (
+                                <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+                                    Adicione mais {unitsToNextPrice} {unitsToNextPrice === 1 ? 'item' : 'itens'} participante{unitsToNextPrice === 1 ? '' : 's'} para chegar a R$ {formatBRL(nextPromotionRule.price)} cada.
+                                </p>
+                            ) : (
+                                <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Você já alcançou a melhor faixa publicada para esta oferta.</p>
                             )}
-                        </div>
-
-                        {hasDiscount && (
-                            <p className="mt-2 text-sm text-gray-500 line-through dark:text-gray-400">
-                                Preço original: R$ {formatBRL(pricingPreview.baseUnitPrice)} cada
-                            </p>
-                        )}
-
-                        {pricingPreview.message && (
-                            <p className="mt-2 text-xs leading-relaxed text-emerald-800 dark:text-emerald-200">
-                                {pricingPreview.message}
-                            </p>
-                        )}
-                    </section>
+                        </section>
+                    )}
                 </div>
 
                 <div className="safe-area-bottom mt-auto flex flex-col gap-3 border-t border-gray-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 sm:p-5 md:p-6">
                     <div className="flex items-center justify-between gap-3 sm:gap-4">
                         <div className="flex h-12 items-center rounded-xl bg-gray-100 p-1 dark:bg-slate-700">
-                            <button
-                                type="button"
-                                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10"
-                                aria-label="Diminuir quantidade"
-                            >
-                                <span className="text-2xl leading-none">−</span>
-                            </button>
-
-                            <input
-                                type="number"
-                                inputMode="numeric"
-                                pattern="[0-9]*"
-                                min={1}
-                                step={1}
-                                value={quantity}
-                                onFocus={(event) => event.currentTarget.select()}
-                                onClick={(event) => event.currentTarget.select()}
-                                onChange={(event) => handleQuantityChange(event.target.value)}
-                                className="w-10 bg-transparent text-center text-lg font-bold text-gray-800 outline-none [appearance:textfield] dark:text-white sm:w-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                aria-label="Quantidade do produto"
-                            />
-
-                            <button
-                                type="button"
-                                onClick={() => setQuantity(quantity + 1)}
-                                className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10"
-                                aria-label="Aumentar quantidade"
-                            >
-                                <span className="text-2xl leading-none">+</span>
-                            </button>
+                            <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10" aria-label="Diminuir quantidade"><span className="text-2xl leading-none">−</span></button>
+                            <input type="number" inputMode="numeric" pattern="[0-9]*" min={1} step={1} value={quantity} onFocus={(event) => event.currentTarget.select()} onClick={(event) => event.currentTarget.select()} onChange={(event) => handleQuantityChange(event.target.value)} className="w-10 bg-transparent text-center text-lg font-bold text-gray-800 outline-none [appearance:textfield] dark:text-white sm:w-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Quantidade do produto" />
+                            <button type="button" onClick={() => setQuantity(quantity + 1)} className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10" aria-label="Aumentar quantidade"><span className="text-2xl leading-none">+</span></button>
                         </div>
-
-                        <button
-                            type="button"
-                            onClick={handleAddToCart}
-                            className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-xl bg-brand-green px-4 text-sm font-black text-white shadow-lg shadow-green-200 transition active:scale-95 hover:bg-green-600 dark:shadow-none sm:gap-3 sm:px-5 md:text-base"
-                        >
-                            <span>Adicionar {quantity}</span>
-                            <span>R$ {formatBRL(pricingPreview.lineTotal)}</span>
-                        </button>
+                        <button type="button" onClick={handleAddToCart} className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-xl bg-brand-green px-4 text-sm font-black text-white shadow-lg shadow-green-200 transition active:scale-95 hover:bg-green-600 dark:shadow-none sm:gap-3 sm:px-5 md:text-base"><span>Adicionar {quantity}</span><span>R$ {formatBRL(pricingPreview.lineTotal)}</span></button>
                     </div>
-
-                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                        O valor final será confirmado pelo sistema ao adicionar e novamente antes de concluir o pedido.
-                    </p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">O valor final será confirmado pelo sistema ao adicionar e novamente antes de concluir o pedido.</p>
                 </div>
             </section>
         </div>
