@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { ExternalLink, Loader2, MessageCircle, Save, ShieldCheck, ShoppingBag, Smartphone, Store, Truck } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
+import OnlineStockPolicySection from './OnlineStockPolicySection';
 import {
     OnlineOrderSettingsService,
     normalizeOnlineOrderSettings,
@@ -17,7 +18,13 @@ function asNumber(value: unknown, fallback = 0) {
     return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function ToggleCard({ title, description, checked, disabled, onChange }: { title: string; description: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
+function ToggleCard({ title, description, checked, disabled, onChange }: {
+    title: string;
+    description: string;
+    checked: boolean;
+    disabled?: boolean;
+    onChange: (checked: boolean) => void;
+}) {
     return (
         <label className="rounded-2xl border border-gray-200 p-4 dark:border-gray-800">
             <div className="flex items-center justify-between gap-3">
@@ -83,9 +90,10 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             setWhatsappBusiness(storeData.contacts?.whatsapp_business || '');
             setMainEmail(storeData.contacts?.main_email || '');
             setOrderSettings(normalized);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Erro ao carregar Pedido Online:', err);
-            setError(err?.message || 'Erro ao carregar configurações do Pedido Online.');
+            const errorMessage = err instanceof Error ? err.message : 'Erro ao carregar configurações do Pedido Online.';
+            setError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -110,7 +118,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
         const currentSlug = (store?.slug || '').trim().toLowerCase();
         if (currentSlug && normalizedSlug !== currentSlug) {
             const confirmed = window.confirm(
-                `Você está alterando o endereço público da loja.\n\nAtual: /s/${currentSlug}\nNovo: /s/${normalizedSlug}\n\nLinks e QR Codes antigos continuarão levando para esta mesma loja, mas novos materiais devem usar o endereço novo. Deseja continuar?`
+                `Você está alterando o endereço público da loja.\n\nAtual: /s/${currentSlug}\nNovo: /s/${normalizedSlug}\n\nLinks e QR Codes antigos continuarão levando para esta mesma loja, mas novos materiais devem usar o endereço novo. Deseja continuar?`,
             );
             if (!confirmed) return;
         }
@@ -147,13 +155,14 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
             window.dispatchEvent(new CustomEvent('optmamenu:public-store-settings-changed', {
                 detail: {
                     public_store_enabled: publicStoreEnabled,
-                    slug,
+                    slug: normalizedSlug,
+                    public_sales_location_id: publicSalesLocationId || null,
                 },
             }));
             await loadData();
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error('Erro ao salvar Pedido Online:', err);
-            const errorMessage = err?.message || 'Erro ao salvar configurações do Pedido Online.';
+            const errorMessage = err instanceof Error ? err.message : 'Erro ao salvar configurações do Pedido Online.';
             setError(errorMessage);
             toast.error(errorMessage);
         } finally {
@@ -176,7 +185,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
 
     const headerAction = publicUrl && !disabled ? (
         publicStoreEnabled ? (
-            <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800 shadow-sm">
+            <a href={publicUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
                 <ExternalLink size={16} /> Abrir loja
             </a>
         ) : (
@@ -189,7 +198,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
     return (
         <PageContainer
             title="Pedido Online"
-            subtitle="Configure loja pública, catálogo, mínimo de entrega, retirada, WhatsApp e mensagens padrão."
+            subtitle="Configure loja pública, catálogo, estoque online, mínimo de entrega, retirada, WhatsApp e mensagens padrão."
             category="Configurações"
             icon={<Smartphone size={28} className="text-[#19A999]" />}
             onRefresh={loadData}
@@ -210,11 +219,24 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                             <ToggleCard title="Mostrar imagens" description="Exibe imagens cadastradas nos produtos." checked={Boolean(orderSettings.show_product_images)} onChange={(checked) => updateOrderSettings({ show_product_images: checked })} disabled={disabled} />
                             <ToggleCard title="Mostrar indisponíveis" description="Mantém produtos indisponíveis visíveis no catálogo." checked={Boolean(orderSettings.show_unavailable_products)} onChange={(checked) => updateOrderSettings({ show_unavailable_products: checked })} disabled={disabled} />
                         </div>
-                        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Slug público</label><input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} minLength={3} maxLength={60} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="gelinharessjn" disabled={disabled} /><p className="mt-1 text-xs text-gray-500">Link: {publicUrl || 'configure um slug'}</p>{store?.slug && slug.trim().toLowerCase() !== store.slug.trim().toLowerCase() && <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">A mudança preservará o endereço antigo como alias protegido, mas novos QR Codes e materiais devem usar o novo link.</p>}</div>
-                            <div><label className="text-sm font-bold text-gray-700 dark:text-gray-200">Local de venda pública</label><select value={publicSalesLocationId} onChange={(event) => setPublicSalesLocationId(event.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" disabled={disabled}><option value="">Selecionar automaticamente</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}{location.is_default ? ' — padrão' : ''}</option>)}</select></div>
+                        <div className="mt-5">
+                            <label className="text-sm font-bold text-gray-700 dark:text-gray-200">Slug público</label>
+                            <input value={slug} onChange={(event) => setSlug(event.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} minLength={3} maxLength={60} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-emerald-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="gelinharessjn" disabled={disabled} />
+                            <p className="mt-1 text-xs text-gray-500">Link: {publicUrl || 'configure um slug'}</p>
+                            {store?.slug && slug.trim().toLowerCase() !== store.slug.trim().toLowerCase() && (
+                                <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs font-medium text-amber-800">A mudança preservará o endereço antigo como alias protegido, mas novos QR Codes e materiais devem usar o novo link.</p>
+                            )}
                         </div>
                     </section>
+
+                    <OnlineStockPolicySection
+                        locations={locations}
+                        publicSalesLocationId={publicSalesLocationId}
+                        onPublicSalesLocationChange={setPublicSalesLocationId}
+                        settings={orderSettings}
+                        onChange={updateOrderSettings}
+                        disabled={disabled}
+                    />
 
                     <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center gap-2"><Truck size={18} className="text-emerald-600" /><h2 className="text-lg font-black text-gray-900 dark:text-white">Entrega, retirada e mínimo</h2></div>
@@ -249,7 +271,7 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                 </div>
 
                 <aside className="space-y-4">
-                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"><div className="flex items-center gap-2 font-black"><ShieldCheck size={18} />Configuração integrada</div><p className="mt-2">Usa as regras comerciais, métodos de entrega e loja pública já cadastrados.</p></div>
+                    <div className="rounded-3xl border border-emerald-100 bg-emerald-50 p-5 text-sm text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-100"><div className="flex items-center gap-2 font-black"><ShieldCheck size={18} />Configuração integrada</div><p className="mt-2">Usa as regras comerciais, métodos de entrega, local de estoque e loja pública já cadastrados.</p></div>
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"><p className="text-xs font-bold uppercase text-gray-500 dark:text-gray-400">Loja atual</p><p className="mt-1 text-lg font-black text-gray-900 dark:text-white">{store?.name || 'Loja'}</p><p className="mt-1 text-sm text-gray-500">/{slug || 'slug'}</p></div>
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900"><div className="flex items-center gap-2 text-sm font-black text-gray-900 dark:text-white"><ShoppingBag size={18} className="text-emerald-600" />Métodos públicos</div><p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{publicMethods.length} método(s) público(s) ativo(s).</p></div>
                     {!disabled && <button type="button" onClick={handleSave} disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}Salvar Pedido Online</button>}
