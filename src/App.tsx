@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 import { supabase } from '@/lib/supabase';
 import AppRoutes from '@/AppRoutes';
 import CookieConsent from '@/components/common/CookieConsent';
+import PublicLegalFooter from '@/components/common/PublicLegalFooter';
 import CookiePolicy from '@/pages/initial/legal/CookiePolicy';
 import { Toaster } from 'sonner';
 import { validateSessionSecurity, markSessionAsActive } from '@/utils/sessionSecurity';
@@ -93,6 +94,7 @@ function App() {
         <Route path="/politica-cookies" element={<CookiePolicy />} />
         <Route path="*" element={<AppRoutes />} />
       </Routes>
+      <PublicLegalFooter />
       <CookieConsent />
       <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
