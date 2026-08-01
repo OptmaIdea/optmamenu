@@ -9,17 +9,56 @@ interface PublicStoreHeroProps {
     config?: StoreConfig;
 }
 
-const TEST_BUCKET_PUBLIC_URL = 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner';
+
 const MAX_PUBLIC_MEDIA = 5;
 
-const demoUrl = (name: string) => `${TEST_BUCKET_PUBLIC_URL}/${encodeURIComponent(name)}`;
+
 
 const GELINHARES_DEMO_MEDIA: StorefrontBannerMedia[] = [
-    { id: 'demo-1', type: 'image', url: demoUrl('Gemini_Generated_Image_ojpljkojpljkojpl_11zon.webp'), alt_text: 'Destaque visual da Gelinhares', sort_order: 1 },
-    { id: 'demo-2', type: 'image', url: demoUrl('Gemini_Generated_Image_wsxy8hwsxy8hwsxy_11zon.webp'), alt_text: 'Produto em destaque da Gelinhares', sort_order: 2 },
-    { id: 'demo-video', type: 'video', url: demoUrl('crie_um_video_de_alguem_tomand(1).mp4'), poster_url: demoUrl('Gemini_Generated_Image_1107s91107s91107_11zon.webp'), alt_text: 'Vídeo promocional da Gelinhares', sort_order: 3 },
-    { id: 'demo-4', type: 'image', url: demoUrl('Gemini_Generated_Image_1107s91107s91107_11zon.webp'), alt_text: 'Experiência Gelinhares', sort_order: 4 },
-    { id: 'demo-5', type: 'image', url: demoUrl('Gemini_Generated_Image_f60iyif60iyif60i_11zon.webp'), alt_text: 'Seleção especial da Gelinhares', sort_order: 5 },
+    {
+        id: 'demo-1',
+        type: 'image',
+        url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/image-1-melancia-na-mao.webp',
+        alt_text: 'Imagem 1',
+        sort_order: 1,
+    },
+    {
+        id: 'demo-video-1',
+        type: 'video',
+        url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/video-1-gelinhares-abacaxi.mp4',
+        poster_url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/image-1-melancia-na-mao.webp',
+        alt_text: 'Vídeo 1',
+        sort_order: 2,
+    },
+    {
+        id: 'demo-2',
+        type: 'image',
+        url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/image-2-abacaxi-na-mao.webp',
+        alt_text: 'Imagem 2',
+        sort_order: 3,
+    },
+    {
+        id: 'demo-video-2',
+        type: 'video',
+        url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/video-2-gelinhares-varias-frutas.mp4',
+        poster_url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/image-2-abacaxi-na-mao.webp',
+        alt_text: 'Vídeo 2',
+        sort_order: 4,
+    },
+    {
+        id: 'demo-3',
+        type: 'image',
+        url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/image-3-sabor-limao.webp',
+        alt_text: 'Imagem 3',
+        sort_order: 5,
+    },
+    {
+        id: 'demo-4',
+        type: 'image',
+        url: 'https://lgkkfmqzaorrutuoqeax.supabase.co/storage/v1/object/public/teste_banner/image-4-fruta-no-palito-melancia.webp',
+        alt_text: 'Imagem 4',
+        sort_order: 6,
+    }
 ];
 
 function configuredMedia(config?: StoreConfig): StorefrontBannerMedia[] {
