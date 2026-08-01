@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ExternalLink, Loader2, MessageCircle, Save, ShieldCheck, ShoppingBag, Smartphone, Store, Truck } from 'lucide-react';
+import { Boxes, ExternalLink, Loader2, MessageCircle, Save, ShieldCheck, ShoppingBag, Smartphone, Store, Truck } from 'lucide-react';
 import PageContainer from '@/components/common/PageContainer';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import OnlineStockPolicySection from './OnlineStockPolicySection';
@@ -229,15 +229,6 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                         </div>
                     </section>
 
-                    <OnlineStockPolicySection
-                        locations={locations}
-                        publicSalesLocationId={publicSalesLocationId}
-                        onPublicSalesLocationChange={setPublicSalesLocationId}
-                        settings={orderSettings}
-                        onChange={updateOrderSettings}
-                        disabled={disabled}
-                    />
-
                     <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center gap-2"><Truck size={18} className="text-emerald-600" /><h2 className="text-lg font-black text-gray-900 dark:text-white">Entrega, retirada e mínimo</h2></div>
                         <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -277,6 +268,30 @@ export default function OnlineOrderSettingsPage({ withoutHeader = false, disable
                     {!disabled && <button type="button" onClick={handleSave} disabled={saving} className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60">{saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}Salvar Pedido Online</button>}
                 </aside>
             </div>
+
+            <details className="group mt-6 rounded-3xl border border-gray-200 bg-gray-50 shadow-sm dark:border-gray-800 dark:bg-gray-950/40">
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 marker:content-none sm:px-6">
+                    <div className="flex min-w-0 items-center gap-3">
+                        <span className="inline-flex h-10 w-10 flex-none items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"><Boxes size={19} /></span>
+                        <div className="min-w-0">
+                            <p className="font-black text-gray-900 dark:text-white">Estoque da loja pública</p>
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">Local da slug, reserva presencial, teto online e regras por produto</p>
+                        </div>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-700 group-open:hidden dark:text-emerald-300">Expandir</span>
+                    <span className="hidden text-xs font-bold text-emerald-700 group-open:inline dark:text-emerald-300">Recolher</span>
+                </summary>
+                <div className="border-t border-gray-200 p-3 dark:border-gray-800 sm:p-4">
+                    <OnlineStockPolicySection
+                        locations={locations}
+                        publicSalesLocationId={publicSalesLocationId}
+                        onPublicSalesLocationChange={setPublicSalesLocationId}
+                        settings={orderSettings}
+                        onChange={updateOrderSettings}
+                        disabled={disabled}
+                    />
+                </div>
+            </details>
         </PageContainer>
     );
 }
