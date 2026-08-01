@@ -34,6 +34,12 @@ export interface SaveOnlineStockProductPolicyInput {
     show_exact_stock: boolean | null;
 }
 
+type ProductBalance = {
+    product_id: string;
+    on_hand: number | string | null;
+    reserved: number | string | null;
+};
+
 function asNumber(value: unknown) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -49,13 +55,13 @@ function firstImage(value: unknown): string | null {
 
 export const OnlineStockProductSettingsService = {
     async list(storeId: string, locationId?: string | null): Promise<OnlineStockProductRow[]> {
-        const [productsResult, categoriesResult, policiesResult, balancesResult] = await Promise.all([
+        const [productsResult, categoriesResult, policiesResult] = await Promise.all([
             supabase
                 .from('products')
                 .select('id, name, category_id, active, images')
                 .eq('store_id', storeId)
-                .eq('discontinued', false)
-                .eq('is_discontinued', false)
+                .or('discontinued.is.null,discontinued.eq.false')
+                .or('is_discontinued.is.null,is_discontinued.eq.false')
                 .order('name', { ascending: true }),
             supabase
                 .from('categories')
@@ -65,25 +71,28 @@ export const OnlineStockProductSettingsService = {
                 .from('storefront_product_settings')
                 .select('id, store_id, product_id, published, local_reserve, online_limit, low_stock_threshold, show_exact_stock')
                 .eq('store_id', storeId),
-            locationId
-                ? supabase
-                    .from('inventory_location_balances')
-                    .select('product_id, on_hand, reserved')
-                    .eq('store_id', storeId)
-                    .eq('location_id', locationId)
-                : Promise.resolve({ data: [], error: null }),
         ]);
 
         if (productsResult.error) throw productsResult.error;
         if (categoriesResult.error) throw categoriesResult.error;
         if (policiesResult.error) throw policiesResult.error;
-        if (balancesResult.error) throw balancesResult.error;
+
+        let balanceRows: ProductBalance[] = [];
+        if (locationId) {
+            const { data, error } = await supabase
+                .from('inventory_location_balances')
+                .select('product_id, on_hand, reserved')
+                .eq('store_id', storeId)
+                .eq('location_id', locationId);
+            if (error) throw error;
+            balanceRows = (data || []) as ProductBalance[];
+        }
 
         const categoryNames = new Map((categoriesResult.data || []).map((category) => [category.id, category.name]));
         const policies = new Map((policiesResult.data || []).map((policy) => [policy.product_id, policy as OnlineStockProductPolicy]));
         const balances = new Map<string, { on_hand: number; reserved: number }>();
 
-        for (const balance of balancesResult.data || []) {
+        for (const balance of balanceRows) {
             const current = balances.get(balance.product_id) || { on_hand: 0, reserved: 0 };
             current.on_hand += asNumber(balance.on_hand);
             current.reserved += asNumber(balance.reserved);
