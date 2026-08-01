@@ -58,6 +58,9 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 pricingQuantity: 1,
                 scope: null as PricingScope,
                 promotionRules: [] as PriceRule[],
+                categoryName: null as string | null,
+                groupName: null as string | null,
+                participantCategories: [] as string[],
             };
         }
 
@@ -71,9 +74,13 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
         let message: string | null = null;
         let scope: PricingScope = null;
         let rules: PriceRule[] = [];
+        let categoryName: string | null = null;
+        let groupName: string | null = null;
+        let participantCategories: string[] = [];
 
         if (product.use_category_pricing && product.category_id) {
             const categoryRule = categoryRules[product.category_id];
+            categoryName = categoryRule?.categoryName || null;
 
             if (categoryRule?.pricingGroup) {
                 const pricingGroupId = categoryRule.pricingGroup.id;
@@ -88,8 +95,10 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 pricingQuantity = currentGroupQuantity + quantity;
                 rules = categoryRule.pricingGroup.rules;
                 scope = 'group';
-                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
-                message = `Preço calculado com ${pricingQuantity} item(ns) do mesmo grupo no carrinho.`;
+                groupName = categoryRule.pricingGroup.name;
+                participantCategories = categoryRule.pricingGroup.categoryNames;
+                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? basePrice;
+                message = `Preço calculado com ${pricingQuantity} item(ns) das categorias participantes no carrinho.`;
             } else if (categoryRule?.type === 'category_volume') {
                 const currentCategoryQuantity = cartItems.reduce((sum, item) => (
                     item.category_id === product.category_id && item.use_category_pricing
@@ -102,13 +111,14 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                     : currentCategoryQuantity + quantity;
                 rules = categoryRule.rules;
                 scope = categoryRule.volumeScope === 'per_product' ? 'product' : 'category';
-                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
+                participantCategories = categoryName ? [categoryName] : [];
+                appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? basePrice;
                 message = scope === 'product'
                     ? `Preço calculado com ${pricingQuantity} unidade(s) deste produto.`
-                    : `Preço calculado com ${pricingQuantity} item(ns) da mesma categoria no carrinho.`;
+                    : `Preço calculado com ${pricingQuantity} item(ns) da categoria ${categoryName || 'participante'} no carrinho.`;
             } else if (categoryRule?.rules?.length) {
                 rules = categoryRule.rules;
-                appliedUnitPrice = getPriceForQuantity(rules, 1) ?? baseUnitPrice;
+                appliedUnitPrice = getPriceForQuantity(rules, 1) ?? basePrice;
             }
         } else if (Array.isArray(product.price_rules) && product.price_rules.length > 0) {
             rules = product.price_rules;
@@ -116,25 +126,28 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 ? existingProductQuantity + quantity
                 : 1;
             scope = product.price_logic_type === 'category_volume' ? 'product' : null;
-            appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? baseUnitPrice;
+            appliedUnitPrice = getPriceForQuantity(rules, pricingQuantity) ?? basePrice;
 
             if (pricingQuantity > 1) {
                 message = `Preço calculado com ${pricingQuantity} unidade(s) deste produto.`;
             }
         }
 
-        const lineBaseTotal = baseUnitPrice * quantity;
+        const lineBaseTotal = basePrice * quantity;
         const lineTotal = appliedUnitPrice * quantity;
 
         return {
-            baseUnitPrice,
+            baseUnitPrice: basePrice,
             appliedUnitPrice,
             lineTotal,
             discount: Math.max(0, lineBaseTotal - lineTotal),
             message,
             pricingQuantity,
             scope,
-            promotionRules: normalizePromotionRules(rules, baseUnitPrice),
+            promotionRules: normalizePromotionRules(rules, basePrice),
+            categoryName,
+            groupName,
+            participantCategories,
         };
     }, [cartItems, categoryRules, product, quantity]);
 
@@ -170,11 +183,17 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
         ? Number(nextPromotionRule.min) - pricingPreview.pricingQuantity
         : 0;
 
-    const scopeLabel = pricingPreview.scope === 'group'
-        ? 'A quantidade soma produtos participantes do mesmo grupo.'
+    const promotionTitle = pricingPreview.scope === 'group'
+        ? 'Promoção combinada entre categorias'
         : pricingPreview.scope === 'category'
-            ? 'A quantidade soma produtos participantes da mesma categoria.'
-            : 'A quantidade considera este produto.';
+            ? 'Promoção da categoria'
+            : 'Compre mais, pague menos';
+
+    const scopeLabel = pricingPreview.scope === 'group'
+        ? 'A quantidade soma todos os produtos das categorias participantes desta promoção.'
+        : pricingPreview.scope === 'category'
+            ? `A quantidade soma os produtos participantes da categoria ${pricingPreview.categoryName || ''}.`
+            : 'A quantidade considera somente este produto.';
 
     const handleQuantityChange = (rawValue: string) => {
         const parsed = Number.parseInt(rawValue, 10);
@@ -255,10 +274,28 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                             <div className="flex items-start gap-3">
                                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300"><BadgePercent className="h-5 w-5" /></span>
                                 <div>
-                                    <h3 className="text-sm font-black text-slate-900 dark:text-white">Compre mais, pague menos</h3>
+                                    <h3 className="text-sm font-black text-slate-900 dark:text-white">{promotionTitle}</h3>
+                                    {pricingPreview.groupName && (
+                                        <p className="mt-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">{pricingPreview.groupName}</p>
+                                    )}
                                     <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">{scopeLabel}</p>
                                 </div>
                             </div>
+
+                            {pricingPreview.participantCategories.length > 0 && (
+                                <div className="mt-3">
+                                    <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                                        {pricingPreview.scope === 'group' ? 'Categorias que somam juntas' : 'Categoria participante'}
+                                    </p>
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {pricingPreview.participantCategories.map((categoryName) => (
+                                            <span key={categoryName} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                                {categoryName}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mt-4 space-y-2">
                                 {pricingPreview.promotionRules.map((rule) => {
@@ -274,10 +311,10 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
 
                             {nextPromotionRule ? (
                                 <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-                                    Adicione mais {unitsToNextPrice} {unitsToNextPrice === 1 ? 'item' : 'itens'} participante{unitsToNextPrice === 1 ? '' : 's'} para chegar a R$ {formatBRL(nextPromotionRule.price)} cada.
+                                    Adicione mais {unitsToNextPrice} {unitsToNextPrice === 1 ? 'item' : 'itens'} das categorias participantes para chegar a R$ {formatBRL(nextPromotionRule.price)} cada.
                                 </p>
                             ) : (
-                                <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Você já alcançou a melhor faixa publicada para esta oferta.</p>
+                                <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300">Você já alcançou a melhor faixa publicada para esta promoção.</p>
                             )}
                         </section>
                     )}
