@@ -46,19 +46,20 @@ export function ProductCard({
         || Number(product.stock_quantity ?? 0) <= 0;
     const showLowStock = availability?.status === 'low_stock'
         && availability.displayMode !== 'hidden';
-    const showExactStock = availability?.displayMode === 'exact'
-        && typeof availability.availableOnline === 'number'
-        && !isUnavailable;
+    const showExactLowStock = showLowStock
+        && availability?.displayMode === 'exact'
+        && typeof availability.availableOnline === 'number';
+    const exactLowStockQuantity = showExactLowStock
+        ? Math.max(0, Math.floor(availability.availableOnline || 0))
+        : null;
 
-    const stockLabel = showExactStock
-        ? `${Math.max(0, Math.floor(availability.availableOnline || 0))} disponíveis`
+    const stockLabel = showExactLowStock && exactLowStockQuantity !== null
+        ? exactLowStockQuantity === 1
+            ? '1 unidade disponível'
+            : `${exactLowStockQuantity} unidades disponíveis`
         : showLowStock
             ? 'Poucas unidades'
             : null;
-
-    const stockLabelClassName = showLowStock
-        ? 'bg-amber-100/95 text-amber-900 dark:bg-amber-950/90 dark:text-amber-200'
-        : 'bg-emerald-100/95 text-emerald-900 dark:bg-emerald-950/90 dark:text-emerald-200';
 
     const openConfigurator = () => {
         if (!isUnavailable) onOpenDetails(product);
@@ -109,7 +110,7 @@ export function ProductCard({
                     )}
 
                     {stockLabel && !isUnavailable && (
-                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-extrabold shadow-sm backdrop-blur ${stockLabelClassName}`}>
+                        <span className="rounded-full bg-amber-100/95 px-2.5 py-1 text-[10px] font-extrabold text-amber-900 shadow-sm backdrop-blur dark:bg-amber-950/90 dark:text-amber-200">
                             {stockLabel}
                         </span>
                     )}
