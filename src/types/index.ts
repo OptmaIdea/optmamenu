@@ -92,6 +92,25 @@ export interface Customer {
     email_verified?: boolean;
 }
 
+export type StorefrontBannerMediaType = 'image' | 'video' | 'html5';
+
+export interface StorefrontBannerMedia {
+    id?: string;
+    type: StorefrontBannerMediaType;
+    url: string;
+    poster_url?: string;
+    mobile_url?: string;
+    alt_text?: string;
+    title?: string;
+    subtitle?: string;
+    link?: string;
+    open_in_new_tab?: boolean;
+    sort_order?: number;
+    active?: boolean;
+    published?: boolean;
+    duration_seconds?: number;
+}
+
 export interface StoreConfig {
     timer_duration_minutes?: number;
     extension_minutes?: number;
@@ -135,7 +154,8 @@ export interface StoreConfig {
     };
     footer_text?: string;
     footer_show_contact?: boolean;
-    banners?: Array<{ url: string; type: 'image' | 'video'; link?: string }>;
+    banners?: StorefrontBannerMedia[];
+    banner_publication_limit?: number;
     custom_domain?: string;
     opening_time?: string;
     closing_time?: string;
