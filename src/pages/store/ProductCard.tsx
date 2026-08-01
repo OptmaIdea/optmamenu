@@ -1,4 +1,5 @@
 import { BadgePercent, ChevronRight, ImageIcon, PackageX, Plus } from 'lucide-react';
+import type { MouseEvent } from 'react';
 import type { Product, PriceRule } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL, getPriceForQuantity } from '@/utils/pricing';
@@ -6,6 +7,7 @@ import { formatBRL, getPriceForQuantity } from '@/utils/pricing';
 interface ProductCardProps {
     product: Product;
     onOpenDetails: (product: Product) => void;
+    onNotifyAvailability?: (product: Product) => void;
     /**
      * Mantido temporariamente para compatibilidade com o Catalog legado.
      * Na experiência V2, nenhuma ação do card adiciona o item diretamente.
@@ -19,7 +21,11 @@ function getFirstPromotionRule(rules: PriceRule[], basePrice: number) {
         .sort((left, right) => left.min - right.min)[0] || null;
 }
 
-export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
+export function ProductCard({
+    product,
+    onOpenDetails,
+    onNotifyAvailability,
+}: ProductCardProps) {
     const categoryRules = useCartStore((state) => state.categoryRules);
     const imageUrl = product.images?.[0] || product.image_url || null;
 
@@ -40,7 +46,8 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
     const promotionRule = getFirstPromotionRule(pricingRules, basePrice);
 
     const availability = product.public_availability;
-    const isUnavailable = availability?.status === 'unavailable';
+    const isUnavailable = availability?.status === 'unavailable'
+        || Number(product.stock_quantity ?? 0) <= 0;
     const showLowStock = availability?.status === 'low_stock'
         && availability.displayMode !== 'hidden';
 
@@ -56,13 +63,18 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
         if (!isUnavailable) onOpenDetails(product);
     };
 
+    const handleNotifyAvailability = (event: MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        onNotifyAvailability?.(product);
+    };
+
     return (
         <article className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-800 sm:rounded-3xl">
             <button
                 type="button"
                 onClick={openConfigurator}
                 disabled={isUnavailable}
-                className="flex min-h-full flex-1 flex-col text-left disabled:cursor-not-allowed"
+                className="flex min-h-full flex-1 flex-col text-left disabled:cursor-default"
                 aria-label={isUnavailable ? `${product.name} indisponível` : `Abrir detalhes de ${product.name}`}
             >
                 <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-50 dark:bg-slate-700/70">
@@ -98,11 +110,11 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
                     {isUnavailable ? (
                         <span className="absolute inset-x-3 bottom-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900/90 px-3 py-2 text-xs font-bold text-white">
                             <PackageX className="h-4 w-4" aria-hidden="true" />
-                            Indisponível
+                            Indisponível no momento
                         </span>
                     ) : (
                         <span
-                            className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-green text-white shadow-md transition group-hover:scale-105 group-hover:bg-green-600 group-active:scale-95 sm:right-3 sm:top-3"
+                            className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-green text-white shadow-md transition group-hover:scale-105 sm:right-3 sm:top-3"
                             aria-hidden="true"
                         >
                             <Plus className="h-5 w-5" />
@@ -122,21 +134,32 @@ export function ProductCard({ product, onOpenDetails }: ProductCardProps) {
                     )}
 
                     <div className="mt-auto pt-3">
-                        <p className="text-lg font-black leading-none text-emerald-700 dark:text-emerald-300">
-                            R$ {formatBRL(currentUnitPrice)}
-                        </p>
+                        {isUnavailable ? (
+                            <button
+                                type="button"
+                                onClick={handleNotifyAvailability}
+                                disabled={!onNotifyAvailability}
+                                className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-emerald-600 px-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                            >
+                                Avise-me
+                            </button>
+                        ) : (
+                            <>
+                                <p className="text-lg font-black leading-none text-emerald-700 dark:text-emerald-300">
+                                    R$ {formatBRL(currentUnitPrice)}
+                                </p>
 
-                        {promotionRule && !isUnavailable && (
-                            <p className="mt-2 text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">
-                                A partir de {promotionRule.min} itens: R$ {formatBRL(promotionRule.price)} cada
-                            </p>
-                        )}
+                                {promotionRule && (
+                                    <p className="mt-2 text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">
+                                        A partir de {promotionRule.min} itens: R$ {formatBRL(promotionRule.price)} cada
+                                    </p>
+                                )}
 
-                        {!isUnavailable && (
-                            <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-gray-600 dark:text-gray-300">
-                                {promotionRule ? 'Saiba mais' : 'Ver detalhes'}
-                                <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                            </span>
+                                <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-gray-600 dark:text-gray-300">
+                                    {promotionRule ? 'Saiba mais' : 'Ver detalhes'}
+                                    <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                                </span>
+                            </>
                         )}
                     </div>
                 </div>
