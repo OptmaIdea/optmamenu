@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Cookie, FileText, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Cookie, FileText, Mail, MessageCircle, ShieldCheck } from 'lucide-react';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
+import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 
 type LegalDocument = 'terms' | 'privacy' | 'cookies';
 
 type StoreSummary = {
     name: string;
     slug: string;
+    phone?: string;
 };
 
 const DOCUMENT_LABELS: Record<LegalDocument, string> = {
@@ -40,8 +42,22 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
             try {
                 const result = await PublicStorefrontService.getStorefrontBySlug(storeSlug);
                 if (!active) return;
+
                 if (result.ok && result.store) {
-                    setStore({ name: result.store.name, slug: result.store.slug || storeSlug });
+                    const publicStore = result.store as typeof result.store & {
+                        phone_number?: string;
+                        whatsapp?: { digits?: string };
+                        contacts?: { whatsapp_business?: string };
+                    };
+
+                    setStore({
+                        name: result.store.name,
+                        slug: result.store.slug || storeSlug,
+                        phone: publicStore.whatsapp?.digits
+                            || publicStore.contacts?.whatsapp_business
+                            || publicStore.phone_number
+                            || undefined,
+                    });
                 } else {
                     setStore(null);
                 }
@@ -61,6 +77,21 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
     const openCookiePreferences = () => {
         window.dispatchEvent(new CustomEvent('optmamenu:open-cookie-preferences'));
     };
+
+    const whatsappUrl = useMemo(() => {
+        if (!store?.phone || !canOpenWhatsapp(store.phone)) return '';
+
+        const subject = document === 'privacy'
+            ? 'uma solicitação relacionada aos meus dados pessoais'
+            : document === 'cookies'
+                ? 'uma dúvida sobre cookies e preferências'
+                : 'uma dúvida sobre os termos de uso da loja';
+
+        return buildWhatsappUrl(
+            store.phone,
+            `Olá! Vim pelo catálogo online da ${store.name} e tenho ${subject}.`,
+        );
+    }, [document, store]);
 
     const content = useMemo(() => {
         const storeName = store?.name || 'esta loja';
@@ -114,14 +145,6 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                 <p>Quando autorizado e configurado, pode apoiar medição de campanhas e recursos promocionais. A autorização pode ser revogada a qualquer momento.</p>
                 <h2>Gerenciamento</h2>
                 <p>As escolhas ficam vinculadas a este navegador e podem ser revistas a qualquer momento.</p>
-                <button
-                    type="button"
-                    onClick={openCookiePreferences}
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-black text-white hover:bg-emerald-700"
-                >
-                    <Cookie className="h-5 w-5" aria-hidden="true" />
-                    Gerenciar preferências de cookies
-                </button>
             </>
         );
     }, [document, store?.name]);
@@ -175,7 +198,28 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
 
                 <div className="space-y-5 px-5 py-7 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:px-8 sm:text-base [&_h2]:pt-3 [&_h2]:text-lg [&_h2]:font-black [&_h2]:text-slate-950 dark:[&_h2]:text-white">
                     {content}
-                    <aside className="mt-8 rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+
+                    <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900">
+                        <h2 className="!pt-0">Canais de contato</h2>
+                        <p className="mt-2 text-sm leading-6">Use o canal da loja para dúvidas sobre pedidos, atendimento e dados vinculados à compra. Para questões sobre a infraestrutura do OptmaMenu, utilize o contato da OptmaIdea.</p>
+                        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                            {whatsappUrl && (
+                                <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700">
+                                    <MessageCircle className="h-4 w-4" aria-hidden="true" /> Falar com {store.name}
+                                </a>
+                            )}
+                            <a href="mailto:legal@optmaidea.com" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900">
+                                <Mail className="h-4 w-4" aria-hidden="true" /> Contatar a OptmaIdea
+                            </a>
+                            {document === 'cookies' && (
+                                <button type="button" onClick={openCookiePreferences} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                    <Cookie className="h-4 w-4" aria-hidden="true" /> Gerenciar preferências
+                                </button>
+                            )}
+                        </div>
+                    </section>
+
+                    <aside className="mt-8 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
                         Este documento é uma versão operacional inicial e deverá passar por revisão jurídica antes da publicação definitiva.
                     </aside>
                 </div>
