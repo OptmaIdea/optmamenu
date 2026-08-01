@@ -16,6 +16,12 @@ const DOCUMENT_LABELS: Record<LegalDocument, string> = {
     cookies: 'Política de cookies da loja',
 };
 
+const DOCUMENT_NAVIGATION: Array<{ document: LegalDocument; label: string; segment: string }> = [
+    { document: 'terms', label: 'Termos de uso', segment: 'termos' },
+    { document: 'privacy', label: 'Privacidade', segment: 'privacidade' },
+    { document: 'cookies', label: 'Cookies', segment: 'cookies' },
+];
+
 function documentIcon(document: LegalDocument) {
     if (document === 'privacy') return <ShieldCheck className="h-7 w-7" aria-hidden="true" />;
     if (document === 'cookies') return <Cookie className="h-7 w-7" aria-hidden="true" />;
@@ -49,7 +55,12 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
     }, [storeSlug]);
 
     const canonicalSlug = store?.slug || storeSlug;
-    const storePath = `/s/${encodeURIComponent(canonicalSlug)}`;
+    const encodedSlug = encodeURIComponent(canonicalSlug);
+    const storePath = `/s/${encodedSlug}`;
+
+    const openCookiePreferences = () => {
+        window.dispatchEvent(new CustomEvent('optmamenu:open-cookie-preferences'));
+    };
 
     const content = useMemo(() => {
         const storeName = store?.name || 'esta loja';
@@ -65,7 +76,9 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                     <h2>Responsabilidade do cliente</h2>
                     <p>O cliente deve fornecer dados corretos de identificação, contato e entrega. Pedidos com informações incompletas podem depender de confirmação pela loja.</p>
                     <h2>Relação comercial</h2>
-                    <p>A venda é realizada pela própria loja. O OptmaMenu fornece a infraestrutura digital utilizada para catálogo, pedido e acompanhamento.</p>
+                    <p>A venda, o preparo, a separação, a entrega e o atendimento comercial são realizados pela própria loja. O OptmaMenu fornece a infraestrutura digital utilizada para catálogo, pedido e acompanhamento.</p>
+                    <h2>Confirmação do pedido</h2>
+                    <p>O envio pelo catálogo representa uma solicitação de compra. A loja poderá entrar em contato para confirmar disponibilidade, endereço, pagamento ou outras condições operacionais antes do atendimento.</p>
                 </>
             );
         }
@@ -78,6 +91,8 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                     <p>Podem ser solicitados nome, telefone, endereço, referência de entrega, CPF opcional, observações e dados técnicos necessários ao funcionamento do serviço.</p>
                     <h2>Finalidades</h2>
                     <p>Os dados são usados para identificar o cliente, criar e acompanhar o pedido, organizar entrega ou retirada, registrar pagamento informado e permitir contato operacional.</p>
+                    <h2>Responsáveis pelo tratamento</h2>
+                    <p>A loja é responsável pelas decisões comerciais e pelo atendimento relacionado ao pedido. A OptmaIdea atua na operação técnica da plataforma OptmaMenu e no tratamento necessário para disponibilizar o serviço.</p>
                     <h2>Compartilhamento</h2>
                     <p>As informações do pedido ficam disponíveis à loja responsável pelo atendimento e aos prestadores técnicos necessários à operação da plataforma. Os dados não devem ser vendidos a anunciantes.</p>
                     <h2>Armazenamento local</h2>
@@ -98,7 +113,15 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                 <h2>Marketing</h2>
                 <p>Quando autorizado e configurado, pode apoiar medição de campanhas e recursos promocionais. A autorização pode ser revogada a qualquer momento.</p>
                 <h2>Gerenciamento</h2>
-                <p>Use o botão “Gerenciar cookies” no rodapé para rever ou alterar as escolhas deste dispositivo.</p>
+                <p>As escolhas ficam vinculadas a este navegador e podem ser revistas a qualquer momento.</p>
+                <button
+                    type="button"
+                    onClick={openCookiePreferences}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-black text-white hover:bg-emerald-700"
+                >
+                    <Cookie className="h-5 w-5" aria-hidden="true" />
+                    Gerenciar preferências de cookies
+                </button>
             </>
         );
     }, [document, store?.name]);
@@ -133,6 +156,21 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                             <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Versão pública específica desta loja · 01/08/2026</p>
                         </div>
                     </div>
+
+                    <nav aria-label="Documentos legais da loja" className="mt-6 flex gap-2 overflow-x-auto pb-1">
+                        {DOCUMENT_NAVIGATION.map((item) => (
+                            <Link
+                                key={item.document}
+                                to={`/s/${encodedSlug}/legal/${item.segment}`}
+                                aria-current={document === item.document ? 'page' : undefined}
+                                className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-black transition ${document === item.document
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700'}`}
+                            >
+                                {item.label}
+                            </Link>
+                        ))}
+                    </nav>
                 </header>
 
                 <div className="space-y-5 px-5 py-7 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:px-8 sm:text-base [&_h2]:pt-3 [&_h2]:text-lg [&_h2]:font-black [&_h2]:text-slate-950 dark:[&_h2]:text-white">
