@@ -1,4 +1,4 @@
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle, ImageIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
@@ -21,8 +21,10 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
 
     const images = product
         ? (Array.isArray(product.images) && product.images.length > 0
-            ? product.images
-            : [product.image_url || 'https://via.placeholder.com/300'])
+            ? product.images.filter(Boolean)
+            : product.image_url
+                ? [product.image_url]
+                : [])
         : [];
 
     useEffect(() => {
@@ -165,7 +167,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 aria-label="Fechar detalhes do produto"
             />
 
-            <section className={`fixed bottom-0 left-0 right-0 flex max-h-[94dvh] flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-slate-800 md:inset-4 md:m-auto md:h-fit md:max-h-[calc(100dvh-2rem)] md:max-w-2xl md:rounded-[2rem] ${isOpen ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-full opacity-0 md:translate-y-0 md:scale-95'}`}>
+            <section className={`fixed inset-x-0 top-0 flex max-h-[94dvh] flex-col overflow-hidden rounded-b-[2rem] bg-white shadow-2xl transition-all duration-300 ease-out dark:bg-slate-800 md:inset-4 md:m-auto md:h-fit md:max-h-[calc(100dvh-2rem)] md:max-w-2xl md:rounded-[2rem] ${isOpen ? 'translate-y-0 scale-100 opacity-100' : '-translate-y-full opacity-0 md:translate-y-0 md:scale-95'}`}>
                 <div className="relative flex h-56 shrink-0 items-center justify-center bg-gray-50 p-5 text-center dark:bg-slate-700 sm:h-64 md:h-72 md:p-7">
                     <button
                         type="button"
@@ -176,7 +178,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                         <X size={20} />
                     </button>
 
-                    {product && images.length > 0 && (
+                    {product && images.length > 0 ? (
                         <div className="relative flex h-full w-full items-center justify-center">
                             {images.length > 1 && (
                                 <button
@@ -205,6 +207,11 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                                     ›
                                 </button>
                             )}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-2 text-gray-400 dark:text-gray-300">
+                            <ImageIcon className="h-10 w-10" aria-hidden="true" />
+                            <span className="text-sm font-semibold">Imagem não cadastrada</span>
                         </div>
                     )}
                 </div>
@@ -241,7 +248,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
 
                             {hasDiscount && (
                                 <span className="rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white">
-                                    Economize R$ {formatBRL(pricingPreview.discount)}
+                                    Economia de R$ {formatBRL(pricingPreview.discount)}
                                 </span>
                             )}
                         </div>
