@@ -18,10 +18,13 @@ type CategoryPricingRule = {
     type: string;
     rules: PriceRule[];
     volumeScope: 'combined' | 'per_product';
+    categoryName: string;
     pricingGroup?: {
         id: string;
+        name: string;
         type: string;
         rules: PriceRule[];
+        categoryNames: string[];
     };
 };
 
@@ -49,6 +52,19 @@ interface CartState {
 }
 
 function buildCategoryRules(categories: Category[]) {
+    const pricingGroupCategoryNames = categories.reduce((acc, category) => {
+        if (
+            category.use_pricing_group_rules
+            && category.pricing_group?.active
+            && category.pricing_group.price_rules?.length
+        ) {
+            const names = acc.get(category.pricing_group.id) || [];
+            if (!names.includes(category.name)) names.push(category.name);
+            acc.set(category.pricing_group.id, names);
+        }
+        return acc;
+    }, new Map<string, string[]>());
+
     return categories.reduce((acc, cat) => {
         const hasCategoryRules = Boolean(cat.price_rules?.length);
         const hasPricingGroupRules = Boolean(
@@ -62,14 +78,17 @@ function buildCategoryRules(categories: Category[]) {
                 type: cat.price_logic_type || 'standard',
                 rules: cat.price_rules || [],
                 volumeScope: cat.pricing_strategy?.volume_scope || 'combined',
+                categoryName: cat.name,
                 pricingGroup:
                     cat.use_pricing_group_rules &&
                     cat.pricing_group?.active &&
                     cat.pricing_group.price_rules?.length
                         ? {
                             id: cat.pricing_group.id,
+                            name: cat.pricing_group.name,
                             type: cat.pricing_group.price_logic_type,
                             rules: cat.pricing_group.price_rules,
+                            categoryNames: pricingGroupCategoryNames.get(cat.pricing_group.id) || [cat.name],
                         }
                         : undefined,
             };
