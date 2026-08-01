@@ -6,6 +6,7 @@ import AppRoutes from '@/AppRoutes';
 import CookieConsent from '@/components/common/CookieConsent';
 import PublicLegalFooter from '@/components/common/PublicLegalFooter';
 import CookiePolicy from '@/pages/initial/legal/CookiePolicy';
+import StoreLegalPage from '@/pages/store/StoreLegalPage';
 import { Toaster } from 'sonner';
 import { validateSessionSecurity, markSessionAsActive } from '@/utils/sessionSecurity';
 
@@ -92,6 +93,9 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/politica-cookies" element={<CookiePolicy />} />
+        <Route path="/s/:storeSlug/legal/termos" element={<StoreLegalPage document="terms" />} />
+        <Route path="/s/:storeSlug/legal/privacidade" element={<StoreLegalPage document="privacy" />} />
+        <Route path="/s/:storeSlug/legal/cookies" element={<StoreLegalPage document="cookies" />} />
         <Route path="*" element={<AppRoutes />} />
       </Routes>
       <PublicLegalFooter />
