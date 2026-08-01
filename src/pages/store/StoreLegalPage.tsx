@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Cookie, FileText, Mail, MessageCircle, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Cookie, FileText, Mail, ShieldCheck } from 'lucide-react';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
-import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 
 type LegalDocument = 'terms' | 'privacy' | 'cookies';
 
 type StoreSummary = {
     name: string;
     slug: string;
-    phone?: string;
+    email?: string;
 };
 
 const DOCUMENT_LABELS: Record<LegalDocument, string> = {
@@ -30,6 +29,10 @@ function documentIcon(document: LegalDocument) {
     return <FileText className="h-7 w-7" aria-hidden="true" />;
 }
 
+function buildMailto(email: string, subject: string, body: string) {
+    return `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 export default function StoreLegalPage({ document }: { document: LegalDocument }) {
     const { storeSlug = '' } = useParams();
     const [store, setStore] = useState<StoreSummary | null>(null);
@@ -44,19 +47,10 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                 if (!active) return;
 
                 if (result.ok && result.store) {
-                    const publicStore = result.store as typeof result.store & {
-                        phone_number?: string;
-                        whatsapp?: { digits?: string };
-                        contacts?: { whatsapp_business?: string };
-                    };
-
                     setStore({
                         name: result.store.name,
                         slug: result.store.slug || storeSlug,
-                        phone: publicStore.whatsapp?.digits
-                            || publicStore.contacts?.whatsapp_business
-                            || publicStore.phone_number
-                            || undefined,
+                        email: result.store.visual_config?.contact_email?.trim() || undefined,
                     });
                 } else {
                     setStore(null);
@@ -78,19 +72,22 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
         window.dispatchEvent(new CustomEvent('optmamenu:open-cookie-preferences'));
     };
 
-    const whatsappUrl = useMemo(() => {
-        if (!store?.phone || !canOpenWhatsapp(store.phone)) return '';
+    const storeEmailUrl = useMemo(() => {
+        if (!store?.email) return '';
 
         const subject = document === 'privacy'
-            ? 'uma solicitação relacionada aos meus dados pessoais'
+            ? `Solicitação de privacidade — ${store.name}`
             : document === 'cookies'
-                ? 'uma dúvida sobre cookies e preferências'
-                : 'uma dúvida sobre os termos de uso da loja';
+                ? `Dúvida sobre cookies — ${store.name}`
+                : `Dúvida sobre os termos de uso — ${store.name}`;
 
-        return buildWhatsappUrl(
-            store.phone,
-            `Olá! Vim pelo catálogo online da ${store.name} e tenho ${subject}.`,
-        );
+        const body = document === 'privacy'
+            ? `Olá! Vim pelo catálogo online da ${store.name} e gostaria de tratar de uma solicitação relacionada aos meus dados pessoais.`
+            : document === 'cookies'
+                ? `Olá! Vim pelo catálogo online da ${store.name} e tenho uma dúvida sobre cookies e preferências.`
+                : `Olá! Vim pelo catálogo online da ${store.name} e tenho uma dúvida sobre os termos de uso da loja.`;
+
+        return buildMailto(store.email, subject, body);
     }, [document, store]);
 
     const content = useMemo(() => {
@@ -201,14 +198,14 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
 
                     <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 dark:border-slate-800 dark:bg-slate-900">
                         <h2 className="!pt-0">Canais de contato</h2>
-                        <p className="mt-2 text-sm leading-6">Use o canal da loja para dúvidas sobre pedidos, atendimento e dados vinculados à compra. Para questões sobre a infraestrutura do OptmaMenu, utilize o contato da OptmaIdea.</p>
+                        <p className="mt-2 text-sm leading-6">Use o e-mail principal da loja para dúvidas sobre pedidos, atendimento e dados vinculados à compra. Para questões sobre a infraestrutura do OptmaMenu, utilize o contato da OptmaIdea.</p>
                         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                            {whatsappUrl && (
-                                <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700">
-                                    <MessageCircle className="h-4 w-4" aria-hidden="true" /> Falar com {store.name}
+                            {storeEmailUrl && (
+                                <a href={storeEmailUrl} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700">
+                                    <Mail className="h-4 w-4" aria-hidden="true" /> Enviar e-mail para {store.name}
                                 </a>
                             )}
-                            <a href="mailto:legal@optmaidea.com" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900">
+                            <a href="mailto:faleconosco@optmaidea.com.br" className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-900">
                                 <Mail className="h-4 w-4" aria-hidden="true" /> Contatar a OptmaIdea
                             </a>
                             {document === 'cookies' && (
@@ -217,6 +214,9 @@ export default function StoreLegalPage({ document }: { document: LegalDocument }
                                 </button>
                             )}
                         </div>
+                        {!store.email && (
+                            <p className="mt-3 text-xs leading-5 text-slate-500">A loja ainda não publicou um e-mail principal para contato neste catálogo.</p>
+                        )}
                     </section>
 
                     <aside className="mt-8 rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
