@@ -53,6 +53,19 @@ export default function CookieConsent() {
         setMarketing(stored.marketing);
     }, []);
 
+    useEffect(() => {
+        const openPreferences = () => {
+            const stored = readStoredConsent();
+            setAnalytics(Boolean(stored?.analytics));
+            setMarketing(Boolean(stored?.marketing));
+            setShowPreferences(true);
+            setIsVisible(true);
+        };
+
+        window.addEventListener('optmamenu:open-cookie-preferences', openPreferences);
+        return () => window.removeEventListener('optmamenu:open-cookie-preferences', openPreferences);
+    }, []);
+
     const saveConsent = (preferences: { analytics: boolean; marketing: boolean }) => {
         const payload: ConsentPreferences = {
             version: CONSENT_VERSION,
@@ -91,7 +104,7 @@ export default function CookieConsent() {
                                 </p>
                                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
                                     <Link to="/politica-privacidade" className="text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300">Política de Privacidade</Link>
-                                    <Link to="/politica-privacidade#cookies" className="text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300">Informações sobre cookies</Link>
+                                    <Link to="/politica-cookies" className="text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300">Política de Cookies</Link>
                                 </div>
                             </div>
                         </div>
