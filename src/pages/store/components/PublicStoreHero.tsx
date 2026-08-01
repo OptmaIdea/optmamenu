@@ -33,8 +33,23 @@ function configuredMedia(config?: StoreConfig): StorefrontBannerMedia[] {
     }
 
     const legacy: StorefrontBannerMedia[] = [];
-    if (config?.visual_banner_url) legacy.push({ id: 'legacy-image', type: 'image', url: config.visual_banner_url, alt_text: 'Banner da loja' });
-    if (config?.visual_banner_video_url) legacy.push({ id: 'legacy-video', type: 'video', url: config.visual_banner_video_url, poster_url: config.visual_banner_video_poster_url || config.visual_banner_url, alt_text: 'Vídeo da loja' });
+    if (config?.visual_banner_url) legacy.push({
+        id: 'legacy-image',
+        type: 'image',
+        url: config.visual_banner_url,
+        alt_text: 'Banner da loja',
+        title: config.visual_banner_title || config.visual_title,
+        subtitle: config.visual_banner_subtitle || config.visual_slogan,
+    });
+    if (config?.visual_banner_video_url) legacy.push({
+        id: 'legacy-video',
+        type: 'video',
+        url: config.visual_banner_video_url,
+        poster_url: config.visual_banner_video_poster_url || config.visual_banner_url,
+        alt_text: 'Vídeo da loja',
+        title: config.visual_banner_title || config.visual_title,
+        subtitle: config.visual_banner_subtitle || config.visual_slogan,
+    });
     return legacy.slice(0, MAX_PUBLIC_MEDIA);
 }
 
@@ -43,7 +58,7 @@ function overlayOpacity(value?: number) {
     return Math.min(0.78, Math.max(0.08, Number(value)));
 }
 
-export function PublicStoreHero({ storeName, storeSlug, description, config }: PublicStoreHeroProps) {
+export function PublicStoreHero({ storeName, storeSlug, config }: PublicStoreHeroProps) {
     const fromConfig = useMemo(() => configuredMedia(config), [config]);
     const isGelinhares = `${storeSlug || ''} ${storeName}`.toLowerCase().includes('gelinhares');
     const media = useMemo(
@@ -58,9 +73,10 @@ export function PublicStoreHero({ storeName, storeSlug, description, config }: P
     const touchStart = useRef<number | null>(null);
 
     const active = media[activeIndex];
-    const title = active?.title || config?.visual_banner_title || config?.visual_title || storeName;
-    const subtitle = active?.subtitle || config?.visual_banner_subtitle || config?.visual_slogan || description;
-    const eyebrow = config?.visual_banner_eyebrow || 'Conheça nosso cardápio';
+    const title = active?.title?.trim() || '';
+    const subtitle = active?.subtitle?.trim() || '';
+    const eyebrow = title || subtitle ? config?.visual_banner_eyebrow?.trim() || '' : '';
+    const hasCopy = Boolean(eyebrow || title || subtitle);
     const centered = config?.visual_banner_alignment === 'center';
     const opacity = overlayOpacity(config?.visual_banner_overlay_opacity);
 
@@ -94,7 +110,7 @@ export function PublicStoreHero({ storeName, storeSlug, description, config }: P
         else void video.play().catch(() => undefined);
     }, [activeIndex, active, paused, reduceMotion]);
 
-    if (!media.length && !title && !subtitle) return null;
+    if (!media.length) return null;
 
     return (
         <section aria-label={`Destaques da ${storeName}`} className="mx-auto mt-4 max-w-5xl px-4">
@@ -141,22 +157,26 @@ export function PublicStoreHero({ storeName, storeSlug, description, config }: P
                     </picture>
                 ) : null}
 
-                <div
-                    className="absolute inset-0"
-                    style={{
-                        background: centered
-                            ? `linear-gradient(180deg, rgba(2,6,23,${opacity * 0.35}), rgba(2,6,23,${opacity}))`
-                            : `linear-gradient(90deg, rgba(2,6,23,${Math.min(0.92, opacity + 0.28)}), rgba(2,6,23,${opacity}) 50%, rgba(2,6,23,${Math.max(0.04, opacity - 0.28)}))`,
-                    }}
-                />
+                {hasCopy && (
+                    <>
+                        <div
+                            className="absolute inset-0"
+                            style={{
+                                background: centered
+                                    ? `linear-gradient(180deg, rgba(2,6,23,${opacity * 0.35}), rgba(2,6,23,${opacity}))`
+                                    : `linear-gradient(90deg, rgba(2,6,23,${Math.min(0.92, opacity + 0.28)}), rgba(2,6,23,${opacity}) 50%, rgba(2,6,23,${Math.max(0.04, opacity - 0.28)}))`,
+                            }}
+                        />
 
-                <div className={`relative z-10 flex min-h-[180px] items-center p-5 text-white sm:min-h-[220px] sm:p-7 lg:min-h-[280px] lg:p-9 ${centered ? 'justify-center text-center' : 'justify-start text-left'}`}>
-                    <div className={centered ? 'max-w-2xl' : 'max-w-xl'}>
-                        {eyebrow && <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-white/80 sm:text-sm">{eyebrow}</p>}
-                        <h2 className="text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl lg:text-4xl">{title}</h2>
-                        {subtitle && <p className="mt-3 max-w-xl text-sm font-medium leading-6 text-white/90 sm:text-base sm:leading-7">{subtitle}</p>}
-                    </div>
-                </div>
+                        <div className={`relative z-10 flex min-h-[180px] items-center p-5 text-white sm:min-h-[220px] sm:p-7 lg:min-h-[280px] lg:p-9 ${centered ? 'justify-center text-center' : 'justify-start text-left'}`}>
+                            <div className={centered ? 'max-w-2xl' : 'max-w-xl'}>
+                                {eyebrow && <p className="mb-2 text-xs font-black uppercase tracking-[0.2em] text-white/80 sm:text-sm">{eyebrow}</p>}
+                                {title && <h2 className="text-2xl font-black leading-tight drop-shadow-sm sm:text-3xl lg:text-4xl">{title}</h2>}
+                                {subtitle && <p className="mt-3 max-w-xl text-sm font-medium leading-6 text-white/90 sm:text-base sm:leading-7">{subtitle}</p>}
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {media.length > 1 && (
                     <>
