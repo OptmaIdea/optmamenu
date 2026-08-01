@@ -108,6 +108,13 @@ export interface StoreConfig {
     visual_color_text?: string;
     visual_color_highlight?: string;
     visual_banner_url?: string;
+    visual_banner_video_url?: string;
+    visual_banner_video_poster_url?: string;
+    visual_banner_eyebrow?: string;
+    visual_banner_title?: string;
+    visual_banner_subtitle?: string;
+    visual_banner_alignment?: 'left' | 'center';
+    visual_banner_overlay_opacity?: number;
     loyalty_active?: boolean;
     visual_slogan?: string;
     about_text?: string;
