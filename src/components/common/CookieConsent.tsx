@@ -91,7 +91,7 @@ export default function CookieConsent() {
                                 </p>
                                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold">
                                     <Link to="/politica-privacidade" className="text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300">Política de Privacidade</Link>
-                                    <Link to="/politica-cookies" className="text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300">Política de Cookies</Link>
+                                    <Link to="/politica-privacidade#cookies" className="text-emerald-700 underline-offset-2 hover:underline dark:text-emerald-300">Informações sobre cookies</Link>
                                 </div>
                             </div>
                         </div>
