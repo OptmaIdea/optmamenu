@@ -22,6 +22,7 @@ import {
 import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { ProductModal } from '@/pages/store/ProductModal';
+import { CheckoutPromotionsModal } from '@/pages/store/components/CheckoutPromotionsModal';
 import { PublicOrderService } from '@/services/publicOrderService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
@@ -228,6 +229,7 @@ export default function Checkout() {
     const [view, setView] = useState<CheckoutView>('cart');
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+    const [showPromotionsModal, setShowPromotionsModal] = useState(false);
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
     const [isBrazil, setIsBrazil] = useState(true);
@@ -653,7 +655,7 @@ export default function Checkout() {
                             <h2 className="font-black">Compre mais e aumente seu desconto</h2>
                             <p className="mt-1 text-sm font-medium">
                                 Comprando mais unidades dos produtos elegíveis o seu desconto aumenta!{' '}
-                                <button type="button" className="font-black underline">Saiba mais →</button>
+                                <button type="button" onClick={() => setShowPromotionsModal(true)} className="font-black underline">Saiba mais →</button>
                             </p>
                         </section>
                     )}
@@ -672,6 +674,7 @@ export default function Checkout() {
                 </div>
 
                 <ProductModal product={selectedProduct} isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} onAddToCart={(product, quantity) => addToCart(product, quantity)} />
+                <CheckoutPromotionsModal isOpen={showPromotionsModal} onClose={() => setShowPromotionsModal(false)} />
             </div>
         );
     }
