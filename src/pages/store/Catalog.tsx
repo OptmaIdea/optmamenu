@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Category, Product, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
 import { ProductModal } from '@/pages/store/ProductModal';
+import { PublicStoreHero } from '@/pages/store/components/PublicStoreHero';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { AuthService } from '@/services/customerAuth';
@@ -518,15 +519,11 @@ export default function Catalog() {
                 </div>
             </header>
 
-            {store.config?.visual_banner_url && (
-                <div className="mx-auto mt-4 max-w-5xl overflow-hidden px-4">
-                    <img
-                        src={store.config.visual_banner_url}
-                        alt="Banner da loja"
-                        className="h-40 w-full rounded-2xl object-cover shadow-sm md:h-64"
-                    />
-                </div>
-            )}
+            <PublicStoreHero
+                storeName={store.name}
+                description={store.description}
+                config={store.config}
+            />
 
             {isQrTableMode && tableCode && (
                 <div className="mx-auto mt-4 max-w-5xl px-4">
