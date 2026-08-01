@@ -1,9 +1,10 @@
 import { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from '@/store/useAuthStore';
 import { supabase } from '@/lib/supabase';
 import AppRoutes from '@/AppRoutes';
 import CookieConsent from '@/components/common/CookieConsent';
+import CookiePolicy from '@/pages/initial/legal/CookiePolicy';
 import { Toaster } from 'sonner';
 import { validateSessionSecurity, markSessionAsActive } from '@/utils/sessionSecurity';
 
@@ -47,7 +48,6 @@ function App() {
         
         setSession(session);
         if (session) {
-          // Fetch profile
           const { data } = await supabase
             .from('profiles')
             .select('*')
@@ -89,7 +89,10 @@ function App() {
 
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <Routes>
+        <Route path="/politica-cookies" element={<CookiePolicy />} />
+        <Route path="*" element={<AppRoutes />} />
+      </Routes>
       <CookieConsent />
       <Toaster position="top-right" richColors closeButton />
     </BrowserRouter>
