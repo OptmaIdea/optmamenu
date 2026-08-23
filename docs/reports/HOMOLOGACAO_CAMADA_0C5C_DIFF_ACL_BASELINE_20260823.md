@@ -48,23 +48,31 @@ Exemplos observados:
 - `GRANT REFERENCES,TRIGGER,TRUNCATE,MAINTAIN ... TO authenticated`;
 - em `operational_timeline_events`, o grant remoto restrito a `SELECT` para `authenticated` foi redumpado localmente como `SELECT,REFERENCES,TRIGGER,TRUNCATE,MAINTAIN`.
 
+## Evidência read-only do remoto
+
+Consulta direta ao projeto remoto confirmou, para os objetos já observados no diff:
+
+- `customer_addresses`, `customer_consent_logs`, `customer_contacts`, `customer_credentials`, `customer_legal_profiles`, `customer_notifications`, `customer_otps`, `customers`, `order_message_events` e `otp_codes`: apenas `service_role` possui privilégios de tabela explícitos entre `anon`, `authenticated` e `service_role`;
+- `operational_timeline_events`: `authenticated` possui somente `SELECT`; `service_role` possui privilégios completos;
+- `store_security_logs`: `authenticated` e `service_role` possuem privilégios completos; `anon` não possui grant explícito.
+
+Portanto, os grants extras observados no redump local para `anon` e, em vários objetos sensíveis, para `authenticated`, representam divergência real em relação ao estado remoto atual.
+
+Também foi confirmado que os `DEFAULT PRIVILEGES` do schema `public` no remoto estão configurados para `postgres` e `supabase_admin` e concedem, por padrão, privilégios amplos a `anon`, `authenticated` e `service_role` para relações, sequências e funções.
+
 ## Interpretação técnica
 
 A reconstrução estrutural foi perfeita em contagem de tabelas, views, funções, policies, triggers, índices e tabelas com RLS. Porém, a aplicação do dump sobre um Supabase local novo ocorreu em um ambiente que já possui `DEFAULT PRIVILEGES` próprios para os papéis padrão do Supabase.
 
 Esses privilégios ambientais podem ser materializados no momento da criação dos objetos. Quando o dump remoto não contém `REVOKE` explícito para todas as capacidades herdadas do ambiente local, o objeto reconstruído pode terminar com ACL mais ampla que o objeto remoto original.
 
+Isso é especialmente relevante porque privilégios como `TRUNCATE`, `REFERENCES`, `TRIGGER` e `MAINTAIN` não devem ser tratados como equivalentes a simples acesso de leitura e não são substituídos semanticamente por RLS.
+
 Portanto:
 
 - a baseline atual é estruturalmente reproduzível;
 - **a equivalência de segurança/ACL ainda não está provada**;
 - não é seguro promover o dump bruto como migration baseline definitiva sem normalização explícita de privilégios.
-
-## Evidência read-only do remoto
-
-Os `DEFAULT PRIVILEGES` do schema `public` no projeto remoto estão configurados para `postgres` e `supabase_admin` e concedem, por padrão, privilégios amplos a `anon`, `authenticated` e `service_role` para relações, sequências e funções.
-
-Isso reforça que o estado ACL final de objetos históricos depende de revogações/grants específicos aplicados ao longo do tempo, e não apenas do default atual.
 
 ## Estado da camada
 
