@@ -52,4 +52,9 @@ dump_schema.bat
 
 # Relatorios locais de auditoria do Storage
 reports/storage-images/
+
+# Relatorios gerados automaticamente na homologacao
+# Evidencias relevantes devem ser consolidadas manualmente em docs/reports/ antes de versionar.
+docs/reports/HOMOLOGACAO_PREFLIGHT_*.md
+
 .vercel
