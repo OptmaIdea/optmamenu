@@ -24,26 +24,46 @@ Foram pesquisados apenas os marcadores abaixo, por contagem, sem exposição de 
 
 Resultado: PASS para os marcadores verificados.
 
-## Contagem textual inicial
+## Sintaxe real do dump
 
-Resultado do primeiro regex:
+A inspeção das primeiras linhas `CREATE ...` confirmou que o `pg_dump` usa identificadores entre aspas, por exemplo:
 
-- Tables: 0
-- Views: 0
-- Functions: 0
+- `CREATE TABLE IF NOT EXISTS "public"."..."`
+- `CREATE OR REPLACE FUNCTION "public"."..."`
+- `CREATE TYPE "public"."..."`
+
+Por isso o primeiro regex, que esperava `public.objeto` sem aspas, retornou zero para alguns tipos de objeto.
+
+## Contagem textual corrigida
+
+Após ajustar os regex para a sintaxe real do dump, as contagens foram:
+
+- Tables: 87
+- Views: 33
+- Functions: 398
 - Policies: 268
-- Triggers: 0
+- Triggers: 74
 
-Esses zeros não indicam ausência dos objetos. A inventariação read-only feita diretamente no banco já confirmou 87 tabelas, 33 views, 398 funções, 268 policies, 74 triggers e 396 índices no schema `public`.
+## Comparação com inventário read-only do banco remoto
 
-A explicação mais provável é apenas incompatibilidade do regex com a forma de emissão do `pg_dump`, que tende a usar identificadores entre aspas e, dependendo do objeto, `IF NOT EXISTS` / `OR REPLACE`.
+Inventário independente obtido diretamente no schema `public` do projeto remoto:
 
-## Próxima verificação
+- Tables: 87
+- Views: 33
+- Functions: 398
+- Policies: 268
+- Triggers: 74
+- Indexes: 396
+- RLS enabled tables: 87
 
-Inspecionar as primeiras linhas `CREATE ...` do dump e repetir as contagens com regex tolerante a:
+As cinco classes de objeto comparáveis entre o dump textual e a consulta read-only bateram exatamente.
 
-- `"public"."objeto"`;
-- `IF NOT EXISTS`;
-- `OR REPLACE`.
+Resultado: PASS.
+
+## Conclusão
+
+O arquivo `remote_public_schema_20260823.sql` é uma captura coerente do schema `public` atual do projeto remoto no momento da coleta, com checksum conhecido e sem ocorrência dos marcadores de segredo verificados.
+
+Isto não prova, por si só, que o dump é suficiente para reconstruir sozinho todo o ambiente Supabase, pois schemas gerenciados como `auth`, `storage` e extensões são tratados separadamente pelo stack. A próxima etapa deve testar o dump em um stack local descartável, sem aplicar a cadeia histórica divergente de migrations.
 
 Nenhuma alteração no banco remoto foi necessária ou realizada nesta etapa.
