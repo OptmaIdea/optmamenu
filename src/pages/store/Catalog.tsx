@@ -52,6 +52,11 @@ interface Store {
     config?: StoreConfig;
 }
 
+// Customer authentication is intentionally fail-closed until the server-side
+// password + OTP flow can issue a verified customer JWT. Guest storefront and
+// checkout remain available independently.
+const CUSTOMER_PORTAL_AUTH_ENABLED = false;
+
 function normalizeText(value: string) {
     return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
@@ -343,7 +348,7 @@ export default function Catalog() {
         setLoginError('');
 
         try {
-            await AuthService.loginWithPassword(loginPhone, loginPassword.toLowerCase(), store.id);
+            await AuthService.loginWithPassword(loginPhone, loginPassword, store.id);
             setShowLoginModal(false);
             resetLoginForm();
         } catch (error) {
@@ -390,7 +395,7 @@ export default function Catalog() {
                     storeId: store.id,
                     storeName: store.name,
                     nickname: loginNickname,
-                    marketingConsent: true,
+                    marketingConsent: false,
                     contactPreference: 'whatsapp',
                     birthDate: loginBirthDate,
                     loyaltyOptIn: false,
@@ -475,7 +480,7 @@ export default function Catalog() {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2">
-                        {isAuthenticated ? (
+                        {CUSTOMER_PORTAL_AUTH_ENABLED && (isAuthenticated ? (
                             <div className="flex items-center rounded-full bg-white/20 p-1 pl-3 text-white">
                                 <button
                                     type="button"
@@ -502,7 +507,7 @@ export default function Catalog() {
                             >
                                 <User size={20} />
                             </button>
-                        )}
+                        ))}
 
                         <button
                             type="button"
@@ -692,7 +697,7 @@ export default function Catalog() {
                 </button>
             )}
 
-            {showLoginModal && (
+            {CUSTOMER_PORTAL_AUTH_ENABLED && showLoginModal && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
                     <div className="relative w-full max-w-sm rounded-2xl bg-white p-6 dark:bg-slate-800">
                         <button
@@ -813,7 +818,7 @@ export default function Catalog() {
                 </div>
             )}
 
-            {showCompleteProfileModal && (
+            {CUSTOMER_PORTAL_AUTH_ENABLED && showCompleteProfileModal && (
                 <CustomerProfile
                     onClose={() => setShowCompleteProfileModal(false)}
                     storeConfig={store.config}
