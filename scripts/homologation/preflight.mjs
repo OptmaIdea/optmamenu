@@ -40,6 +40,19 @@ function run(label, command, args = [], { critical = false } = {}) {
   };
 }
 
+function internalResult(label, stdout, { critical = false } = {}) {
+  return {
+    label,
+    command: 'internal',
+    critical,
+    exitCode: 0,
+    durationMs: 0,
+    stdout,
+    stderr: '',
+    error: '',
+  };
+}
+
 function safeTimestamp() {
   return new Date().toISOString().replace(/[:.]/g, '-');
 }
@@ -53,7 +66,7 @@ const results = [];
 results.push(run('Git branch', gitCommand, ['branch', '--show-current'], { critical: true }));
 results.push(run('Git status', gitCommand, ['status', '--short']));
 results.push(run('Git head', gitCommand, ['log', '-1', '--oneline']));
-results.push(run('Node version', process.execPath, ['--version'], { critical: true }));
+results.push(internalResult('Node version', process.version, { critical: true }));
 results.push(run('npm version', npmCommand, ['--version'], { critical: true }));
 
 const branch = results[0].stdout.trim();
@@ -141,6 +154,7 @@ report.push('', '## Interpretação', '');
 report.push('- `npm test` e `npm run build` são gates críticos deste preflight.');
 report.push('- `npm run lint` é registrado como WARN porque o repositório possui dívida histórica; não deve ser ocultada nem usada para declarar “lint limpo” sem correção real.');
 report.push('- No Windows, os comandos npm/git são executados pelo shell do sistema para evitar `spawnSync npm.cmd EINVAL` em versões recentes do Node.');
+report.push('- A versão do Node é lida diretamente do processo atual, evitando problemas de quoting do caminho `C:\\Program Files\\...` no shell do Windows.');
 report.push('- Este script não acessa nem altera o Supabase remoto e não instala Playwright automaticamente.');
 report.push('- Execute os SQLs read-only em `scripts/homologation/sql/` separadamente no ambiente autorizado.');
 
