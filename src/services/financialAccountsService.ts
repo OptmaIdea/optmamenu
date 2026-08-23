@@ -12,8 +12,10 @@ export type FinancialAccountType =
 
 export interface FinancialPaymentMethod {
   code: string;
+  base_code: string;
   name: string;
   affects_cashbook: boolean;
+  preferred_financial_account_id?: string | null;
 }
 
 export interface FinancialPaymentBreakdown {
@@ -212,8 +214,12 @@ export const FinancialAccountsService = {
     const paymentMethods = ((data.payment_methods || []) as Array<Record<string, unknown>>)
       .map((method) => ({
         code: String(method.code || ''),
+        base_code: String(method.base_code || method.code || ''),
         name: String(method.name || method.code || ''),
         affects_cashbook: Boolean(method.affects_cashbook),
+        preferred_financial_account_id: typeof method.preferred_financial_account_id === 'string'
+          ? method.preferred_financial_account_id
+          : null,
       }))
       .filter((method) => method.code);
 
