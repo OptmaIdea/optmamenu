@@ -6,8 +6,9 @@ import { join } from 'node:path';
 
 const EXPECTED_BRANCH = 'agent/homologacao-geral-20260820';
 const shouldInstall = process.argv.includes('--install');
-const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const gitCommand = process.platform === 'win32' ? 'git.exe' : 'git';
+const npmCommand = 'npm';
+const gitCommand = 'git';
+const useShell = process.platform === 'win32';
 
 function tail(text, maxLines = 120) {
   const lines = String(text || '').split(/\r?\n/);
@@ -19,7 +20,7 @@ function run(label, command, args = [], { critical = false } = {}) {
   const result = spawnSync(command, args, {
     encoding: 'utf8',
     env: process.env,
-    shell: false,
+    shell: useShell,
     maxBuffer: 16 * 1024 * 1024,
   });
 
@@ -112,6 +113,7 @@ const report = [
   `- Data UTC: ${new Date().toISOString()}`,
   `- Branch esperada: \`${EXPECTED_BRANCH}\``,
   `- Branch encontrada: \`${branch || 'desconhecida'}\``,
+  `- Plataforma: \`${process.platform}\``,
   `- Playwright: **${playwrightStatus}**`,
   `- Falhas críticas: **${criticalFailures.length}**`,
   `- Falhas informativas: **${informativeFailures.length}**`,
@@ -138,6 +140,7 @@ for (const result of results) {
 report.push('', '## Interpretação', '');
 report.push('- `npm test` e `npm run build` são gates críticos deste preflight.');
 report.push('- `npm run lint` é registrado como WARN porque o repositório possui dívida histórica; não deve ser ocultada nem usada para declarar “lint limpo” sem correção real.');
+report.push('- No Windows, os comandos npm/git são executados pelo shell do sistema para evitar `spawnSync npm.cmd EINVAL` em versões recentes do Node.');
 report.push('- Este script não acessa nem altera o Supabase remoto e não instala Playwright automaticamente.');
 report.push('- Execute os SQLs read-only em `scripts/homologation/sql/` separadamente no ambiente autorizado.');
 
