@@ -119,7 +119,7 @@ Deno.serve(async (req: Request) => {
         : null;
 
     const emailMode = targetUserExists ? "magic_link" : "invite";
-    const appUrl = Deno.env.get("OPTMAMENU_APP_URL") || "https://optmamenu.optmaidea.com.br";
+    const appUrl = Deno.env.get("OPTMAMENU_APP_URL") || "https://optmamenu.com.br";
     const redirectTo = `${appUrl.replace(/\/$/, "")}/activate-invite?store_invite=${encodeURIComponent(inviteId)}&store_id=${encodeURIComponent(storeId)}&mode=${encodeURIComponent(emailMode)}`;
 
     const authMetadata = {
