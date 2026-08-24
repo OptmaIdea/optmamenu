@@ -68,6 +68,7 @@ const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
 const DirectSalesPage = lazy(() => import('@/pages/private/admin/commercial/directSales/DirectSalesPage'));
 const SalesPage = lazy(() => import('@/pages/private/admin/commercial/sales/SalesPage'));
+const SaleDetailPage = lazy(() => import('@/pages/private/admin/commercial/sales/SaleDetailPage'));
 const Customers = lazy(() => import('@/pages/private/admin/customers/Customers'));
 const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
 const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
@@ -174,6 +175,7 @@ export default function AppRoutes() {
 
             <Route path="/admin/orders" element={<RequirePermission permission="orders.view"><Orders /></RequirePermission>} />
             <Route path="/admin/sales" element={<RequirePermission permission="orders.view"><SalesPage /></RequirePermission>} />
+            <Route path="/admin/sales/:saleId" element={<RequirePermission permission="orders.view"><SaleDetailPage /></RequirePermission>} />
             <Route path="/admin/direct-sales" element={<RequirePermission permission="orders.manage"><DirectSalesPage /></RequirePermission>} />
             <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.sales_channels.view"><SalesChannelsPage /></RequirePermission>} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
