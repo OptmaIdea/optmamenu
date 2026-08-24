@@ -137,6 +137,42 @@ export interface SalePaymentRouteAudit {
   metadata?: SaleJson | null;
 }
 
+export type SaleAdjustmentType = 'full_cancellation' | 'partial_return';
+export type SaleAdjustmentReason =
+  | 'customer_withdrew'
+  | 'customer_return'
+  | 'sale_entered_by_mistake'
+  | 'duplicate_sale'
+  | 'wrong_item'
+  | 'quality_issue'
+  | 'other';
+
+export interface SaleAdjustmentItem {
+  id: string;
+  order_item_id: string;
+  product_id?: string | null;
+  product_name: string;
+  quantity: number;
+  unit_refund_amount: number;
+  refund_amount: number;
+  stock_returned_quantity: number;
+  stock_movement_id?: string | null;
+  metadata?: SaleJson | null;
+}
+
+export interface SaleAdjustment {
+  id: string;
+  adjustment_type: SaleAdjustmentType;
+  reason_code: SaleAdjustmentReason;
+  reason_notes: string;
+  refund_amount: number;
+  status: string;
+  created_by?: string | null;
+  created_at: string;
+  metadata?: SaleJson | null;
+  items: SaleAdjustmentItem[];
+}
+
 export interface SaleDetailResult {
   order: SaleDetailOrder;
   items: SaleDetailItem[];
@@ -151,6 +187,32 @@ export interface SaleDetailResult {
     entries: SaleFinancialEntry[];
     routeAudit: SalePaymentRouteAudit[];
   };
+  canAdjustSale: boolean;
+  adjustments: SaleAdjustment[];
+  totalRefunded: number;
+  remainingRefundable: number;
+  fullyRefunded: boolean;
+}
+
+export interface AdjustCompletedSaleInput {
+  storeId: string;
+  orderId: string;
+  adjustmentType: SaleAdjustmentType;
+  reasonCode: SaleAdjustmentReason;
+  reasonNotes: string;
+  items?: Array<{ orderItemId: string; quantity: number }>;
+  refundAccountId?: string | null;
+}
+
+export interface AdjustCompletedSaleResult {
+  adjustmentId: string;
+  refundAmount: number;
+  refundCashbookEntryId: string;
+  refundCashbookEntryCode: string;
+  refundAccountId: string;
+  stockWarningCount: number;
+  paymentStatus: string;
+  remainingRefundable: number;
 }
 
 function num(value: unknown): number {
@@ -158,14 +220,41 @@ function num(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function adjustmentError(data: Record<string, unknown> | null | undefined) {
+  const code = String(data?.error || '');
+  const messages: Record<string, string> = {
+    access_denied: 'Você não tem as permissões necessárias para cancelar ou devolver uma venda.',
+    sale_not_completed: 'Somente vendas concluídas podem ser ajustadas por este fluxo.',
+    sale_already_fully_refunded: 'Esta venda já foi totalmente cancelada/estornada.',
+    sale_financial_entry_not_found: 'A venda não possui lançamento financeiro confirmado. Saneie o financeiro antes do estorno.',
+    refund_account_required: 'Escolha a conta financeira de onde sairá o estorno.',
+    invalid_refund_account: 'A conta financeira de estorno não pertence a esta loja.',
+    refund_account_inactive: 'Escolha uma conta financeira ativa para o estorno.',
+    items_required: 'Selecione ao menos um item para a devolução parcial.',
+    invalid_item_quantity: 'Informe uma quantidade válida para cada item devolvido.',
+    quantity_exceeds_remaining: 'A quantidade devolvida supera o saldo ainda disponível para devolução.',
+    duplicate_order_item: 'O mesmo item foi informado mais de uma vez.',
+    invalid_reason_code: 'Escolha um motivo válido para o ajuste.',
+    reason_notes_required: 'Descreva a justificativa do cancelamento/devolução.',
+  };
+  return new Error(messages[code] || String(data?.message || data?.error || 'Não foi possível ajustar a venda.'));
+}
+
 export const SaleDetailService = {
   async get(storeId: string, orderId: string): Promise<SaleDetailResult> {
-    const { data, error } = await supabase.rpc('get_sale_detail_safe', {
-      p_store_id: storeId,
-      p_order_id: orderId,
-    });
+    const [detailResponse, adjustmentResponse] = await Promise.all([
+      supabase.rpc('get_sale_detail_safe', {
+        p_store_id: storeId,
+        p_order_id: orderId,
+      }),
+      supabase.rpc('get_sale_adjustments_safe', {
+        p_store_id: storeId,
+        p_order_id: orderId,
+      }),
+    ]);
 
-    if (error) throw error;
+    if (detailResponse.error) throw detailResponse.error;
+    const data = detailResponse.data;
     if (!data?.ok) {
       const messages: Record<string, string> = {
         access_denied: 'Você não tem permissão para visualizar esta venda.',
@@ -174,6 +263,10 @@ export const SaleDetailService = {
       };
       throw new Error(messages[String(data?.error || '')] || data?.message || 'Erro ao carregar a venda.');
     }
+
+    if (adjustmentResponse.error) throw adjustmentResponse.error;
+    const adjustmentData = adjustmentResponse.data;
+    if (!adjustmentData?.ok) throw adjustmentError(adjustmentData);
 
     const order = data.order as Record<string, unknown>;
     const items = ((data.items || []) as Array<Record<string, unknown>>).map((item) => ({
@@ -200,6 +293,17 @@ export const SaleDetailService = {
       affects_balance: Boolean(entry.affects_balance),
       is_transfer: Boolean(entry.is_transfer),
     })) as SaleFinancialEntry[];
+    const adjustments = ((adjustmentData.adjustments || []) as Array<Record<string, unknown>>).map((adjustment) => ({
+      ...adjustment,
+      refund_amount: num(adjustment.refund_amount),
+      items: ((adjustment.items || []) as Array<Record<string, unknown>>).map((item) => ({
+        ...item,
+        quantity: num(item.quantity),
+        unit_refund_amount: num(item.unit_refund_amount),
+        refund_amount: num(item.refund_amount),
+        stock_returned_quantity: num(item.stock_returned_quantity),
+      })),
+    })) as SaleAdjustment[];
 
     return {
       order: {
@@ -220,6 +324,39 @@ export const SaleDetailService = {
         entries,
         routeAudit: (data.finance?.route_audit || []) as SalePaymentRouteAudit[],
       },
+      canAdjustSale: Boolean(adjustmentData.can_adjust),
+      adjustments,
+      totalRefunded: num(adjustmentData.total_refunded),
+      remainingRefundable: num(adjustmentData.remaining_refundable),
+      fullyRefunded: Boolean(adjustmentData.fully_refunded),
+    };
+  },
+
+  async adjust(input: AdjustCompletedSaleInput): Promise<AdjustCompletedSaleResult> {
+    const { data, error } = await supabase.rpc('adjust_completed_sale_safe', {
+      p_store_id: input.storeId,
+      p_order_id: input.orderId,
+      p_adjustment_type: input.adjustmentType,
+      p_reason_code: input.reasonCode,
+      p_reason_notes: input.reasonNotes,
+      p_items: input.adjustmentType === 'partial_return'
+        ? (input.items || []).map((item) => ({ order_item_id: item.orderItemId, quantity: item.quantity }))
+        : null,
+      p_refund_account_id: input.refundAccountId || null,
+    });
+
+    if (error) throw error;
+    if (!data?.ok) throw adjustmentError(data);
+
+    return {
+      adjustmentId: String(data.adjustment_id),
+      refundAmount: num(data.refund_amount),
+      refundCashbookEntryId: String(data.refund_cashbook_entry_id),
+      refundCashbookEntryCode: String(data.refund_cashbook_entry_code),
+      refundAccountId: String(data.refund_account_id),
+      stockWarningCount: num(data.stock_warning_count),
+      paymentStatus: String(data.payment_status || ''),
+      remainingRefundable: num(data.remaining_refundable),
     };
   },
 };
