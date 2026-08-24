@@ -32,6 +32,7 @@ import {
   type FinancialAccountType,
   type UnallocatedCashbookEntry,
 } from '@/services/financialAccountsService';
+import { FinancialAccountReassignmentService } from '@/services/financialAccountReassignmentService';
 import { getFinancialAccountCodeLabel, getFinancialAccountTypeLabel } from '@/utils/finance/ptBrFinancialLabels';
 
 const ACCOUNT_TYPES: Array<{ value: FinancialAccountType; label: string }> = [
@@ -61,6 +62,7 @@ const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: '
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
 type WorkspaceTab = 'balances' | 'unallocated' | 'reconciliation' | 'settings';
+type AccountStatusFilter = 'active' | 'inactive' | 'all';
 
 type TransferFormState = {
   sourceAccountId: string;
@@ -161,6 +163,7 @@ export default function FinancialAccountsWorkspacePage() {
   const [paymentFilter, setPaymentFilter] = useState('all');
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
+  const [accountStatusFilter, setAccountStatusFilter] = useState<AccountStatusFilter>('active');
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -177,6 +180,9 @@ export default function FinancialAccountsWorkspacePage() {
   const [movementPaymentCodes, setMovementPaymentCodes] = useState<Record<string, string>>({});
   const [movementAccounts, setMovementAccounts] = useState<Record<string, string>>({});
   const [movementReasons, setMovementReasons] = useState<Record<string, string>>({});
+  const [bulkReassignmentAccountId, setBulkReassignmentAccountId] = useState('');
+  const [bulkReassignmentReason, setBulkReassignmentReason] = useState('');
+  const [bulkReassignmentWorking, setBulkReassignmentWorking] = useState(false);
 
   const accounts = useMemo(() => balances?.accounts || [], [balances]);
   const paymentMethods = useMemo(() => balances?.paymentMethods || [], [balances]);
@@ -185,6 +191,14 @@ export default function FinancialAccountsWorkspacePage() {
     [paymentMethods],
   );
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
+  const visibleBalanceAccounts = useMemo(
+    () => accounts.filter((account) => {
+      if (accountStatusFilter === 'active') return account.active;
+      if (accountStatusFilter === 'inactive') return !account.active;
+      return true;
+    }),
+    [accounts, accountStatusFilter],
+  );
   const canManage = balances?.canManage ?? false;
 
   const paymentName = (code?: string | null) => {
@@ -196,12 +210,15 @@ export default function FinancialAccountsWorkspacePage() {
     return paymentMethods.find((method) => method.code === code)?.base_code || code;
   }
 
+  function accountAcceptsPayment(account: FinancialAccountBalance, code: string) {
+    if (!code || code === 'pending') return false;
+    const baseCode = paymentBaseCode(code);
+    return Boolean(account.accepted_payment_methods?.some((acceptedCode) => acceptedCode === code || acceptedCode === baseCode));
+  }
+
   function accountsForPayment(code: string) {
     if (!code || code === 'pending') return [];
-    const baseCode = paymentBaseCode(code);
-    return activeAccounts.filter((account) =>
-      account.accepted_payment_methods?.some((acceptedCode) => acceptedCode === code || acceptedCode === baseCode),
-    );
+    return activeAccounts.filter((account) => accountAcceptsPayment(account, code));
   }
 
   function preferredAccountForPayment(code: string) {
@@ -242,10 +259,7 @@ export default function FinancialAccountsWorkspacePage() {
 
   const compatibleBulkAccounts = useMemo(() => {
     if (selectedPaymentCodes.length === 0) return activeAccounts;
-    return activeAccounts.filter((account) => selectedPaymentCodes.every((code) => {
-      const baseCode = paymentMethods.find((method) => method.code === code)?.base_code || code;
-      return account.accepted_payment_methods?.some((acceptedCode) => acceptedCode === code || acceptedCode === baseCode);
-    }));
+    return activeAccounts.filter((account) => selectedPaymentCodes.every((code) => accountAcceptsPayment(account, code)));
   }, [activeAccounts, selectedPaymentCodes, paymentMethods]);
 
   async function loadData() {
@@ -505,6 +519,8 @@ export default function FinancialAccountsWorkspacePage() {
       setMovementPaymentCodes({});
       setMovementAccounts({});
       setMovementReasons({});
+      setBulkReassignmentAccountId('');
+      setBulkReassignmentReason('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao carregar conferência.');
     } finally {
@@ -561,6 +577,42 @@ export default function FinancialAccountsWorkspacePage() {
     [reconciliation, checkedMovements],
   );
   const checkedNet = checkedItems.reduce((total, item) => total + item.signed_amount, 0);
+  const reconciliationSourceAccount = accounts.find((account) => account.id === reconciliationAccountId) || null;
+  const checkedPaymentCodes = Array.from(new Set(checkedItems.map(paymentCodeFromEntry).filter(Boolean)));
+  const bulkReassignmentDestinations = activeAccounts.filter((account) =>
+    account.id !== reconciliationAccountId
+    && checkedPaymentCodes.every((code) => accountAcceptsPayment(account, code)),
+  );
+
+  async function reassignCheckedMovements() {
+    if (!storeId || !reconciliationAccountId) return;
+    if (checkedItems.length === 0) return toast.error('Selecione ao menos um lançamento para reatribuir.');
+    if (!bulkReassignmentAccountId) return toast.error('Selecione a conta de destino.');
+
+    try {
+      setBulkReassignmentWorking(true);
+      const result = await FinancialAccountReassignmentService.reassignBulk({
+        storeId,
+        sourceAccountId: reconciliationAccountId,
+        destinationAccountId: bulkReassignmentAccountId,
+        entryIds: checkedItems.map((movement) => movement.id),
+        reason: bulkReassignmentReason,
+      });
+      const transferMessage = result.neutralizedTransferCount > 0
+        ? ` ${result.neutralizedTransferCount} transferência(s) redundante(s) neutralizada(s).`
+        : '';
+      toast.success(`${result.movedCount} lançamento(s) reatribuído(s).${transferMessage}`);
+      setCheckedMovements({});
+      setBulkReassignmentAccountId('');
+      setBulkReassignmentReason('');
+      await loadData();
+      await loadReconciliation(reconciliationAccountId, reconciliationPaymentCode);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao reatribuir lançamentos em lote.');
+    } finally {
+      setBulkReassignmentWorking(false);
+    }
+  }
 
   const tabs: Array<{ id: WorkspaceTab; label: string; icon: typeof WalletCards; badge?: number }> = [
     { id: 'balances', label: 'Saldos', icon: WalletCards },
@@ -622,26 +674,35 @@ export default function FinancialAccountsWorkspacePage() {
 
             {activeTab === 'balances' && (
               <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="mb-4"><h2 className="text-lg font-black dark:text-white">Contas financeiras</h2><p className="text-xs font-semibold text-gray-400">Clique em uma forma dentro da conta para abrir a conferência detalhada.</p></div>
-                <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                  {accounts.map((account) => (
-                    <div key={account.id} className={`rounded-2xl border p-4 ${account.active ? 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/50' : 'border-gray-200 bg-gray-100 opacity-65 dark:border-gray-800 dark:bg-gray-950'}`}>
+                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                  <div><h2 className="text-lg font-black dark:text-white">Contas financeiras</h2><p className="text-xs font-semibold text-gray-400">Clique em uma forma dentro da conta para abrir a conferência detalhada. Contas inativas preservam o histórico e podem ter seus lançamentos reatribuídos em lote.</p></div>
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setAccountStatusFilter('active')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'active' ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Ativas ({accounts.filter((account) => account.active).length})</button>
+                    <button type="button" onClick={() => setAccountStatusFilter('inactive')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'inactive' ? 'border-amber-600 bg-amber-600 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Inativas ({accounts.filter((account) => !account.active).length})</button>
+                    <button type="button" onClick={() => setAccountStatusFilter('all')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'all' ? 'border-slate-700 bg-slate-700 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Todas ({accounts.length})</button>
+                  </div>
+                </div>
+                {visibleBalanceAccounts.length === 0 ? <div className="rounded-2xl border border-dashed p-8 text-center text-sm font-bold text-gray-400">Nenhuma conta neste filtro.</div> : <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                  {visibleBalanceAccounts.map((account) => (
+                    <div key={account.id} className={`rounded-2xl border p-4 ${account.active ? 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/50' : 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/10'}`}>
                       <div className="flex items-start justify-between gap-3">
                         <div><p className="font-black dark:text-white">{account.name}</p><p className="text-xs font-semibold text-gray-400">{accountCodeLabel(account.code)} · {accountTypeLabel(account.account_type)}</p></div>
-                        <div className="flex flex-wrap justify-end gap-1">{account.is_sales_clearing_default && <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-black uppercase text-blue-700">Entrada das vendas</span>}{account.is_default && <span className="rounded-full bg-teal-100 px-2 py-1 text-[10px] font-black uppercase text-teal-700">Padrão</span>}</div>
+                        <div className="flex flex-wrap justify-end gap-1">{!account.active && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800">Inativa</span>}{account.is_sales_clearing_default && <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-black uppercase text-blue-700">Entrada das vendas</span>}{account.is_default && <span className="rounded-full bg-teal-100 px-2 py-1 text-[10px] font-black uppercase text-teal-700">Padrão</span>}</div>
                       </div>
+                      {!account.active && <p className="mt-2 rounded-lg bg-amber-100/70 px-2 py-1 text-[11px] font-bold text-amber-800">Conta inativa · não recebe novos lançamentos; histórico preservado.</p>}
                       <p className={`mt-4 text-2xl font-black ${account.balance < 0 ? 'text-red-600' : 'dark:text-white'}`}>{formatMoney(account.balance)}</p>
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="rounded-xl bg-emerald-50 p-2 font-bold text-emerald-700"><ArrowDownCircle size={14} />Entradas<br />{formatMoney(account.inflows)}</div><div className="rounded-xl bg-red-50 p-2 font-bold text-red-700"><ArrowUpCircle size={14} />Saídas<br />{formatMoney(account.outflows)}</div></div>
                       <div className="mt-4"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Aceita</p><div className="mt-2 flex flex-wrap gap-1.5">{(account.accepted_payment_methods || []).map((code) => <span key={code} className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-gray-600 shadow-sm dark:bg-gray-900 dark:text-gray-300">{paymentName(code)}</span>)}</div></div>
                       {account.payment_breakdown.length > 0 && <div className="mt-4 space-y-2 border-t border-gray-200 pt-3 dark:border-gray-800"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Composição do saldo</p>{account.payment_breakdown.map((item) => {
                         const destinations = accountsForPayment(item.payment_method_code).filter((candidate) => candidate.id !== account.id);
-                        const canTransfer = canManage && item.balance > 0 && destinations.length > 0;
-                        return <div key={item.payment_method_code} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs dark:bg-gray-900"><button type="button" onClick={() => void openReconciliation(account, item.payment_method_code)} className="min-w-0 flex-1 text-left"><p className="font-black text-gray-700 dark:text-gray-200">{paymentName(item.payment_method_code)}</p><p className="font-semibold text-gray-400">{item.movement_count} movimento(s) · conferir</p></button><div className="flex items-center gap-2"><span className="font-black dark:text-white">{formatMoney(item.balance)}</span>{canManage && <button type="button" onClick={() => openTransfer(account, item.payment_method_code, item.balance)} disabled={!canTransfer} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-teal-700 disabled:opacity-30" title={canTransfer ? 'Transferir para conta compatível' : 'Sem destino compatível'}><ArrowRightLeft size={14} /></button>}</div></div>;
+                        const canTransfer = canManage && account.active && item.balance > 0 && destinations.length > 0;
+                        return <div key={item.payment_method_code} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs dark:bg-gray-900"><button type="button" onClick={() => void openReconciliation(account, item.payment_method_code)} className="min-w-0 flex-1 text-left"><p className="font-black text-gray-700 dark:text-gray-200">{paymentName(item.payment_method_code)}</p><p className="font-semibold text-gray-400">{item.movement_count} movimento(s) · conferir</p></button><div className="flex items-center gap-2"><span className="font-black dark:text-white">{formatMoney(item.balance)}</span>{canManage && <button type="button" onClick={() => openTransfer(account, item.payment_method_code, item.balance)} disabled={!canTransfer} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-teal-700 disabled:opacity-30" title={canTransfer ? 'Transferir para conta compatível' : account.active ? 'Sem destino compatível' : 'Conta inativa: use reatribuição de lançamentos'}><ArrowRightLeft size={14} /></button>}</div></div>;
                       })}</div>}
                       <p className="mt-3 text-[11px] font-semibold text-gray-400">{account.movement_count} movimentação(ões) · {formatDate(account.last_movement_at)}</p>
+                      {canManage && account.movement_count > 0 && <button type="button" onClick={() => void openReconciliation(account, '')} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:border-blue-300"><ArrowRightLeft size={14} />Alterar lançamentos em lote</button>}
                     </div>
                   ))}
-                </div>
+                </div>}
               </section>
             )}
 
@@ -678,14 +739,17 @@ export default function FinancialAccountsWorkspacePage() {
             {activeTab === 'reconciliation' && (
               <section className="rounded-2xl border border-blue-100 bg-blue-50/30 p-5 dark:border-blue-900/40 dark:bg-blue-950/10">
                 <div className="mb-4"><h2 className="font-black text-gray-900 dark:text-white">Conferência em tela</h2><p className="text-sm font-semibold text-gray-500">Use os ticadores para conferir extrato, caixa ou resumo da maquininha sem imprimir. Os ticadores são apenas visuais nesta sessão.</p></div>
-                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]"><select value={reconciliationAccountId} onChange={(event) => { setReconciliationAccountId(event.target.value); setReconciliation(null); }} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Selecione a conta</option>{activeAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select><select value={reconciliationPaymentCode} onChange={(event) => setReconciliationPaymentCode(event.target.value)} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Todas as formas</option><option value="pending">Pendente</option>{receiptPaymentMethods.map((method) => <option key={method.code} value={method.code}>{method.name}</option>)}</select><input type="date" value={reconciliationStart} onChange={(event) => setReconciliationStart(event.target.value)} className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><input type="date" value={reconciliationEnd} onChange={(event) => setReconciliationEnd(event.target.value)} className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><button type="button" onClick={() => void loadReconciliation()} disabled={!reconciliationAccountId || reconciliationLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{reconciliationLoading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}Gerar</button></div>
+                <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr_1fr_auto]"><select value={reconciliationAccountId} onChange={(event) => { setReconciliationAccountId(event.target.value); setReconciliation(null); setCheckedMovements({}); setBulkReassignmentAccountId(''); }} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Selecione a conta</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.active ? '' : ' · inativa'}</option>)}</select><select value={reconciliationPaymentCode} onChange={(event) => setReconciliationPaymentCode(event.target.value)} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Todas as formas</option><option value="pending">Pendente</option>{receiptPaymentMethods.map((method) => <option key={method.code} value={method.code}>{method.name}</option>)}</select><input type="date" value={reconciliationStart} onChange={(event) => setReconciliationStart(event.target.value)} className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><input type="date" value={reconciliationEnd} onChange={(event) => setReconciliationEnd(event.target.value)} className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><button type="button" onClick={() => void loadReconciliation()} disabled={!reconciliationAccountId || reconciliationLoading} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">{reconciliationLoading ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}Gerar</button></div>
+                {reconciliationSourceAccount && !reconciliationSourceAccount.active && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800">Conta inativa selecionada. Você pode conferir o histórico e reatribuir os lançamentos para uma conta ativa compatível.</div>}
 
-                {reconciliation && <><div className="mt-4 grid gap-3 md:grid-cols-3"><div className="rounded-xl bg-white p-4 dark:bg-gray-900"><p className="text-xs font-black uppercase text-gray-400">Movimentos</p><p className="mt-1 text-xl font-black dark:text-white">{reconciliation.total}</p></div><div className="rounded-xl bg-white p-4 dark:bg-gray-900"><p className="text-xs font-black uppercase text-gray-400">Saldo do filtro</p><p className="mt-1 text-xl font-black dark:text-white">{formatMoney(reconciliation.netBalance)}</p></div><div className="rounded-xl bg-white p-4 dark:bg-gray-900"><p className="text-xs font-black uppercase text-gray-400">Conferidos</p><p className="mt-1 text-xl font-black dark:text-white">{checkedItems.length} · {formatMoney(checkedNet)}</p></div></div><div className="mt-3 flex gap-2"><button type="button" onClick={() => setCheckedMovements(Object.fromEntries(reconciliation.items.map((item) => [item.id, true])))} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-black text-gray-600"><CheckSquare size={14} />Marcar todos</button><button type="button" onClick={() => setCheckedMovements({})} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-black text-gray-600"><Square size={14} />Limpar</button></div><div className="mt-4 space-y-2">{reconciliation.items.map((movement) => {
+                {reconciliation && <><div className="mt-4 grid gap-3 md:grid-cols-3"><div className="rounded-xl bg-white p-4 dark:bg-gray-900"><p className="text-xs font-black uppercase text-gray-400">Movimentos</p><p className="mt-1 text-xl font-black dark:text-white">{reconciliation.total}</p></div><div className="rounded-xl bg-white p-4 dark:bg-gray-900"><p className="text-xs font-black uppercase text-gray-400">Saldo do filtro</p><p className="mt-1 text-xl font-black dark:text-white">{formatMoney(reconciliation.netBalance)}</p></div><div className="rounded-xl bg-white p-4 dark:bg-gray-900"><p className="text-xs font-black uppercase text-gray-400">Conferidos</p><p className="mt-1 text-xl font-black dark:text-white">{checkedItems.length} · {formatMoney(checkedNet)}</p></div></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => { setCheckedMovements(Object.fromEntries(reconciliation.items.map((item) => [item.id, true]))); setBulkReassignmentAccountId(''); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-black text-gray-600"><CheckSquare size={14} />Marcar todos</button><button type="button" onClick={() => { setCheckedMovements({}); setBulkReassignmentAccountId(''); setBulkReassignmentReason(''); }} className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs font-black text-gray-600"><Square size={14} />Limpar</button></div>
+                {canManage && checkedItems.length > 0 && <div className="mt-3 rounded-2xl border border-blue-200 bg-white p-4 dark:border-blue-900/50 dark:bg-gray-900"><div className="mb-3"><p className="text-sm font-black text-gray-800 dark:text-white">Alterar conta em lote</p><p className="text-xs font-semibold text-gray-500">Origem: {reconciliationSourceAccount?.name || 'Conta selecionada'} · {checkedItems.length} lançamento(s). Se uma transferência entre a conta antiga e a nova ficar redundante, ela será neutralizada com auditoria.</p></div><div className="grid gap-2 lg:grid-cols-[1fr_1fr_auto]"><select value={bulkReassignmentAccountId} onChange={(event) => setBulkReassignmentAccountId(event.target.value)} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Selecione a nova conta</option>{bulkReassignmentDestinations.map((account) => <option key={account.id} value={account.id}>{account.name} · {accountCodeLabel(account.code)}</option>)}</select><input value={bulkReassignmentReason} onChange={(event) => setBulkReassignmentReason(event.target.value)} placeholder="Motivo da reatribuição (opcional)" className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><button type="button" onClick={() => void reassignCheckedMovements()} disabled={bulkReassignmentWorking || !bulkReassignmentAccountId} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{bulkReassignmentWorking ? <Loader2 size={15} className="animate-spin" /> : <ArrowRightLeft size={15} />}Reatribuir selecionados</button></div>{bulkReassignmentDestinations.length === 0 && <p className="mt-2 text-xs font-bold text-red-600">Nenhuma conta ativa aceita todas as formas de pagamento da seleção atual.</p>}</div>}
+                <div className="mt-4 space-y-2">{reconciliation.items.map((movement) => {
                   const code = movementPayment(movement);
                   const compatible = accountsForPayment(code);
                   const preferredAccountId = preferredAccountForPayment(code);
                   const selectedAccountId = currentMovementAccount(movement, code);
-                  return <div key={movement.id} className={`rounded-xl border bg-white p-4 dark:bg-gray-900 ${checkedMovements[movement.id] ? 'border-emerald-400 ring-1 ring-emerald-200' : 'border-gray-100 dark:border-gray-800'}`}><div className="flex flex-col gap-3 xl:flex-row xl:items-center"><label className="flex min-w-0 flex-1 items-start gap-3"><input type="checkbox" checked={Boolean(checkedMovements[movement.id])} onChange={(event) => setCheckedMovements((current) => ({ ...current, [movement.id]: event.target.checked }))} className="mt-1 h-4 w-4" /><span className="min-w-0"><span className="block font-black dark:text-white">{movement.description}</span><span className="mt-1 block text-xs font-semibold text-gray-500">{movement.entry_code || 'Sem código'} · {formatDate(movement.occurred_at)} · {sourceLabel(movement.source)}{movement.order_code ? ` · ${movement.order_code}` : ''}{movement.counterpart_account_name ? ` · contraparte: ${movement.counterpart_account_name}` : ''}</span></span></label><div className="flex items-center gap-2"><span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-600">{paymentName(paymentCodeFromEntry(movement))}</span><span className={`min-w-24 text-right text-lg font-black ${movement.signed_amount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{movement.signed_amount >= 0 ? '+' : ''}{formatMoney(movement.signed_amount)}</span></div></div>{canManage && !movement.is_transfer && <div className="mt-3 grid gap-2 xl:grid-cols-[1fr_1fr_1fr_auto]"><select value={code} onChange={(event) => { const nextCode = event.target.value; setMovementPaymentCodes((current) => ({ ...current, [movement.id]: nextCode })); setMovementAccounts((current) => ({ ...current, [movement.id]: preferredAccountForPayment(nextCode) })); }} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="pending">Pendente</option>{receiptPaymentMethods.map((method) => <option key={method.code} value={method.code}>{method.name}</option>)}</select><select value={selectedAccountId} onChange={(event) => setMovementAccounts((current) => ({ ...current, [movement.id]: event.target.value }))} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Conta exata</option>{compatible.map((account) => <option key={account.id} value={account.id}>{account.name}{account.id === preferredAccountId ? ' · preferencial' : ''}</option>)}</select><input value={movementReasons[movement.id] || ''} onChange={(event) => setMovementReasons((current) => ({ ...current, [movement.id]: event.target.value }))} placeholder="Motivo do ajuste (opcional)" className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><button type="button" onClick={() => void saveMovementAdjustment(movement)} disabled={workingId === movement.id || code === 'pending' || !selectedAccountId} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{workingId === movement.id ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}Ajustar</button></div>}{movement.is_transfer && <p className="mt-2 text-xs font-semibold text-gray-400">Transferência interna: ajuste pelo fluxo de transferência entre contas.</p>}</div>;
+                  return <div key={movement.id} className={`rounded-xl border bg-white p-4 dark:bg-gray-900 ${checkedMovements[movement.id] ? 'border-emerald-400 ring-1 ring-emerald-200' : 'border-gray-100 dark:border-gray-800'}`}><div className="flex flex-col gap-3 xl:flex-row xl:items-center"><label className="flex min-w-0 flex-1 items-start gap-3"><input type="checkbox" checked={Boolean(checkedMovements[movement.id])} onChange={(event) => { setCheckedMovements((current) => ({ ...current, [movement.id]: event.target.checked })); setBulkReassignmentAccountId(''); }} className="mt-1 h-4 w-4" /><span className="min-w-0"><span className="block font-black dark:text-white">{movement.description}</span><span className="mt-1 block text-xs font-semibold text-gray-500">{movement.entry_code || 'Sem código'} · {formatDate(movement.occurred_at)} · {sourceLabel(movement.source)}{movement.order_code ? ` · ${movement.order_code}` : ''}{movement.counterpart_account_name ? ` · contraparte: ${movement.counterpart_account_name}` : ''}</span></span></label><div className="flex items-center gap-2"><span className="rounded-full bg-gray-100 px-2 py-1 text-[10px] font-black text-gray-600">{paymentName(paymentCodeFromEntry(movement))}</span><span className={`min-w-24 text-right text-lg font-black ${movement.signed_amount >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{movement.signed_amount >= 0 ? '+' : ''}{formatMoney(movement.signed_amount)}</span></div></div>{canManage && !movement.is_transfer && <div className="mt-3 grid gap-2 xl:grid-cols-[1fr_1fr_1fr_auto]"><select value={code} onChange={(event) => { const nextCode = event.target.value; setMovementPaymentCodes((current) => ({ ...current, [movement.id]: nextCode })); setMovementAccounts((current) => ({ ...current, [movement.id]: preferredAccountForPayment(nextCode) })); }} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="pending">Pendente</option>{receiptPaymentMethods.map((method) => <option key={method.code} value={method.code}>{method.name}</option>)}</select><select value={selectedAccountId} onChange={(event) => setMovementAccounts((current) => ({ ...current, [movement.id]: event.target.value }))} className="rounded-xl border px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950"><option value="">Conta exata</option>{compatible.map((account) => <option key={account.id} value={account.id}>{account.name}{account.id === preferredAccountId ? ' · preferencial' : ''}</option>)}</select><input value={movementReasons[movement.id] || ''} onChange={(event) => setMovementReasons((current) => ({ ...current, [movement.id]: event.target.value }))} placeholder="Motivo do ajuste (opcional)" className="rounded-xl border px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" /><button type="button" onClick={() => void saveMovementAdjustment(movement)} disabled={workingId === movement.id || code === 'pending' || !selectedAccountId} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white disabled:opacity-40">{workingId === movement.id ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}Ajustar</button></div>}{movement.is_transfer && <p className="mt-2 text-xs font-semibold text-gray-400">Transferência interna: pode ser incluída na reatribuição em lote; se origem e destino virarem a mesma conta, a transferência redundante será neutralizada com auditoria.</p>}</div>;
                 })}</div></>}
               </section>
             )}
