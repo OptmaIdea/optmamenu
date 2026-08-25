@@ -17,7 +17,7 @@ export interface OrderMessageData {
   catalogUrl: string;
   expiresAt?: string | null;
   fulfillmentType?: string | null;
-  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'refunded' | null;
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'partially_refunded' | 'refunded' | null;
 }
 
 export interface PreparedOrderMessage {
