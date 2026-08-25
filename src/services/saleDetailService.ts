@@ -173,6 +173,32 @@ export interface SaleAdjustment {
   items: SaleAdjustmentItem[];
 }
 
+export interface SalePartialReturnQuoteItem {
+  order_item_id: string;
+  product_id?: string | null;
+  original_quantity: number;
+  prior_returned: number;
+  requested_return: number;
+  remaining_after: number;
+  pricing_source: string;
+  scope_quantity_after: number;
+  base_price: number;
+  original_unit_price: number;
+  repriced_unit_price: number;
+  pricing_rules_snapshot_used: boolean;
+}
+
+export interface SalePartialReturnQuote {
+  refundAmount: number;
+  selectedOriginalValue: number;
+  pricingRecalculationAdjustment: number;
+  retainedMerchandiseTotal: number;
+  cumulativeRefundEntitlement: number;
+  previousRefunded: number;
+  remainingRefundableAfter: number;
+  items: SalePartialReturnQuoteItem[];
+}
+
 export interface SaleDetailResult {
   order: SaleDetailOrder;
   items: SaleDetailItem[];
@@ -202,6 +228,7 @@ export interface AdjustCompletedSaleInput {
   reasonNotes: string;
   items?: Array<{ orderItemId: string; quantity: number }>;
   refundAccountId?: string | null;
+  refundPaymentMethodCode?: string | null;
 }
 
 export interface AdjustCompletedSaleResult {
@@ -210,9 +237,12 @@ export interface AdjustCompletedSaleResult {
   refundCashbookEntryId: string;
   refundCashbookEntryCode: string;
   refundAccountId: string;
+  refundPaymentMethodCode: string;
+  refundPaymentMethodName: string;
   stockWarningCount: number;
   paymentStatus: string;
   remainingRefundable: number;
+  pricingQuote?: SalePartialReturnQuote | null;
 }
 
 function num(value: unknown): number {
@@ -230,14 +260,45 @@ function adjustmentError(data: Record<string, unknown> | null | undefined) {
     refund_account_required: 'Escolha a conta financeira de onde sairá o estorno.',
     invalid_refund_account: 'A conta financeira de estorno não pertence a esta loja.',
     refund_account_inactive: 'Escolha uma conta financeira ativa para o estorno.',
+    refund_payment_method_required: 'Escolha a forma em que o valor será devolvido ao cliente.',
+    invalid_refund_payment_method: 'A forma escolhida para devolução está inativa ou não movimenta o financeiro.',
+    account_does_not_accept_refund_method: 'A conta escolhida não aceita a forma selecionada para devolução.',
     items_required: 'Selecione ao menos um item para a devolução parcial.',
     invalid_item_quantity: 'Informe uma quantidade válida para cada item devolvido.',
     quantity_exceeds_remaining: 'A quantidade devolvida supera o saldo ainda disponível para devolução.',
     duplicate_order_item: 'O mesmo item foi informado mais de uma vez.',
+    order_item_not_found: 'Um dos itens informados não pertence a esta venda.',
     invalid_reason_code: 'Escolha um motivo válido para o ajuste.',
     reason_notes_required: 'Descreva a justificativa do cancelamento/devolução.',
+    prior_refund_exceeds_repriced_entitlement: 'Os estornos anteriores já superam o valor recalculado para esta nova devolução. Confira o histórico antes de prosseguir.',
   };
   return new Error(messages[code] || String(data?.message || data?.error || 'Não foi possível ajustar a venda.'));
+}
+
+function parsePartialReturnQuote(data: Record<string, unknown> | null | undefined): SalePartialReturnQuote {
+  return {
+    refundAmount: num(data?.refund_amount),
+    selectedOriginalValue: num(data?.selected_original_value),
+    pricingRecalculationAdjustment: num(data?.pricing_recalculation_adjustment),
+    retainedMerchandiseTotal: num(data?.retained_merchandise_total),
+    cumulativeRefundEntitlement: num(data?.cumulative_refund_entitlement),
+    previousRefunded: num(data?.previous_refunded),
+    remainingRefundableAfter: num(data?.remaining_refundable_after),
+    items: ((data?.items || []) as Array<Record<string, unknown>>).map((item) => ({
+      order_item_id: String(item.order_item_id || ''),
+      product_id: typeof item.product_id === 'string' ? item.product_id : null,
+      original_quantity: num(item.original_quantity),
+      prior_returned: num(item.prior_returned),
+      requested_return: num(item.requested_return),
+      remaining_after: num(item.remaining_after),
+      pricing_source: String(item.pricing_source || ''),
+      scope_quantity_after: num(item.scope_quantity_after),
+      base_price: num(item.base_price),
+      original_unit_price: num(item.original_unit_price),
+      repriced_unit_price: num(item.repriced_unit_price),
+      pricing_rules_snapshot_used: Boolean(item.pricing_rules_snapshot_used),
+    })),
+  };
 }
 
 export const SaleDetailService = {
@@ -332,8 +393,23 @@ export const SaleDetailService = {
     };
   },
 
+  async quotePartialReturn(
+    storeId: string,
+    orderId: string,
+    items: Array<{ orderItemId: string; quantity: number }>,
+  ): Promise<SalePartialReturnQuote> {
+    const { data, error } = await supabase.rpc('quote_completed_sale_partial_return_safe', {
+      p_store_id: storeId,
+      p_order_id: orderId,
+      p_items: items.map((item) => ({ order_item_id: item.orderItemId, quantity: item.quantity })),
+    });
+    if (error) throw error;
+    if (!data?.ok) throw adjustmentError(data);
+    return parsePartialReturnQuote(data as Record<string, unknown>);
+  },
+
   async adjust(input: AdjustCompletedSaleInput): Promise<AdjustCompletedSaleResult> {
-    const { data, error } = await supabase.rpc('adjust_completed_sale_safe', {
+    const { data, error } = await supabase.rpc('adjust_completed_sale_v2_safe', {
       p_store_id: input.storeId,
       p_order_id: input.orderId,
       p_adjustment_type: input.adjustmentType,
@@ -343,6 +419,7 @@ export const SaleDetailService = {
         ? (input.items || []).map((item) => ({ order_item_id: item.orderItemId, quantity: item.quantity }))
         : null,
       p_refund_account_id: input.refundAccountId || null,
+      p_refund_payment_method_code: input.refundPaymentMethodCode || null,
     });
 
     if (error) throw error;
@@ -354,9 +431,12 @@ export const SaleDetailService = {
       refundCashbookEntryId: String(data.refund_cashbook_entry_id),
       refundCashbookEntryCode: String(data.refund_cashbook_entry_code),
       refundAccountId: String(data.refund_account_id),
+      refundPaymentMethodCode: String(data.refund_payment_method_code || ''),
+      refundPaymentMethodName: String(data.refund_payment_method_name || ''),
       stockWarningCount: num(data.stock_warning_count),
       paymentStatus: String(data.payment_status || ''),
       remainingRefundable: num(data.remaining_refundable),
+      pricingQuote: data.pricing_quote ? parsePartialReturnQuote(data.pricing_quote as Record<string, unknown>) : null,
     };
   },
 };
