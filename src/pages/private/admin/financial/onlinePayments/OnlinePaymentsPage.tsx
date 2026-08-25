@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
 import {
-  BadgeDollarSign,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -11,8 +11,6 @@ import {
   KeyRound,
   Landmark,
   RefreshCw,
-  ShieldCheck,
-  TriangleAlert,
   Webhook,
   XCircle,
 } from 'lucide-react';
@@ -27,6 +25,13 @@ import {
 } from '@/services/onlinePaymentsService';
 
 type Tab = 'overview' | 'providers' | 'transactions' | 'proofs' | 'events' | 'sandbox';
+
+type SummaryCard = {
+  label: string;
+  value: number;
+  Icon: LucideIcon;
+  tone: string;
+};
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -100,6 +105,13 @@ export default function OnlinePaymentsPage() {
 
   const optmaProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'optma_sandbox' && item.environment === 'sandbox') || null, [workspace]);
   const asaasProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'asaas' && item.environment === 'sandbox') || null, [workspace]);
+
+  const summaryCards = useMemo<SummaryCard[]>(() => [
+    { label: 'Pendentes', value: workspace?.counts.pending || 0, Icon: Clock3, tone: 'text-amber-600' },
+    { label: 'Pagos', value: workspace?.counts.paid || 0, Icon: CheckCircle2, tone: 'text-emerald-600' },
+    { label: 'Falhas/expirados', value: workspace?.counts.failed || 0, Icon: XCircle, tone: 'text-rose-600' },
+    { label: 'Comprovantes', value: workspace?.counts.proofs_pending || 0, Icon: FileCheck2, tone: 'text-blue-600' },
+  ], [workspace]);
 
   async function toggleProvider(provider: OnlinePaymentProvider) {
     if (!storeId || !workspace?.permissions.manage) return;
@@ -192,16 +204,11 @@ export default function OnlinePaymentsPage() {
           {activeTab === 'overview' && (
             <div className="space-y-5">
               <div className="grid gap-4 md:grid-cols-4">
-                {[
-                  ['Pendentes', workspace.counts.pending, Clock3, 'text-amber-600'],
-                  ['Pagos', workspace.counts.paid, CheckCircle2, 'text-emerald-600'],
-                  ['Falhas/expirados', workspace.counts.failed, XCircle, 'text-rose-600'],
-                  ['Comprovantes', workspace.counts.proofs_pending, FileCheck2, 'text-blue-600'],
-                ].map(([label, value, Icon, tone]) => (
-                  <div key={String(label)} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-                    <Icon className={String(tone)} size={22} />
-                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{String(label)}</p>
-                    <p className="text-3xl font-black text-gray-900 dark:text-white">{Number(value)}</p>
+                {summaryCards.map(({ label, value, Icon, tone }) => (
+                  <div key={label} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                    <Icon className={tone} size={22} />
+                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{label}</p>
+                    <p className="text-3xl font-black text-gray-900 dark:text-white">{value}</p>
                   </div>
                 ))}
               </div>
