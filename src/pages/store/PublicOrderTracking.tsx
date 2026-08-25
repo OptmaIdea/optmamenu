@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 'lucide-react';
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
+import PublicOrderPaymentProofCard from '@/pages/store/components/PublicOrderPaymentProofCard';
 
 const APP_VERSION = '0.10.0-rc.1';
-const OPTMAMENU_URL = 'https://optmamenu.optmaidea.com.br';
+const OPTMAMENU_URL = 'https://optmamenu.com.br';
 const OPTMAIDEA_URL = 'https://optmaidea.com.br';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -171,6 +172,8 @@ export default function PublicOrderTracking() {
             </div>
           </div>
         </section>
+
+        {publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
