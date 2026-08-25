@@ -141,6 +141,64 @@ export interface PublicOrderTrackingResponse {
     };
 }
 
+export type PublicPaymentProofStatus = 'submitted' | 'confirmed' | 'rejected' | 'superseded' | 'expired';
+
+export interface PublicPaymentProofSummary {
+    id: string;
+    status: PublicPaymentProofStatus;
+    original_file_name?: string | null;
+    declared_amount?: number | null;
+    declared_paid_at?: string | null;
+    submitted_at?: string | null;
+    decided_at?: string | null;
+    decision_notes?: string | null;
+}
+
+export interface PublicPaymentProofState {
+    ok: boolean;
+    error?: string;
+    eligible: boolean;
+    order_code?: string;
+    order_status?: string;
+    payment_status?: string;
+    payment_method_code?: string | null;
+    payment_method_name?: string | null;
+    requires_proof?: boolean;
+    order_total?: number;
+    proofs: PublicPaymentProofSummary[];
+}
+
+interface PublicPaymentProofTicket {
+    ok: boolean;
+    error?: string;
+    proof_id?: string;
+    storage_bucket?: string;
+    storage_path?: string;
+    upload_expires_at?: string;
+    max_file_size?: number;
+    allowed_content_types?: string[];
+}
+
+const PROOF_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const PROOF_MAX_SIZE = 8 * 1024 * 1024;
+
+function proofError(code?: string) {
+    const messages: Record<string, string> = {
+        invalid_token: 'O link deste pedido não é válido para envio de comprovante.',
+        order_not_found: 'Pedido não encontrado.',
+        order_not_eligible: 'Este pedido não aceita mais comprovante de pagamento.',
+        payment_already_confirmed: 'O pagamento deste pedido já foi confirmado.',
+        not_pix_order: 'Este pedido não está configurado para pagamento por PIX.',
+        invalid_content_type: 'Envie uma imagem JPG, PNG, WebP ou um arquivo PDF.',
+        invalid_declared_amount: 'Informe um valor de pagamento válido.',
+        invalid_declared_paid_at: 'A data/hora informada para o pagamento não é válida.',
+        too_many_proof_attempts: 'Houve muitas tentativas de envio. Aguarde um pouco antes de tentar novamente.',
+        upload_ticket_expired: 'O prazo deste envio expirou. Selecione o arquivo novamente.',
+        proof_file_not_found: 'O arquivo não foi recebido. Tente enviar novamente.',
+    };
+    return new Error(messages[code || ''] || code || 'Não foi possível enviar o comprovante.');
+}
+
 export const PublicOrderService = {
     async getPublicOrderByToken(token: string): Promise<PublicOrderTrackingResponse> {
         const normalizedToken = decodeURIComponent(token).trim();
@@ -159,6 +217,78 @@ export const PublicOrderService = {
         }
 
         return data as PublicOrderTrackingResponse;
+    },
+
+    async getPaymentProofState(token: string): Promise<PublicPaymentProofState> {
+        const normalizedToken = decodeURIComponent(token).trim();
+        const { data, error } = await supabasePublic.rpc('get_public_order_payment_proof_state', {
+            p_token: normalizedToken,
+        });
+        if (error) throw error;
+        if (!data?.ok) throw proofError(data?.error);
+        return {
+            ...(data as PublicPaymentProofState),
+            order_total: Number(data.order_total || 0),
+            proofs: Array.isArray(data.proofs)
+                ? data.proofs.map((proof: PublicPaymentProofSummary) => ({
+                    ...proof,
+                    declared_amount: proof.declared_amount == null ? null : Number(proof.declared_amount),
+                }))
+                : [],
+        };
+    },
+
+    async submitPaymentProof(params: {
+        token: string;
+        file: File;
+        declaredAmount?: number | null;
+        declaredPaidAt?: string | null;
+    }): Promise<{ proofId: string; status: string }> {
+        const { token, file } = params;
+        if (!PROOF_ALLOWED_TYPES.includes(file.type)) throw proofError('invalid_content_type');
+        if (file.size <= 0 || file.size > PROOF_MAX_SIZE) {
+            throw new Error('O comprovante deve ter no máximo 8 MB.');
+        }
+
+        const normalizedToken = decodeURIComponent(token).trim();
+        const declaredPaidAt = params.declaredPaidAt?.trim()
+            ? new Date(params.declaredPaidAt).toISOString()
+            : null;
+
+        const { data: ticketData, error: ticketError } = await supabasePublic.rpc(
+            'create_public_order_payment_proof_ticket',
+            {
+                p_token: normalizedToken,
+                p_file_name: file.name,
+                p_content_type: file.type,
+                p_declared_amount: params.declaredAmount ?? null,
+                p_declared_paid_at: declaredPaidAt,
+            },
+        );
+        if (ticketError) throw ticketError;
+
+        const ticket = ticketData as PublicPaymentProofTicket;
+        if (!ticket?.ok || !ticket.proof_id || !ticket.storage_bucket || !ticket.storage_path) {
+            throw proofError(ticket?.error);
+        }
+
+        const { error: uploadError } = await supabasePublic.storage
+            .from(ticket.storage_bucket)
+            .upload(ticket.storage_path, file, {
+                contentType: file.type,
+                upsert: false,
+                cacheControl: '0',
+            });
+        if (uploadError) throw new Error(`Não foi possível enviar o arquivo: ${uploadError.message}`);
+
+        const { data: finalizeData, error: finalizeError } = await supabasePublic.rpc(
+            'finalize_public_order_payment_proof',
+            { p_token: normalizedToken, p_proof_id: ticket.proof_id },
+        );
+        if (finalizeError) throw finalizeError;
+        if (!finalizeData?.ok) throw proofError(finalizeData?.error);
+
+        return { proofId: ticket.proof_id, status: String(finalizeData.status || 'submitted') };
     },
 
     async quotePublicOrder(slug: string, items: PublicOrderItemInput[]): Promise<PublicOrderPricingResponse> {
