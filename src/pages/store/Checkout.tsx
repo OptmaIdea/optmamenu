@@ -473,7 +473,7 @@ export default function Checkout() {
                 customer_phone: phoneValidation.normalized,
                 fulfillment_type: effectiveFulfillment,
                 sales_channel: isTableContext ? 'qr_table' : 'public_store',
-                payment_method_code: 'pending',
+                payment_method_code: paymentChoice === 'pix_advance' ? 'pix' : 'pending',
                 delivery_method_code: effectiveFulfillment === 'delivery'
                     ? 'delivery'
                     : effectiveFulfillment === 'table'
