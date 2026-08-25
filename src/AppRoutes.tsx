@@ -84,6 +84,7 @@ const PdvPage = lazy(() => import('@/pages/private/admin/pdv/PdvPage'));
 const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
 const AccountPlanPage = lazy(() => import('@/pages/private/admin/financial/accountPlan/AccountPlanPage'));
 const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/settings/financialAccounts/FinancialAccountsSettingsPage'));
+const OnlinePaymentsPage = lazy(() => import('@/pages/private/admin/financial/onlinePayments/OnlinePaymentsPage'));
 
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
@@ -179,7 +180,6 @@ export default function AppRoutes() {
             <Route path="/admin/direct-sales" element={<RequirePermission permission="orders.manage"><DirectSalesPage /></RequirePermission>} />
             <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.sales_channels.view"><SalesChannelsPage /></RequirePermission>} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
-            <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/delivery" element={<Navigate to="/admin/settings?tab=delivery" replace />} />
             <Route path="/admin/commercial-dashboard" element={<RequirePermission permission="commercial.dashboard.view"><CommercialDashboardPage /></RequirePermission>} />
             <Route path="/admin/commercial-settings" element={<Navigate to="/admin/settings?tab=commercial" replace />} />
@@ -196,6 +196,8 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
             <Route path="/admin/account-plan" element={<RequirePermission permission="financial.account_plan.view"><AccountPlanPage /></RequirePermission>} />
             <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
+            <Route path="/admin/online-payments" element={<RequirePermission permission="payments.online.view"><OnlinePaymentsPage /></RequirePermission>} />
+            <Route path="/admin/payments" element={<Navigate to="/admin/online-payments" replace />} />
 
             <Route path="/admin/products" element={<RequirePermission permission="products.view"><Products /></RequirePermission>} />
             <Route
