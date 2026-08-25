@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Clock3, FileCheck2, Loader2, Upload, XCircle } from 'lucide-react';
-import {
-  PublicOrderService,
-  type PublicPaymentProofState,
-  type PublicPaymentProofSummary,
-} from '@/services/publicOrderService';
+import { PublicOrderService, type PublicPaymentProofState } from '@/services/publicOrderService';
 
 const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -13,14 +9,6 @@ function formatDate(value?: string | null) {
   if (!value) return '—';
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? '—' : dateTime.format(parsed);
-}
-
-function proofStatusLabel(proof: PublicPaymentProofSummary) {
-  if (proof.status === 'confirmed') return 'Pagamento confirmado';
-  if (proof.status === 'submitted') return 'Aguardando conferência da loja';
-  if (proof.status === 'rejected') return 'Comprovante rejeitado';
-  if (proof.status === 'superseded') return 'Comprovante substituído';
-  return 'Envio expirado';
 }
 
 export default function PublicOrderPaymentProofCard({ token }: { token: string }) {
