@@ -41,6 +41,22 @@ Armazenar somente como secrets das Supabase Edge Functions:
 
 O token de Webhook deve ter entre 32 e 255 caracteres, sem espaços, e nunca reutilizar uma API Key Asaas.
 
+### Geração segura do token no PowerShell
+
+Compatível também com ambientes Windows PowerShell/.NET em que `RandomNumberGenerator.Fill(...)` não existe:
+
+```powershell
+$bytes = New-Object byte[] 48
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+[Convert]::ToBase64String($bytes) | Set-Clipboard
+$rng.Dispose()
+```
+
+O comando grava o token diretamente na área de transferência e não o imprime no terminal.
+
+Se `RandomNumberGenerator.Fill($bytes)` falhar e depois for executado `ToBase64String($bytes)`, não utilizar o resultado: o array pode continuar preenchido apenas com zeros e gerar um token previsível. Nesse caso, gerar um novo token com o bloco compatível acima e substituir imediatamente qualquer secret já salvo com o valor anterior.
+
 ## Edge Functions
 
 - `asaas-sandbox-adapter`: JWT obrigatório; faz chamadas outbound para `https://api-sandbox.asaas.com/v3` e nunca retorna API Keys;
