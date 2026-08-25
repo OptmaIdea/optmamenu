@@ -23,15 +23,20 @@ import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { CheckoutPromotionsModal } from '@/pages/store/components/CheckoutPromotionsModal';
-import { PublicOrderService } from '@/services/publicOrderService';
+import {
+    PublicOrderService,
+    type PublicCheckoutPaymentOptionsResponse,
+    type PublicPaymentTiming,
+    type PublicPromisedPaymentMethod,
+} from '@/services/publicOrderService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
-const CHECKOUT_DRAFT_VERSION = 2;
+const CHECKOUT_DRAFT_VERSION = 3;
 
 type CheckoutView = 'cart' | 'review' | 'fulfillment' | 'customer' | 'payment' | 'cpf' | 'notes';
-type PaymentChoice = '' | 'pix_advance' | 'pix_receive' | 'cash' | 'card' | 'payment_link';
+type PaymentTimingChoice = '' | PublicPaymentTiming;
 
 type PhoneValidation = {
     normalized: string;
@@ -60,7 +65,9 @@ interface CheckoutDraft {
     clientPhone: string;
     isBrazil: boolean;
     internationalDdi: string;
-    paymentChoice: PaymentChoice;
+    paymentTiming: PaymentTimingChoice;
+    paymentMethodCode: string;
+    promisedPaymentMethodCode: PublicPromisedPaymentMethod | '';
     needsChange: boolean;
     changeFor: string;
     cpf: string;
@@ -78,6 +85,17 @@ const EMPTY_ADDRESS: DeliveryAddressState = {
     state: '',
     complement: '',
     reference: '',
+};
+
+const EMPTY_PAYMENT_OPTIONS: PublicCheckoutPaymentOptionsResponse = {
+    ok: true,
+    pay_now: [],
+    pay_on_fulfillment: {
+        enabled: false,
+        label: 'Pagar na retirada',
+        requires_method_choice: false,
+        methods: [],
+    },
 };
 
 function compactOrderCode(orderCode: string) {
@@ -234,7 +252,12 @@ export default function Checkout() {
     const [clientPhone, setClientPhone] = useState('');
     const [isBrazil, setIsBrazil] = useState(true);
     const [internationalDdi, setInternationalDdi] = useState('');
-    const [paymentChoice, setPaymentChoice] = useState<PaymentChoice>('');
+    const [paymentTiming, setPaymentTiming] = useState<PaymentTimingChoice>('');
+    const [paymentMethodCode, setPaymentMethodCode] = useState('');
+    const [promisedPaymentMethodCode, setPromisedPaymentMethodCode] = useState<PublicPromisedPaymentMethod | ''>('');
+    const [paymentOptions, setPaymentOptions] = useState<PublicCheckoutPaymentOptionsResponse>(EMPTY_PAYMENT_OPTIONS);
+    const [paymentOptionsLoading, setPaymentOptionsLoading] = useState(false);
+    const [paymentOptionsError, setPaymentOptionsError] = useState<string | null>(null);
     const [needsChange, setNeedsChange] = useState(false);
     const [changeFor, setChangeFor] = useState('');
     const [cpf, setCpf] = useState('');
@@ -280,8 +303,18 @@ export default function Checkout() {
         && deliveryAddress.state.trim().length === 2
         && (!withoutNumber || Boolean(deliveryAddress.complement.trim()))
     );
-    const paymentValid = Boolean(paymentChoice)
-        && (paymentChoice !== 'cash' || !needsChange || Number(changeFor.replace(',', '.')) >= totalValue);
+
+    const selectedPayNowMethod = paymentOptions.pay_now.find((method) => method.code === paymentMethodCode) || null;
+    const selectedPayLaterMethod = paymentOptions.pay_on_fulfillment.methods.find((method) => method.code === promisedPaymentMethodCode) || null;
+    const cashAtDelivery = paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === 'cash';
+    const changeValue = Number(changeFor.replace(',', '.'));
+    const paymentValid = paymentTiming === 'pay_now'
+        ? Boolean(selectedPayNowMethod)
+        : paymentTiming === 'pay_on_fulfillment'
+            ? paymentOptions.pay_on_fulfillment.enabled
+                && (!paymentOptions.pay_on_fulfillment.requires_method_choice || Boolean(selectedPayLaterMethod))
+                && (!cashAtDelivery || !needsChange || (Number.isFinite(changeValue) && changeValue >= totalValue))
+            : false;
     const fulfillmentValid = isTableContext || ['pickup', 'delivery'].includes(effectiveFulfillment);
     const checkoutValid = customerValid && addressValid && paymentValid && fulfillmentValid && items.length > 0;
 
@@ -290,6 +323,32 @@ export default function Checkout() {
         const categoryRule = categoryRules[item.category_id];
         return Boolean(categoryRule?.pricingGroup?.rules?.length || categoryRule?.rules?.length);
     }), [categoryRules, items]);
+
+    useEffect(() => {
+        let active = true;
+        setPaymentOptionsLoading(true);
+        setPaymentOptionsError(null);
+
+        void PublicOrderService.getCheckoutPaymentOptions(storeSlug, effectiveFulfillment)
+            .then((result) => {
+                if (!active) return;
+                setPaymentOptions(result);
+                if (!result.ok) setPaymentOptionsError('As opções de pagamento estão temporariamente indisponíveis.');
+            })
+            .catch((cause) => {
+                if (!active) return;
+                console.error('Erro ao carregar regras de pagamento do checkout:', cause);
+                setPaymentOptions(EMPTY_PAYMENT_OPTIONS);
+                setPaymentOptionsError('Não foi possível carregar as opções de pagamento agora.');
+            })
+            .finally(() => {
+                if (active) setPaymentOptionsLoading(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [effectiveFulfillment, storeSlug]);
 
     useEffect(() => {
         try {
@@ -301,7 +360,9 @@ export default function Checkout() {
                     setClientPhone(parsed.clientPhone || '');
                     setIsBrazil(parsed.isBrazil !== false);
                     setInternationalDdi(parsed.internationalDdi || '');
-                    setPaymentChoice(parsed.paymentChoice || '');
+                    setPaymentTiming(parsed.paymentTiming || '');
+                    setPaymentMethodCode(parsed.paymentMethodCode || '');
+                    setPromisedPaymentMethodCode(parsed.promisedPaymentMethodCode || '');
                     setNeedsChange(Boolean(parsed.needsChange));
                     setChangeFor(parsed.changeFor || '');
                     setCpf(parsed.cpf || '');
@@ -324,7 +385,9 @@ export default function Checkout() {
             clientPhone,
             isBrazil,
             internationalDdi,
-            paymentChoice,
+            paymentTiming,
+            paymentMethodCode,
+            promisedPaymentMethodCode,
             needsChange,
             changeFor,
             cpf,
@@ -349,8 +412,18 @@ export default function Checkout() {
         isBrazil,
         needsChange,
         notes,
-        paymentChoice,
+        paymentMethodCode,
+        paymentTiming,
+        promisedPaymentMethodCode,
     ]);
+
+    const resetPaymentSelection = () => {
+        setPaymentTiming('');
+        setPaymentMethodCode('');
+        setPromisedPaymentMethodCode('');
+        setNeedsChange(false);
+        setChangeFor('');
+    };
 
     const openProduct = (product: Product) => {
         setSelectedProduct(product);
@@ -449,15 +522,10 @@ export default function Checkout() {
             return;
         }
 
-        const paymentLabel: Record<Exclude<PaymentChoice, ''>, string> = {
-            pix_advance: 'Pix antecipado',
-            pix_receive: 'Pix no recebimento',
-            cash: 'Dinheiro',
-            card: 'Cartão no recebimento',
-            payment_link: 'Link de pagamento',
-        };
-        const paymentNote = paymentChoice ? `Pagamento: ${paymentLabel[paymentChoice]}` : '';
-        const changeNote = paymentChoice === 'cash' && needsChange ? `Troco para: R$ ${changeFor}` : '';
+        const paymentDescription = paymentTiming === 'pay_now'
+            ? `Pagar agora: ${selectedPayNowMethod?.name || paymentMethodCode}`
+            : `${paymentOptions.pay_on_fulfillment.label}${selectedPayLaterMethod ? `: ${selectedPayLaterMethod.name}` : ''}`;
+        const changeNote = cashAtDelivery && needsChange ? `Troco para: R$ ${changeFor}` : '';
         const locationNote = deliveryAddress.latitude && deliveryAddress.longitude
             ? `Localização: ${deliveryAddress.latitude},${deliveryAddress.longitude} (precisão ${Math.round(deliveryAddress.accuracy || 0)}m)`
             : '';
@@ -473,7 +541,16 @@ export default function Checkout() {
                 customer_phone: phoneValidation.normalized,
                 fulfillment_type: effectiveFulfillment,
                 sales_channel: isTableContext ? 'qr_table' : 'public_store',
-                payment_method_code: paymentChoice === 'pix_advance' ? 'pix' : 'pending',
+                payment_selection: paymentTiming === 'pay_now'
+                    ? {
+                        timing: 'pay_now',
+                        method_code: paymentMethodCode,
+                    }
+                    : {
+                        timing: 'pay_on_fulfillment',
+                        promised_method_code: promisedPaymentMethodCode || null,
+                        change_for: cashAtDelivery && needsChange && Number.isFinite(changeValue) ? changeValue : null,
+                    },
                 delivery_method_code: effectiveFulfillment === 'delivery'
                     ? 'delivery'
                     : effectiveFulfillment === 'table'
@@ -496,7 +573,7 @@ export default function Checkout() {
                 notes: [
                     notes.trim(),
                     cpf.trim() ? `CPF: ${onlyDigits(cpf)}` : '',
-                    paymentNote,
+                    `Pagamento: ${paymentDescription}`,
                     changeNote,
                     locationNote,
                 ].filter(Boolean).join('\n') || null,
@@ -509,6 +586,13 @@ export default function Checkout() {
                 } else {
                     const labels: Record<string, string> = {
                         payment_method_disabled: 'A forma de pagamento escolhida não está disponível para este pedido.',
+                        payment_method_required: 'Escolha uma forma para pagar agora.',
+                        payment_integration_unavailable: 'A integração desta forma de pagamento ainda não está disponível.',
+                        payment_method_misconfigured: 'Esta forma de pagamento precisa ser revisada pela loja.',
+                        invalid_payment_timing: 'Escolha se deseja pagar agora ou no recebimento.',
+                        delivery_payment_method_required: 'Escolha como pretende pagar na entrega.',
+                        delivery_payment_method_disabled: 'A forma escolhida para pagar na entrega não está disponível.',
+                        invalid_change_for: 'Confira o valor informado para o troco.',
                         delivery_method_disabled: 'A forma de recebimento escolhida não está disponível.',
                         invalid_customer_phone: 'Confira o número de telefone informado.',
                         empty_cart: 'Seu carrinho está vazio.',
@@ -685,11 +769,11 @@ export default function Checkout() {
                 <CheckoutHeader title="Entrega" subtitle="Escolha como deseja receber" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
-                        <button type="button" onClick={() => { setFulfillment('pickup', 'pickup'); setView('review'); }} className="flex w-full items-center gap-4 border-b px-4 py-5 text-left">
+                        <button type="button" onClick={() => { setFulfillment('pickup', 'pickup'); resetPaymentSelection(); setView('review'); }} className="flex w-full items-center gap-4 border-b px-4 py-5 text-left">
                             <Store /><span className="flex-1"><span className="block font-black">Retirar na loja</span><span className="text-sm text-slate-500">Sem taxa de entrega</span></span>
                             {effectiveFulfillment === 'pickup' && <CheckCircle2 className="text-emerald-600" />}
                         </button>
-                        <button type="button" onClick={() => setFulfillment('delivery', 'delivery')} className="flex w-full items-center gap-4 px-4 py-5 text-left">
+                        <button type="button" onClick={() => { setFulfillment('delivery', 'delivery'); resetPaymentSelection(); }} className="flex w-full items-center gap-4 px-4 py-5 text-left">
                             <MapPin /><span className="flex-1"><span className="block font-black">Receber em casa</span><span className="text-sm text-slate-500">Informe o endereço para calcular condições</span></span>
                             {effectiveFulfillment === 'delivery' && <CheckCircle2 className="text-emerald-600" />}
                         </button>
@@ -776,36 +860,123 @@ export default function Checkout() {
     }
 
     if (view === 'payment') {
-        const paymentOptions: Array<[Exclude<PaymentChoice, ''>, string]> = [
-            ['pix_advance', 'Pix antecipado'],
-            ['pix_receive', 'Pix no recebimento'],
-            ['cash', 'Dinheiro'],
-            ['card', 'Cartão no recebimento'],
-            ['payment_link', 'Link de pagamento'],
-        ];
         return (
             <div className="min-h-screen bg-slate-50">
-                <CheckoutHeader title="Pagamento" subtitle="As opções podem depender da entrega" onBack={() => setView('review')} />
-                <main className="mx-auto max-w-3xl px-4 py-5">
-                    <section className="overflow-hidden rounded-2xl bg-white">
-                        {paymentOptions.map(([code, label]) => (
-                            <button key={code} type="button" onClick={() => { setPaymentChoice(code); if (code !== 'cash') { setNeedsChange(false); setChangeFor(''); } }} className="flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0">
-                                <Wallet /><span className="flex-1 font-black">{label}</span>{paymentChoice === code && <CheckCircle2 className="text-emerald-600" />}
-                            </button>
-                        ))}
-                    </section>
-                    {paymentChoice === 'cash' && (
-                        <section className="mt-4 space-y-3 rounded-2xl bg-white p-4">
+                <CheckoutHeader title="Pagamento" subtitle="Escolha quando pagar e depois a forma disponível" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
+                    {paymentOptionsLoading && (
+                        <section className="rounded-2xl bg-white p-5 text-sm font-semibold text-slate-500">Carregando opções de pagamento…</section>
+                    )}
+                    {paymentOptionsError && (
+                        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{paymentOptionsError}</section>
+                    )}
+
+                    {!paymentOptionsLoading && paymentOptions.pay_now.length > 0 && (
+                        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                            <div className="border-b border-slate-100 px-4 py-4">
+                                <h2 className="text-lg font-black text-slate-950">Pagar agora</h2>
+                                <p className="mt-1 text-sm text-slate-500">Somente formas configuradas pela loja aparecem aqui.</p>
+                            </div>
+                            {paymentOptions.pay_now.map((method) => (
+                                <button
+                                    key={method.code}
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentTiming('pay_now');
+                                        setPaymentMethodCode(method.code);
+                                        setPromisedPaymentMethodCode('');
+                                        setNeedsChange(false);
+                                        setChangeFor('');
+                                    }}
+                                    className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_now' && paymentMethodCode === method.code ? 'bg-emerald-50' : ''}`}
+                                >
+                                    <Wallet />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-black text-slate-950">{method.name}</span>
+                                        <span className="mt-1 block text-sm text-slate-500">
+                                            {method.description || (method.requires_proof ? 'Envie o comprovante após criar o pedido.' : 'Confirmação automática pela integração configurada.')}
+                                        </span>
+                                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black uppercase text-slate-600">
+                                            {method.requires_proof ? 'comprovante manual' : 'confirmação automática'}
+                                        </span>
+                                    </span>
+                                    {paymentTiming === 'pay_now' && paymentMethodCode === method.code && <CheckCircle2 className="shrink-0 text-emerald-600" />}
+                                </button>
+                            ))}
+                        </section>
+                    )}
+
+                    {!paymentOptionsLoading && paymentOptions.pay_on_fulfillment.enabled && (
+                        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                            <div className="border-b border-slate-100 px-4 py-4">
+                                <h2 className="text-lg font-black text-slate-950">{paymentOptions.pay_on_fulfillment.label}</h2>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {paymentOptions.pay_on_fulfillment.requires_method_choice
+                                        ? 'Informe como pretende pagar quando o pedido chegar.'
+                                        : 'A forma real será escolhida no momento do recebimento.'}
+                                </p>
+                            </div>
+
+                            {!paymentOptions.pay_on_fulfillment.requires_method_choice ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentTiming('pay_on_fulfillment');
+                                        setPaymentMethodCode('');
+                                        setPromisedPaymentMethodCode('');
+                                        setNeedsChange(false);
+                                        setChangeFor('');
+                                    }}
+                                    className={`flex w-full items-center gap-4 px-4 py-5 text-left ${paymentTiming === 'pay_on_fulfillment' ? 'bg-emerald-50' : ''}`}
+                                >
+                                    <Store />
+                                    <span className="flex-1 font-black text-slate-950">Escolher a forma no recebimento</span>
+                                    {paymentTiming === 'pay_on_fulfillment' && <CheckCircle2 className="text-emerald-600" />}
+                                </button>
+                            ) : (
+                                paymentOptions.pay_on_fulfillment.methods.map((method) => (
+                                    <button
+                                        key={method.code}
+                                        type="button"
+                                        onClick={() => {
+                                            setPaymentTiming('pay_on_fulfillment');
+                                            setPaymentMethodCode('');
+                                            setPromisedPaymentMethodCode(method.code);
+                                            if (method.code !== 'cash') {
+                                                setNeedsChange(false);
+                                                setChangeFor('');
+                                            }
+                                        }}
+                                        className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code ? 'bg-emerald-50' : ''}`}
+                                    >
+                                        <Wallet />
+                                        <span className="flex-1 font-black text-slate-950">{method.name}</span>
+                                        {paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code && <CheckCircle2 className="text-emerald-600" />}
+                                    </button>
+                                ))
+                            )}
+                        </section>
+                    )}
+
+                    {cashAtDelivery && (
+                        <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
                             <p className="font-black">Precisa de troco?</p>
                             <div className="flex gap-3">
                                 <button type="button" onClick={() => { setNeedsChange(false); setChangeFor(''); }} className={`flex-1 rounded-xl border p-3 font-bold ${!needsChange ? 'border-emerald-500 bg-emerald-50' : ''}`}>Não</button>
                                 <button type="button" onClick={() => setNeedsChange(true)} className={`flex-1 rounded-xl border p-3 font-bold ${needsChange ? 'border-emerald-500 bg-emerald-50' : ''}`}>Sim</button>
                             </div>
                             {needsChange && <input inputMode="decimal" placeholder="Troco para R$" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />}
-                            {needsChange && changeFor && Number(changeFor.replace(',', '.')) < totalValue && <p className="text-sm font-bold text-red-600">O valor do troco deve ser igual ou maior que o total.</p>}
+                            {needsChange && changeFor && (!Number.isFinite(changeValue) || changeValue < totalValue) && <p className="text-sm font-bold text-red-600">O valor do troco deve ser igual ou maior que o total.</p>}
                         </section>
                     )}
-                    <button type="button" onClick={() => setView('review')} disabled={!paymentValid} className="mt-4 w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-40">
+
+                    {!paymentOptionsLoading && paymentOptions.pay_now.length === 0 && !paymentOptions.pay_on_fulfillment.enabled && !paymentOptionsError && (
+                        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                            A loja ainda não configurou uma forma de pagamento disponível para este tipo de recebimento.
+                        </section>
+                    )}
+
+                    <button type="button" onClick={() => setView('review')} disabled={!paymentValid} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-40">
                         Salvar pagamento
                     </button>
                 </main>
@@ -847,9 +1018,15 @@ export default function Checkout() {
             ? `Mesa/comanda ${context?.tableCode || ''}`
             : 'Retirada na loja';
     const customerDescription = customerValid ? `${clientName} • ${phoneValidation.displayFormatted}` : 'Informe nome e telefone';
-    const paymentDescription = paymentChoice
-        ? ({ pix_advance: 'Pix antecipado', pix_receive: 'Pix no recebimento', cash: needsChange ? `Dinheiro • troco para R$ ${changeFor}` : 'Dinheiro', card: 'Cartão no recebimento', payment_link: 'Link de pagamento' } as Record<Exclude<PaymentChoice, ''>, string>)[paymentChoice]
-        : 'Escolha a forma de pagamento';
+    const paymentDescription = paymentTiming === 'pay_now'
+        ? selectedPayNowMethod
+            ? `Pagar agora • ${selectedPayNowMethod.name}`
+            : 'Escolha a forma para pagar agora'
+        : paymentTiming === 'pay_on_fulfillment'
+            ? selectedPayLaterMethod
+                ? `${paymentOptions.pay_on_fulfillment.label} • ${selectedPayLaterMethod.name}${cashAtDelivery && needsChange ? ` • troco para R$ ${changeFor}` : ''}`
+                : paymentOptions.pay_on_fulfillment.label
+            : 'Escolha quando e como pagar';
 
     return (
         <div className="min-h-screen bg-slate-50 pb-32 text-slate-950">
