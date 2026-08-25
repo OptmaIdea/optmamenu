@@ -12,6 +12,45 @@ export type PublicSalesChannel =
     | 'in_person'
     | 'other';
 
+export type PublicPaymentTiming = 'pay_now' | 'pay_on_fulfillment';
+export type PublicPromisedPaymentMethod = 'pix' | 'card' | 'cash';
+
+export interface PublicCheckoutPayNowMethod {
+    code: string;
+    base_code: string;
+    name: string;
+    description?: string | null;
+    requires_proof: boolean;
+    confirmation_mode: 'manual_proof' | 'api' | string;
+    integration_enabled: boolean;
+}
+
+export interface PublicCheckoutPayOnFulfillmentMethod {
+    code: PublicPromisedPaymentMethod;
+    name: string;
+    requires_change_for: boolean;
+}
+
+export interface PublicCheckoutPaymentOptionsResponse {
+    ok: boolean;
+    error?: string;
+    fulfillment_type?: PublicFulfillmentType;
+    pay_now: PublicCheckoutPayNowMethod[];
+    pay_on_fulfillment: {
+        enabled: boolean;
+        label: string;
+        requires_method_choice: boolean;
+        methods: PublicCheckoutPayOnFulfillmentMethod[];
+    };
+}
+
+export interface PublicPaymentSelectionInput {
+    timing: PublicPaymentTiming;
+    method_code?: string | null;
+    promised_method_code?: PublicPromisedPaymentMethod | null;
+    change_for?: number | null;
+}
+
 export interface PublicOrderItemInput {
     product_id: string;
     quantity: number;
@@ -35,6 +74,7 @@ export interface CreatePublicOrderInput {
     fulfillment_type: PublicOrderFulfillmentInput;
     sales_channel: PublicSalesChannel;
     payment_method_code?: string;
+    payment_selection?: PublicPaymentSelectionInput;
     delivery_method_code?: string;
     items: PublicOrderItemInput[];
     delivery_address?: PublicDeliveryAddressInput;
@@ -94,6 +134,11 @@ export interface CreatePublicOrderResponse {
         fulfillment_type: PublicFulfillmentType;
         delivery_method_code?: string;
         delivery_method_name?: string;
+        payment_method_code?: string;
+        payment_timing?: PublicPaymentTiming;
+        promised_payment_method_code?: PublicPromisedPaymentMethod | null;
+        payment_confirmation_mode?: string;
+        requires_proof?: boolean;
         expires_at: string;
         reservation_minutes: number;
         public_order_token: string;
@@ -189,6 +234,7 @@ function proofError(code?: string) {
         order_not_eligible: 'Este pedido não aceita mais comprovante de pagamento.',
         payment_already_confirmed: 'O pagamento deste pedido já foi confirmado.',
         not_pix_order: 'Este pedido não está configurado para pagamento por PIX.',
+        proof_not_required: 'Esta forma de pagamento é confirmada automaticamente e não aceita envio manual de comprovante.',
         invalid_content_type: 'Envie uma imagem JPG, PNG, WebP ou um arquivo PDF.',
         invalid_declared_amount: 'Informe um valor de pagamento válido.',
         invalid_declared_paid_at: 'A data/hora informada para o pagamento não é válida.',
@@ -200,6 +246,46 @@ function proofError(code?: string) {
 }
 
 export const PublicOrderService = {
+    async getCheckoutPaymentOptions(
+        slug: string,
+        fulfillmentType: PublicOrderFulfillmentInput,
+    ): Promise<PublicCheckoutPaymentOptionsResponse> {
+        const normalizedFulfillmentType: PublicFulfillmentType = fulfillmentType === 'table'
+            ? 'qr_table'
+            : fulfillmentType;
+
+        const { data, error } = await supabasePublic.rpc('get_public_checkout_payment_options_by_slug', {
+            p_slug: slug,
+            p_fulfillment_type: normalizedFulfillmentType,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) {
+            return {
+                ok: false,
+                error: data?.error || 'payment_options_unavailable',
+                pay_now: [],
+                pay_on_fulfillment: {
+                    enabled: false,
+                    label: normalizedFulfillmentType === 'delivery' ? 'Pagar na entrega' : 'Pagar na retirada',
+                    requires_method_choice: normalizedFulfillmentType === 'delivery',
+                    methods: [],
+                },
+            };
+        }
+
+        return {
+            ...(data as PublicCheckoutPaymentOptionsResponse),
+            pay_now: Array.isArray(data.pay_now) ? data.pay_now : [],
+            pay_on_fulfillment: {
+                enabled: Boolean(data.pay_on_fulfillment?.enabled),
+                label: String(data.pay_on_fulfillment?.label || (normalizedFulfillmentType === 'delivery' ? 'Pagar na entrega' : 'Pagar na retirada')),
+                requires_method_choice: Boolean(data.pay_on_fulfillment?.requires_method_choice),
+                methods: Array.isArray(data.pay_on_fulfillment?.methods) ? data.pay_on_fulfillment.methods : [],
+            },
+        };
+    },
+
     async getPublicOrderByToken(token: string): Promise<PublicOrderTrackingResponse> {
         const normalizedToken = decodeURIComponent(token).trim();
         const { data, error } = await supabasePublic.rpc('get_public_order_by_token', {
@@ -310,22 +396,31 @@ export const PublicOrderService = {
             ? 'qr_table'
             : input.fulfillment_type;
 
-        const { data, error } = await supabaseCustomer.rpc('create_public_order_by_slug_v2', {
+        const fallbackSelection: PublicPaymentSelectionInput = input.payment_method_code && input.payment_method_code !== 'pending'
+            ? {
+                timing: 'pay_now',
+                method_code: input.payment_method_code,
+            }
+            : {
+                timing: 'pay_on_fulfillment',
+            };
+
+        const { data, error } = await supabaseCustomer.rpc('create_public_order_by_slug_v3', {
             p_slug: input.slug,
             p_customer_name: input.customer_name,
             p_customer_phone: input.customer_phone,
             p_fulfillment_type: normalizedFulfillmentType,
             p_sales_channel: input.sales_channel,
-            p_payment_method_code: input.payment_method_code || 'pending',
-            p_delivery_method_code: input.delivery_method_code || null,
             p_items: input.items,
             p_delivery_address: input.delivery_address || {},
             p_table_code: input.table_code || null,
             p_notes: input.notes || null,
+            p_payment_selection: input.payment_selection || fallbackSelection,
+            p_delivery_method_code: input.delivery_method_code || null,
         });
 
         if (error) {
-            console.error('create_public_order_by_slug_v2 error:', error);
+            console.error('create_public_order_by_slug_v3 error:', error);
             throw error;
         }
 
