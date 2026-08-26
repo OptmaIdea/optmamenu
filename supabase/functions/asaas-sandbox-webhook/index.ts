@@ -80,10 +80,11 @@ Deno.serve(async (req: Request) => {
       event_type: eventType,
       event_status: payment?.status || requestedStatus || mappedStatus,
       signature_valid: true,
-      processed: Boolean(intent?.id),
+      // O evento só é marcado como processado após a liquidação idempotente.
+      processed: false,
       idempotency_key: idempotencyKey,
       payload_sanitized: safePayload(payload),
-      processed_at: intent?.id ? new Date().toISOString() : null,
+      processed_at: null,
     }, { onConflict: "store_id,provider_id,idempotency_key", ignoreDuplicates: true });
     if (eventError) throw eventError;
 
@@ -91,7 +92,32 @@ Deno.serve(async (req: Request) => {
       const patch: Record<string, unknown> = { provider_snapshot: safePayload(payment), updated_at: new Date().toISOString() };
       if (requestedStatus) patch.status = mappedStatus;
       if (mappedStatus === "paid" && intent.status !== "paid") patch.paid_at = new Date().toISOString();
-      await service.from("online_payment_intents").update(patch).eq("id", intent.id).eq("store_id", storeId);
+      const { error: intentError } = await service
+        .from("online_payment_intents")
+        .update(patch)
+        .eq("id", intent.id)
+        .eq("store_id", storeId);
+      if (intentError) throw intentError;
+
+      // Apenas PAYMENT_RECEIVED (saldo disponível) pode liquidar pedido e livro caixa.
+      if (requestedStatus === "paid") {
+        const { data: settlement, error: settlementError } = await service.rpc("apply_online_payment_settlement_internal", {
+          p_intent_id: intent.id,
+          p_provider_event_id: payload?.id ? String(payload.id) : null,
+        });
+        if (settlementError) throw settlementError;
+        if (!settlement?.ok) {
+          throw new Error("online_payment_settlement:" + (settlement?.error || "failed"));
+        }
+      }
+
+      const { error: processedError } = await service
+        .from("online_payment_events")
+        .update({ processed: true, processed_at: new Date().toISOString() })
+        .eq("store_id", storeId)
+        .eq("provider_id", providerId)
+        .eq("idempotency_key", idempotencyKey);
+      if (processedError) throw processedError;
     }
 
     return json({ ok: true, event: eventType, mappedStatus, intentId: intent?.id || null });
