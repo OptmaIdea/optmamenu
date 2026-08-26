@@ -116,6 +116,27 @@ export type AsaasSandboxStatus = {
   error?: string;
 };
 
+export type AsaasSandboxPixCharge = {
+  ok: boolean;
+  error?: string;
+  intent?: {
+    id: string;
+    status: string;
+    amount: number;
+    created_at: string;
+  };
+  qr?: {
+    payload?: string | null;
+    encodedImage?: string | null;
+    expirationDate?: string | null;
+  };
+};
+
+function asaasSandboxError(data: unknown, fallback: string) {
+  const row = (data || {}) as { ok?: boolean; error?: string };
+  if (!row.ok) throw new Error(row.error || fallback);
+}
+
 function normalizeWorkspace(data: unknown): OnlinePaymentsWorkspace {
   const row = (data || {}) as Partial<OnlinePaymentsWorkspace>;
   return {
@@ -210,5 +231,23 @@ export const OnlinePaymentsService = {
     });
     if (error) throw error;
     return data as AsaasSandboxStatus;
+  },
+
+  async createAsaasSandboxPix(input: { storeId: string; amount: number; description?: string }): Promise<AsaasSandboxPixCharge> {
+    const { data, error } = await supabase.functions.invoke('asaas-sandbox-adapter', {
+      body: { action: 'createPixCharge', storeId: input.storeId, amount: input.amount, description: input.description },
+    });
+    if (error) throw error;
+    asaasSandboxError(data, 'Não foi possível gerar o PIX de teste.');
+    return data as AsaasSandboxPixCharge;
+  },
+
+  async payAsaasSandboxPix(input: { storeId: string; payload: string; amount: number }) {
+    const { data, error } = await supabase.functions.invoke('asaas-sandbox-adapter', {
+      body: { action: 'payPix', storeId: input.storeId, payload: input.payload, amount: input.amount },
+    });
+    if (error) throw error;
+    asaasSandboxError(data, 'Não foi possível pagar o PIX de teste.');
+    return data;
   },
 };
