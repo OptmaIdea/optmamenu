@@ -21,6 +21,7 @@ import {
   OnlinePaymentsService,
   type AsaasSandboxStatus,
   type OnlinePaymentProvider,
+  type OnlinePaymentSettlementAccount,
   type OnlinePaymentsWorkspace,
 } from '@/services/onlinePaymentsService';
 
@@ -83,6 +84,13 @@ function capabilityLabel(capability: string) {
   return labels[capability] || capability.replaceAll('_', ' ');
 }
 
+function sandboxBalanceLabel(value: unknown) {
+  if (!value || typeof value !== 'object') return 'Indisponível';
+  const row = value as Record<string, unknown>;
+  const amount = Number(row.balance ?? row.value);
+  return Number.isFinite(amount) ? money.format(amount) : 'Indisponível';
+}
+
 function paymentMethodLabel(method: string) {
   const labels: Record<string, string> = {
     pix: 'PIX',
@@ -97,6 +105,7 @@ export default function OnlinePaymentsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [workspace, setWorkspace] = useState<OnlinePaymentsWorkspace | null>(null);
   const [asaasStatus, setAsaasStatus] = useState<AsaasSandboxStatus | null>(null);
+  const [settlementAccounts, setSettlementAccounts] = useState<OnlinePaymentSettlementAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [sandboxAmount, setSandboxAmount] = useState('42,00');
@@ -110,10 +119,15 @@ export default function OnlinePaymentsPage() {
       const data = await OnlinePaymentsService.getWorkspace(storeId);
       setWorkspace(data);
       try {
-        const status = await OnlinePaymentsService.getAsaasSandboxStatus(storeId);
+        const [status, accounts] = await Promise.all([
+          OnlinePaymentsService.getAsaasSandboxStatus(storeId),
+          OnlinePaymentsService.listSettlementAccounts(storeId),
+        ]);
         setAsaasStatus(status);
+        setSettlementAccounts(accounts);
       } catch {
         setAsaasStatus(null);
+        setSettlementAccounts([]);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível carregar pagamentos online.');
@@ -150,6 +164,30 @@ export default function OnlinePaymentsPage() {
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível alterar o provedor.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function saveSettlementAccount(provider: OnlinePaymentProvider, accountId: string) {
+    if (!storeId || !workspace?.permissions.manage) return;
+    setWorking(true);
+    try {
+      await OnlinePaymentsService.saveProvider({
+        storeId,
+        providerCode: provider.provider_code,
+        environment: provider.environment,
+        enabled: provider.enabled,
+        isDefault: provider.is_default,
+        publicConfig: {
+          ...provider.public_config,
+          settlement_financial_account_id: accountId || null,
+        },
+      });
+      toast.success(accountId ? 'Conta de liquidação atualizada.' : 'Conta de liquidação removida.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a conta de liquidação.');
     } finally {
       setWorking(false);
     }
@@ -269,6 +307,25 @@ export default function OnlinePaymentsPage() {
                       <p className="font-bold">Conexão Sandbox</p>
                       <p className="mt-1">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão validada no servidor' : 'aguardando configuração'}</p>
                       <p>Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão validada no servidor' : 'aguardando configuração'}</p>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-gray-950/40"><span className="block text-xs font-semibold uppercase opacity-70">Saldo recebedor</span>{sandboxBalanceLabel(asaasStatus?.merchantBalance)}</div>
+                        <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-gray-950/40"><span className="block text-xs font-semibold uppercase opacity-70">Saldo comprador</span>{sandboxBalanceLabel(asaasStatus?.buyerBalance)}</div>
+                      </div>
+                      {workspace.permissions.manage && (
+                        <label className="mt-4 block">
+                          <span className="block text-xs font-bold uppercase tracking-wide">Conta de liquidação do PIX</span>
+                          <select
+                            value={typeof provider.public_config?.settlement_financial_account_id === 'string' ? provider.public_config.settlement_financial_account_id : ''}
+                            disabled={working}
+                            onChange={(event) => void saveSettlementAccount(provider, event.target.value)}
+                            className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-800 dark:bg-gray-950 dark:text-white"
+                          >
+                            <option value="">Selecione uma conta</option>
+                            {settlementAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · {account.code}</option>)}
+                          </select>
+                          <span className="mt-1 block text-xs opacity-80">Essa escolha será a rota autoritativa dos recebimentos Asaas; o sistema não usará uma conta presumida.</span>
+                        </label>
+                      )}
                     </div>
                   )}
                   {workspace.permissions.manage && <button disabled={working || (provider.provider_code === 'asaas' && !asaasStatus?.merchantConfigured && !provider.enabled)} onClick={() => void toggleProvider(provider)} className="mt-5 rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200">{provider.enabled ? 'Desativar' : 'Ativar'}</button>}
