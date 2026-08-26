@@ -19,6 +19,7 @@ import PageContainer from '@/components/common/PageContainer';
 import { getActiveStoreId } from '@/utils/activeStore';
 import {
   OnlinePaymentsService,
+  type AsaasSandboxPixCharge,
   type AsaasSandboxStatus,
   type OnlinePaymentProvider,
   type OnlinePaymentSettlementAccount,
@@ -109,6 +110,8 @@ export default function OnlinePaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [sandboxAmount, setSandboxAmount] = useState('42,00');
+  const [asaasAmount, setAsaasAmount] = useState('1,00');
+  const [asaasPixCharge, setAsaasPixCharge] = useState<AsaasSandboxPixCharge | null>(null);
   const [sandboxMethod, setSandboxMethod] = useState('pix');
   const [sandboxScenario, setSandboxScenario] = useState<'pending' | 'approved' | 'declined' | 'expired'>('pending');
 
@@ -221,6 +224,49 @@ export default function OnlinePaymentsPage() {
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível simular o evento.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function createAsaasPixCharge() {
+    if (!storeId) return;
+    const amount = Number(asaasAmount.replace('.', '').replace(',', '.'));
+    if (!(amount > 0)) {
+      toast.warning('Informe um valor válido para o PIX de teste.');
+      return;
+    }
+    setWorking(true);
+    try {
+      const charge = await OnlinePaymentsService.createAsaasSandboxPix({
+        storeId,
+        amount,
+        description: 'PIX fictício de homologação OptmaMenu',
+      });
+      setAsaasPixCharge(charge);
+      toast.success('PIX de teste gerado. Você já pode realizar o pagamento Sandbox.');
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar o PIX de teste.');
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function payAsaasPixCharge() {
+    if (!storeId || !asaasPixCharge?.qr?.payload || !asaasPixCharge.intent?.amount) return;
+    setWorking(true);
+    try {
+      await OnlinePaymentsService.payAsaasSandboxPix({
+        storeId,
+        payload: asaasPixCharge.qr.payload,
+        amount: Number(asaasPixCharge.intent.amount),
+      });
+      toast.success('Pagamento Sandbox solicitado. Atualizando os eventos...');
+      await new Promise((resolve) => window.setTimeout(resolve, 1800));
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível pagar o PIX de teste.');
     } finally {
       setWorking(false);
     }
@@ -400,7 +446,22 @@ export default function OnlinePaymentsPage() {
               ))}
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900 dark:bg-blue-950/30">
-                <div className="flex gap-3"><Landmark className="text-blue-600" /><div><h2 className="font-black text-blue-950 dark:text-blue-100">Asaas Sandbox</h2><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão pronta' : 'aguardando configuração'} · Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão pronta' : 'aguardando configuração'}. Com ambas prontas, podemos homologar PIX, cartão de teste e link de pagamento no ambiente de testes.</p></div></div>
+                <div className="flex gap-3"><Landmark className="text-blue-600" /><div><h2 className="font-black text-blue-950 dark:text-blue-100">Asaas Sandbox</h2><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão pronta' : 'aguardando configuração'} · Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão pronta' : 'aguardando configuração'}.</p></div></div>
+                <div className="mt-5 rounded-xl border border-blue-200 bg-white/80 p-4 dark:border-blue-800 dark:bg-gray-950/40">
+                  <h3 className="font-black text-blue-950 dark:text-blue-100">Testar PIX integrado</h3>
+                  <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Gere uma cobrança fictícia e pague-a pela conta compradora do Asaas Sandbox. O resultado deve aparecer em Transações e Webhooks e eventos.</p>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <input value={asaasAmount} onChange={(event) => setAsaasAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-32 rounded-xl border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-gray-950" />
+                    <button disabled={working || !workspace.permissions.manage || !asaasStatus?.merchantConfigured} onClick={() => void createAsaasPixCharge()} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Gerar PIX de teste</button>
+                    {asaasPixCharge?.qr?.payload && <button disabled={working || !asaasStatus?.buyerConfigured} onClick={() => void payAsaasPixCharge()} className="rounded-xl border border-blue-300 px-4 py-2 font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:text-blue-200">Pagar com conta compradora</button>}
+                  </div>
+                  {asaasPixCharge?.qr?.encodedImage && (
+                    <div className="mt-4 flex items-center gap-4 rounded-xl border border-dashed border-blue-200 p-3 dark:border-blue-800">
+                      <img src={`data:image/png;base64,${asaasPixCharge.qr.encodedImage}`} alt="QR Code PIX de teste" className="h-24 w-24 rounded-lg bg-white p-1" />
+                      <p className="text-sm text-blue-800 dark:text-blue-200">Cobrança criada. Clique em “Pagar com conta compradora” para concluir este teste fictício.</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
