@@ -66,6 +66,15 @@ URL HML do Webhook:
 
 `https://lgkkfmqzaorrutuoqeax.supabase.co/functions/v1/asaas-sandbox-webhook`
 
+### Liquidação financeira do Asaas
+
+- o status `PAYMENT_CONFIRMED` atualiza a intenção para **autorizado**, sem baixa financeira;
+- somente `PAYMENT_RECEIVED`, quando o saldo está disponível, marca a intenção e o pedido como **pagos**;
+- o webhook chama `apply_online_payment_settlement_internal`, que exige uma conta de liquidação PIX definida explicitamente no provedor e gera no máximo um lançamento de recebimento por pedido;
+- a conta selecionada precisa estar ativa, pertencer à loja e aceitar PIX; o sistema não deduz a conta pelo padrão da loja.
+
+A tela de Pagamentos online apresenta nomes amigáveis para capacidades do provedor, conexão e ambientes de teste, e permite selecionar a conta de liquidação do PIX sem expor segredos.
+
 ## Permissões
 
 - `payments.online.view`
