@@ -15,12 +15,22 @@ function safePayload(value: any) {
 }
 
 function mapStatus(eventType: string, paymentStatus?: string | null) {
-  if (eventType === "PAYMENT_RECEIVED" || eventType === "PAYMENT_CONFIRMED" || paymentStatus === "RECEIVED" || paymentStatus === "CONFIRMED") return "paid";
+  if (eventType === "PAYMENT_RECEIVED" || paymentStatus === "RECEIVED") return "paid";
+  // Para cartão, CONFIRMED significa concluído, mas o saldo ainda não está disponível.
+  if (eventType === "PAYMENT_CONFIRMED" || paymentStatus === "CONFIRMED" || paymentStatus === "AUTHORIZED") return "authorized";
   if (eventType.includes("PARTIALLY_REFUNDED")) return "partially_refunded";
   if (eventType.includes("REFUNDED") || paymentStatus === "REFUNDED") return "refunded";
   if (eventType.includes("DELETED") || paymentStatus === "DELETED") return "cancelled";
   if (eventType.includes("OVERDUE") || paymentStatus === "OVERDUE") return "failed";
-  return "pending";
+  if (eventType === "PAYMENT_CREATED" || paymentStatus === "PENDING") return "pending";
+  return null;
+}
+
+function resolveStatus(currentStatus: string | null | undefined, nextStatus: string | null) {
+  if (!nextStatus) return currentStatus || "pending";
+  if (["refunded", "partially_refunded", "cancelled"].includes(currentStatus || "")) return currentStatus!;
+  if (currentStatus === "paid" && ["pending", "authorized"].includes(nextStatus)) return currentStatus;
+  return nextStatus;
 }
 
 Deno.serve(async (req: Request) => {
@@ -59,7 +69,8 @@ Deno.serve(async (req: Request) => {
 
     const eventMoment = payment?.confirmedDate || payment?.paymentDate || payment?.clientPaymentDate || payment?.dateCreated || payload?.dateCreated || "";
     const idempotencyKey = `asaas:${eventType}:${paymentId || externalReference || "unknown"}:${eventMoment}`;
-    const mappedStatus = mapStatus(eventType, payment?.status);
+    const requestedStatus = mapStatus(eventType, payment?.status);
+    const mappedStatus = resolveStatus(intent?.status, requestedStatus);
 
     const { error: eventError } = await service.from("online_payment_events").upsert({
       store_id: storeId,
@@ -67,7 +78,7 @@ Deno.serve(async (req: Request) => {
       intent_id: intent?.id || null,
       external_event_id: payload?.id || null,
       event_type: eventType,
-      event_status: payment?.status || mappedStatus,
+      event_status: payment?.status || requestedStatus || mappedStatus,
       signature_valid: true,
       processed: Boolean(intent?.id),
       idempotency_key: idempotencyKey,
@@ -77,8 +88,9 @@ Deno.serve(async (req: Request) => {
     if (eventError) throw eventError;
 
     if (intent?.id) {
-      const patch: Record<string, unknown> = { status: mappedStatus, provider_snapshot: safePayload(payment), updated_at: new Date().toISOString() };
-      if (mappedStatus === "paid") patch.paid_at = new Date().toISOString();
+      const patch: Record<string, unknown> = { provider_snapshot: safePayload(payment), updated_at: new Date().toISOString() };
+      if (requestedStatus) patch.status = mappedStatus;
+      if (mappedStatus === "paid" && intent.status !== "paid") patch.paid_at = new Date().toISOString();
       await service.from("online_payment_intents").update(patch).eq("id", intent.id).eq("store_id", storeId);
     }
 
