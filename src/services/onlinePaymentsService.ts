@@ -95,6 +95,14 @@ export type OnlinePaymentsWorkspace = {
   };
 };
 
+export type OnlinePaymentSettlementAccount = {
+  id: string;
+  name: string;
+  code: string;
+  account_type: string;
+  active: boolean;
+};
+
 export type AsaasSandboxStatus = {
   ok: boolean;
   environment: 'sandbox';
@@ -183,6 +191,17 @@ export const OnlinePaymentsService = {
     const result = data as { ok?: boolean; error?: string } | null;
     if (!result?.ok) throw new Error(result?.error || 'Não foi possível simular o evento.');
     return data;
+  },
+
+  async listSettlementAccounts(storeId: string): Promise<OnlinePaymentSettlementAccount[]> {
+    const { data, error } = await supabase.rpc('list_store_financial_accounts_safe', {
+      p_store_id: storeId,
+      p_include_inactive: false,
+    });
+    if (error) throw error;
+    const result = data as { ok?: boolean; error?: string; items?: unknown } | null;
+    if (!result?.ok) throw new Error(result?.error || 'Não foi possível carregar as contas financeiras.');
+    return Array.isArray(result.items) ? result.items as OnlinePaymentSettlementAccount[] : [];
   },
 
   async getAsaasSandboxStatus(storeId: string): Promise<AsaasSandboxStatus> {
