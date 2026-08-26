@@ -63,12 +63,33 @@ function statusTone(status: string) {
 
 function credentialLabel(status: OnlinePaymentProvider['credential_status']) {
   return {
-    not_required: 'Não exige credencial',
-    not_configured: 'Chave não configurada',
-    configured: 'Chave configurada',
-    invalid: 'Chave inválida',
-    ready: 'Pronto',
+    not_required: 'Não requer credenciais',
+    not_configured: 'Credenciais pendentes',
+    configured: 'Credenciais configuradas',
+    invalid: 'Credenciais com erro',
+    ready: 'Conexão pronta',
   }[status];
+}
+
+function capabilityLabel(capability: string) {
+  const labels: Record<string, string> = {
+    pix: 'PIX',
+    refunds: 'Estornos',
+    webhooks: 'Webhooks',
+    credit_card: 'Cartão',
+    payment_link: 'Link de pagamento',
+    test_scenarios: 'Cenários de teste',
+  };
+  return labels[capability] || capability.replaceAll('_', ' ');
+}
+
+function paymentMethodLabel(method: string) {
+  const labels: Record<string, string> = {
+    pix: 'PIX',
+    credit_card: 'Cartão',
+    payment_link: 'Link de pagamento',
+  };
+  return labels[method] || method.replaceAll('_', ' ');
 }
 
 export default function OnlinePaymentsPage() {
@@ -232,7 +253,7 @@ export default function OnlinePaymentsPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex gap-3">
                       {provider.provider_code === 'asaas' ? <Landmark className="text-blue-600" /> : <FlaskConical className="text-violet-600" />}
-                      <div><h2 className="text-lg font-black text-gray-900 dark:text-white">{provider.display_name}</h2><p className="text-sm text-gray-500 dark:text-gray-400">{provider.environment === 'sandbox' ? 'Sandbox / testes' : 'Produção'}</p></div>
+                      <div><h2 className="text-lg font-black text-gray-900 dark:text-white">{provider.display_name}</h2><p className="text-sm text-gray-500 dark:text-gray-400">{provider.environment === 'sandbox' ? 'Ambiente de testes' : 'Produção'}</p></div>
                     </div>
                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${provider.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>{provider.enabled ? 'ATIVO' : 'INATIVO'}</span>
                   </div>
@@ -241,13 +262,13 @@ export default function OnlinePaymentsPage() {
                     <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-xs uppercase text-gray-500">Padrão</p><p className="mt-1 font-bold text-gray-900 dark:text-white">{provider.is_default ? 'Sim' : 'Não'}</p></div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    {Object.entries(provider.capabilities || {}).filter(([, value]) => value).map(([key]) => <span key={key} className="rounded-full bg-teal-50 px-2.5 py-1 font-semibold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">{key.replaceAll('_', ' ')}</span>)}
+                    {Object.entries(provider.capabilities || {}).filter(([, value]) => value).map(([key]) => <span key={key} className="rounded-full bg-teal-50 px-2.5 py-1 font-semibold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">{capabilityLabel(key)}</span>)}
                   </div>
                   {provider.provider_code === 'asaas' && (
                     <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
                       <p className="font-bold">Conexão Sandbox</p>
-                      <p className="mt-1">Recebedor: {asaasStatus?.merchantConfigured ? 'chave encontrada no backend' : 'aguardando chave'}</p>
-                      <p>Comprador: {asaasStatus?.buyerConfigured ? 'chave encontrada no backend' : 'aguardando chave'}</p>
+                      <p className="mt-1">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão validada no servidor' : 'aguardando configuração'}</p>
+                      <p>Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão validada no servidor' : 'aguardando configuração'}</p>
                     </div>
                   )}
                   {workspace.permissions.manage && <button disabled={working || (provider.provider_code === 'asaas' && !asaasStatus?.merchantConfigured && !provider.enabled)} onClick={() => void toggleProvider(provider)} className="mt-5 rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200">{provider.enabled ? 'Desativar' : 'Ativar'}</button>}
@@ -266,7 +287,7 @@ export default function OnlinePaymentsPage() {
               {workspace.transactions.length === 0 ? <Empty text="Nenhuma transação online registrada." /> : workspace.transactions.map((item) => (
                 <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
                   <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><p className="font-black text-gray-900 dark:text-white">{item.order_code || item.external_payment_id || 'Transação de laboratório'}</p><p className="text-sm text-gray-500">{item.provider_name} · {item.method_code.replaceAll('_', ' ')} · {dateTime.format(new Date(item.created_at))}</p></div>
+                    <div><p className="font-black text-gray-900 dark:text-white">{item.order_code || item.external_payment_id || 'Transação de laboratório'}</p><p className="text-sm text-gray-500">{item.provider_name} · {paymentMethodLabel(item.method_code)} · {dateTime.format(new Date(item.created_at))}</p></div>
                     <div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span><strong className="text-lg text-gray-900 dark:text-white">{money.format(Number(item.amount))}</strong></div>
                   </div>
                   {item.checkout_url && <a href={item.checkout_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#19A999]">Abrir checkout Sandbox <ExternalLink size={14} /></a>}
@@ -316,13 +337,13 @@ export default function OnlinePaymentsPage() {
 
               {workspace.transactions.filter((item) => item.provider_code === 'optma_sandbox').slice(0, 12).map((item) => (
                 <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-gray-900 dark:text-white">{item.external_payment_id}</p><p className="text-sm text-gray-500">{item.method_code.replaceAll('_', ' ')} · {money.format(Number(item.amount))}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-gray-900 dark:text-white">{item.external_payment_id}</p><p className="text-sm text-gray-500">{paymentMethodLabel(item.method_code)} · {money.format(Number(item.amount))}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div>
                   {workspace.permissions.manage && <div className="mt-4 flex flex-wrap gap-2">{item.status === 'pending' && <><Action label="Aprovar" onClick={() => void simulate(item.id, 'approve')} /><Action label="Recusar" onClick={() => void simulate(item.id, 'decline')} /><Action label="Expirar" onClick={() => void simulate(item.id, 'expire')} /></>}{item.status === 'paid' && <Action label="Estornar" onClick={() => void simulate(item.id, 'refund')} />}</div>}
                 </div>
               ))}
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900 dark:bg-blue-950/30">
-                <div className="flex gap-3"><Landmark className="text-blue-600" /><div><h2 className="font-black text-blue-950 dark:text-blue-100">Asaas Sandbox</h2><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Recebedor: {asaasStatus?.merchantConfigured ? 'configurado' : 'aguardando API Key'} · Comprador: {asaasStatus?.buyerConfigured ? 'configurado' : 'aguardando API Key'}. Assim que ambas estiverem no backend, liberamos PIX real de Sandbox, cartão de teste e link de pagamento.</p></div></div>
+                <div className="flex gap-3"><Landmark className="text-blue-600" /><div><h2 className="font-black text-blue-950 dark:text-blue-100">Asaas Sandbox</h2><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão pronta' : 'aguardando configuração'} · Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão pronta' : 'aguardando configuração'}. Com ambas prontas, podemos homologar PIX, cartão de teste e link de pagamento no ambiente de testes.</p></div></div>
               </div>
             </div>
           )}
