@@ -36,8 +36,10 @@ async function asaasFetch(path: string, key: string, init: RequestInit = {}) {
 function paymentStatusFromAsaas(status?: string | null) {
   switch (status) {
     case "RECEIVED":
-    case "CONFIRMED":
       return "paid";
+    case "CONFIRMED":
+    case "AUTHORIZED":
+      return "authorized";
     case "REFUNDED":
       return "refunded";
     case "REFUND_REQUESTED":
