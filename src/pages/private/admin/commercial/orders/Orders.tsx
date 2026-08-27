@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Truck } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
 import OrderStatusFilter from '@/components/common/OrderStatusFilter';
@@ -35,7 +35,7 @@ export default function Orders() {
     const displayedOrders = useMemo(() => {
         return orders.filter(o => {
             if (filterStatus === 'current') {
-                if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready')) return false;
+                if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready' || o.status === 'out_for_delivery')) return false;
             }
             if (startDate || endDate) {
                 const orderDate = o.created_at ? o.created_at.slice(0, 10) : '';
@@ -115,12 +115,13 @@ export default function Orders() {
         const expiredOrders = orders.filter((order) => {
             const publicOrder = getPublicOrderFields(order);
             if (!['reserved', 'confirmed', 'ready'].includes(order.status) || !order.stock_reservations?.[0]) return false;
-            if (publicOrder.payment_status === 'paid') return false;
+            if (publicOrder.payment_status === 'paid' || publicOrder.fulfillment_type === 'delivery') return false;
             const cancellationAt = publicOrder.cancellation_grace_until || order.stock_reservations[0].expires_at;
             return new Date(cancellationAt).getTime() <= Date.now();
         });
         const warningOrders = orders.filter((order) => {
             if (!['reserved', 'confirmed', 'ready'].includes(order.status) || !order.stock_reservations?.[0]) return false;
+            if (getPublicOrderFields(order).payment_status === 'paid' || getPublicOrderFields(order).fulfillment_type === 'delivery') return false;
             const remaining = new Date(order.stock_reservations[0].expires_at).getTime() - Date.now();
             return remaining > 120000 && remaining <= 180000;
         });
@@ -240,6 +241,10 @@ export default function Orders() {
                 const { data, error } = await supabase.rpc('admin_cancel_public_order_safe', { p_order_id: orderId, p_reason: 'Cancelado pelo painel administrativo' });
                 if (error) throw error;
                 if (data?.ok === false) throw new Error(data?.error || 'Erro ao cancelar pedido.');
+            } else if (newStatus === 'out_for_delivery' as OrderStatus) {
+                const { data, error } = await supabase.rpc('admin_dispatch_public_order_safe', { p_order_id: orderId });
+                if (error) throw error;
+                if (data?.ok === false) throw new Error(data?.error || 'Erro ao despachar pedido.');
             } else if (newStatus === 'completed') {
                 const { data, error } = await supabase.rpc('admin_complete_public_order_safe', { p_order_id: orderId });
                 if (error) throw error;
@@ -260,10 +265,10 @@ export default function Orders() {
     const formatDate = (dateStr: string) => new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }).format(new Date(dateStr));
     const getTimerColor = (minutes: number) => minutes < 3 ? 'text-red-600 animate-pulse' : minutes < 5 ? 'text-orange-600' : 'text-green-600';
     const statusColors: Record<string, string> = {
-        reserved: 'bg-yellow-100 text-yellow-800 border-yellow-200', confirmed: 'bg-blue-100 text-blue-800 border-blue-200', ready: 'bg-emerald-100 text-emerald-800 border-emerald-200', completed: 'bg-green-100 text-green-800 border-green-200', cancelled: 'bg-red-100 text-red-800 border-red-200',
+        reserved: 'bg-yellow-100 text-yellow-800 border-yellow-200', confirmed: 'bg-orange-100 text-orange-800 border-orange-200', ready: 'bg-emerald-100 text-emerald-800 border-emerald-200', out_for_delivery: 'bg-purple-100 text-purple-800 border-purple-200', completed: 'bg-green-100 text-green-800 border-green-200', cancelled: 'bg-red-100 text-red-800 border-red-200',
     };
     const statusLabels: Record<string, string> = {
-        reserved: 'Novo / Pendente', confirmed: 'Em Preparo', ready: 'Pronto para retirada', completed: 'Concluído', cancelled: 'Cancelado',
+        reserved: 'Novo / Pendente', confirmed: 'Em Preparo', ready: 'Pronto', out_for_delivery: 'Saiu para entrega', completed: 'Concluído', cancelled: 'Cancelado',
     };
 
     return (
@@ -293,7 +298,7 @@ export default function Orders() {
                                 const automaticExpirationAt = getAutomaticExpirationAt(order);
                                 let timerDisplay = null;
                                 let isExpiring = false;
-                                if (['reserved', 'confirmed', 'ready'].includes(order.status) && order.stock_reservations?.[0]) {
+                                if (['reserved', 'confirmed', 'ready'].includes(order.status) && order.stock_reservations?.[0] && publicOrder.payment_status !== 'paid' && publicOrder.fulfillment_type !== 'delivery') {
                                     const expiresAt = new Date(order.stock_reservations[0].expires_at).getTime();
                                     const diff = expiresAt - now.getTime();
                                     if (diff > 0) {
@@ -379,8 +384,9 @@ export default function Orders() {
                                                         </>}
                                                         {order.status === 'ready' && <>
                                                             <button onClick={async () => { const changed = await updateStatus(order.id, 'cancelled'); if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) await openOrderMessage(order, 'order_cancelled'); }} className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition">Cancelar</button>
-                                                            <button onClick={() => setFinalizingOrder(order)} className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"><CheckCircle size={16} /> Finalizar pedido</button>
+                                                            {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="px-6 py-2 text-white bg-purple-600 hover:bg-purple-700 rounded-lg font-bold text-sm transition shadow-lg shadow-purple-200 flex items-center gap-2"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"><CheckCircle size={16} /> Finalizar retirada</button>}
                                                         </>}
+                                                        {order.status === 'out_for_delivery' && <button onClick={() => updateStatus(order.id, 'completed')} className="px-6 py-2 text-white bg-[#21A896] hover:bg-[#1A867A] rounded-lg font-bold text-sm transition flex items-center gap-2"><CheckCircle size={16} /> Confirmar entrega</button>}
                                                         {order.status === 'completed' && <span className="px-4 py-2 text-green-600 bg-green-50 rounded-lg font-bold text-sm flex items-center gap-2 cursor-default"><CheckCircle size={16} /> Pedido Concluído</span>}
                                                     </div>
                                                 </div>
