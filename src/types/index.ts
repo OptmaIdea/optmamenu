@@ -64,7 +64,7 @@ export interface CartItem extends Product {
 }
 
 export type PaymentMethod = 'pix' | 'cash' | 'card' | 'pending';
-export type OrderStatus = 'reserved' | 'confirmed' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'reserved' | 'confirmed' | 'ready' | 'out_for_delivery' | 'completed' | 'cancelled';
 
 export interface Profile {
     id: string;
