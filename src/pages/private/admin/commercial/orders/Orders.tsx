@@ -23,6 +23,7 @@ export default function Orders() {
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('current');
     const [periodFilter, setPeriodFilter] = useState<string>('all');
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const initialDates = getPeriodDates('all');
     const [startDate, setStartDate] = useState<string>(initialDates.start);
     const [endDate, setEndDate] = useState<string>(initialDates.end);
@@ -273,20 +274,24 @@ export default function Orders() {
 
     return (
         <PageContainer title="Pedidos" subtitle="Gerencie os pedidos chegando em tempo real." category="Comercial" icon={<ShoppingBag className="text-[#19A999]" size={28} />} flat>
-            <div className="flex flex-col h-[calc(100vh-210px)] overflow-hidden">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm space-y-4 mb-4 shrink-0 font-candara">
+            <div className="flex min-h-0 flex-col lg:h-[calc(100vh-210px)] lg:overflow-hidden">
+                <div className="mb-3 shrink-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-3 font-candara shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-4 sm:p-4 sm:space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                         <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                        <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700 sm:hidden" aria-expanded={filtersOpen}>
+                            {filtersOpen ? 'Ocultar período' : 'Filtrar período'}
+                            {filtersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        </button>
                         <button type="button" onClick={fetchOrders} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0" title="Atualizar lista de pedidos">
                             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /><span>Atualizar</span>
                         </button>
                     </div>
-                    <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <div className={`${filtersOpen ? 'block' : 'hidden'} border-t border-gray-100 pt-3 dark:border-gray-700 sm:block`}>
                         <DateRangeFilter periodFilter={periodFilter} onPeriodChange={setPeriodFilter} startDate={startDate} onStartDateChange={setStartDate} endDate={endDate} onEndDateChange={setEndDate} />
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar pr-1 min-h-0">
+                <div className="min-h-0 custom-scrollbar lg:flex-1 lg:overflow-y-auto lg:pr-1">
                     {displayedOrders.length === 0 && !loading ? (
                         <div className="flex flex-col items-center justify-center py-20 text-gray-400 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-3xl text-center px-6">
                             <ShoppingBag size={64} className="opacity-20 mb-4" /><h2 className="text-xl font-bold">Nenhum pedido encontrado</h2><p className="text-sm max-w-md">{emptyStateMessage}</p>
@@ -311,7 +316,7 @@ export default function Orders() {
 
                                 return (
                                     <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${order.status === 'reserved' ? 'border-l-yellow-400' : order.status === 'confirmed' ? 'border-l-blue-400' : order.status === 'ready' ? 'border-l-emerald-400' : order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'}`}>
-                                        <div className="p-5 flex flex-wrap md:flex-nowrap items-center justify-between gap-4 cursor-pointer" onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}>
+                                        <div className="flex cursor-pointer flex-wrap items-center justify-between gap-3 p-3 sm:gap-4 sm:p-5 md:flex-nowrap" onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}>
                                             <div className="flex items-center gap-4 flex-1">
                                                 <div className={`p-3 rounded-full ${statusColors[order.status]} bg-opacity-20`}>
                                                     {order.status === 'reserved' ? <AlertCircle size={24} /> : order.status === 'confirmed' ? <Clock size={24} /> : order.status === 'ready' ? <CheckCircle size={24} /> : order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
