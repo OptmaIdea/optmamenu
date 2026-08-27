@@ -12,6 +12,7 @@ import {
     Eye,
     History,
     Search,
+    SlidersHorizontal,
     Save,
     X,
     WalletCards
@@ -115,8 +116,14 @@ function getPaymentMethodLabel(value?: string | null) {
         credit_card: 'Cartão de crédito',
         debit_card: 'Cartão de débito',
         dinheiro: 'Dinheiro',
+        pix_manual_qr: 'Pix por QR Code',
+        pix_asaas: 'Pix online',
+        asaas_pix: 'Pix online',
+        payment_link: 'Link de pagamento',
+        cash_drawer: 'Caixa da loja',
+        card_receivable: 'Recebíveis de cartão',
     };
-    return labels[lower] || value;
+    return labels[lower] || value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export default function CashbookPage() {
@@ -149,6 +156,7 @@ export default function CashbookPage() {
     const [extratoGroupType, setExtratoGroupType] = useState<'day' | 'week' | 'fortnight' | 'month'>('fortnight');
     const [customerFilter, setCustomerFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState<CashbookStatusFilter>('active');
+    const [filtersOpen, setFiltersOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<CashbookEntry | null>(null);
     const [formState, setFormState] = useState<CashbookFormState | null>(null);
     const [savingForm, setSavingForm] = useState(false);
@@ -625,8 +633,8 @@ export default function CashbookPage() {
         >
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
                     <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400 mb-3">
                         <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
                             <TrendingUp size={20} />
@@ -639,7 +647,7 @@ export default function CashbookPage() {
                     <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">No período</p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
+                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
                     <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400 mb-3">
                         <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-xl">
                             <TrendingDown size={20} />
@@ -652,7 +660,7 @@ export default function CashbookPage() {
                     <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">No período</p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
+                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
                     <div className="flex items-center gap-3 text-[#19A999] mb-3">
                         <div className="p-2 bg-[#19A999]/10 rounded-xl">
                             <Wallet size={20} />
@@ -669,7 +677,7 @@ export default function CashbookPage() {
                     <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Total acumulado</p>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm transition hover:shadow-md">
+                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
                     <div className="flex items-center gap-3 text-[#FAA832] mb-3">
                         <div className="p-2 bg-[#FAA832]/10 rounded-xl">
                             <History size={20} />
@@ -732,7 +740,14 @@ export default function CashbookPage() {
                     </div>
                 </div>
 
-                <div className={`grid grid-cols-1 gap-3 border-b border-gray-100 p-4 dark:border-gray-700 ${viewMode === 'extrato' ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
+                <div className="border-b border-gray-100 dark:border-gray-700">
+                    <div className="flex p-3 md:hidden">
+                        <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex w-full items-center justify-between rounded-xl border border-gray-200 px-3 py-2 text-sm font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+                            <span className="inline-flex items-center gap-2"><SlidersHorizontal size={16} /> Filtros e período</span>
+                            {filtersOpen ? <span>Ocultar</span> : <span>Mostrar</span>}
+                        </button>
+                    </div>
+                    <div className={`${filtersOpen ? 'grid' : 'hidden'} grid-cols-1 gap-3 p-3 sm:p-4 md:grid ${viewMode === 'extrato' ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
                     <DateRangeFilter
                         periodFilter={periodFilter}
                         onPeriodChange={setPeriodFilter}
@@ -784,11 +799,12 @@ export default function CashbookPage() {
                             </select>
                         </label>
                     )}
+                    </div>
                 </div>
 
                 {viewMode === 'libro' ? (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
+                    <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+                        <table className="min-w-[660px] w-full text-sm">
                             <thead className="bg-gray-50 dark:bg-gray-900/40 text-gray-400 uppercase text-[10px] font-black tracking-widest">
                                 <tr>
                                     <th className="px-6 py-4 text-left">Data</th>
@@ -1249,7 +1265,7 @@ export default function CashbookPage() {
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Forma de pagamento</p>
                                     <p className="mt-1 font-bold text-gray-800 dark:text-gray-100">
-                                        {selectedEntry.payment_method || selectedEntry.payment_method_code || '—'}
+                                        {getPaymentMethodLabel(selectedEntry.payment_method || selectedEntry.payment_method_code)}
                                     </p>
                                 </div>
 
