@@ -168,40 +168,145 @@ export default function Orders() {
             public_order_token?: string;
             fulfillment_type?: string;
             payment_method_code?: string | null;
+            payment_method?: string | null;
             promised_payment_method_code?: string | null;
             payment_status?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'partially_refunded' | 'refunded';
+            payment_metadata?: Record<string, unknown> | null;
+            commercial_metadata?: Record<string, unknown> | null;
+            delivery_address?: string | null;
+            delivery_address_snapshot?: Record<string, unknown> | null;
             available_until?: string | null;
             cancellation_grace_until?: string | null;
+            notes?: string | null;
+        };
+    }
+
+    function asRecord(value: unknown): Record<string, unknown> {
+        return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    }
+
+    function asString(value: unknown) {
+        return typeof value === 'string' ? value.trim() : '';
+    }
+
+    function asNumber(value: unknown): number | null {
+        if (typeof value === 'number' && Number.isFinite(value)) return value;
+        if (typeof value === 'string' && value.trim()) {
+            const parsed = Number(value.replace(',', '.'));
+            return Number.isFinite(parsed) ? parsed : null;
+        }
+        return null;
+    }
+
+    function parseNotesPaymentLabel(order: Order) {
+        const notes = asString(getPublicOrderFields(order).notes);
+        const line = notes.split('\n').find((item) => item.toLowerCase().startsWith('pagamento:'));
+        return line ? line.replace(/^pagamento:\s*/i, '').trim() : '';
+    }
+
+    function getCheckoutPaymentInfo(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        const paymentMetadata = asRecord(publicOrder.payment_metadata);
+        const checkout = asRecord(paymentMetadata.checkout);
+        const commercial = asRecord(publicOrder.commercial_metadata);
+        const rawMethodCode = asString(publicOrder.payment_method_code || publicOrder.payment_method);
+        const selectedMethodCode = asString(checkout.selected_method_code) || (rawMethodCode !== 'pending' ? rawMethodCode : '');
+        const promisedMethodCode = asString(checkout.promised_method_code)
+            || asString(commercial.promised_payment_method)
+            || asString(publicOrder.promised_payment_method_code);
+        const timing = asString(checkout.timing) || asString(commercial.payment_timing);
+        return {
+            timing,
+            rawMethodCode,
+            selectedMethodCode,
+            selectedMethodName: asString(checkout.selected_method_name) || asString(paymentMetadata.name),
+            promisedMethodCode,
+            changeFor: asNumber(checkout.change_for),
+            notesPaymentLabel: parseNotesPaymentLabel(order),
         };
     }
 
     function getPaymentMethodLabel(order: Order) {
         const publicOrder = getPublicOrderFields(order);
-        const methodCode = String(publicOrder.payment_method_code || order.payment_method || '').trim();
-        const promisedCode = String(publicOrder.promised_payment_method_code || '').trim();
+        const info = getCheckoutPaymentInfo(order);
+        const methodCode = info.selectedMethodCode || info.rawMethodCode;
+        const promisedCode = info.promisedMethodCode;
+        const fulfillment = publicOrder.fulfillment_type;
 
         if (publicOrder.payment_status === 'paid' && methodCode.includes('pix')) return 'PIX pago';
         if (methodCode === 'pix_manual_qr') return 'PIX com comprovante';
         if (methodCode === 'pix') return 'PIX';
-        if (methodCode === 'cash') return publicOrder.fulfillment_type === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro';
-        if (methodCode === 'card') return publicOrder.fulfillment_type === 'delivery' ? 'Cartão na entrega' : 'Cartão';
+        if (methodCode === 'cash') return fulfillment === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro';
+        if (methodCode === 'card') return fulfillment === 'delivery' ? 'Cartão na entrega' : 'Cartão';
         if (methodCode === 'credit_card') return 'Cartão de crédito';
         if (methodCode === 'debit_card') return 'Cartão de débito';
         if (methodCode === 'payment_link') return 'Link de pagamento';
-        if (promisedCode === 'cash') return publicOrder.fulfillment_type === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro na retirada';
-        if (promisedCode === 'card') return publicOrder.fulfillment_type === 'delivery' ? 'Cartão na entrega' : 'Cartão na retirada';
-        if (promisedCode === 'pix') return publicOrder.fulfillment_type === 'delivery' ? 'PIX na entrega' : 'PIX na retirada';
-        return publicOrder.fulfillment_type === 'delivery' ? 'Na entrega' : 'Na retirada';
+        if (info.selectedMethodName && methodCode && methodCode !== 'pending') return info.selectedMethodName;
+
+        if (promisedCode === 'cash') return fulfillment === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro na retirada';
+        if (promisedCode === 'card') return fulfillment === 'delivery' ? 'Cartão na entrega' : 'Cartão na retirada';
+        if (promisedCode === 'pix') return fulfillment === 'delivery' ? 'PIX na entrega' : 'PIX na retirada';
+        if (info.notesPaymentLabel) return info.notesPaymentLabel;
+        return fulfillment === 'delivery' ? 'Na entrega' : 'Na retirada';
+    }
+
+    function getPaymentChangeText(order: Order) {
+        const info = getCheckoutPaymentInfo(order);
+        if (info.promisedMethodCode !== 'cash' || !info.changeFor || info.changeFor <= 0) return null;
+        return `Troco para ${formatCurrency(info.changeFor)}`;
+    }
+
+    function getPaymentProofMethodCode(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        const info = getCheckoutPaymentInfo(order);
+        const methodCode = info.selectedMethodCode || (publicOrder.payment_method === 'pix' ? 'pix' : '');
+        return methodCode || null;
+    }
+
+    function getDeliveryAddressLines(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        if (publicOrder.fulfillment_type !== 'delivery') return [] as string[];
+
+        let address = asRecord(publicOrder.delivery_address_snapshot);
+        if (Object.keys(address).length === 0 && publicOrder.delivery_address) {
+            try {
+                address = asRecord(JSON.parse(publicOrder.delivery_address));
+            } catch {
+                address = {};
+            }
+        }
+
+        const street = asString(address.street);
+        const number = asString(address.number);
+        const district = asString(address.district);
+        const city = asString(address.city);
+        const state = asString(address.state);
+        const zipCode = asString(address.zip_code);
+        const complement = asString(address.complement);
+        const reference = asString(address.reference);
+
+        return [
+            [street, number].filter(Boolean).join(', '),
+            district,
+            [city, state].filter(Boolean).join(' - '),
+            zipCode ? `CEP ${zipCode}` : '',
+            complement ? `Complemento: ${complement}` : '',
+            reference ? `Referência: ${reference}` : '',
+        ].filter(Boolean);
     }
 
     function getOrderActionErrorMessage(error: unknown) {
-        const message = error instanceof Error ? error.message : String(error || '');
+        const objectError = asRecord(error);
+        const message = error instanceof Error
+            ? error.message
+            : asString(objectError.message) || asString(objectError.error) || asString(objectError.code) || String(error || '');
         const labels: Record<string, string> = {
-            insufficient_reserved_stock: 'A reserva deste pedido ficou inconsistente. Atualize a tela e tente novamente; se o pedido já estiver pago, a finalização corrigida não deve mais exigir o contador reservado.',
+            insufficient_reserved_stock: 'A reserva deste pedido ficou inconsistente. Atualize a tela e tente novamente.',
             insufficient_stock: 'Não há estoque físico suficiente para concluir este pedido.',
             no_active_reservations: 'Este pedido não possui reserva ativa para baixa de estoque.',
             order_not_confirmed: 'Este pedido ainda não está em uma etapa que permita finalização.',
             access_denied: 'Você não tem permissão para alterar este pedido.',
+            'Quantidade inválida': 'A baixa de estoque encontrou uma quantidade inválida. Atualize a tela e tente novamente.',
         };
         return labels[message] || message || 'Erro ao atualizar status';
     }
@@ -247,7 +352,7 @@ export default function Orders() {
             return true;
         } catch (error) {
             console.error('Erro ao aceitar pedido:', error);
-            alert('Erro ao aceitar pedido.');
+            alert(getOrderActionErrorMessage(error));
             return false;
         }
     }
@@ -266,7 +371,7 @@ export default function Orders() {
             return true;
         } catch (error) {
             console.error('Erro ao marcar pedido como pronto:', error);
-            alert('Erro ao marcar pedido como pronto.');
+            alert(getOrderActionErrorMessage(error));
             return false;
         }
     }
@@ -282,7 +387,7 @@ export default function Orders() {
             await fetchOrders();
         } catch (error) {
             console.error('Erro ao finalizar pedido com pagamento:', error);
-            alert('Não foi possível finalizar o pedido e registrar o pagamento.');
+            alert(getOrderActionErrorMessage(error));
         } finally {
             setFinalizationLoading(false);
         }
@@ -385,6 +490,9 @@ export default function Orders() {
                                 const publicOrder = getPublicOrderFields(order);
                                 const canUseTimer = isReservationTimerApplicable(order);
                                 const automaticExpirationAt = getAutomaticExpirationAt(order);
+                                const paymentLabel = getPaymentMethodLabel(order);
+                                const paymentChangeText = getPaymentChangeText(order);
+                                const deliveryAddressLines = getDeliveryAddressLines(order);
                                 let timerDisplay = null;
                                 let isExpiring = false;
                                 if (canUseTimer && order.stock_reservations?.[0]) {
@@ -417,7 +525,7 @@ export default function Orders() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
-                                                <div className="text-right"><span className="block text-2xl font-black text-brand-green dark:text-brand-mint">{formatCurrency(order.total)}</span><span className="text-xs text-gray-400 font-bold uppercase">{getPaymentMethodLabel(order)}</span></div>
+                                                <div className="text-right"><span className="block text-2xl font-black text-brand-green dark:text-brand-mint">{formatCurrency(order.total)}</span><span className="text-xs text-gray-400 font-bold uppercase">{paymentLabel}</span></div>
                                                 <div className="hidden md:block">{expandedOrder === order.id ? <ChevronUp className="text-gray-400" /> : <ChevronDown className="text-gray-400" />}</div>
                                             </div>
                                         </div>
@@ -430,6 +538,14 @@ export default function Orders() {
                                                         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
                                                             <p className="flex justify-between"><span className="text-gray-500">Nome:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_name || 'Não informado'}</span></p>
                                                             <p className="flex justify-between"><span className="text-gray-500">Telefone:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_phone || 'Não informado'}</span></p>
+                                                            <p className="flex justify-between gap-3"><span className="text-gray-500">Pagamento:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{paymentLabel}</span></p>
+                                                            {paymentChangeText && <p className="flex justify-between gap-3"><span className="text-gray-500">Troco:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{paymentChangeText}</span></p>}
+                                                            {deliveryAddressLines.length > 0 && (
+                                                                <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-gray-900/50">
+                                                                    <p className="mb-1 font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Entrega</p>
+                                                                    {deliveryAddressLines.map((line) => <p key={line} className="font-medium text-gray-800 dark:text-gray-100">{line}</p>)}
+                                                                </div>
+                                                            )}
                                                             <div className="pt-2 mt-2 border-t border-gray-100 dark:border-gray-700">
                                                                 <a href={`https://wa.me/55${(order.customer_phone ?? '').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 w-full p-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition text-sm font-bold"><MessageCircle size={16} /> Contatar no WhatsApp</a>
                                                             </div>
@@ -454,7 +570,7 @@ export default function Orders() {
                                                             orderId={order.id}
                                                             orderStatus={order.status}
                                                             paymentStatus={publicOrder.payment_status}
-                                                            paymentMethodCode={publicOrder.payment_method_code || (order.payment_method === 'pix' ? 'pix' : null)}
+                                                            paymentMethodCode={getPaymentProofMethodCode(order)}
                                                             onChanged={fetchOrders}
                                                             onPaymentConfirmed={async () => {
                                                                 const paidOrder = {
