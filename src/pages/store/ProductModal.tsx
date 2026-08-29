@@ -151,6 +151,12 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
         };
     }, [cartItems, categoryRules, product, quantity]);
 
+    const maxOnlineQuantity = useMemo(() => {
+        const rawLimit = product?.public_availability?.availableOnline ?? product?.stock_quantity;
+        const limit = Math.floor(Number(rawLimit));
+        return Number.isFinite(limit) ? Math.max(0, limit) : null;
+    }, [product]);
+
     const availabilityNotice = useMemo(() => {
         const availability = product?.public_availability;
 
@@ -195,14 +201,25 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
             ? `A quantidade soma os produtos participantes da categoria ${pricingPreview.categoryName || ''}.`
             : 'A quantidade considera somente este produto.';
 
+    const normalizeQuantity = (value: number) => {
+        const positive = Math.max(1, Math.trunc(Number(value) || 1));
+        return maxOnlineQuantity === null ? positive : Math.min(positive, Math.max(1, maxOnlineQuantity));
+    };
+
     const handleQuantityChange = (rawValue: string) => {
+        if (rawValue === '') {
+            setQuantity(0);
+            return;
+        }
         const parsed = Number.parseInt(rawValue, 10);
-        setQuantity(Number.isFinite(parsed) ? Math.max(1, parsed) : 1);
+        setQuantity(Number.isFinite(parsed) ? normalizeQuantity(parsed) : 0);
     };
 
     const handleAddToCart = () => {
         if (!product) return;
-        onAddToCart(product, quantity);
+        const finalQuantity = normalizeQuantity(quantity);
+        if (maxOnlineQuantity !== null && maxOnlineQuantity <= 0) return;
+        onAddToCart(product, finalQuantity);
         onClose();
     };
 
@@ -323,9 +340,9 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                 <div className="safe-area-bottom mt-auto flex flex-col gap-3 border-t border-gray-100 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 sm:p-5 md:p-6">
                     <div className="flex items-center justify-between gap-3 sm:gap-4">
                         <div className="flex h-12 items-center rounded-xl bg-gray-100 p-1 dark:bg-slate-700">
-                            <button type="button" onClick={() => setQuantity(Math.max(1, quantity - 1))} className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10" aria-label="Diminuir quantidade"><span className="text-2xl leading-none">−</span></button>
-                            <input type="number" inputMode="numeric" pattern="[0-9]*" min={1} step={1} value={quantity} onFocus={(event) => event.currentTarget.select()} onClick={(event) => event.currentTarget.select()} onChange={(event) => handleQuantityChange(event.target.value)} className="w-10 bg-transparent text-center text-lg font-bold text-gray-800 outline-none [appearance:textfield] dark:text-white sm:w-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Quantidade do produto" />
-                            <button type="button" onClick={() => setQuantity(quantity + 1)} className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10" aria-label="Aumentar quantidade"><span className="text-2xl leading-none">+</span></button>
+                            <button type="button" onClick={() => setQuantity(normalizeQuantity(quantity - 1))} className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 sm:w-10" aria-label="Diminuir quantidade"><span className="text-2xl leading-none">−</span></button>
+                            <input type="number" inputMode="numeric" pattern="[0-9]*" min={1} step={1} max={maxOnlineQuantity ?? undefined} value={quantity || ''} onFocus={(event) => event.currentTarget.select()} onClick={(event) => event.currentTarget.select()} onBlur={() => setQuantity(normalizeQuantity(quantity))} onChange={(event) => handleQuantityChange(event.target.value)} className="w-10 bg-transparent text-center text-lg font-bold text-gray-800 outline-none [appearance:textfield] dark:text-white sm:w-12 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Quantidade do produto" />
+                            <button type="button" onClick={() => setQuantity(normalizeQuantity(quantity + 1))} disabled={maxOnlineQuantity !== null && quantity >= maxOnlineQuantity} className="flex h-full w-9 items-center justify-center text-gray-500 transition active:scale-90 hover:text-green-600 disabled:opacity-40 sm:w-10" aria-label="Aumentar quantidade"><span className="text-2xl leading-none">+</span></button>
                         </div>
                         <button type="button" onClick={handleAddToCart} className="flex min-h-12 flex-1 items-center justify-between gap-2 rounded-xl bg-brand-green px-4 text-sm font-black text-white shadow-lg shadow-green-200 transition active:scale-95 hover:bg-green-600 dark:shadow-none sm:gap-3 sm:px-5 md:text-base"><span>Adicionar {quantity}</span><span>R$ {formatBRL(pricingPreview.lineTotal)}</span></button>
                     </div>
