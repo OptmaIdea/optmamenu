@@ -41,6 +41,7 @@ function reviewError(code?: string) {
     financial_account_inactive: 'Selecione uma conta financeira ativa.',
     account_does_not_accept_pix: 'A conta selecionada não aceita PIX.',
     financial_entry_already_exists: 'Este pedido já possui um recebimento financeiro confirmado.',
+    order_not_found: 'Pedido não encontrado.',
   };
   return new Error(messages[code || ''] || code || 'Não foi possível revisar o comprovante.');
 }
@@ -88,6 +89,23 @@ export const OrderPaymentProofService = {
       p_store_id: params.storeId,
       p_proof_id: params.proofId,
       p_decision: params.decision,
+      p_financial_account_id: params.financialAccountId || null,
+      p_notes: params.notes?.trim() || null,
+    });
+    if (error) throw error;
+    if (!data?.ok) throw reviewError(data?.error);
+    return data as Record<string, unknown>;
+  },
+
+  async confirmExternalPixPayment(params: {
+    storeId: string;
+    orderId: string;
+    financialAccountId?: string | null;
+    notes?: string | null;
+  }): Promise<Record<string, unknown>> {
+    const { data, error } = await supabase.rpc('confirm_order_external_pix_payment_safe', {
+      p_store_id: params.storeId,
+      p_order_id: params.orderId,
       p_financial_account_id: params.financialAccountId || null,
       p_notes: params.notes?.trim() || null,
     });
