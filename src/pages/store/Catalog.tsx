@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Category, Product, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
@@ -127,6 +127,37 @@ export default function Catalog() {
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
+    const applyCatalog = useCallback((catalog: Awaited<ReturnType<typeof PublicStorefrontService.getCatalogBySlug>>) => {
+        if (!catalog.ok || !catalog.catalog_enabled) {
+            setCategories([]);
+            setProducts([]);
+            syncCatalogPricing([], []);
+            return;
+        }
+
+        const normalizedCategories = catalog.categories || [];
+        const normalizedProducts = normalizedCategories.flatMap((category) =>
+            (category.products || []).map((product) => ({
+                ...product,
+                category_id: product.category_id || category.id,
+            })),
+        );
+
+        setCategories(normalizedCategories);
+        setProducts(normalizedProducts);
+        syncCatalogPricing(normalizedCategories, normalizedProducts);
+    }, [syncCatalogPricing]);
+
+    const refreshCatalog = useCallback(async () => {
+        if (!storeSlug) return;
+        try {
+            const catalog = await PublicStorefrontService.getCatalogBySlug(storeSlug);
+            applyCatalog(catalog);
+        } catch (error) {
+            console.error('Erro ao atualizar catálogo público:', error);
+        }
+    }, [applyCatalog, storeSlug]);
+
     useEffect(() => {
         async function loadStorefront() {
             if (!storeSlug) return;
@@ -165,23 +196,7 @@ export default function Catalog() {
                     PublicStorefrontService.getPublicDeliveryMethodsBySlug(storeSlug),
                 ]);
 
-                if (!catalog.ok || !catalog.catalog_enabled) {
-                    setCategories([]);
-                    setProducts([]);
-                    syncCatalogPricing([], []);
-                } else {
-                    const normalizedCategories = catalog.categories || [];
-                    const normalizedProducts = normalizedCategories.flatMap((category) =>
-                        (category.products || []).map((product) => ({
-                            ...product,
-                            category_id: product.category_id || category.id,
-                        })),
-                    );
-
-                    setCategories(normalizedCategories);
-                    setProducts(normalizedProducts);
-                    syncCatalogPricing(normalizedCategories, normalizedProducts);
-                }
+                applyCatalog(catalog);
 
                 setDeliveryMethods(delivery.ok ? delivery.delivery_methods || [] : []);
             } catch (error) {
@@ -197,7 +212,28 @@ export default function Catalog() {
         }
 
         loadStorefront();
-    }, [bindContext, isQrTableMode, setFulfillment, storeSlug, syncCatalogPricing, tableCode]);
+    }, [applyCatalog, bindContext, isQrTableMode, setFulfillment, storeSlug, tableCode]);
+
+    useEffect(() => {
+        if (!store?.id || !storeSlug) return;
+
+        const refreshWhenVisible = () => {
+            if (document.visibilityState === 'visible') void refreshCatalog();
+        };
+
+        const intervalId = window.setInterval(() => {
+            if (document.visibilityState === 'visible') void refreshCatalog();
+        }, 15000);
+
+        window.addEventListener('focus', refreshWhenVisible);
+        document.addEventListener('visibilitychange', refreshWhenVisible);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', refreshWhenVisible);
+            document.removeEventListener('visibilitychange', refreshWhenVisible);
+        };
+    }, [refreshCatalog, store?.id, storeSlug]);
 
     useEffect(() => {
         if (!store || storeHours.length === 0) return;
