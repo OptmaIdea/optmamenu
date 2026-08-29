@@ -583,7 +583,7 @@ export default function Checkout() {
                 if (['insufficient_stock', 'product_unavailable'].includes(result.error || '')) {
                     setStockIssue(true);
                     setError(`☹️ Que pena… ${result.product_name || 'Um produto que você queria'} não está mais disponível. Revise o carrinho para continuar.`);
-                } else if (['minimum_order_value_not_met', 'delivery_minimum_order_value_not_met', 'delivery_minimum_not_met'].includes(result.error || '')) {
+                } else if (['minimum_order_not_reached', 'minimum_order_value_not_met', 'delivery_minimum_order_value_not_met', 'delivery_minimum_not_met'].includes(result.error || '')) {
                     const minimum = Number(result.minimum_order_value || 0);
                     const current = Number(result.current_total || totalValue);
                     setError(minimum > 0
