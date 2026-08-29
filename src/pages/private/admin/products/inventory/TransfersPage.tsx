@@ -432,7 +432,7 @@ export default function TransfersPage() {
       .filter((suggestion) => selectedSuggestionKeys.has(getSuggestionKey(suggestion)))
       .map((suggestion) => ({
         productId: suggestion.product_id,
-        quantity: suggestionQuantities[getSuggestionKey(suggestion)] ?? Number(suggestion.suggested_qty ?? 1),
+        quantity: suggestionQuantities[getSuggestionKey(suggestion)] ?? Number(suggestion.suggested_qty ?? suggestion.destination_need ?? 1),
       }))
       .filter((item) => item.quantity > 0);
 
@@ -998,13 +998,17 @@ export default function TransfersPage() {
                                     type="number"
                                     min={1}
                                     value={
-                                      suggestionQuantities[key] ??
-                                      Number(suggestion.suggested_qty ?? 1)
+                                      suggestionQuantities[key] === 0
+                                        ? ''
+                                        : suggestionQuantities[key] ?? Number(suggestion.suggested_qty ?? suggestion.destination_need ?? 1)
                                     }
+                                    onFocus={(event) => event.currentTarget.select()}
+                                    onClick={(event) => event.currentTarget.select()}
+                                    onBlur={() => normalizeSuggestionQty(suggestion)}
                                     onChange={(event) =>
                                       updateSuggestionQty(
                                         suggestion,
-                                        Number(event.target.value)
+                                        event.target.value === '' ? 0 : Number(event.target.value)
                                       )
                                     }
                                     disabled={!canCreateTransfers || creatingBatchDraft || !selected}
