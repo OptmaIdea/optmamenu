@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, ExternalLink, FileCheck2, Loader2, RefreshCw, XCircle } from 'lucide-react';
+import { CheckCircle2, ExternalLink, FileCheck2, Loader2, MessageCircle, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { FinancialAccountsService, type FinancialAccountBalance, type FinancialPaymentMethod } from '@/services/financialAccountsService';
 import { OrderPaymentProofService, type OrderPaymentProof } from '@/services/orderPaymentProofService';
@@ -100,6 +100,34 @@ export default function OrderPaymentProofPanel({
 
   useEffect(() => { void load(); }, [load]);
 
+  async function confirmExternalPayment() {
+    if (!selectedAccountId) {
+      toast.error('Selecione a conta financeira que recebeu o PIX.');
+      return;
+    }
+
+    const confirmedByUser = window.confirm('Confirmar pagamento PIX conferido fora do sistema? Use esta opção quando o comprovante chegou por WhatsApp, e-mail ou conferência bancária.');
+    if (!confirmedByUser) return;
+
+    try {
+      setSavingId('external');
+      const result = await OrderPaymentProofService.confirmExternalPixPayment({
+        storeId,
+        orderId,
+        financialAccountId: selectedAccountId,
+        notes,
+      });
+      toast.success(`Pagamento confirmado${result.cashbook_entry_code ? ` · ${String(result.cashbook_entry_code)}` : ''}.`);
+      setNotes('');
+      await load();
+      await onPaymentConfirmed?.();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível confirmar o pagamento externo.');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   async function review(proof: OrderPaymentProof, decision: 'confirm' | 'reject') {
     if (decision === 'confirm' && !selectedAccountId) {
       toast.error('Selecione a conta financeira que recebeu o PIX.');
@@ -172,6 +200,28 @@ export default function OrderPaymentProofPanel({
 
       {proofs.length === 0 && paymentStatus !== 'paid' && ['reserved', 'confirmed', 'ready'].includes(orderStatus) && (
         <p className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-3 text-sm font-bold text-amber-900 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">Nenhum comprovante enviado ainda.</p>
+      )}
+
+      {!submitted && !confirmed && canReview && paymentStatus !== 'paid' && ['reserved', 'confirmed', 'ready'].includes(orderStatus) && (
+        <div className="mt-4 grid gap-3 rounded-xl border border-amber-200 bg-white p-4 dark:border-amber-900 dark:bg-gray-900 md:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-wide text-gray-500">Conta que recebeu o PIX</span>
+            <select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950">
+              <option value="">Selecione a conta</option>
+              {compatibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · saldo {currency.format(account.balance)}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-xs font-black uppercase tracking-wide text-gray-500">Referência da conferência</span>
+            <input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ex.: comprovante recebido por WhatsApp" className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" />
+          </label>
+          <div className="md:col-span-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+            Use esta opção para comprovante enviado por WhatsApp/e-mail ou conferência no extrato. Ela aceita o pedido, encerra o timer e lança a entrada na conta PIX configurada.
+          </div>
+          <button type="button" disabled={savingId === 'external' || !selectedAccountId} onClick={() => void confirmExternalPayment()} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2">
+            {savingId === 'external' ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}Confirmar PIX recebido fora do sistema
+          </button>
+        </div>
       )}
 
       {submitted && canReview && (
