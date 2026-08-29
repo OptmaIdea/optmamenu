@@ -168,10 +168,42 @@ export default function Orders() {
             public_order_token?: string;
             fulfillment_type?: string;
             payment_method_code?: string | null;
+            promised_payment_method_code?: string | null;
             payment_status?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'partially_refunded' | 'refunded';
             available_until?: string | null;
             cancellation_grace_until?: string | null;
         };
+    }
+
+    function getPaymentMethodLabel(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        const methodCode = String(publicOrder.payment_method_code || order.payment_method || '').trim();
+        const promisedCode = String(publicOrder.promised_payment_method_code || '').trim();
+
+        if (publicOrder.payment_status === 'paid' && methodCode.includes('pix')) return 'PIX pago';
+        if (methodCode === 'pix_manual_qr') return 'PIX com comprovante';
+        if (methodCode === 'pix') return 'PIX';
+        if (methodCode === 'cash') return publicOrder.fulfillment_type === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro';
+        if (methodCode === 'card') return publicOrder.fulfillment_type === 'delivery' ? 'Cartão na entrega' : 'Cartão';
+        if (methodCode === 'credit_card') return 'Cartão de crédito';
+        if (methodCode === 'debit_card') return 'Cartão de débito';
+        if (methodCode === 'payment_link') return 'Link de pagamento';
+        if (promisedCode === 'cash') return publicOrder.fulfillment_type === 'delivery' ? 'Dinheiro na entrega' : 'Dinheiro na retirada';
+        if (promisedCode === 'card') return publicOrder.fulfillment_type === 'delivery' ? 'Cartão na entrega' : 'Cartão na retirada';
+        if (promisedCode === 'pix') return publicOrder.fulfillment_type === 'delivery' ? 'PIX na entrega' : 'PIX na retirada';
+        return publicOrder.fulfillment_type === 'delivery' ? 'Na entrega' : 'Na retirada';
+    }
+
+    function getOrderActionErrorMessage(error: unknown) {
+        const message = error instanceof Error ? error.message : String(error || '');
+        const labels: Record<string, string> = {
+            insufficient_reserved_stock: 'A reserva deste pedido ficou inconsistente. Atualize a tela e tente novamente; se o pedido já estiver pago, a finalização corrigida não deve mais exigir o contador reservado.',
+            insufficient_stock: 'Não há estoque físico suficiente para concluir este pedido.',
+            no_active_reservations: 'Este pedido não possui reserva ativa para baixa de estoque.',
+            order_not_confirmed: 'Este pedido ainda não está em uma etapa que permita finalização.',
+            access_denied: 'Você não tem permissão para alterar este pedido.',
+        };
+        return labels[message] || message || 'Erro ao atualizar status';
     }
 
     async function openOrderMessage(order: Order, eventCode: OrderMessageEventCode, expiresAtOverride?: string | null) {
@@ -277,7 +309,7 @@ export default function Orders() {
             return true;
         } catch (error) {
             console.error('Error updating status:', error);
-            alert('Erro ao atualizar status');
+            alert(getOrderActionErrorMessage(error));
             return false;
         }
     }
@@ -385,7 +417,7 @@ export default function Orders() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
-                                                <div className="text-right"><span className="block text-2xl font-black text-brand-green dark:text-brand-mint">{formatCurrency(order.total)}</span><span className="text-xs text-gray-400 font-bold uppercase">{publicOrder.payment_method_code === 'pix' || order.payment_method === 'pix' ? 'PIX' : 'Retirada'}</span></div>
+                                                <div className="text-right"><span className="block text-2xl font-black text-brand-green dark:text-brand-mint">{formatCurrency(order.total)}</span><span className="text-xs text-gray-400 font-bold uppercase">{getPaymentMethodLabel(order)}</span></div>
                                                 <div className="hidden md:block">{expandedOrder === order.id ? <ChevronUp className="text-gray-400" /> : <ChevronDown className="text-gray-400" />}</div>
                                             </div>
                                         </div>
