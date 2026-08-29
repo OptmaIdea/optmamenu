@@ -87,8 +87,17 @@ function accountTypeLabel(type: string) {
 }
 
 function accountCodeLabel(code: string) {
+  const friendly: Record<string, string> = {
+    asaas_pix: 'Asaas Pix',
+    pix_wallet: 'Carteira Pix',
+    cash_drawer: 'Caixa físico',
+    card_receivable: 'Recebíveis de cartão',
+    clc: 'Caixa Loja Centro',
+    infinitepay: 'InfinitePay',
+  };
   const label = getFinancialAccountCodeLabel(code, 'dash');
-  return label === '—' ? code : label;
+  if (friendly[code]) return friendly[code];
+  return !label || label === '—' || label === code ? code.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : label;
 }
 
 function slugifyCode(value: string) {
@@ -111,8 +120,11 @@ function fallbackPaymentLabel(value?: string | null) {
     voucher: 'Voucher / benefício',
     other: 'Outro',
     pending: 'Pendente',
+    pix_manual_qr: 'Pix por QR Code',
+    asaas_pix: 'Asaas Pix',
+    payment_link: 'Link de pagamento',
   };
-  return value ? labels[value] || value : 'Não informado';
+  return value ? labels[value] || value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Não informado';
 }
 
 function sourceLabel(value?: string | null) {
@@ -631,7 +643,13 @@ export default function FinancialAccountsWorkspacePage() {
     >
       <div className="space-y-5">
         <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-2">
+          <label className="block sm:hidden">
+            <span className="mb-1 block text-xs font-black uppercase tracking-widest text-gray-400">Área</span>
+            <select value={activeTab} onChange={(event) => setTab(event.target.value as WorkspaceTab)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-black text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+              {tabs.map((tab) => <option key={tab.id} value={tab.id}>{tab.label}{tab.badge ? ` (${tab.badge})` : ''}</option>)}
+            </select>
+          </label>
+          <div className="hidden flex-wrap gap-2 sm:flex">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               const selected = activeTab === tab.id;
@@ -660,7 +678,7 @@ export default function FinancialAccountsWorkspacePage() {
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm font-bold text-red-700">Não foi possível carregar os saldos.</div>
         ) : (
           <>
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <button type="button" onClick={() => setTab('balances')} className="rounded-2xl border border-gray-100 bg-white p-5 text-left shadow-sm dark:border-gray-800 dark:bg-gray-900">
                 <p className="text-xs font-black uppercase tracking-widest text-gray-400">Saldo do livro</p><p className="mt-2 text-3xl font-black dark:text-white">{formatMoney(balances.summary.bookBalance)}</p>
               </button>
@@ -699,7 +717,7 @@ export default function FinancialAccountsWorkspacePage() {
                         return <div key={item.payment_method_code} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs dark:bg-gray-900"><button type="button" onClick={() => void openReconciliation(account, item.payment_method_code)} className="min-w-0 flex-1 text-left"><p className="font-black text-gray-700 dark:text-gray-200">{paymentName(item.payment_method_code)}</p><p className="font-semibold text-gray-400">{item.movement_count} movimento(s) · conferir</p></button><div className="flex items-center gap-2"><span className="font-black dark:text-white">{formatMoney(item.balance)}</span>{canManage && <button type="button" onClick={() => openTransfer(account, item.payment_method_code, item.balance)} disabled={!canTransfer} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-teal-700 disabled:opacity-30" title={canTransfer ? 'Transferir para conta compatível' : account.active ? 'Sem destino compatível' : 'Conta inativa: use reatribuição de lançamentos'}><ArrowRightLeft size={14} /></button>}</div></div>;
                       })}</div>}
                       <p className="mt-3 text-[11px] font-semibold text-gray-400">{account.movement_count} movimentação(ões) · {formatDate(account.last_movement_at)}</p>
-                      {canManage && account.movement_count > 0 && <button type="button" onClick={() => void openReconciliation(account, '')} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:border-blue-300"><ArrowRightLeft size={14} />Alterar lançamentos em lote</button>}
+                      {account.movement_count > 0 && <button type="button" onClick={() => void openReconciliation(account, '')} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:border-blue-300"><ArrowRightLeft size={14} />{canManage ? 'Ver / reatribuir movimentos' : 'Ver movimentos'}</button>}
                     </div>
                   ))}
                 </div>}
