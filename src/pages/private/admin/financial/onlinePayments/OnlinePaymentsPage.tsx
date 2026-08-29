@@ -143,6 +143,11 @@ export default function OnlinePaymentsPage() {
 
   const optmaProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'optma_sandbox' && item.environment === 'sandbox') || null, [workspace]);
   const asaasProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'asaas' && item.environment === 'sandbox') || null, [workspace]);
+  const asaasSettlementAccount = useMemo(() => {
+    const accountId = asaasProvider?.public_config?.settlement_financial_account_id;
+    return typeof accountId === 'string' ? settlementAccounts.find((account) => account.id === accountId) || null : null;
+  }, [asaasProvider, settlementAccounts]);
+  const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label || 'Visão geral';
 
   const summaryCards = useMemo<SummaryCard[]>(() => [
     { label: 'Pendentes', value: workspace?.counts.pending || 0, Icon: Clock3, tone: 'text-amber-600' },
@@ -284,7 +289,7 @@ export default function OnlinePaymentsPage() {
       icon={<CreditCard className="text-[#19A999]" size={28} />}
       onRefresh={() => void load()}
     >
-      <div className="rounded-2xl border border-amber-300/70 bg-amber-50 px-5 py-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+      <div className="rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100 sm:px-5 sm:py-4">
         <div className="flex items-start gap-3">
           <FlaskConical className="mt-0.5 shrink-0" size={20} />
           <div>
@@ -294,12 +299,22 @@ export default function OnlinePaymentsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
-        {tabs.map((tab) => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${activeTab === tab.id ? 'bg-[#19A999] text-white' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}>
-            {tab.label}{tab.id === 'proofs' && workspace?.counts.proofs_pending ? ` (${workspace.counts.proofs_pending})` : ''}
-          </button>
-        ))}
+      <div className="rounded-2xl border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+        <label className="block sm:hidden">
+          <span className="mb-1 block text-xs font-black uppercase tracking-widest text-gray-400">Seção</span>
+          <select value={activeTab} onChange={(event) => setActiveTab(event.target.value as Tab)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-black text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-white" aria-label={`Seção atual: ${activeTabLabel}`}>
+            {tabs.map((tab) => (
+              <option key={tab.id} value={tab.id}>{tab.label}{tab.id === 'proofs' && workspace?.counts.proofs_pending ? ` (${workspace.counts.proofs_pending})` : ''}</option>
+            ))}
+          </select>
+        </label>
+        <div className="hidden flex-wrap gap-2 sm:flex">
+          {tabs.map((tab) => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${activeTab === tab.id ? 'bg-[#19A999] text-white' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}>
+              {tab.label}{tab.id === 'proofs' && workspace?.counts.proofs_pending ? ` (${workspace.counts.proofs_pending})` : ''}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
@@ -308,16 +323,26 @@ export default function OnlinePaymentsPage() {
         <>
           {activeTab === 'overview' && (
             <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {summaryCards.map(({ label, value, Icon, tone }) => (
-                  <div key={label} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                  <div key={label} className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-5">
                     <Icon className={tone} size={22} />
                     <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">{label}</p>
                     <p className="text-3xl font-black text-gray-900 dark:text-white">{value}</p>
                   </div>
                 ))}
               </div>
-              <div className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
+                <h2 className="text-lg font-black text-gray-900 dark:text-white">Configuração da loja online</h2>
+                <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100">
+                  <p className="font-black">QR Code PIX gera recebimento em: {asaasSettlementAccount?.name || 'conta ainda não definida'}</p>
+                  <p className="mt-1 text-xs font-semibold opacity-80">Essa conta será usada automaticamente na baixa do PIX e na conferência de comprovantes.</p>
+                  <button type="button" onClick={() => setActiveTab('providers')} className="mt-3 rounded-lg bg-teal-600 px-3 py-2 text-xs font-black text-white">Alterar conta do PIX</button>
+                </div>
+
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
                 <h2 className="text-lg font-black text-gray-900 dark:text-white">Fluxo autoritativo</h2>
                 <div className="mt-4 grid gap-3 md:grid-cols-5">
                   {['Pedido', 'Provedor', 'Webhook', 'Pagamento confirmado', 'Livro Diário / conta'].map((step, index) => (
@@ -333,7 +358,7 @@ export default function OnlinePaymentsPage() {
           {activeTab === 'providers' && (
             <div className="grid gap-5 lg:grid-cols-2">
               {[optmaProvider, asaasProvider].filter(Boolean).map((provider) => provider && (
-                <div key={provider.id} className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+                <div key={provider.id} className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex gap-3">
                       {provider.provider_code === 'asaas' ? <Landmark className="text-blue-600" /> : <FlaskConical className="text-violet-600" />}
@@ -450,8 +475,8 @@ export default function OnlinePaymentsPage() {
                 <div className="mt-5 rounded-xl border border-blue-200 bg-white/80 p-4 dark:border-blue-800 dark:bg-gray-950/40">
                   <h3 className="font-black text-blue-950 dark:text-blue-100">Testar PIX integrado</h3>
                   <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Gere uma cobrança fictícia e pague-a pela conta compradora do Asaas Sandbox. O resultado deve aparecer em Transações e Webhooks e eventos.</p>
-                  <div className="mt-4 flex flex-wrap gap-3">
-                    <input value={asaasAmount} onChange={(event) => setAsaasAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-32 rounded-xl border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-gray-950" />
+                  <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
+                    <input value={asaasAmount} onChange={(event) => setAsaasAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-gray-950 sm:w-32" />
                     <button disabled={working || !workspace.permissions.manage || !asaasStatus?.merchantConfigured} onClick={() => void createAsaasPixCharge()} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Gerar PIX de teste</button>
                     {asaasPixCharge?.qr?.payload && <button disabled={working || !asaasStatus?.buyerConfigured} onClick={() => void payAsaasPixCharge()} className="rounded-xl border border-blue-300 px-4 py-2 font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:text-blue-200">Pagar com conta compradora</button>}
                   </div>
