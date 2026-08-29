@@ -1241,10 +1241,17 @@ export default function PurchaseDocumentsPage() {
                             type="number"
                             min={1}
                             className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
-                            value={it.quantity}
+                            value={it.quantity || ''}
+                            onFocus={(e: ChangeEvent<HTMLInputElement>) => e.currentTarget.select()}
+                            onClick={(e: ChangeEvent<HTMLInputElement>) => e.currentTarget.select()}
+                            onBlur={() => {
+                              if (!Number.isFinite(Number(it.quantity)) || Number(it.quantity) <= 0) {
+                                updateDraftItem(idx, { quantity: 1 });
+                              }
+                            }}
                             onChange={(e: ChangeEvent<HTMLInputElement>) =>
                               updateDraftItem(idx, {
-                                quantity: Number(e.target.value || 0),
+                                quantity: e.target.value === '' ? 0 : Number(e.target.value),
                               })
                             }
                             disabled={editingReadOnly}
