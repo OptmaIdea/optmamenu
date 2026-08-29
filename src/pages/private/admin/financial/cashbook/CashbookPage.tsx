@@ -597,13 +597,13 @@ export default function CashbookPage() {
             icon={<WalletCards size={28} className="text-[#19A999]" />}
             onRefresh={loadData}
             action={
-                <div className="flex items-center gap-2">
+                <div className="grid w-full max-w-full grid-cols-1 gap-2 min-[430px]:grid-cols-3 sm:flex sm:w-auto sm:items-center">
                     {canCreateCashbookEntry && (
                         <>
                             <button
                                 type="button"
                                 onClick={() => openCreateForm('in')}
-                                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
+                                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-2 py-2 text-center text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 sm:px-4"
                             >
                                 <Plus size={16} />
                                 Nova Entrada
@@ -611,7 +611,7 @@ export default function CashbookPage() {
                             <button
                                 type="button"
                                 onClick={() => openCreateForm('out')}
-                                className="inline-flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 text-sm font-bold transition shadow-sm active:scale-95 rounded-xl"
+                                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-rose-600 px-2 py-2 text-center text-sm font-bold text-white shadow-sm transition hover:bg-rose-700 active:scale-95 sm:px-4"
                             >
                                 <Minus size={16} />
                                 Nova Saída
@@ -622,7 +622,7 @@ export default function CashbookPage() {
                         <button
                             type="button"
                             onClick={handlePrint}
-                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                            className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-2 py-2 text-center text-sm font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 sm:px-4"
                         >
                             Imprimir
                         </button>
@@ -633,7 +633,7 @@ export default function CashbookPage() {
         >
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+            <div className="grid max-w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
                 <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
                     <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400 mb-3">
                         <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
@@ -708,8 +708,8 @@ export default function CashbookPage() {
             </div>
 
             {/* Entries List */}
-            <div className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden">
-                <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <div className="max-w-full overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                     <div className="flex items-center gap-2">
                         <History size={18} className="text-gray-400" />
                         <h2 className="font-black text-gray-900 dark:text-white uppercase tracking-tight">Últimos Lançamentos</h2>
