@@ -36,6 +36,7 @@ export default function OrderPaymentProofPanel({
   paymentStatus,
   paymentMethodCode,
   onChanged,
+  onPaymentConfirmed,
 }: {
   storeId: string;
   orderId: string;
@@ -43,6 +44,7 @@ export default function OrderPaymentProofPanel({
   paymentStatus?: string | null;
   paymentMethodCode?: string | null;
   onChanged?: () => void | Promise<void>;
+  onPaymentConfirmed?: () => void | Promise<void>;
 }) {
   const [proofs, setProofs] = useState<OrderPaymentProof[]>([]);
   const [canReview, setCanReview] = useState(false);
@@ -83,8 +85,9 @@ export default function OrderPaymentProofPanel({
       const preferred = candidates.find((account) => account.id === method?.preferred_financial_account_id);
       const clearing = candidates.find((account) => account.is_sales_clearing_default);
       setSelectedAccountId((current) => {
+        if (preferred?.id) return preferred.id;
         if (candidates.some((account) => account.id === current)) return current;
-        return preferred?.id || clearing?.id || candidates[0]?.id || '';
+        return clearing?.id || candidates[0]?.id || '';
       });
     } catch (error) {
       console.error('Erro ao carregar comprovantes do pedido:', error);
@@ -120,7 +123,8 @@ export default function OrderPaymentProofPanel({
         : 'Comprovante rejeitado. O cliente poderá enviar outro enquanto o pedido estiver ativo.');
       setNotes('');
       await load();
-      await onChanged?.();
+      if (decision === 'confirm') await onPaymentConfirmed?.();
+      else await onChanged?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível revisar o comprovante.');
     } finally {
@@ -141,7 +145,7 @@ export default function OrderPaymentProofPanel({
           <h4 className="mt-1 font-black text-gray-900 dark:text-white">
             {confirmed ? 'Pagamento antecipado confirmado' : submitted ? 'Comprovante aguardando conferência' : paymentStatus === 'paid' ? 'Pagamento já confirmado' : 'Aguardando comprovante do cliente'}
           </h4>
-          <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">O comprovante auxilia a conferência, mas somente a confirmação da equipe gera a baixa financeira e impede expiração por falta de pagamento.</p>
+          <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">O comprovante auxilia a conferência; quando confirmado, o pedido é aceito, a baixa financeira é feita na conta configurada para o PIX e o prazo de reserva é encerrado.</p>
         </div>
         <button type="button" onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><RefreshCw size={13} />Atualizar</button>
       </div>
