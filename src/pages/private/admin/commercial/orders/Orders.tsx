@@ -136,11 +136,23 @@ export default function Orders() {
         fetchOrders();
     }
 
-    async function extendReservation(orderId: string) {
+    function isReservationTimerApplicable(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        return ['reserved', 'confirmed', 'ready'].includes(order.status)
+            && publicOrder.payment_status !== 'paid'
+            && publicOrder.fulfillment_type !== 'delivery';
+    }
+
+    async function extendReservation(order: Order) {
+        if (!isReservationTimerApplicable(order)) {
+            alert('Pedido pago ou de delivery não tem prazo de reserva para prorrogar.');
+            return;
+        }
+
         const extensionMinutes = storeData?.config?.extension_minutes || 10;
         if (!confirm(`Deseja prorrogar a reserva em ${extensionMinutes} minutos?`)) return;
         try {
-            const { error } = await supabase.rpc('extend_reservation', { p_order_id: orderId, p_minutes: extensionMinutes });
+            const { error } = await supabase.rpc('extend_reservation', { p_order_id: order.id, p_minutes: extensionMinutes });
             if (error) throw error;
             alert('Reserva prorrogada com sucesso!');
             fetchOrders();
@@ -190,7 +202,14 @@ export default function Orders() {
             const { data, error } = await supabase.rpc('admin_accept_public_order_safe', { p_order_id: order.id });
             if (error) throw error;
             if (data?.ok === false) throw new Error(data?.error || 'Erro ao aceitar pedido.');
-            const updatedOrder = { ...order, status: 'confirmed' as OrderStatus, available_until: data.available_until, cancellation_grace_until: data.cancellation_grace_until, stock_reservations: [{ expires_at: data.available_until }] } as Order;
+            const timerActive = Boolean(data?.timer_active);
+            const updatedOrder = {
+                ...order,
+                status: 'confirmed' as OrderStatus,
+                available_until: timerActive ? data.available_until : null,
+                cancellation_grace_until: timerActive ? data.cancellation_grace_until : null,
+                stock_reservations: timerActive && data.available_until ? [{ expires_at: data.available_until }] : [],
+            } as Order;
             setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
             if (window.confirm('Pedido aceito. Deseja abrir a mensagem para o cliente?')) await openOrderMessage(updatedOrder, 'order_accepted');
             return true;
@@ -206,8 +225,9 @@ export default function Orders() {
             const { data, error } = await supabase.rpc('admin_mark_public_order_ready_safe', { p_order_id: order.id });
             if (error) throw error;
             if (data?.ok === false) throw new Error(data?.error || 'Erro ao marcar pedido como pronto.');
-            const expiresAt = data?.expires_at || order.stock_reservations?.[0]?.expires_at || null;
-            const updatedOrder = { ...order, status: 'ready' as OrderStatus, available_until: expiresAt, cancellation_grace_until: data?.cancellation_grace_until || null, stock_reservations: expiresAt ? [{ expires_at: expiresAt }] : order.stock_reservations } as Order;
+            const timerActive = Boolean(data?.timer_active);
+            const expiresAt = timerActive ? (data?.expires_at || order.stock_reservations?.[0]?.expires_at || null) : null;
+            const updatedOrder = { ...order, status: 'ready' as OrderStatus, available_until: expiresAt, cancellation_grace_until: timerActive ? data?.cancellation_grace_until || null : null, stock_reservations: expiresAt ? [{ expires_at: expiresAt }] : [] } as Order;
             setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
             await openOrderMessage(updatedOrder, 'order_ready', expiresAt);
             await fetchOrders();
@@ -272,6 +292,37 @@ export default function Orders() {
         reserved: 'Novo / Pendente', confirmed: 'Em Preparo', ready: 'Pronto', out_for_delivery: 'Saiu para entrega', completed: 'Concluído', cancelled: 'Cancelado',
     };
 
+    function getOrderStatusLabel(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        const isPaidPickup = publicOrder.fulfillment_type === 'pickup' && publicOrder.payment_status === 'paid';
+
+        if (isPaidPickup && ['confirmed', 'ready'].includes(order.status)) return 'Aguardando retirada';
+        return statusLabels[order.status] || order.status;
+    }
+
+    async function cancelOrder(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        const isPaid = publicOrder.payment_status === 'paid';
+        const message = isPaid
+            ? 'Este pedido já tem pagamento confirmado. Ao cancelar, registre o estorno do pagamento e avise o cliente sobre a recusa/cancelamento. Continuar?'
+            : 'Cancelar este pedido?';
+
+        if (!window.confirm(message)) return;
+
+        const changed = await updateStatus(order.id, 'cancelled');
+        if (changed) await openOrderMessage(order, 'order_cancelled');
+    }
+
+    async function handleFinalizeOrder(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        if (publicOrder.payment_status === 'paid') {
+            await updateStatus(order.id, publicOrder.fulfillment_type === 'delivery' ? ('out_for_delivery' as OrderStatus) : 'completed');
+            return;
+        }
+
+        setFinalizingOrder(order);
+    }
+
     return (
         <PageContainer title="Pedidos" subtitle="Gerencie os pedidos chegando em tempo real." category="Comercial" icon={<ShoppingBag className="text-[#19A999]" size={28} />} flat>
             <div className="flex min-h-0 flex-col lg:h-[calc(100vh-210px)] lg:overflow-hidden">
@@ -300,10 +351,11 @@ export default function Orders() {
                         <div className="grid grid-cols-1 gap-4">
                             {displayedOrders.map(order => {
                                 const publicOrder = getPublicOrderFields(order);
+                                const canUseTimer = isReservationTimerApplicable(order);
                                 const automaticExpirationAt = getAutomaticExpirationAt(order);
                                 let timerDisplay = null;
                                 let isExpiring = false;
-                                if (['reserved', 'confirmed', 'ready'].includes(order.status) && order.stock_reservations?.[0] && publicOrder.payment_status !== 'paid' && publicOrder.fulfillment_type !== 'delivery') {
+                                if (canUseTimer && order.stock_reservations?.[0]) {
                                     const expiresAt = new Date(order.stock_reservations[0].expires_at).getTime();
                                     const diff = expiresAt - now.getTime();
                                     if (diff > 0) {
@@ -324,10 +376,10 @@ export default function Orders() {
                                                 <div>
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <h3 className="font-bold text-lg text-gray-800 dark:text-white">{publicOrder.order_code || `#${order.id.slice(0, 8).toUpperCase()}`}</h3>
-                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>{statusLabels[order.status]}</span>
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>{getOrderStatusLabel(order)}</span>
                                                         {publicOrder.payment_status === 'paid' && <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Pagamento confirmado</span>}
                                                         {automaticExpirationAt && <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800"><Clock size={11} /> Expirado automaticamente · {formatDate(automaticExpirationAt)}</span>}
-                                                        {['reserved', 'confirmed', 'ready'].includes(order.status) && timerDisplay && <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}><Clock size={12} /> {timerDisplay}</span>}
+                                                        {canUseTimer && timerDisplay && <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}><Clock size={12} /> {timerDisplay}</span>}
                                                     </div>
                                                     <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1"><span>{order.customer_name}</span><span>•</span><span className="flex items-center gap-1"><Clock size={12} /> {formatDate(order.created_at)}</span></div>
                                                 </div>
@@ -372,26 +424,39 @@ export default function Orders() {
                                                             paymentStatus={publicOrder.payment_status}
                                                             paymentMethodCode={publicOrder.payment_method_code || (order.payment_method === 'pix' ? 'pix' : null)}
                                                             onChanged={fetchOrders}
+                                                            onPaymentConfirmed={async () => {
+                                                                const paidOrder = {
+                                                                    ...order,
+                                                                    status: order.status === 'reserved' ? 'confirmed' as OrderStatus : order.status,
+                                                                    payment_status: 'paid',
+                                                                    available_until: null,
+                                                                    cancellation_grace_until: null,
+                                                                    stock_reservations: [],
+                                                                } as Order;
+                                                                setOrders((current) => current.map((item) => item.id === order.id ? paidOrder : item));
+                                                                await openOrderMessage(paidOrder, 'order_accepted', null);
+                                                                await fetchOrders();
+                                                            }}
                                                         />
                                                     )}
 
-                                                    <div className="md:col-span-2 mt-2 flex flex-wrap gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                                                    <div className="md:col-span-2 mt-2 flex flex-col gap-2 border-t border-gray-200 pt-4 dark:border-gray-700 sm:flex-row sm:flex-wrap sm:justify-end">
                                                         {order.status === 'reserved' && <>
-                                                            <button onClick={() => extendReservation(order.id)} className="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-bold text-sm transition" title={`Adicionar +${storeData?.config?.extension_minutes || 10} minutos ao prazo`}>Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>
-                                                            <button onClick={async () => { const changed = await updateStatus(order.id, 'cancelled'); if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) await openOrderMessage(order, 'order_cancelled'); }} className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition">Recusar / Cancelar</button>
-                                                            <button onClick={async () => { await acceptOrder(order); }} className="px-6 py-2 text-white bg-teal-600 hover:bg-teal-700 rounded-lg font-bold text-sm transition shadow-lg shadow-teal-200 flex items-center gap-2"><Clock size={16} /> Aceitar e Preparar</button>
+                                                            {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto" title={`Adicionar +${storeData?.config?.extension_minutes || 10} minutos ao prazo`}>Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
+                                                            <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Recusar / Cancelar'}</button>
+                                                            <button onClick={async () => { await acceptOrder(order); }} className="flex w-full items-center justify-center gap-2 rounded-lg bg-teal-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-teal-200 transition hover:bg-teal-700 sm:w-auto"><Clock size={16} /> Aceitar pedido</button>
                                                         </>}
                                                         {order.status === 'confirmed' && <>
-                                                            <button onClick={() => extendReservation(order.id)} className="px-4 py-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg font-bold text-sm transition">Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>
-                                                            <button onClick={async () => { const changed = await updateStatus(order.id, 'cancelled'); if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) await openOrderMessage(order, 'order_cancelled'); }} className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition">Cancelar</button>
-                                                            <button type="button" onClick={() => markOrderReady(order)} className="px-4 py-2 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-lg font-bold text-sm transition flex items-center gap-2"><MessageCircle size={16} /> Avisar que está pronto</button>
-                                                            <button onClick={() => setFinalizingOrder(order)} className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"><CheckCircle size={16} /> Finalizar pedido</button>
+                                                            {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto">Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
+                                                            <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>
+                                                            <button type="button" onClick={() => markOrderReady(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 sm:w-auto"><MessageCircle size={16} /> {publicOrder.fulfillment_type === 'pickup' ? 'Avisar retirada' : 'Avisar que está pronto'}</button>
+                                                            <button onClick={() => void handleFinalizeOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> {publicOrder.payment_status === 'paid' ? (publicOrder.fulfillment_type === 'delivery' ? 'Saiu para entrega' : 'Finalizar retirada') : 'Finalizar pedido'}</button>
                                                         </>}
                                                         {order.status === 'ready' && <>
-                                                            <button onClick={async () => { const changed = await updateStatus(order.id, 'cancelled'); if (changed && window.confirm('Deseja avisar o cliente pelo WhatsApp?')) await openOrderMessage(order, 'order_cancelled'); }} className="px-4 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-lg font-bold text-sm transition">Cancelar</button>
-                                                            {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="px-6 py-2 text-white bg-purple-600 hover:bg-purple-700 rounded-lg font-bold text-sm transition shadow-lg shadow-purple-200 flex items-center gap-2"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="px-6 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg font-bold text-sm transition shadow-lg shadow-green-200 flex items-center gap-2"><CheckCircle size={16} /> Finalizar retirada</button>}
+                                                            <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>
+                                                            {publicOrder.fulfillment_type === 'delivery' ? <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button> : <button onClick={() => publicOrder.payment_status === 'paid' ? updateStatus(order.id, 'completed') : setFinalizingOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> Finalizar retirada</button>}
                                                         </>}
-                                                        {order.status === 'out_for_delivery' && <button onClick={() => updateStatus(order.id, 'completed')} className="px-6 py-2 text-white bg-[#21A896] hover:bg-[#1A867A] rounded-lg font-bold text-sm transition flex items-center gap-2"><CheckCircle size={16} /> Confirmar entrega</button>}
+                                                        {order.status === 'out_for_delivery' && <button onClick={() => updateStatus(order.id, 'completed')} className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#21A896] px-6 py-2 text-sm font-bold text-white transition hover:bg-[#1A867A] sm:w-auto"><CheckCircle size={16} /> Confirmar entrega</button>}
                                                         {order.status === 'completed' && <span className="px-4 py-2 text-green-600 bg-green-50 rounded-lg font-bold text-sm flex items-center gap-2 cursor-default"><CheckCircle size={16} /> Pedido Concluído</span>}
                                                     </div>
                                                 </div>
