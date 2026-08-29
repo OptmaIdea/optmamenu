@@ -161,7 +161,7 @@ export default function TransfersPage() {
       if (Object.keys(current).length > 0) return current;
 
       return suggestions.reduce<Record<string, number>>((acc, suggestion) => {
-        acc[getSuggestionKey(suggestion)] = Number(suggestion.suggested_qty ?? 1);
+        acc[getSuggestionKey(suggestion)] = Number(suggestion.suggested_qty ?? suggestion.destination_need ?? 1);
         return acc;
       }, {});
     });
@@ -402,8 +402,20 @@ export default function TransfersPage() {
 
     setSuggestionQuantities((current) => ({
       ...current,
-      [key]: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      [key]: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
     }));
+  };
+
+  const normalizeSuggestionQty = (suggestion: StockTransferSuggestion) => {
+    const key = getSuggestionKey(suggestion);
+    const fallback = Number(suggestion.suggested_qty ?? suggestion.destination_need ?? 1);
+    const current = Number(suggestionQuantities[key] ?? fallback);
+    if (!Number.isFinite(current) || current <= 0) {
+      setSuggestionQuantities((state) => ({
+        ...state,
+        [key]: Number.isFinite(fallback) && fallback > 0 ? fallback : 1,
+      }));
+    }
   };
 
   const handleCreateBatchDraft = async (group: {
@@ -786,10 +798,17 @@ export default function TransfersPage() {
                   <input
                     type="number"
                     min={1}
-                    value={draftQty}
+                    value={draftQty || ''}
+                    onFocus={(event) => event.currentTarget.select()}
+                    onClick={(event) => event.currentTarget.select()}
+                    onBlur={() => {
+                      if (!Number.isFinite(Number(draftQty)) || Number(draftQty) <= 0) {
+                        setDraftQty(prefillTransfer.suggestedQty);
+                      }
+                    }}
                     onChange={(event) => {
-                      const value = Number(event.target.value);
-                      setDraftQty(Number.isFinite(value) && value > 0 ? value : 1);
+                      const value = event.target.value === '' ? 0 : Number(event.target.value);
+                      setDraftQty(Number.isFinite(value) && value > 0 ? value : 0);
                     }}
                     disabled={!canCreateTransfers || creatingDraft}
                     className="mt-1 w-full rounded-lg border border-blue-100 bg-white px-2 py-1 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-200 dark:border-blue-900 dark:bg-gray-950"
@@ -1224,10 +1243,17 @@ export default function TransfersPage() {
                             <input
                               type="number"
                               min={1}
-                              value={item.quantity}
+                              value={item.quantity || ''}
+                              onFocus={(event) => event.currentTarget.select()}
+                              onClick={(event) => event.currentTarget.select()}
+                              onBlur={() => {
+                                if (!Number.isFinite(Number(item.quantity)) || Number(item.quantity) <= 0) {
+                                  updateManualBatchItem(index, { quantity: 1 });
+                                }
+                              }}
                               onChange={(event) => {
-                                const value = Number(event.target.value);
-                                updateManualBatchItem(index, { quantity: Number.isFinite(value) && value > 0 ? value : 1 });
+                                const value = event.target.value === '' ? 0 : Number(event.target.value);
+                                updateManualBatchItem(index, { quantity: Number.isFinite(value) && value > 0 ? value : 0 });
                               }}
                               disabled={!canCreateTransfers || creatingManualBatchDraft}
                               className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-2 focus:ring-[#19A999]/40 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
