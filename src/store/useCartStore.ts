@@ -28,6 +28,18 @@ type CategoryPricingRule = {
     };
 };
 
+function getProductOnlineLimit(product: Product) {
+    const rawLimit = product.public_availability?.availableOnline ?? product.stock_quantity;
+    const limit = Math.floor(Number(rawLimit));
+    return Number.isFinite(limit) ? Math.max(0, limit) : null;
+}
+
+function clampCartQuantity(product: Product, quantity: number) {
+    const normalizedQuantity = Math.max(0, Math.trunc(Number(quantity) || 0));
+    const limit = getProductOnlineLimit(product);
+    return limit === null ? normalizedQuantity : Math.min(normalizedQuantity, limit);
+}
+
 interface CartState {
     schemaVersion: 2;
     context: PublicCartContext | null;
@@ -167,17 +179,19 @@ export const useCartStore = create<CartState>()(
             syncCatalogPricing: (categories, products) => set((state) => {
                 const categoryRules = buildCategoryRules(categories);
                 const productMap = new Map(products.map((product) => [product.id, product]));
-                const hydratedItems = state.items.map((item) => {
-                    const currentProduct = productMap.get(item.id);
-                    if (!currentProduct) return item;
+                const hydratedItems = state.items
+                    .map((item) => {
+                        const currentProduct = productMap.get(item.id);
+                        if (!currentProduct) return item;
 
-                    return {
-                        ...item,
-                        ...currentProduct,
-                        quantity: item.quantity,
-                        originalPrice: Number(currentProduct.price || 0),
-                    } as CartItem;
-                });
+                        return {
+                            ...item,
+                            ...currentProduct,
+                            quantity: clampCartQuantity(currentProduct, item.quantity),
+                            originalPrice: Number(currentProduct.price || 0),
+                        } as CartItem;
+                    })
+                    .filter((item) => item.quantity > 0);
 
                 return {
                     categoryRules,
@@ -191,18 +205,26 @@ export const useCartStore = create<CartState>()(
                 const existingItemIndex = newItems.findIndex(item => item.id === product.id);
 
                 if (existingItemIndex > -1) {
-                    newItems[existingItemIndex] = {
-                        ...newItems[existingItemIndex],
-                        ...product,
-                        quantity: newItems[existingItemIndex].quantity + safeQuantity,
-                        originalPrice: Number(product.price || 0),
-                    };
+                    const nextQuantity = clampCartQuantity(product, newItems[existingItemIndex].quantity + safeQuantity);
+                    if (nextQuantity <= 0) {
+                        newItems.splice(existingItemIndex, 1);
+                    } else {
+                        newItems[existingItemIndex] = {
+                            ...newItems[existingItemIndex],
+                            ...product,
+                            quantity: nextQuantity,
+                            originalPrice: Number(product.price || 0),
+                        };
+                    }
                 } else {
-                    newItems.push({
-                        ...product,
-                        quantity: safeQuantity,
-                        originalPrice: Number(product.price || 0),
-                    });
+                    const nextQuantity = clampCartQuantity(product, safeQuantity);
+                    if (nextQuantity > 0) {
+                        newItems.push({
+                            ...product,
+                            quantity: nextQuantity,
+                            originalPrice: Number(product.price || 0),
+                        });
+                    }
                 }
 
                 return { items: recalculatePrices(newItems, state.categoryRules) };
@@ -214,9 +236,8 @@ export const useCartStore = create<CartState>()(
             }),
 
             updateQuantity: (productId, quantity) => set((state) => {
-                const normalizedQuantity = Math.max(0, Math.trunc(Number(quantity) || 0));
                 const newItems = state.items
-                    .map(item => item.id === productId ? { ...item, quantity: normalizedQuantity } : item)
+                    .map(item => item.id === productId ? { ...item, quantity: clampCartQuantity(item, quantity) } : item)
                     .filter(item => item.quantity > 0);
                 return { items: recalculatePrices(newItems, state.categoryRules) };
             }),
