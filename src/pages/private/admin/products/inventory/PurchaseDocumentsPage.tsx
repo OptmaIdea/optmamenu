@@ -1242,8 +1242,8 @@ export default function PurchaseDocumentsPage() {
                             min={1}
                             className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm dark:border-gray-700 dark:bg-gray-950"
                             value={it.quantity || ''}
-                            onFocus={(e: ChangeEvent<HTMLInputElement>) => e.currentTarget.select()}
-                            onClick={(e: ChangeEvent<HTMLInputElement>) => e.currentTarget.select()}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onClick={(e) => e.currentTarget.select()}
                             onBlur={() => {
                               if (!Number.isFinite(Number(it.quantity)) || Number(it.quantity) <= 0) {
                                 updateDraftItem(idx, { quantity: 1 });
