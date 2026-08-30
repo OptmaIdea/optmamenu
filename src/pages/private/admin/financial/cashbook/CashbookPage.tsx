@@ -15,7 +15,8 @@ import {
     SlidersHorizontal,
     Save,
     X,
-    WalletCards
+    WalletCards,
+    Landmark,
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import PageContainer from '@/components/common/PageContainer';
@@ -78,8 +79,13 @@ function getStatusLabel(status?: string | null) {
     return status ? labels[status] || status : '—';
 }
 
+function isCancelledStatus(status?: string | null) {
+    return status === 'cancelled' || status === 'canceled' || status === 'voided';
+}
+
 type CashbookFormMode = 'create' | 'edit';
 type CashbookStatusFilter = 'active' | 'cancelled' | 'all';
+type ViewMode = 'libro' | 'extrato';
 
 interface CashbookFormState {
     mode: CashbookFormMode;
@@ -92,6 +98,63 @@ interface CashbookFormState {
     occurredAt: string;
     accountPlanCode: string;
     financialAccountCode: string;
+}
+
+interface FinancialAccountOption {
+    id: string;
+    name: string;
+    code: string | null;
+    account_type: string | null;
+    active: boolean;
+    sort_order?: number | null;
+}
+
+interface AccountStatementAccount {
+    id: string;
+    name: string;
+    code: string | null;
+    account_type: string | null;
+    active: boolean;
+}
+
+interface AccountStatementItem {
+    id: string;
+    entry_code: string | null;
+    entry_date: string;
+    occurred_at: string;
+    description: string;
+    notes?: string | null;
+    payment_method?: string | null;
+    payment_method_code?: string | null;
+    source?: string | null;
+    order_id?: string | null;
+    order_code?: string | null;
+    order_customer_name?: string | null;
+    customer_id?: string | null;
+    type?: string | null;
+    account_direction: 'in' | 'out';
+    signed_amount: number;
+    running_balance_after: number;
+    counterpart_account_name?: string | null;
+    counterpart_account_code?: string | null;
+    source_financial_account_id?: string | null;
+    destination_financial_account_id?: string | null;
+}
+
+interface AccountStatementResult {
+    ok: boolean;
+    error?: string;
+    scope: 'consolidated' | 'account';
+    account: AccountStatementAccount | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    opening_balance: number;
+    period_inflows: number;
+    period_outflows: number;
+    period_net: number;
+    final_balance: number;
+    total: number;
+    items: AccountStatementItem[];
 }
 
 function getDateTimeLocalValue(value?: string | null) {
@@ -126,46 +189,107 @@ function getPaymentMethodLabel(value?: string | null) {
     return labels[lower] || value.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function getAccountTypeLabel(value?: string | null) {
+    const labels: Record<string, string> = {
+        cash_drawer: 'Caixa físico',
+        bank: 'Conta bancária',
+        pix_wallet: 'Carteira Pix',
+        card_acquirer: 'Adquirente',
+        card_receivable: 'Recebíveis',
+        safe: 'Cofre',
+        owner: 'Sócio / proprietário',
+        other: 'Outra conta',
+    };
+    return value ? labels[value] || value : 'Conta financeira';
+}
+
+function formatDate(value?: string | null) {
+    if (!value) return '—';
+    const normalized = value.includes('T') ? value : `${value}T00:00:00`;
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('pt-BR');
+}
+
+function formatDateTime(value?: string | null) {
+    if (!value) return '—';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
+}
+
+function getPeriodLabel(periodFilter: string, startDate: string, endDate: string) {
+    if (periodFilter === 'all') return 'Todo o período';
+    if (startDate && endDate) return `${formatDate(startDate)} a ${formatDate(endDate)}`;
+    return 'Período selecionado';
+}
+
+function normalizeStatement(raw: Record<string, unknown>): AccountStatementResult {
+    return {
+        ok: Boolean(raw.ok),
+        error: typeof raw.error === 'string' ? raw.error : undefined,
+        scope: raw.scope === 'account' ? 'account' : 'consolidated',
+        account: raw.account && typeof raw.account === 'object' ? raw.account as AccountStatementAccount : null,
+        start_date: typeof raw.start_date === 'string' ? raw.start_date : null,
+        end_date: typeof raw.end_date === 'string' ? raw.end_date : null,
+        opening_balance: Number(raw.opening_balance || 0),
+        period_inflows: Number(raw.period_inflows || 0),
+        period_outflows: Number(raw.period_outflows || 0),
+        period_net: Number(raw.period_net || 0),
+        final_balance: Number(raw.final_balance || 0),
+        total: Number(raw.total || 0),
+        items: Array.isArray(raw.items)
+            ? raw.items.map((item) => {
+                const row = item as Record<string, unknown>;
+                return {
+                    ...row,
+                    account_direction: row.account_direction === 'out' ? 'out' : 'in',
+                    signed_amount: Number(row.signed_amount || 0),
+                    running_balance_after: Number(row.running_balance_after || 0),
+                } as AccountStatementItem;
+            })
+            : [],
+    };
+}
+
 export default function CashbookPage() {
     const { storeId, loading: loadingStore } = useCurrentStore();
 
-    // Permissões
     const { hasPermission } = usePermissions(storeId ?? null);
     const canCreateCashbookEntry = hasPermission('cashbook.create');
     const canCancelCashbookEntry = hasPermission('cashbook.cancel');
     const canExportReports = hasPermission('reports.export');
-
-    function handlePrint() {
-        if (!canExportReports) {
-            toast.error('Você não tem permissão para imprimir relatórios.');
-            return;
-        }
-        window.print();
-    }
 
     const initialDates = getPeriodDates('current_month');
     const [entries, setEntries] = useState<CashbookEntry[]>([]);
     const [summary, setSummary] = useState<CashbookSummary | null>(null);
     const [absoluteSummary, setAbsoluteSummary] = useState<CashbookSummary | null>(null);
     const [pendingAllTime, setPendingAllTime] = useState(0);
+    const [accounts, setAccounts] = useState<FinancialAccountOption[]>([]);
+    const [statement, setStatement] = useState<AccountStatementResult | null>(null);
     const [loading, setLoading] = useState(true);
+    const [statementLoading, setStatementLoading] = useState(false);
     const [startDate, setStartDate] = useState(initialDates.start);
     const [endDate, setEndDate] = useState(initialDates.end);
     const [periodFilter, setPeriodFilter] = useState('current_month');
-    const [viewMode, setViewMode] = useState<'libro' | 'extrato'>('libro');
-    const [extratoGroupType, setExtratoGroupType] = useState<'day' | 'week' | 'fortnight' | 'month'>('fortnight');
+    const [viewMode, setViewMode] = useState<ViewMode>('libro');
+    const [statementAccountId, setStatementAccountId] = useState('all');
     const [customerFilter, setCustomerFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState<CashbookStatusFilter>('active');
     const [filtersOpen, setFiltersOpen] = useState(false);
     const [selectedEntry, setSelectedEntry] = useState<CashbookEntry | null>(null);
+    const [selectedStatementItem, setSelectedStatementItem] = useState<AccountStatementItem | null>(null);
     const [formState, setFormState] = useState<CashbookFormState | null>(null);
     const [savingForm, setSavingForm] = useState(false);
+
+    const selectedAccount = useMemo(
+        () => accounts.find((account) => account.id === statementAccountId) || null,
+        [accounts, statementAccountId],
+    );
 
     const filteredEntries = useMemo(() => {
         const customerTerm = customerFilter.trim().toLowerCase();
 
         return entries.filter((entry) => {
-            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+            const isCancelled = isCancelledStatus(entry.status);
             if (statusFilter === 'active' && isCancelled) return false;
             if (statusFilter === 'cancelled' && !isCancelled) return false;
 
@@ -179,6 +303,8 @@ export default function CashbookPage() {
                     entry.customer_id,
                     entry.order_id,
                     entry.description,
+                    entry.payment_method,
+                    entry.payment_method_code,
                 ]
                     .filter(Boolean)
                     .join(' ')
@@ -200,209 +326,46 @@ export default function CashbookPage() {
             const inPeriod = (!startDate || dateKey >= startDate) && (!endDate || dateKey <= endDate);
             if (!inPeriod) return;
 
-            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
+            const amount = Number(entry.amount || 0);
+            const signed = entry.direction === 'in' ? amount : -amount;
+            const isCancelled = isCancelledStatus(entry.status);
             const isPending = !isCancelled && (
                 entry.status === 'pending' ||
                 entry.payment_method_code === 'pending' ||
-                (entry.payment_method && entry.payment_method.toLowerCase() === 'pending')
+                (entry.payment_method && entry.payment_method.toLowerCase() === 'pending') ||
+                entry.affects_balance === false
             );
 
-            if (isPending) {
-                pending += Number(entry.amount || 0);
-            } else if (isCancelled) {
-                cancelled += Number(entry.amount || 0);
-            }
+            if (isPending) pending += signed;
+            if (isCancelled) cancelled += signed;
         });
 
         return { pending, cancelled };
     }, [entries, startDate, endDate]);
 
-    const entriesWithRunningBalance = useMemo(() => {
-        // Ordena cronologicamente do mais antigo para o mais recente
-        const sorted = [...entries].sort((a, b) => {
-            const timeA = new Date(a.occurred_at || a.created_at).getTime();
-            const timeB = new Date(b.occurred_at || b.created_at).getTime();
-            return timeA - timeB;
-        });
-
-        let running = 0;
-        const balanceMap = new Map<string, number>();
-
-        sorted.forEach((entry) => {
-            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
-            if (entry.affects_balance && !isCancelled) {
-                if (entry.direction === 'in') {
-                    running += Number(entry.amount || 0);
-                } else {
-                    running -= Number(entry.amount || 0);
-                }
-            }
-            balanceMap.set(entry.id, running);
-        });
-
-        return balanceMap;
-    }, [entries]);
-
-    const groupedExtrato = useMemo(() => {
-        if (viewMode !== 'extrato') return [];
-
-        const groupsMap = new Map<string, {
-            key: string;
-            label: string;
-            dateForSort: Date;
-            entries: CashbookEntry[];
-            totalIn: number;
-            totalOut: number;
-            periodBalance: number;
-            periodRealized: number;
-            periodPending: number;
-            endingBalance: number;
-        }>();
-
-        filteredEntries.forEach((entry) => {
-            const dateObj = new Date(entry.occurred_at || entry.entry_date);
-            const dateStr = dateObj.toISOString().slice(0, 10);
-            
-            let groupKey = '';
-            let groupLabel = '';
-            let dateForSort = dateObj;
-
-            if (extratoGroupType === 'day') {
-                groupKey = dateStr;
-                groupLabel = dateObj.toLocaleDateString('pt-BR');
-                dateForSort = new Date(dateStr + 'T00:00:00.000Z');
-            } else if (extratoGroupType === 'week') {
-                const dayOfWeek = dateObj.getDay();
-                const sunday = new Date(dateObj);
-                sunday.setDate(dateObj.getDate() - dayOfWeek);
-                const saturday = new Date(sunday);
-                saturday.setDate(sunday.getDate() + 6);
-                const sundayStr = sunday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                const saturdayStr = saturday.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                
-                groupKey = sunday.toISOString().slice(0, 10);
-                groupLabel = `Semana de ${sundayStr} a ${saturdayStr}`;
-                dateForSort = new Date(groupKey + 'T00:00:00.000Z');
-            } else if (extratoGroupType === 'fortnight') {
-                const year = dateObj.getFullYear();
-                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                const day = dateObj.getDate();
-                const q = day <= 15 ? 'Q1' : 'Q2';
-                groupKey = `${year}-${month}-${q}`;
-                
-                const monthName = dateObj.toLocaleString('pt-BR', { month: 'long' });
-                const monthYearLabel = `${month}/${year}`;
-                groupLabel = q === 'Q1' 
-                    ? `Quinzena 1 - ${monthYearLabel} (1 a 15 de ${monthName})` 
-                    : `Quinzena 2 - ${monthYearLabel} (16 a ${new Date(year, dateObj.getMonth() + 1, 0).getDate()} de ${monthName})`;
-                
-                dateForSort = q === 'Q1' 
-                    ? new Date(year, dateObj.getMonth(), 1)
-                    : new Date(year, dateObj.getMonth(), 16);
-            } else { // month
-                const year = dateObj.getFullYear();
-                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-                groupKey = `${year}-${month}`;
-                const monthName = dateObj.toLocaleString('pt-BR', { month: 'long' });
-                groupLabel = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} de ${year}`;
-                dateForSort = new Date(year, dateObj.getMonth(), 1);
-            }
-
-            if (!groupsMap.has(groupKey)) {
-                groupsMap.set(groupKey, {
-                    key: groupKey,
-                    label: groupLabel,
-                    dateForSort,
-                    entries: [],
-                    totalIn: 0,
-                    totalOut: 0,
-                    periodBalance: 0,
-                    periodRealized: 0,
-                    periodPending: 0,
-                    endingBalance: 0,
-                });
-            }
-
-            const g = groupsMap.get(groupKey)!;
-            g.entries.push(entry);
-
-            const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
-
-            const isPending =
-                !isCancelled &&
-                (
-                    entry.status === 'pending' ||
-                    entry.payment_method_code === 'pending' ||
-                    entry.payment_method?.toLowerCase() === 'pending' ||
-                    entry.affects_balance === false
-                );
-
-            const isRealized = !isCancelled && !isPending && entry.affects_balance === true;
-
-            const amountVal = Number(entry.amount || 0);
-            const signedAmount = entry.direction === 'in' ? amountVal : -amountVal;
-
-            if (isRealized) {
-                if (entry.direction === 'in') {
-                    g.totalIn += amountVal;
-                } else {
-                    g.totalOut += amountVal;
-                }
-
-                g.periodRealized += signedAmount;
-                g.periodBalance += signedAmount;
-            }
-
-            if (isPending) {
-                g.periodPending += signedAmount;
-            }
-        });
-
-        const sortedGroups = Array.from(groupsMap.values()).sort((a, b) => {
-            return b.dateForSort.getTime() - a.dateForSort.getTime();
-        });
-
-        sortedGroups.forEach((g) => {
-            const sortedEntries = [...g.entries].sort((a, b) => {
-                return new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime();
+    const loadStatement = useCallback(async () => {
+        if (!storeId) return;
+        try {
+            setStatementLoading(true);
+            const { data, error } = await supabase.rpc('list_financial_account_statement_safe', {
+                p_store_id: storeId,
+                p_account_id: statementAccountId === 'all' ? null : statementAccountId,
+                p_start_date: periodFilter === 'all' ? null : (startDate || null),
+                p_end_date: periodFilter === 'all' ? null : (endDate || null),
+                p_limit: 500,
+                p_offset: 0,
             });
-
-            const activeEntry = sortedEntries.find(e => e.affects_balance && e.status !== 'cancelled' && e.status !== 'canceled');
-            if (activeEntry) {
-                g.endingBalance = entriesWithRunningBalance.get(activeEntry.id) || 0;
-            } else {
-                g.endingBalance = 0;
-                let limitTime = 0;
-                if (extratoGroupType === 'day') {
-                    limitTime = new Date(g.dateForSort.getTime() + 24 * 3600 * 1000).getTime();
-                } else if (extratoGroupType === 'week') {
-                    limitTime = new Date(g.dateForSort.getTime() + 7 * 24 * 3600 * 1000).getTime();
-                } else if (extratoGroupType === 'fortnight') {
-                    const isQ1 = g.key.endsWith('Q1');
-                    const year = g.dateForSort.getFullYear();
-                    const month = g.dateForSort.getMonth();
-                    limitTime = isQ1 
-                        ? new Date(year, month, 16).getTime()
-                        : new Date(year, month + 1, 1).getTime();
-                } else { // month
-                    const year = g.dateForSort.getFullYear();
-                    const month = g.dateForSort.getMonth();
-                    limitTime = new Date(year, month + 1, 1).getTime();
-                }
-
-                const pastEntries = [...entries]
-                    .filter(e => e.affects_balance && e.status !== 'cancelled' && e.status !== 'canceled')
-                    .sort((a, b) => new Date(b.occurred_at || b.created_at).getTime() - new Date(a.occurred_at || a.created_at).getTime());
-                
-                const matched = pastEntries.find(e => new Date(e.occurred_at || e.created_at).getTime() < limitTime);
-                if (matched) {
-                    g.endingBalance = entriesWithRunningBalance.get(matched.id) || 0;
-                }
-            }
-        });
-
-        return sortedGroups;
-    }, [viewMode, filteredEntries, startDate, endDate, extratoGroupType, entriesWithRunningBalance, entries]);
+            if (error) throw error;
+            const normalized = normalizeStatement((data || {}) as Record<string, unknown>);
+            if (!normalized.ok) throw new Error(normalized.error || 'Erro ao carregar extrato.');
+            setStatement(normalized);
+        } catch (error) {
+            console.error('Erro ao carregar extrato financeiro:', error);
+            toast.error(error instanceof Error ? error.message : 'Erro ao carregar extrato financeiro.');
+        } finally {
+            setStatementLoading(false);
+        }
+    }, [endDate, periodFilter, startDate, statementAccountId, storeId]);
 
     const loadData = useCallback(async () => {
         if (!storeId) return;
@@ -418,7 +381,7 @@ export default function CashbookPage() {
             const absoluteStart = '1970-01-01';
             const absoluteEnd = getDateInputValue(today);
 
-            const [entriesData, summaryData, absoluteSummaryData, pendingEntriesResult] = await Promise.all([
+            const [entriesData, summaryData, absoluteSummaryData, pendingEntriesResult, accountsResult] = await Promise.all([
                 CashbookService.listByStore(storeId, rangeStart, rangeEnd),
                 CashbookService.getSummary(storeId, rangeStart || absoluteStart, rangeEnd || absoluteEnd),
                 CashbookService.getSummary(storeId, absoluteStart, absoluteEnd),
@@ -428,8 +391,17 @@ export default function CashbookPage() {
                     .eq('store_id', storeId)
                     .neq('status', 'cancelled')
                     .neq('status', 'canceled')
-                    .or("status.eq.pending,payment_method_code.eq.pending")
+                    .or('status.eq.pending,payment_method_code.eq.pending'),
+                supabase
+                    .from('store_financial_accounts')
+                    .select('id, name, code, account_type, active, sort_order')
+                    .eq('store_id', storeId)
+                    .order('active', { ascending: false })
+                    .order('sort_order', { ascending: true })
+                    .order('name', { ascending: true }),
             ]);
+
+            if (accountsResult.error) throw accountsResult.error;
 
             const totalPending = (pendingEntriesResult.data || []).reduce((sum, item) => {
                 const amount = Number(item.amount || 0);
@@ -440,8 +412,10 @@ export default function CashbookPage() {
             setSummary(summaryData);
             setAbsoluteSummary(absoluteSummaryData);
             setPendingAllTime(totalPending);
+            setAccounts((accountsResult.data || []) as FinancialAccountOption[]);
         } catch (err) {
             console.error('Erro ao carregar dados do livro de caixa:', err);
+            toast.error(err instanceof Error ? err.message : 'Erro ao carregar dados do livro de caixa.');
         } finally {
             setLoading(false);
         }
@@ -449,9 +423,23 @@ export default function CashbookPage() {
 
     useEffect(() => {
         if (!loadingStore && storeId) {
-            loadData();
+            void loadData();
         }
     }, [loadData, loadingStore, storeId]);
+
+    useEffect(() => {
+        if (!loadingStore && storeId) {
+            void loadStatement();
+        }
+    }, [loadStatement, loadingStore, storeId]);
+
+    function handlePrint() {
+        if (!canExportReports) {
+            toast.error('Você não tem permissão para imprimir relatórios.');
+            return;
+        }
+        window.print();
+    }
 
     function openCreateForm(direction: CashbookDirection) {
         setFormState({
@@ -497,12 +485,12 @@ export default function CashbookPage() {
         const isSaleEdit = formState.mode === 'edit' && formState.entry?.type === 'sale';
 
         if (!formState.description.trim()) {
-            alert('Informe uma descrição.');
+            toast.error('Informe uma descrição.');
             return;
         }
 
         if (!isSaleEdit && (!Number.isFinite(amount) || amount <= 0)) {
-            alert('Informe um valor maior que zero.');
+            toast.error('Informe um valor maior que zero.');
             return;
         }
 
@@ -548,20 +536,11 @@ export default function CashbookPage() {
 
             setFormState(null);
             await loadData();
+            await loadStatement();
         } catch (error) {
-            const message = error instanceof Error
-                ? error.message
-                : 'Erro ao salvar lançamento.';
-
-            const isExpectedBusinessRule =
-                message.includes('Saldo insuficiente no caixa físico');
-
-            if (isExpectedBusinessRule) {
-                toast.error(message);
-                return;
-            }
-
-            console.error('Erro ao salvar lançamento:', error);
+            const message = error instanceof Error ? error.message : 'Erro ao salvar lançamento.';
+            const isExpectedBusinessRule = message.includes('Saldo insuficiente no caixa físico');
+            if (!isExpectedBusinessRule) console.error('Erro ao salvar lançamento:', error);
             toast.error(message);
         } finally {
             setSavingForm(false);
@@ -581,21 +560,30 @@ export default function CashbookPage() {
         try {
             await CashbookService.cancel(storeId, entry.id);
             await loadData();
+            await loadStatement();
         } catch (error) {
             console.error('Erro ao cancelar lançamento:', error);
             toast.error('Erro ao cancelar lançamento.');
         }
     }
 
-    if (loadingStore || (loading && entries.length === 0)) return <LoadingSpinner />;
+    if (loadingStore || (loading && entries.length === 0 && !statement)) return <LoadingSpinner />;
+
+    const periodLabel = getPeriodLabel(periodFilter, startDate, endDate);
+    const statementScopeLabel = statementAccountId === 'all'
+        ? 'Todas as contas'
+        : selectedAccount?.name || statement?.account?.name || 'Conta selecionada';
+    const statementScopeDetail = statementAccountId === 'all'
+        ? 'Extrato consolidado da loja'
+        : `${getAccountTypeLabel(selectedAccount?.account_type || statement?.account?.account_type)}${selectedAccount?.code ? ` · ${selectedAccount.code}` : ''}`;
 
     return (
         <PageContainer
             title="Livro diário de caixa"
-            subtitle="Gerencie entradas, saídas e lançamentos financeiros simples da loja."
+            subtitle="Lançamentos operacionais e extrato financeiro por conta, com saldo acumulado real."
             category="Financeiro"
             icon={<WalletCards size={28} className="text-[#19A999]" />}
-            onRefresh={loadData}
+            onRefresh={() => { void loadData(); void loadStatement(); }}
             action={
                 <div className="grid w-full max-w-full grid-cols-1 gap-2 min-[430px]:grid-cols-3 sm:flex sm:w-auto sm:items-center">
                     {canCreateCashbookEntry && (
@@ -631,109 +619,137 @@ export default function CashbookPage() {
             }
             flat
         >
-
-            {/* Stats Cards */}
-            <div className="grid max-w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
-                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
-                    <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400 mb-3">
-                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl">
-                            <TrendingUp size={20} />
-                        </div>
-                        <span className="text-xs font-black uppercase tracking-widest">Entradas</span>
-                    </div>
-                    <div className="text-2xl font-black text-gray-900 dark:text-white">
-                        {formatCurrencyPtBr(summary?.total_in || 0)}
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">No período</p>
-                </div>
-
-                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
-                    <div className="flex items-center gap-3 text-rose-600 dark:text-rose-400 mb-3">
-                        <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-xl">
-                            <TrendingDown size={20} />
-                        </div>
-                        <span className="text-xs font-black uppercase tracking-widest">Saídas</span>
-                    </div>
-                    <div className="text-2xl font-black text-gray-900 dark:text-white">
-                        {formatCurrencyPtBr(summary?.total_out || 0)}
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">No período</p>
-                </div>
-
-                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
-                    <div className="flex items-center gap-3 text-[#19A999] mb-3">
-                        <div className="p-2 bg-[#19A999]/10 rounded-xl">
-                            <Wallet size={20} />
-                        </div>
-                        <span className="text-xs font-black uppercase tracking-widest">Saldo Atual</span>
-                    </div>
-                    <div className={`text-2xl font-black ${((absoluteSummary?.balance || 0) >= 0) ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>
-                        {formatCurrencyPtBr(absoluteSummary?.balance || 0)}
-                    </div>
-                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-bold mt-1.5 flex justify-between items-center border-t border-gray-100 dark:border-gray-700 pt-1.5">
-                        <span>Realizado + Pendente:</span>
-                        <span>{formatCurrencyPtBr((absoluteSummary?.balance || 0) + pendingAllTime)}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Total acumulado</p>
-                </div>
-
-                <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm transition hover:shadow-md dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
-                    <div className="flex items-center gap-3 text-[#FAA832] mb-3">
-                        <div className="p-2 bg-[#FAA832]/10 rounded-xl">
-                            <History size={20} />
-                        </div>
-                        <span className="text-xs font-black uppercase tracking-widest">Pendente / Cancelado</span>
-                    </div>
-                    <div className="text-sm font-black text-gray-900 dark:text-white space-y-1.5 mt-1">
-                        <div className="flex justify-between items-center text-amber-600 dark:text-amber-400">
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Pendente:</span>
-                            <span className="text-base tracking-tighter font-extrabold">{formatCurrencyPtBr(pendingAndCancelledSums.pending)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-gray-400 dark:text-gray-500">
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Cancelado:</span>
-                            <span className="text-base tracking-tighter line-through font-extrabold">{formatCurrencyPtBr(pendingAndCancelledSums.cancelled)}</span>
-                        </div>
-                    </div>
-                    <p className="text-[10px] text-gray-400 mt-2.5 uppercase font-bold tracking-tighter">Período selecionado</p>
-                </div>
+            <div className="rounded-2xl border border-teal-100 bg-teal-50/80 p-4 text-sm font-bold text-teal-900 dark:border-teal-900/60 dark:bg-teal-950/20 dark:text-teal-100">
+                <span className="font-black">Como ler esta tela:</span> no <strong>Modo Livro</strong>, os cards mostram lançamentos operacionais do período. No <strong>Modo Extrato</strong>, o saldo é financeiro: escolha <strong>Todas as contas</strong> ou uma conta específica para ver saldo inicial, entradas, saídas, resultado e saldo final daquele escopo.
             </div>
+
+            {viewMode === 'libro' ? (
+                <div className="grid max-w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
+                    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
+                        <div className="mb-3 flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
+                            <div className="rounded-xl bg-emerald-50 p-2 dark:bg-emerald-900/20"><TrendingUp size={20} /></div>
+                            <span className="text-xs font-black uppercase tracking-widest">Entradas</span>
+                        </div>
+                        <div className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(summary?.total_in || 0)}</div>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">No período: {periodLabel}</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
+                        <div className="mb-3 flex items-center gap-3 text-rose-600 dark:text-rose-400">
+                            <div className="rounded-xl bg-rose-50 p-2 dark:bg-rose-900/20"><TrendingDown size={20} /></div>
+                            <span className="text-xs font-black uppercase tracking-widest">Saídas</span>
+                        </div>
+                        <div className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(summary?.total_out || 0)}</div>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">No período: {periodLabel}</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
+                        <div className="mb-3 flex items-center gap-3 text-[#19A999]">
+                            <div className="rounded-xl bg-[#19A999]/10 p-2"><Wallet size={20} /></div>
+                            <span className="text-xs font-black uppercase tracking-widest">Resultado</span>
+                        </div>
+                        <div className={`text-2xl font-black ${(summary?.balance || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(summary?.balance || 0)}</div>
+                        <p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">Entradas - saídas do período</p>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6">
+                        <div className="mb-3 flex items-center gap-3 text-[#FAA832]">
+                            <div className="rounded-xl bg-[#FAA832]/10 p-2"><History size={20} /></div>
+                            <span className="text-xs font-black uppercase tracking-widest">Não realizado</span>
+                        </div>
+                        <div className="space-y-1.5 text-sm font-black text-gray-900 dark:text-white">
+                            <div className="flex items-center justify-between text-amber-600 dark:text-amber-400"><span className="text-[10px] uppercase tracking-wide">Pendente</span><span>{formatCurrencyPtBr(pendingAndCancelledSums.pending)}</span></div>
+                            <div className="flex items-center justify-between text-gray-400"><span className="text-[10px] uppercase tracking-wide">Cancelado</span><span className="line-through">{formatCurrencyPtBr(pendingAndCancelledSums.cancelled)}</span></div>
+                        </div>
+                        <p className="mt-2 text-[10px] font-bold uppercase tracking-tighter text-gray-400">Do período filtrado</p>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-4">
+                    <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Extrato financeiro</p>
+                                <h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{statementScopeLabel}</h2>
+                                <p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{statementScopeDetail} · {periodLabel}</p>
+                            </div>
+                            <label className="w-full max-w-md space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Conta do extrato</span>
+                                <select
+                                    value={statementAccountId}
+                                    onChange={(event) => setStatementAccountId(event.target.value)}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                                >
+                                    <option value="all">Todas as contas — consolidado</option>
+                                    {accounts.map((account) => (
+                                        <option key={account.id} value={account.id}>
+                                            {account.name}{account.active ? '' : ' (inativa)'}{account.code ? ` · ${account.code}` : ''}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Saldo inicial</p>
+                            <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(statement?.opening_balance || 0)}</p>
+                            <p className="mt-1 text-[10px] font-bold uppercase text-gray-400">Antes do período</p>
+                        </div>
+                        <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-black uppercase tracking-widest text-emerald-600">Entradas</p>
+                            <p className="mt-2 text-2xl font-black text-emerald-600">{formatCurrencyPtBr(statement?.period_inflows || 0)}</p>
+                            <p className="mt-1 text-[10px] font-bold uppercase text-gray-400">Neste período</p>
+                        </div>
+                        <div className="rounded-2xl border border-rose-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-black uppercase tracking-widest text-rose-600">Saídas</p>
+                            <p className="mt-2 text-2xl font-black text-rose-600">{formatCurrencyPtBr(statement?.period_outflows || 0)}</p>
+                            <p className="mt-1 text-[10px] font-bold uppercase text-gray-400">Neste período</p>
+                        </div>
+                        <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Resultado</p>
+                            <p className={`mt-2 text-2xl font-black ${(statement?.period_net || 0) >= 0 ? 'text-[#19A999]' : 'text-rose-600'}`}>{formatCurrencyPtBr(statement?.period_net || 0)}</p>
+                            <p className="mt-1 text-[10px] font-bold uppercase text-gray-400">Entradas - saídas</p>
+                        </div>
+                        <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 shadow-sm dark:border-teal-900/60 dark:bg-teal-950/20">
+                            <p className="text-xs font-black uppercase tracking-widest text-teal-700 dark:text-teal-300">Saldo final</p>
+                            <p className={`mt-2 text-2xl font-black ${(statement?.final_balance || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(statement?.final_balance || 0)}</p>
+                            <p className="mt-1 text-[10px] font-bold uppercase text-gray-500">{statementScopeLabel}</p>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <div className="my-6">
                 <PendingReceivablesPanel
                     storeId={storeId}
                     entries={entries}
                     canConfirm={canCreateCashbookEntry}
-                    onConfirmed={loadData}
+                    onConfirmed={() => { void loadData(); void loadStatement(); }}
                 />
             </div>
 
-            {/* Entries List */}
             <div className="max-w-full overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-700 sm:flex-row sm:items-center sm:justify-between sm:p-6">
                     <div className="flex items-center gap-2">
                         <History size={18} className="text-gray-400" />
-                        <h2 className="font-black text-gray-900 dark:text-white uppercase tracking-tight">Últimos Lançamentos</h2>
+                        <h2 className="font-black uppercase tracking-tight text-gray-900 dark:text-white">
+                            {viewMode === 'extrato' ? 'Extrato com saldo acumulado' : 'Últimos lançamentos'}
+                        </h2>
                     </div>
-                    <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900/60 p-1 rounded-xl">
+                    <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-900/60">
                         <button
                             type="button"
                             onClick={() => setViewMode('libro')}
-                            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
-                                viewMode === 'libro'
-                                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-                            }`}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${viewMode === 'libro' ? 'bg-white text-gray-900 shadow-xs dark:bg-gray-800 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
                         >
                             Modo Livro
                         </button>
                         <button
                             type="button"
                             onClick={() => setViewMode('extrato')}
-                            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${
-                                viewMode === 'extrato'
-                                    ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xs'
-                                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-                            }`}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${viewMode === 'extrato' ? 'bg-white text-gray-900 shadow-xs dark:bg-gray-800 dark:text-white' : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'}`}
                         >
                             Modo Extrato
                         </button>
@@ -748,64 +764,65 @@ export default function CashbookPage() {
                         </button>
                     </div>
                     <div className={`${filtersOpen ? 'grid' : 'hidden'} grid-cols-1 gap-3 p-3 sm:p-4 md:grid ${viewMode === 'extrato' ? 'md:grid-cols-6' : 'md:grid-cols-5'}`}>
-                    <DateRangeFilter
-                        periodFilter={periodFilter}
-                        onPeriodChange={setPeriodFilter}
-                        startDate={startDate}
-                        onStartDateChange={setStartDate}
-                        endDate={endDate}
-                        onEndDateChange={setEndDate}
-                        className="col-span-1 md:col-span-3"
-                    />
+                        <DateRangeFilter
+                            periodFilter={periodFilter}
+                            onPeriodChange={setPeriodFilter}
+                            startDate={startDate}
+                            onStartDateChange={setStartDate}
+                            endDate={endDate}
+                            onEndDateChange={setEndDate}
+                            className="col-span-1 md:col-span-3"
+                        />
 
-                    <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cliente em venda</span>
-                        <div className="relative">
-                            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                            <input
-                                value={customerFilter}
-                                onChange={(event) => setCustomerFilter(event.target.value)}
-                                placeholder="Nome, descrição, pedido ou cliente"
-                                className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                            />
-                        </div>
-                    </label>
+                        {viewMode === 'extrato' ? (
+                            <label className="space-y-1 md:col-span-2">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Conta</span>
+                                <select
+                                    value={statementAccountId}
+                                    onChange={(event) => setStatementAccountId(event.target.value)}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                >
+                                    <option value="all">Todas as contas — consolidado</option>
+                                    {accounts.map((account) => (
+                                        <option key={account.id} value={account.id}>{account.name}{account.active ? '' : ' (inativa)'}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        ) : (
+                            <label className="space-y-1">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cliente em venda</span>
+                                <div className="relative">
+                                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        value={customerFilter}
+                                        onChange={(event) => setCustomerFilter(event.target.value)}
+                                        placeholder="Nome, descrição, pedido ou cliente"
+                                        className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                    />
+                                </div>
+                            </label>
+                        )}
 
-                    <label className="space-y-1">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</span>
-                        <select
-                            value={statusFilter}
-                            onChange={(event) => setStatusFilter(event.target.value as CashbookStatusFilter)}
-                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                        >
-                            <option value="active">Ativos</option>
-                            <option value="cancelled">Cancelados</option>
-                            <option value="all">Todos</option>
-                        </select>
-                    </label>
-
-                    {viewMode === 'extrato' && (
                         <label className="space-y-1">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Agrupar por</span>
+                            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</span>
                             <select
-                                value={extratoGroupType}
-                                onChange={(event) => setExtratoGroupType(event.target.value as any)}
+                                value={statusFilter}
+                                onChange={(event) => setStatusFilter(event.target.value as CashbookStatusFilter)}
                                 className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                                disabled={viewMode === 'extrato'}
                             >
-                                <option value="day">Diário</option>
-                                <option value="week">Semanal</option>
-                                <option value="fortnight">Quinzenal</option>
-                                <option value="month">Mensal</option>
+                                <option value="active">Ativos</option>
+                                <option value="cancelled">Cancelados</option>
+                                <option value="all">Todos</option>
                             </select>
                         </label>
-                    )}
                     </div>
                 </div>
 
                 {viewMode === 'libro' ? (
                     <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-                        <table className="min-w-[660px] w-full text-sm">
-                            <thead className="bg-gray-50 dark:bg-gray-900/40 text-gray-400 uppercase text-[10px] font-black tracking-widest">
+                        <table className="w-full min-w-[660px] text-sm">
+                            <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:bg-gray-900/40">
                                 <tr>
                                     <th className="px-6 py-4 text-left">Data</th>
                                     <th className="px-6 py-4 text-left">Descrição</th>
@@ -815,297 +832,103 @@ export default function CashbookPage() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                                {filteredEntries.length > 0 ? (
-                                    filteredEntries.map((entry) => {
-                                        const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
-                                        const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : '';
-
-                                        return (
+                                {filteredEntries.length > 0 ? filteredEntries.map((entry) => {
+                                    const isCancelled = isCancelledStatus(entry.status);
+                                    const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : '';
+                                    return (
                                         <tr key={entry.id} className={`transition ${isCancelled ? 'bg-gray-50/70 opacity-75 dark:bg-gray-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
-                                            <td className={`px-6 py-4 whitespace-nowrap font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
-                                                {new Date(entry.occurred_at).toLocaleDateString('pt-BR')}
-                                            </td>
+                                            <td className={`whitespace-nowrap px-6 py-4 font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>{formatDate(entry.occurred_at)}</td>
                                             <td className="px-6 py-4">
                                                 <div className={`font-bold tracking-tight ${isCancelled ? cancelledClass : 'text-gray-900 dark:text-white'}`}>
-                                                    {entry.type === 'sale' ? (
-                                                        <>
-                                                            Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}
-                                                        </>
-                                                    ) : (
-                                                        entry.description
-                                                    )}
+                                                    {entry.type === 'sale' ? <>Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}</> : entry.description}
                                                 </div>
-                                                {entry.type === 'sale' && (
-                                                    <div className={`mt-1 text-xs font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
-                                                        Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
-                                                    </div>
-                                                )}
-                                                {(entry.payment_method_code || entry.payment_method) && (
-                                                    <div className={`text-[10px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>
-                                                        {getPaymentMethodLabel(entry.payment_method_code || entry.payment_method)}
-                                                    </div>
-                                                )}
+                                                {entry.type === 'sale' && <div className={`mt-1 text-xs font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}</div>}
+                                                {(entry.payment_method_code || entry.payment_method) && <div className={`text-[10px] font-black uppercase tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{getPaymentMethodLabel(entry.payment_method_code || entry.payment_method)}</div>}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
+                                            <td className="whitespace-nowrap px-6 py-4">
                                                 <div className="flex items-center gap-2">
-                                                    {entry.direction === 'in' ? (
-                                                        <ArrowUpCircle size={16} className="text-emerald-500" />
-                                                    ) : (
-                                                        <ArrowDownCircle size={16} className="text-rose-500" />
-                                                    )}
-                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
-                                                        {entry.direction === 'in' ? 'Entrada' : 'Saída'}
-                                                    </span>
+                                                    {entry.direction === 'in' ? <ArrowUpCircle size={16} className="text-emerald-500" /> : <ArrowDownCircle size={16} className="text-rose-500" />}
+                                                    <span className={`text-[10px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>{entry.direction === 'in' ? 'Entrada' : 'Saída'}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right font-black tracking-tighter">
-                                                 <div className={isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
-                                                     {entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}
-                                                 </div>
-                                                 <div className="text-[10px] text-gray-400 dark:text-gray-500 font-bold mt-0.5">
-                                                     Saldo: {formatCurrencyPtBr(entriesWithRunningBalance.get(entry.id) || 0)}
-                                                 </div>
-                                             </td>
+                                            <td className="whitespace-nowrap px-6 py-4 text-right font-black tracking-tighter">
+                                                <div className={isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}>{entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}</div>
+                                            </td>
                                             <td className="px-6 py-4 text-right">
                                                 <div className="flex justify-end gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setSelectedEntry(entry)}
-                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                        title="Ver detalhes"
-                                                        aria-label="Ver detalhes"
-                                                    >
-                                                        <Eye size={15} />
-                                                    </button>
-                                                    {canCreateCashbookEntry && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => openEditForm(entry)}
-                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                            title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                            aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                        >
-                                                            <Edit2 size={15} />
-                                                        </button>
-                                                    )}
-                                                    {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleCancelEntry(entry)}
-                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                                                            title="Cancelar lançamento"
-                                                            aria-label="Cancelar lançamento"
-                                                        >
-                                                            <Ban size={15} />
-                                                        </button>
-                                                    )}
+                                                    <button type="button" onClick={() => setSelectedEntry(entry)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title="Ver detalhes" aria-label="Ver detalhes"><Eye size={15} /></button>
+                                                    {canCreateCashbookEntry && <button type="button" onClick={() => openEditForm(entry)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'} aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}><Edit2 size={15} /></button>}
+                                                    {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && <button type="button" onClick={() => handleCancelEntry(entry)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30" title="Cancelar lançamento" aria-label="Cancelar lançamento"><Ban size={15} /></button>}
                                                 </div>
                                             </td>
                                         </tr>
-                                        );
-                                    })
-                                ) : (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-16 text-center text-gray-400 italic">
-                                            Nenhum lançamento encontrado.
-                                        </td>
-                                    </tr>
+                                    );
+                                }) : (
+                                    <tr><td colSpan={5} className="px-6 py-16 text-center italic text-gray-400">Nenhum lançamento encontrado.</td></tr>
                                 )}
                             </tbody>
                         </table>
                     </div>
                 ) : (
-                    <div className="p-6 space-y-6">
-                        {groupedExtrato.length > 0 ? (
-                            groupedExtrato.map((group) => {
-                                return (
-                                    <div key={group.key} className="border border-gray-100 dark:border-gray-800 rounded-2xl overflow-hidden shadow-xs bg-gray-50/50 dark:bg-gray-900/10">
-                                        {/* Group Header */}
-                                        <div className="bg-gray-50 dark:bg-gray-900/60 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-gray-100 dark:border-gray-800">
-                                            <div>
-                                                <h3 className="font-extrabold text-sm text-gray-800 dark:text-gray-200">
-                                                    {group.label}
-                                                </h3>
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[840px] text-sm">
+                            <thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:bg-gray-900/40">
+                                <tr>
+                                    <th className="px-6 py-4 text-left">Data</th>
+                                    <th className="px-6 py-4 text-left">Lançamento</th>
+                                    <th className="px-6 py-4 text-left">Forma</th>
+                                    <th className="px-6 py-4 text-right">Entrada</th>
+                                    <th className="px-6 py-4 text-right">Saída</th>
+                                    <th className="px-6 py-4 text-right">Saldo após</th>
+                                    <th className="px-6 py-4 text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                                {statementLoading ? (
+                                    <tr><td colSpan={7} className="px-6 py-16 text-center font-bold text-gray-400">Carregando extrato financeiro...</td></tr>
+                                ) : statement && statement.items.length > 0 ? statement.items.map((item) => (
+                                    <tr key={item.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="whitespace-nowrap px-6 py-4 font-medium text-gray-500 dark:text-gray-400">{formatDate(item.occurred_at)}</td>
+                                        <td className="px-6 py-4">
+                                            <div className="font-bold tracking-tight text-gray-900 dark:text-white">{item.description}</div>
+                                            <div className="mt-1 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-tighter text-gray-400">
+                                                {item.order_code && <span>{item.order_code}</span>}
+                                                {item.order_customer_name && <span>Cliente: {item.order_customer_name}</span>}
+                                                {item.counterpart_account_name && <span>Contrapartida: {item.counterpart_account_name}</span>}
                                             </div>
-                                            <div className="flex flex-wrap items-center gap-4 text-xs font-black">
-                                                <div className="text-gray-500 dark:text-gray-400">
-                                                    SALDO ANTERIOR: <span className="font-extrabold">{formatCurrencyPtBr(group.endingBalance - group.periodRealized)}</span>
-                                                </div>
-                                                <div className="text-emerald-600 dark:text-emerald-400">
-                                                    ENTRADAS: <span className="font-extrabold">+{formatCurrencyPtBr(group.totalIn)}</span>
-                                                </div>
-                                                <div className="text-rose-600 dark:text-rose-400">
-                                                    SAÍDAS: <span className="font-extrabold">-{formatCurrencyPtBr(group.totalOut)}</span>
-                                                </div>
-                                                <div className="h-4 w-px bg-gray-200 dark:bg-gray-800 hidden sm:block" />
-                                                <div className="text-gray-900 dark:text-white flex items-center gap-1">
-                                                    <span>SALDO DO PERÍODO:</span>
-                                                    <span className={group.periodRealized >= 0 ? 'text-[#19A999]' : 'text-rose-600'}>
-                                                        {formatCurrencyPtBr(group.periodRealized)}
-                                                    </span>
-                                                    <span className="text-[9px] text-gray-400 font-normal">
-                                                        ({formatCurrencyPtBr(group.periodRealized)} real. / <span className="text-[#FAA832] font-extrabold">{formatCurrencyPtBr(group.periodPending)} pend.</span>)
-                                                    </span>
-                                                </div>
-                                                <div className="text-gray-900 dark:text-white bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-2xs">
-                                                    FECHAMENTO: <span className={group.endingBalance >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}>
-                                                        {formatCurrencyPtBr(group.endingBalance)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Group Transactions List */}
-                                        <div className="overflow-x-auto bg-white dark:bg-gray-800">
-                                            <table className="w-full text-xs">
-                                                <thead className="bg-gray-50/50 dark:bg-gray-900/20 text-gray-400 uppercase text-[9px] font-black tracking-widest border-b border-gray-100 dark:border-gray-800">
-                                                    <tr>
-                                                        <th className="px-5 py-3 text-left">Data</th>
-                                                        <th className="px-5 py-3 text-left">Descrição</th>
-                                                        <th className="px-5 py-3 text-left">Tipo</th>
-                                                        <th className="px-5 py-3 text-right">Valor</th>
-                                                        <th className="px-5 py-3 text-right">Ações</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                                                    {group.entries.map((entry) => {
-                                                        const isCancelled = entry.status === 'cancelled' || entry.status === 'canceled';
-                                                        const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : '';
-                                                        return (
-                                                            <tr key={entry.id} className={`transition ${isCancelled ? 'bg-gray-50/70 opacity-75 dark:bg-gray-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}>
-                                                                <td className={`px-5 py-3 whitespace-nowrap font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                    {new Date(entry.occurred_at).toLocaleDateString('pt-BR')}
-                                                                </td>
-                                                                <td className="px-5 py-3">
-                                                                    <div className={`font-bold tracking-tight ${isCancelled ? cancelledClass : 'text-gray-900 dark:text-white'}`}>
-                                                                        {entry.type === 'sale' ? (
-                                                                            <>Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}</>
-                                                                        ) : (
-                                                                            entry.description
-                                                                        )}
-                                                                    </div>
-                                                                    {entry.type === 'sale' && (
-                                                                        <div className={`mt-0.5 text-[10px] font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>
-                                                                            Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}
-                                                                        </div>
-                                                                    )}
-                                                                    {(entry.payment_method_code || entry.payment_method) && (
-                                                                        <div className={`text-[9px] uppercase font-black tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>
-                                                                            {getPaymentMethodLabel(entry.payment_method_code || entry.payment_method)}
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-5 py-3 whitespace-nowrap">
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        {entry.direction === 'in' ? (
-                                                                            <ArrowUpCircle size={14} className="text-emerald-500" />
-                                                                        ) : (
-                                                                            <ArrowDownCircle size={14} className="text-rose-500" />
-                                                                        )}
-                                                                        <span className={`text-[9px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>
-                                                                            {entry.direction === 'in' ? 'Entrada' : 'Saída'}
-                                                                        </span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-5 py-3 whitespace-nowrap text-right font-black tracking-tighter">
-                                                                    <div className={isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}>
-                                                                        {entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}
-                                                                    </div>
-                                                                    <div className="text-[9px] text-gray-400 dark:text-gray-500 font-bold mt-0.5">
-                                                                        Saldo: {formatCurrencyPtBr(entriesWithRunningBalance.get(entry.id) || 0)}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-5 py-3 text-right">
-                                                                    <div className="flex justify-end gap-1.5">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => setSelectedEntry(entry)}
-                                                                            className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                                            title="Ver detalhes"
-                                                                        >
-                                                                            <Eye size={13} />
-                                                                        </button>
-                                                                        {canCreateCashbookEntry && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => openEditForm(entry)}
-                                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                                                title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}
-                                                                            >
-                                                                                <Edit2 size={13} />
-                                                                            </button>
-                                                                        )}
-                                                                        {entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => handleCancelEntry(entry)}
-                                                                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30"
-                                                                                title="Cancelar lançamento"
-                                                                            >
-                                                                                <Ban size={13} />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                );
-                            })
-                        ) : (
-                            <div className="py-16 text-center text-gray-400 italic">
-                                Nenhum lançamento agrupado encontrado para este período.
-                            </div>
-                        )}
+                                        </td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-xs font-black uppercase text-gray-500 dark:text-gray-400">{getPaymentMethodLabel(item.payment_method_code || item.payment_method)}</td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-right font-black text-emerald-600">{item.signed_amount > 0 ? `+ ${formatCurrencyPtBr(item.signed_amount)}` : '—'}</td>
+                                        <td className="whitespace-nowrap px-6 py-4 text-right font-black text-rose-600">{item.signed_amount < 0 ? `- ${formatCurrencyPtBr(Math.abs(item.signed_amount))}` : '—'}</td>
+                                        <td className={`whitespace-nowrap px-6 py-4 text-right font-black ${(item.running_balance_after || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(item.running_balance_after || 0)}</td>
+                                        <td className="px-6 py-4 text-right"><button type="button" onClick={() => setSelectedStatementItem(item)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title="Ver detalhes"><Eye size={15} /></button></td>
+                                    </tr>
+                                )) : (
+                                    <tr><td colSpan={7} className="px-6 py-16 text-center italic text-gray-400">Nenhum movimento financeiro encontrado para este escopo.</td></tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>
 
             {formState && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-                    <form
-                        onSubmit={handleSubmitForm}
-                        className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl dark:bg-gray-900"
-                    >
+                    <form onSubmit={handleSubmitForm} className="w-full max-w-2xl rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
                         <div className="flex items-start justify-between gap-4 border-b border-gray-100 p-6 dark:border-gray-800">
                             <div>
-                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">
-                                    Livro diário
-                                </p>
-                                <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">
-                                    {getFormTitle(formState)}
-                                </h3>
+                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Livro diário</p>
+                                <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">{getFormTitle(formState)}</h3>
                             </div>
-
-                            <button
-                                type="button"
-                                onClick={() => setFormState(null)}
-                                className="rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-                                aria-label="Fechar formulário"
-                            >
-                                <X size={18} />
-                            </button>
+                            <button type="button" onClick={() => setFormState(null)} className="rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="Fechar formulário"><X size={18} /></button>
                         </div>
 
                         <div className="space-y-4 p-6">
-                            {formState.mode === 'edit' && formState.entry?.type === 'sale' && (
-                                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
-                                    Lançamentos de venda permitem alterar apenas a descrição.
-                                </div>
-                            )}
+                            {formState.mode === 'edit' && formState.entry?.type === 'sale' && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">Lançamentos de venda permitem alterar apenas a descrição.</div>}
 
                             <label className="block space-y-1">
                                 <span className="text-xs font-black uppercase tracking-widest text-gray-500">Descrição</span>
-                                <input
-                                    value={formState.description}
-                                    onChange={(event) => setFormState({ ...formState, description: event.target.value })}
-                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                    placeholder="Descrição do lançamento"
-                                />
+                                <input value={formState.description} onChange={(event) => setFormState({ ...formState, description: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="Descrição do lançamento" />
                             </label>
 
                             {formState.entry?.type !== 'sale' && (
@@ -1113,23 +936,12 @@ export default function CashbookPage() {
                                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                                         <label className="block space-y-1">
                                             <span className="text-xs font-black uppercase tracking-widest text-gray-500">Valor</span>
-                                            <input
-                                                value={formState.amount}
-                                                onChange={(event) => setFormState({ ...formState, amount: event.target.value })}
-                                                inputMode="decimal"
-                                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                                placeholder="0,00"
-                                            />
+                                            <input value={formState.amount} onChange={(event) => setFormState({ ...formState, amount: event.target.value })} inputMode="decimal" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="0,00" />
                                         </label>
 
                                         <label className="block space-y-1">
                                             <span className="text-xs font-black uppercase tracking-widest text-gray-500">Data e hora</span>
-                                            <input
-                                                type="datetime-local"
-                                                value={formState.occurredAt}
-                                                onChange={(event) => setFormState({ ...formState, occurredAt: event.target.value })}
-                                                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                            />
+                                            <input type="datetime-local" value={formState.occurredAt} onChange={(event) => setFormState({ ...formState, occurredAt: event.target.value })} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
                                         </label>
                                     </div>
 
@@ -1140,11 +952,7 @@ export default function CashbookPage() {
                                             onChange={(event) => {
                                                 const val = event.target.value;
                                                 const defaultAcc = val === 'cash' ? 'cash_drawer' : val === 'pix' ? 'pix_wallet' : val === 'card' ? 'card_receivable' : '';
-                                                setFormState({
-                                                    ...formState,
-                                                    paymentMethodCode: val,
-                                                    financialAccountCode: defaultAcc,
-                                                });
+                                                setFormState({ ...formState, paymentMethodCode: val, financialAccountCode: defaultAcc });
                                             }}
                                             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
                                         >
@@ -1167,34 +975,15 @@ export default function CashbookPage() {
 
                                     <label className="block space-y-1">
                                         <span className="text-xs font-black uppercase tracking-widest text-gray-500">Observações</span>
-                                        <textarea
-                                            value={formState.notes}
-                                            onChange={(event) => setFormState({ ...formState, notes: event.target.value })}
-                                            rows={3}
-                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                            placeholder="Detalhes internos opcionais"
-                                        />
+                                        <textarea value={formState.notes} onChange={(event) => setFormState({ ...formState, notes: event.target.value })} rows={3} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-800 outline-none focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" placeholder="Detalhes internos opcionais" />
                                     </label>
                                 </>
                             )}
                         </div>
 
                         <div className="flex justify-end gap-2 border-t border-gray-100 p-6 dark:border-gray-800">
-                            <button
-                                type="button"
-                                onClick={() => setFormState(null)}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="submit"
-                                disabled={savingForm || !canCreateCashbookEntry}
-                                className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-black text-white transition hover:bg-[#188575] disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <Save size={16} />
-                                Salvar lançamento
-                            </button>
+                            <button type="button" onClick={() => setFormState(null)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">Cancelar</button>
+                            <button type="submit" disabled={savingForm || !canCreateCashbookEntry} className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-black text-white transition hover:bg-[#188575] disabled:cursor-not-allowed disabled:opacity-60"><Save size={16} />Salvar lançamento</button>
                         </div>
                     </form>
                 </div>
@@ -1205,86 +994,56 @@ export default function CashbookPage() {
                     <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
                         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-gray-100 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
                             <div>
-                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">
-                                    Detalhes do lançamento
-                                </p>
-                                <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">
-                                    {selectedEntry.description}
-                                </h3>
+                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Detalhes do lançamento</p>
+                                <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">{selectedEntry.description}</h3>
                             </div>
-
-                            <button
-                                type="button"
-                                onClick={() => setSelectedEntry(null)}
-                                className="rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-                                aria-label="Fechar detalhes"
-                            >
-                                <X size={18} />
-                            </button>
+                            <button type="button" onClick={() => setSelectedEntry(null)} className="rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="Fechar detalhes"><X size={18} /></button>
                         </div>
 
                         <div className="space-y-5 p-6">
                             <div className="rounded-2xl border border-gray-100 p-4 dark:border-gray-800">
                                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cliente</p>
-                                <p className="mt-1 text-lg font-black text-gray-900 dark:text-white">
-                                    {getCustomerLabel(selectedEntry) || selectedEntry.customer_id || 'Não informado'}
-                                </p>
+                                <p className="mt-1 text-lg font-black text-gray-900 dark:text-white">{getCustomerLabel(selectedEntry) || selectedEntry.customer_id || 'Não informado'}</p>
                             </div>
-
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Valor</p>
-                                    <p className={`mt-1 text-2xl font-black ${selectedEntry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                        {selectedEntry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(selectedEntry.amount)}
-                                    </p>
-                                </div>
-
-                                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950">
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</p>
-                                    <p className="mt-1 font-black text-gray-900 dark:text-white">
-                                        {getTypeLabel(selectedEntry)} / {selectedEntry.direction === 'in' ? 'Entrada' : 'Saída'}
-                                    </p>
-                                </div>
+                                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Valor</p><p className={`mt-1 text-2xl font-black ${selectedEntry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}`}>{selectedEntry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(selectedEntry.amount)}</p></div>
+                                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</p><p className="mt-1 font-black text-gray-900 dark:text-white">{getTypeLabel(selectedEntry)} / {selectedEntry.direction === 'in' ? 'Entrada' : 'Saída'}</p></div>
                             </div>
-
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data</p>
-                                    <p className="mt-1 font-bold text-gray-800 dark:text-gray-100">
-                                        {new Date(selectedEntry.occurred_at).toLocaleString('pt-BR')}
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p>
-                                    <p className="mt-1 font-bold text-gray-800 dark:text-gray-100">
-                                        {getStatusLabel(selectedEntry.status)}
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Forma de pagamento</p>
-                                    <p className="mt-1 font-bold text-gray-800 dark:text-gray-100">
-                                        {getPaymentMethodLabel(selectedEntry.payment_method || selectedEntry.payment_method_code)}
-                                    </p>
-                                </div>
-
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Afeta saldo</p>
-                                    <p className="mt-1 font-bold text-gray-800 dark:text-gray-100">
-                                        {selectedEntry.affects_balance ? 'Sim' : 'Não'}
-                                    </p>
-                                </div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{formatDateTime(selectedEntry.occurred_at)}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Status</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{getStatusLabel(selectedEntry.status)}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Forma de pagamento</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{getPaymentMethodLabel(selectedEntry.payment_method || selectedEntry.payment_method_code)}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Afeta saldo</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{selectedEntry.affects_balance ? 'Sim' : 'Não'}</p></div>
                             </div>
+                            {selectedEntry.notes && <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Observações</p><p className="mt-1 whitespace-pre-wrap rounded-2xl bg-gray-50 p-4 text-sm text-gray-700 dark:bg-gray-950 dark:text-gray-200">{selectedEntry.notes}</p></div>}
+                        </div>
+                    </div>
+                </div>
+            )}
 
-                            {selectedEntry.notes && (
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Observações</p>
-                                    <p className="mt-1 whitespace-pre-wrap rounded-2xl bg-gray-50 p-4 text-sm text-gray-700 dark:bg-gray-950 dark:text-gray-200">
-                                        {selectedEntry.notes}
-                                    </p>
-                                </div>
-                            )}
+            {selectedStatementItem && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900">
+                        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-gray-100 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Detalhes do extrato</p>
+                                <h3 className="mt-1 text-xl font-black text-gray-900 dark:text-white">{selectedStatementItem.description}</h3>
+                            </div>
+                            <button type="button" onClick={() => setSelectedStatementItem(null)} className="rounded-xl border border-gray-200 p-2 text-gray-500 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" aria-label="Fechar detalhes"><X size={18} /></button>
+                        </div>
+                        <div className="space-y-5 p-6">
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Movimento</p><p className={`mt-1 text-2xl font-black ${selectedStatementItem.signed_amount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{selectedStatementItem.signed_amount >= 0 ? '+' : '-'} {formatCurrencyPtBr(Math.abs(selectedStatementItem.signed_amount))}</p></div>
+                                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Saldo após o lançamento</p><p className={`mt-1 text-2xl font-black ${selectedStatementItem.running_balance_after >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(selectedStatementItem.running_balance_after)}</p></div>
+                            </div>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{formatDateTime(selectedStatementItem.occurred_at)}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Forma de pagamento</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{getPaymentMethodLabel(selectedStatementItem.payment_method_code || selectedStatementItem.payment_method)}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Pedido</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{selectedStatementItem.order_code || '—'}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Cliente</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{selectedStatementItem.order_customer_name || selectedStatementItem.customer_id || '—'}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Escopo</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{statementScopeLabel}</p></div>
+                                <div><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Contrapartida</p><p className="mt-1 font-bold text-gray-800 dark:text-gray-100">{selectedStatementItem.counterpart_account_name || '—'}</p></div>
+                            </div>
                         </div>
                     </div>
                 </div>
