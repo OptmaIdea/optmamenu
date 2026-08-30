@@ -114,15 +114,15 @@ export default function Orders() {
     async function checkExpirations() {
         if (!storeData) return;
         const expiredOrders = orders.filter((order) => {
-            const publicOrder = getPublicOrderFields(order);
             if (!['reserved', 'confirmed', 'ready'].includes(order.status) || !order.stock_reservations?.[0]) return false;
-            if (publicOrder.payment_status === 'paid' || publicOrder.fulfillment_type === 'delivery') return false;
+            if (!isReservationTimerApplicable(order)) return false;
+            const publicOrder = getPublicOrderFields(order);
             const cancellationAt = publicOrder.cancellation_grace_until || order.stock_reservations[0].expires_at;
             return new Date(cancellationAt).getTime() <= Date.now();
         });
         const warningOrders = orders.filter((order) => {
             if (!['reserved', 'confirmed', 'ready'].includes(order.status) || !order.stock_reservations?.[0]) return false;
-            if (getPublicOrderFields(order).payment_status === 'paid' || getPublicOrderFields(order).fulfillment_type === 'delivery') return false;
+            if (!isReservationTimerApplicable(order)) return false;
             const remaining = new Date(order.stock_reservations[0].expires_at).getTime() - Date.now();
             return remaining > 120000 && remaining <= 180000;
         });
@@ -138,14 +138,16 @@ export default function Orders() {
 
     function isReservationTimerApplicable(order: Order) {
         const publicOrder = getPublicOrderFields(order);
+        const paymentInfo = getCheckoutPaymentInfo(order);
         return ['reserved', 'confirmed', 'ready'].includes(order.status)
+            && publicOrder.fulfillment_type === 'pickup'
             && publicOrder.payment_status !== 'paid'
-            && publicOrder.fulfillment_type !== 'delivery';
+            && paymentInfo.timing === 'pay_on_fulfillment';
     }
 
     async function extendReservation(order: Order) {
         if (!isReservationTimerApplicable(order)) {
-            alert('Pedido pago ou de delivery não tem prazo de reserva para prorrogar.');
+            alert('Somente pedido de retirada com pagamento posterior tem prazo de reserva para prorrogar.');
             return;
         }
 
@@ -198,6 +200,13 @@ export default function Orders() {
         return null;
     }
 
+    function normalizePaymentTiming(value: string) {
+        const timing = value.trim().toLowerCase();
+        if (['pay_now', 'advance', 'prepaid', 'online'].includes(timing)) return 'advance';
+        if (['pay_on_receipt', 'on_delivery', 'on_pickup', 'pay_later', 'posterior'].includes(timing)) return 'pay_on_fulfillment';
+        return timing || 'pay_on_fulfillment';
+    }
+
     function parseNotesPaymentLabel(order: Order) {
         const notes = asString(getPublicOrderFields(order).notes);
         const line = notes.split('\n').find((item) => item.toLowerCase().startsWith('pagamento:'));
@@ -214,7 +223,7 @@ export default function Orders() {
         const promisedMethodCode = asString(checkout.promised_method_code)
             || asString(commercial.promised_payment_method)
             || asString(publicOrder.promised_payment_method_code);
-        const timing = asString(checkout.timing) || asString(commercial.payment_timing);
+        const timing = normalizePaymentTiming(asString(checkout.timing) || asString(commercial.payment_timing));
         return {
             timing,
             rawMethodCode,
@@ -224,6 +233,18 @@ export default function Orders() {
             changeFor: asNumber(checkout.change_for),
             notesPaymentLabel: parseNotesPaymentLabel(order),
         };
+    }
+
+    function getFulfillmentLabel(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        return publicOrder.fulfillment_type === 'delivery' ? 'Entrega' : 'Retirada';
+    }
+
+    function getFulfillmentDetailLabel(order: Order) {
+        const publicOrder = getPublicOrderFields(order);
+        const info = getCheckoutPaymentInfo(order);
+        if (publicOrder.fulfillment_type === 'delivery') return 'Entrega ao cliente';
+        return info.timing === 'advance' ? 'Retirada · pagamento antecipado' : 'Retirada · pagamento na retirada';
     }
 
     function getPaymentMethodLabel(order: Order) {
@@ -493,17 +514,20 @@ export default function Orders() {
                                 const paymentLabel = getPaymentMethodLabel(order);
                                 const paymentChangeText = getPaymentChangeText(order);
                                 const deliveryAddressLines = getDeliveryAddressLines(order);
+                                const fulfillmentLabel = getFulfillmentLabel(order);
+                                const fulfillmentDetailLabel = getFulfillmentDetailLabel(order);
+                                const checkoutPaymentInfo = getCheckoutPaymentInfo(order);
                                 let timerDisplay = null;
                                 let isExpiring = false;
                                 if (canUseTimer && order.stock_reservations?.[0]) {
                                     const expiresAt = new Date(order.stock_reservations[0].expires_at).getTime();
                                     const diff = expiresAt - now.getTime();
-                                    if (diff > 0) {
+                                    if (Number.isFinite(diff) && diff > 0) {
                                         const min = Math.floor(diff / 60000);
                                         const sec = Math.floor((diff % 60000) / 1000);
                                         timerDisplay = `${min}m ${sec}s`;
                                         if (min < 3) isExpiring = true;
-                                    } else { timerDisplay = 'Expirado'; isExpiring = true; }
+                                    } else if (Number.isFinite(diff)) { timerDisplay = 'Expirado'; isExpiring = true; }
                                 }
 
                                 return (
@@ -517,11 +541,12 @@ export default function Orders() {
                                                     <div className="flex flex-wrap items-center gap-2">
                                                         <h3 className="font-bold text-lg text-gray-800 dark:text-white">{publicOrder.order_code || `#${order.id.slice(0, 8).toUpperCase()}`}</h3>
                                                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider border ${statusColors[order.status]}`}>{getOrderStatusLabel(order)}</span>
+                                                        <span className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-black uppercase text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">{fulfillmentLabel}</span>
                                                         {publicOrder.payment_status === 'paid' && <span className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-black uppercase text-emerald-800">Pagamento confirmado</span>}
                                                         {automaticExpirationAt && <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800"><Clock size={11} /> Expirado automaticamente · {formatDate(automaticExpirationAt)}</span>}
                                                         {canUseTimer && timerDisplay && <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}><Clock size={12} /> {timerDisplay}</span>}
                                                     </div>
-                                                    <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1"><span>{order.customer_name}</span><span>•</span><span className="flex items-center gap-1"><Clock size={12} /> {formatDate(order.created_at)}</span></div>
+                                                    <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2 mt-1"><span>{order.customer_name}</span><span>•</span><span>{fulfillmentDetailLabel}</span><span>•</span><span className="flex items-center gap-1"><Clock size={12} /> {formatDate(order.created_at)}</span></div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
@@ -538,6 +563,7 @@ export default function Orders() {
                                                         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
                                                             <p className="flex justify-between"><span className="text-gray-500">Nome:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_name || 'Não informado'}</span></p>
                                                             <p className="flex justify-between"><span className="text-gray-500">Telefone:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_phone || 'Não informado'}</span></p>
+                                                            <p className="flex justify-between gap-3"><span className="text-gray-500">Atendimento:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{fulfillmentDetailLabel}</span></p>
                                                             <p className="flex justify-between gap-3"><span className="text-gray-500">Pagamento:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{paymentLabel}</span></p>
                                                             {paymentChangeText && <p className="flex justify-between gap-3"><span className="text-gray-500">Troco:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{paymentChangeText}</span></p>}
                                                             {deliveryAddressLines.length > 0 && (
@@ -571,6 +597,8 @@ export default function Orders() {
                                                             orderStatus={order.status}
                                                             paymentStatus={publicOrder.payment_status}
                                                             paymentMethodCode={getPaymentProofMethodCode(order)}
+                                                            fulfillmentType={publicOrder.fulfillment_type}
+                                                            paymentTiming={checkoutPaymentInfo.timing}
                                                             onChanged={fetchOrders}
                                                             onPaymentConfirmed={async () => {
                                                                 const paidOrder = {
