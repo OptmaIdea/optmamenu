@@ -25,8 +25,9 @@ import {
   type OnlinePaymentSettlementAccount,
   type OnlinePaymentsWorkspace,
 } from '@/services/onlinePaymentsService';
+import OnlinePaymentRoutesPanel from './components/OnlinePaymentRoutesPanel';
 
-type Tab = 'overview' | 'providers' | 'transactions' | 'proofs' | 'events' | 'sandbox';
+type Tab = 'overview' | 'providers' | 'routes' | 'transactions' | 'proofs' | 'events' | 'sandbox';
 
 type SummaryCard = {
   label: string;
@@ -41,6 +42,7 @@ const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyl
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Visão geral' },
   { id: 'providers', label: 'Provedores' },
+  { id: 'routes', label: 'Rotas de recebimento' },
   { id: 'transactions', label: 'Transações' },
   { id: 'proofs', label: 'Comprovantes' },
   { id: 'events', label: 'Webhooks e eventos' },
@@ -49,9 +51,19 @@ const tabs: Array<{ id: Tab; label: string }> = [
 
 function statusLabel(status: string) {
   const labels: Record<string, string> = {
-    created: 'Criado', pending: 'Pendente', authorized: 'Autorizado', paid: 'Pago', failed: 'Falhou',
-    expired: 'Expirado', cancelled: 'Cancelado', partially_refunded: 'Estorno parcial', refunded: 'Estornado',
-    submitted: 'Aguardando conferência', confirmed: 'Confirmado', rejected: 'Rejeitado', superseded: 'Substituído',
+    created: 'Criado',
+    pending: 'Pendente',
+    authorized: 'Autorizado',
+    paid: 'Pago',
+    failed: 'Falhou',
+    expired: 'Expirado',
+    cancelled: 'Cancelado',
+    partially_refunded: 'Estorno parcial',
+    refunded: 'Estornado',
+    submitted: 'Aguardando conferência',
+    confirmed: 'Confirmado',
+    rejected: 'Rejeitado',
+    superseded: 'Substituído',
   };
   return labels[status] || status;
 }
@@ -95,8 +107,10 @@ function sandboxBalanceLabel(value: unknown) {
 function paymentMethodLabel(method: string) {
   const labels: Record<string, string> = {
     pix: 'PIX',
-    credit_card: 'Cartão',
+    credit_card: 'Cartão de crédito',
+    debit_card: 'Cartão de débito',
     payment_link: 'Link de pagamento',
+    cash: 'Dinheiro',
   };
   return labels[method] || method.replaceAll('_', ' ');
 }
@@ -285,7 +299,7 @@ export default function OnlinePaymentsPage() {
     <PageContainer
       title="Pagamentos online"
       category="FINANCEIRO"
-      subtitle="Configure provedores, acompanhe transações, comprovantes e webhooks sem misturar credenciais com o frontend."
+      subtitle="Configure provedores, rotas de recebimento, transações, comprovantes e webhooks."
       icon={<CreditCard className="text-[#19A999]" size={28} />}
       onRefresh={() => void load()}
     >
@@ -336,10 +350,12 @@ export default function OnlinePaymentsPage() {
                 <h2 className="text-lg font-black text-gray-900 dark:text-white">Configuração da loja online</h2>
                 <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100">
                   <p className="font-black">QR Code PIX gera recebimento em: {asaasSettlementAccount?.name || 'conta ainda não definida'}</p>
-                  <p className="mt-1 text-xs font-semibold opacity-80">Essa conta será usada automaticamente na baixa do PIX e na conferência de comprovantes.</p>
-                  <button type="button" onClick={() => setActiveTab('providers')} className="mt-3 rounded-lg bg-teal-600 px-3 py-2 text-xs font-black text-white">Alterar conta do PIX</button>
+                  <p className="mt-1 text-xs font-semibold opacity-80">As demais formas usam as Rotas de recebimento. Configure o destino por delivery, retirada, pagamento antecipado ou pagamento no recebimento.</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => setActiveTab('providers')} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-black text-white">Alterar provedor</button>
+                    <button type="button" onClick={() => setActiveTab('routes')} className="rounded-lg border border-teal-300 px-3 py-2 text-xs font-black text-teal-800 dark:border-teal-700 dark:text-teal-100">Configurar rotas</button>
+                  </div>
                 </div>
-
               </div>
 
               <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
@@ -385,16 +401,11 @@ export default function OnlinePaymentsPage() {
                       {workspace.permissions.manage && (
                         <label className="mt-4 block">
                           <span className="block text-xs font-bold uppercase tracking-wide">Conta de liquidação do PIX</span>
-                          <select
-                            value={typeof provider.public_config?.settlement_financial_account_id === 'string' ? provider.public_config.settlement_financial_account_id : ''}
-                            disabled={working}
-                            onChange={(event) => void saveSettlementAccount(provider, event.target.value)}
-                            className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-800 dark:bg-gray-950 dark:text-white"
-                          >
+                          <select value={typeof provider.public_config?.settlement_financial_account_id === 'string' ? provider.public_config.settlement_financial_account_id : ''} disabled={working} onChange={(event) => void saveSettlementAccount(provider, event.target.value)} className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-800 dark:bg-gray-950 dark:text-white">
                             <option value="">Selecione uma conta</option>
                             {settlementAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                           </select>
-                          <span className="mt-1 block text-xs opacity-80">Essa escolha será a rota autoritativa dos recebimentos Asaas; o sistema não usará uma conta presumida.</span>
+                          <span className="mt-1 block text-xs opacity-80">Essa escolha é a rota autoritativa dos recebimentos Asaas.</span>
                         </label>
                       )}
                     </div>
@@ -409,6 +420,8 @@ export default function OnlinePaymentsPage() {
               )}
             </div>
           )}
+
+          {activeTab === 'routes' && <OnlinePaymentRoutesPanel storeId={storeId} canManage={workspace.permissions.manage} />}
 
           {activeTab === 'transactions' && (
             <div className="space-y-3">
@@ -426,15 +439,10 @@ export default function OnlinePaymentsPage() {
 
           {activeTab === 'proofs' && (
             <div className="space-y-3">
-              <div className="rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
-                Comprovantes manuais permanecem vinculados ao pedido. Esta área centraliza a fila; a decisão financeira continua auditada no pedido e no Livro Diário.
-              </div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">Comprovantes manuais permanecem vinculados ao pedido. Esta área centraliza a fila; a decisão financeira continua auditada no pedido e no Livro Diário.</div>
               {workspace.proofs.length === 0 ? <Empty text="Nenhum comprovante enviado." /> : workspace.proofs.map((proof) => (
                 <div key={proof.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div><p className="font-black text-gray-900 dark:text-white">{proof.order_code || 'Pedido'}</p><p className="text-sm text-gray-500">{proof.original_file_name || 'Comprovante'} · {proof.submitted_at ? dateTime.format(new Date(proof.submitted_at)) : dateTime.format(new Date(proof.created_at))}</p></div>
-                    <div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(proof.status)}`}>{statusLabel(proof.status)}</span>{proof.declared_amount != null && <strong>{money.format(Number(proof.declared_amount))}</strong>}</div>
-                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-gray-900 dark:text-white">{proof.order_code || 'Pedido'}</p><p className="text-sm text-gray-500">{proof.original_file_name || 'Comprovante'} · {proof.submitted_at ? dateTime.format(new Date(proof.submitted_at)) : dateTime.format(new Date(proof.created_at))}</p></div><div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(proof.status)}`}>{statusLabel(proof.status)}</span>{proof.declared_amount != null && <strong>{money.format(Number(proof.declared_amount))}</strong>}</div></div>
                 </div>
               ))}
               <Link to="/admin/orders" className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 font-bold text-white">Abrir pedidos para conferência <ExternalLink size={15} /></Link>
@@ -444,9 +452,7 @@ export default function OnlinePaymentsPage() {
           {activeTab === 'events' && (
             <div className="space-y-3">
               {!workspace.permissions.events ? <Empty text="Você não possui permissão para visualizar eventos técnicos." /> : workspace.events.length === 0 ? <Empty text="Nenhum webhook ou evento registrado." /> : workspace.events.map((event) => (
-                <div key={event.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><Webhook className="text-[#19A999]" size={20} /><div><p className="font-black text-gray-900 dark:text-white">{event.event_type}</p><p className="text-sm text-gray-500">{event.provider_code} · {dateTime.format(new Date(event.received_at))}</p></div></div><div className="flex gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${event.signature_valid === false ? statusTone('failed') : statusTone('paid')}`}>{event.signature_valid === false ? 'Assinatura inválida' : 'Assinatura válida'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${event.processed ? statusTone('paid') : statusTone('pending')}`}>{event.processed ? 'Processado' : 'Pendente'}</span></div></div>
-                </div>
+                <div key={event.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><Webhook className="text-[#19A999]" size={20} /><div><p className="font-black text-gray-900 dark:text-white">{event.event_type}</p><p className="text-sm text-gray-500">{event.provider_code} · {dateTime.format(new Date(event.received_at))}</p></div></div><div className="flex gap-2"><span className={`rounded-full px-3 py-1 text-xs font-bold ${event.signature_valid === false ? statusTone('failed') : statusTone('paid')}`}>{event.signature_valid === false ? 'Assinatura inválida' : 'Assinatura válida'}</span><span className={`rounded-full px-3 py-1 text-xs font-bold ${event.processed ? statusTone('paid') : statusTone('pending')}`}>{event.processed ? 'Processado' : 'Pendente'}</span></div></div></div>
               ))}
             </div>
           )}
@@ -455,38 +461,16 @@ export default function OnlinePaymentsPage() {
             <div className="space-y-5">
               <div className="rounded-2xl border border-violet-200 bg-violet-50 p-6 dark:border-violet-900 dark:bg-violet-950/30">
                 <div className="flex items-start gap-3"><FlaskConical className="text-violet-600" /><div><h2 className="font-black text-violet-950 dark:text-violet-100">OptmaPay Sandbox descartável</h2><p className="mt-1 text-sm text-violet-800 dark:text-violet-200">Gere cenários determinísticos sem banco, adquirente ou dados reais. Estes registros servem apenas para homologação da máquina de estados.</p></div></div>
-                <div className="mt-5 grid gap-3 md:grid-cols-4">
-                  <input value={sandboxAmount} onChange={(e) => setSandboxAmount(e.target.value)} placeholder="42,00" className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950" />
-                  <select value={sandboxMethod} onChange={(e) => setSandboxMethod(e.target.value)} className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950"><option value="pix">PIX</option><option value="credit_card">Cartão</option><option value="payment_link">Link</option></select>
-                  <select value={sandboxScenario} onChange={(e) => setSandboxScenario(e.target.value as typeof sandboxScenario)} className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950"><option value="pending">Pendente</option><option value="approved">Aprovado</option><option value="declined">Recusado</option><option value="expired">Expirado</option></select>
-                  <button disabled={working || !workspace.permissions.manage} onClick={() => void createSandboxIntent()} className="rounded-xl bg-violet-600 px-4 py-2 font-bold text-white disabled:opacity-50">Gerar cenário</button>
-                </div>
+                <div className="mt-5 grid gap-3 md:grid-cols-4"><input value={sandboxAmount} onChange={(e) => setSandboxAmount(e.target.value)} placeholder="42,00" className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950" /><select value={sandboxMethod} onChange={(e) => setSandboxMethod(e.target.value)} className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950"><option value="pix">PIX</option><option value="credit_card">Cartão</option><option value="payment_link">Link</option></select><select value={sandboxScenario} onChange={(e) => setSandboxScenario(e.target.value as typeof sandboxScenario)} className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950"><option value="pending">Pendente</option><option value="approved">Aprovado</option><option value="declined">Recusado</option><option value="expired">Expirado</option></select><button disabled={working || !workspace.permissions.manage} onClick={() => void createSandboxIntent()} className="rounded-xl bg-violet-600 px-4 py-2 font-bold text-white disabled:opacity-50">Gerar cenário</button></div>
               </div>
 
               {workspace.transactions.filter((item) => item.provider_code === 'optma_sandbox').slice(0, 12).map((item) => (
-                <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
-                  <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-gray-900 dark:text-white">{item.external_payment_id}</p><p className="text-sm text-gray-500">{paymentMethodLabel(item.method_code)} · {money.format(Number(item.amount))}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div>
-                  {workspace.permissions.manage && <div className="mt-4 flex flex-wrap gap-2">{item.status === 'pending' && <><Action label="Aprovar" onClick={() => void simulate(item.id, 'approve')} /><Action label="Recusar" onClick={() => void simulate(item.id, 'decline')} /><Action label="Expirar" onClick={() => void simulate(item.id, 'expire')} /></>}{item.status === 'paid' && <Action label="Estornar" onClick={() => void simulate(item.id, 'refund')} />}</div>}
-                </div>
+                <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-gray-900 dark:text-white">{item.external_payment_id}</p><p className="text-sm text-gray-500">{paymentMethodLabel(item.method_code)} · {money.format(Number(item.amount))}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div>{workspace.permissions.manage && <div className="mt-4 flex flex-wrap gap-2">{item.status === 'pending' && <><Action label="Aprovar" onClick={() => void simulate(item.id, 'approve')} /><Action label="Recusar" onClick={() => void simulate(item.id, 'decline')} /><Action label="Expirar" onClick={() => void simulate(item.id, 'expire')} /></>}{item.status === 'paid' && <Action label="Estornar" onClick={() => void simulate(item.id, 'refund')} />}</div>}</div>
               ))}
 
               <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900 dark:bg-blue-950/30">
                 <div className="flex gap-3"><Landmark className="text-blue-600" /><div><h2 className="font-black text-blue-950 dark:text-blue-100">Asaas Sandbox</h2><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão pronta' : 'aguardando configuração'} · Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão pronta' : 'aguardando configuração'}.</p></div></div>
-                <div className="mt-5 rounded-xl border border-blue-200 bg-white/80 p-4 dark:border-blue-800 dark:bg-gray-950/40">
-                  <h3 className="font-black text-blue-950 dark:text-blue-100">Testar PIX integrado</h3>
-                  <p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Gere uma cobrança fictícia e pague-a pela conta compradora do Asaas Sandbox. O resultado deve aparecer em Transações e Webhooks e eventos.</p>
-                  <div className="mt-4 grid gap-3 sm:flex sm:flex-wrap">
-                    <input value={asaasAmount} onChange={(event) => setAsaasAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-gray-950 sm:w-32" />
-                    <button disabled={working || !workspace.permissions.manage || !asaasStatus?.merchantConfigured} onClick={() => void createAsaasPixCharge()} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Gerar PIX de teste</button>
-                    {asaasPixCharge?.qr?.payload && <button disabled={working || !asaasStatus?.buyerConfigured} onClick={() => void payAsaasPixCharge()} className="rounded-xl border border-blue-300 px-4 py-2 font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:text-blue-200">Pagar com conta compradora</button>}
-                  </div>
-                  {asaasPixCharge?.qr?.encodedImage && (
-                    <div className="mt-4 flex items-center gap-4 rounded-xl border border-dashed border-blue-200 p-3 dark:border-blue-800">
-                      <img src={`data:image/png;base64,${asaasPixCharge.qr.encodedImage}`} alt="QR Code PIX de teste" className="h-24 w-24 rounded-lg bg-white p-1" />
-                      <p className="text-sm text-blue-800 dark:text-blue-200">Cobrança criada. Clique em “Pagar com conta compradora” para concluir este teste fictício.</p>
-                    </div>
-                  )}
-                </div>
+                <div className="mt-5 rounded-xl border border-blue-200 bg-white/80 p-4 dark:border-blue-800 dark:bg-gray-950/40"><h3 className="font-black text-blue-950 dark:text-blue-100">Testar PIX integrado</h3><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Gere uma cobrança fictícia e pague-a pela conta compradora do Asaas Sandbox.</p><div className="mt-4 grid gap-3 sm:flex sm:flex-wrap"><input value={asaasAmount} onChange={(event) => setAsaasAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-gray-950 sm:w-32" /><button disabled={working || !workspace.permissions.manage || !asaasStatus?.merchantConfigured} onClick={() => void createAsaasPixCharge()} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Gerar PIX de teste</button>{asaasPixCharge?.qr?.payload && <button disabled={working || !asaasStatus?.buyerConfigured} onClick={() => void payAsaasPixCharge()} className="rounded-xl border border-blue-300 px-4 py-2 font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:text-blue-200">Pagar com conta compradora</button>}</div>{asaasPixCharge?.qr?.encodedImage && <div className="mt-4 flex items-center gap-4 rounded-xl border border-dashed border-blue-200 p-3 dark:border-blue-800"><img src={`data:image/png;base64,${asaasPixCharge.qr.encodedImage}`} alt="QR Code PIX de teste" className="h-24 w-24 rounded-lg bg-white p-1" /><p className="text-sm text-blue-800 dark:text-blue-200">Cobrança criada. Clique em “Pagar com conta compradora” para concluir este teste fictício.</p></div>}</div>
               </div>
             </div>
           )}
@@ -501,5 +485,5 @@ function Empty({ text }: { text: string }) {
 }
 
 function Action({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button onClick={onClick} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:border-[#19A999] hover:text-[#19A999] dark:border-gray-700 dark:text-gray-200">{label}</button>;
+  return <button type="button" onClick={onClick} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:border-[#19A999] hover:text-[#19A999] dark:border-gray-700 dark:text-gray-200">{label}</button>;
 }
