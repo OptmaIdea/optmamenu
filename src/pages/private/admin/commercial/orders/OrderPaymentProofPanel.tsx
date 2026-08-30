@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, FileCheck2, Loader2, MessageCircle, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import { FinancialAccountsService, type FinancialAccountBalance, type FinancialPaymentMethod } from '@/services/financialAccountsService';
 import { OrderPaymentProofService, type OrderPaymentProof } from '@/services/orderPaymentProofService';
 
-const currency = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
+type PaymentTiming = 'advance' | 'pay_on_fulfillment';
 
 function formatDate(value?: string | null) {
   if (!value) return '—';
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? '—' : dateTime.format(parsed);
+}
+
+function normalizePaymentTiming(value?: string | null): PaymentTiming {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['pay_now', 'advance', 'prepaid', 'online'].includes(normalized)) return 'advance';
+  return 'pay_on_fulfillment';
 }
 
 function accountAcceptsPix(account: FinancialAccountBalance, method?: FinancialPaymentMethod) {
@@ -35,6 +43,8 @@ export default function OrderPaymentProofPanel({
   orderStatus,
   paymentStatus,
   paymentMethodCode,
+  fulfillmentType,
+  paymentTiming,
   onChanged,
   onPaymentConfirmed,
 }: {
@@ -43,6 +53,8 @@ export default function OrderPaymentProofPanel({
   orderStatus: string;
   paymentStatus?: string | null;
   paymentMethodCode?: string | null;
+  fulfillmentType?: string | null;
+  paymentTiming?: string | null;
   onChanged?: () => void | Promise<void>;
   onPaymentConfirmed?: () => void | Promise<void>;
 }) {
@@ -53,8 +65,10 @@ export default function OrderPaymentProofPanel({
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [routeAccountId, setRouteAccountId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
+  const normalizedTiming = normalizePaymentTiming(paymentTiming);
   const paymentMethod = useMemo(
     () => methods.find((method) => method.code === paymentMethodCode),
     [methods, paymentMethodCode],
@@ -66,15 +80,31 @@ export default function OrderPaymentProofPanel({
   );
   const submitted = proofs.find((proof) => proof.status === 'submitted') || null;
   const confirmed = proofs.find((proof) => proof.status === 'confirmed') || null;
+  const canChooseAccount = normalizedTiming === 'pay_on_fulfillment';
 
   const load = useCallback(async () => {
     if (!storeId || !orderId) return;
     try {
       setLoading(true);
-      const [proofResult, balanceResult] = await Promise.all([
+      const [proofResult, balanceResult, routeResult] = await Promise.all([
         OrderPaymentProofService.getForOrder(storeId, orderId),
         FinancialAccountsService.getBalances(storeId),
+        supabase
+          .from('store_order_payment_account_routes')
+          .select('destination_financial_account_id, allow_override_on_receipt, sort_order, payment_method_code')
+          .eq('store_id', storeId)
+          .eq('scope', 'public_store')
+          .eq('fulfillment_type', fulfillmentType || 'pickup')
+          .eq('payment_timing', normalizePaymentTiming(paymentTiming))
+          .in('payment_method_code', [paymentMethodCode || 'pix', '*'])
+          .eq('active', true)
+          .order('payment_method_code', { ascending: false })
+          .order('sort_order', { ascending: true })
+          .limit(1),
       ]);
+
+      if (routeResult.error) throw routeResult.error;
+
       setProofs(proofResult.proofs);
       setCanReview(proofResult.canReview);
       setAccounts(balanceResult.accounts);
@@ -82,8 +112,12 @@ export default function OrderPaymentProofPanel({
 
       const method = balanceResult.paymentMethods.find((item) => item.code === paymentMethodCode);
       const candidates = balanceResult.accounts.filter((account) => account.active && accountAcceptsPix(account, method));
-      const preferred = candidates.find((account) => account.id === method?.preferred_financial_account_id);
+      const routeAccount = routeResult.data?.[0]?.destination_financial_account_id || null;
+      const preferred = candidates.find((account) => account.id === routeAccount)
+        || candidates.find((account) => account.id === method?.preferred_financial_account_id);
       const clearing = candidates.find((account) => account.is_sales_clearing_default);
+
+      setRouteAccountId(routeAccount);
       setSelectedAccountId((current) => {
         if (preferred?.id) return preferred.id;
         if (candidates.some((account) => account.id === current)) return current;
@@ -93,10 +127,11 @@ export default function OrderPaymentProofPanel({
       console.error('Erro ao carregar comprovantes do pedido:', error);
       setProofs([]);
       setCanReview(false);
+      setRouteAccountId(null);
     } finally {
       setLoading(false);
     }
-  }, [orderId, paymentMethodCode, storeId]);
+  }, [fulfillmentType, orderId, paymentMethodCode, paymentTiming, storeId]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -165,6 +200,8 @@ export default function OrderPaymentProofPanel({
   }
   if (!isPix) return null;
 
+  const routeAccountName = routeAccountId ? accounts.find((account) => account.id === routeAccountId)?.name : null;
+
   return (
     <div className="md:col-span-2 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -173,7 +210,8 @@ export default function OrderPaymentProofPanel({
           <h4 className="mt-1 font-black text-gray-900 dark:text-white">
             {confirmed ? 'Pagamento antecipado confirmado' : submitted ? 'Comprovante aguardando conferência' : paymentStatus === 'paid' ? 'Pagamento já confirmado' : 'Aguardando comprovante do cliente'}
           </h4>
-          <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">O comprovante auxilia a conferência; quando confirmado, o pedido é aceito, a baixa financeira é feita na conta configurada para o PIX e o prazo de reserva é encerrado.</p>
+          <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">O comprovante auxilia a conferência; quando confirmado, o pedido é aceito, a baixa financeira segue a rota configurada e a reserva deixa de ter expiração.</p>
+          {routeAccountName && <p className="mt-2 text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Rota configurada: {routeAccountName}</p>}
         </div>
         <button type="button" onClick={() => void load()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"><RefreshCw size={13} />Atualizar</button>
       </div>
@@ -188,7 +226,7 @@ export default function OrderPaymentProofPanel({
                     <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${proof.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800' : proof.status === 'submitted' ? 'bg-amber-100 text-amber-800' : proof.status === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>{statusText(proof)}</span>
                     <strong className="text-sm text-gray-900 dark:text-white">{proof.original_file_name || 'Comprovante'}</strong>
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Enviado: {formatDate(proof.submitted_at || proof.created_at)}{proof.declared_amount != null ? ` · Valor informado ${currency.format(proof.declared_amount)}` : ''}</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Enviado: {formatDate(proof.submitted_at || proof.created_at)}</p>
                   {proof.decision_notes && <p className="mt-1 text-xs font-semibold text-gray-600 dark:text-gray-300">Observação: {proof.decision_notes}</p>}
                 </div>
                 {proof.signedUrl && <a href={proof.signedUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs font-black text-teal-700 dark:border-gray-700 dark:text-teal-300">Abrir comprovante <ExternalLink size={13} /></a>}
@@ -206,17 +244,18 @@ export default function OrderPaymentProofPanel({
         <div className="mt-4 grid gap-3 rounded-xl border border-amber-200 bg-white p-4 dark:border-amber-900 dark:bg-gray-900 md:grid-cols-2">
           <label className="block">
             <span className="text-xs font-black uppercase tracking-wide text-gray-500">Conta que recebeu o PIX</span>
-            <select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950">
+            <select value={selectedAccountId} disabled={!canChooseAccount} onChange={(event) => setSelectedAccountId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-80 dark:border-gray-700 dark:bg-gray-950">
               <option value="">Selecione a conta</option>
-              {compatibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · saldo {currency.format(account.balance)}</option>)}
+              {compatibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
             </select>
+            {!canChooseAccount && <span className="mt-1 block text-xs font-semibold text-gray-500 dark:text-gray-400">Pagamento antecipado usa a rota configurada em Pagamentos online.</span>}
           </label>
           <label className="block">
             <span className="text-xs font-black uppercase tracking-wide text-gray-500">Referência da conferência</span>
             <input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Ex.: comprovante recebido por WhatsApp" className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950" />
           </label>
           <div className="md:col-span-2 rounded-lg bg-amber-50 p-3 text-xs font-semibold text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-            Use esta opção para comprovante enviado por WhatsApp/e-mail ou conferência no extrato. Ela aceita o pedido, encerra o timer e lança a entrada na conta PIX configurada.
+            Use esta opção para comprovante enviado por WhatsApp/e-mail ou conferência no extrato. Ela aceita o pedido e lança a entrada na conta definida pela rota de recebimento.
           </div>
           <button type="button" disabled={savingId === 'external' || !selectedAccountId} onClick={() => void confirmExternalPayment()} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50 md:col-span-2">
             {savingId === 'external' ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}Confirmar PIX recebido fora do sistema
@@ -228,10 +267,11 @@ export default function OrderPaymentProofPanel({
         <div className="mt-4 grid gap-3 rounded-xl border border-emerald-200 bg-white p-4 dark:border-emerald-900 dark:bg-gray-900 md:grid-cols-2">
           <label className="block">
             <span className="text-xs font-black uppercase tracking-wide text-gray-500">Conta que recebeu o PIX</span>
-            <select value={selectedAccountId} onChange={(event) => setSelectedAccountId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950">
+            <select value={selectedAccountId} disabled={!canChooseAccount} onChange={(event) => setSelectedAccountId(event.target.value)} className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-80 dark:border-gray-700 dark:bg-gray-950">
               <option value="">Selecione a conta</option>
-              {compatibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name} · saldo {currency.format(account.balance)}</option>)}
+              {compatibleAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
             </select>
+            {!canChooseAccount && <span className="mt-1 block text-xs font-semibold text-gray-500 dark:text-gray-400">Pagamento antecipado usa a rota configurada em Pagamentos online.</span>}
           </label>
           <label className="block">
             <span className="text-xs font-black uppercase tracking-wide text-gray-500">Observação / motivo da rejeição</span>
