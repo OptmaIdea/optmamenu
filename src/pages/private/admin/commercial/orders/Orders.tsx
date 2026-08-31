@@ -327,6 +327,7 @@ export default function Orders() {
             no_active_reservations: 'Este pedido não possui reserva ativa para baixa de estoque.',
             order_not_confirmed: 'Este pedido ainda não está em uma etapa que permita finalização.',
             access_denied: 'Você não tem permissão para alterar este pedido.',
+            delivery_must_be_dispatched_first: 'Pedido de entrega precisa passar por “Saiu para entrega” antes de concluir.',
             'Quantidade inválida': 'A baixa de estoque encontrou uma quantidade inválida. Atualize a tela e tente novamente.',
         };
         return labels[message] || message || 'Erro ao atualizar status';
@@ -432,6 +433,7 @@ export default function Orders() {
                 throw new Error(`Status não suportado: ${newStatus}`);
             }
             setOrders((current) => current.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+            await fetchOrders();
             return true;
         } catch (error) {
             console.error('Error updating status:', error);
@@ -473,6 +475,10 @@ export default function Orders() {
 
     async function handleFinalizeOrder(order: Order) {
         const publicOrder = getPublicOrderFields(order);
+        if (publicOrder.fulfillment_type === 'delivery' && order.status !== 'out_for_delivery') {
+            await updateStatus(order.id, 'out_for_delivery' as OrderStatus);
+            return;
+        }
         if (publicOrder.payment_status === 'paid') {
             await updateStatus(order.id, publicOrder.fulfillment_type === 'delivery' ? ('out_for_delivery' as OrderStatus) : 'completed');
             return;
@@ -625,8 +631,14 @@ export default function Orders() {
                                                         {order.status === 'confirmed' && <>
                                                             {canUseTimer && <button onClick={() => extendReservation(order)} className="w-full rounded-lg bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-600 transition hover:bg-indigo-100 sm:w-auto">Prorrogar (+{storeData?.config?.extension_minutes || 10}min)</button>}
                                                             <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>
-                                                            <button type="button" onClick={() => markOrderReady(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 sm:w-auto"><MessageCircle size={16} /> {publicOrder.fulfillment_type === 'pickup' ? 'Avisar retirada' : 'Avisar que está pronto'}</button>
-                                                            <button onClick={() => void handleFinalizeOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> {publicOrder.payment_status === 'paid' ? (publicOrder.fulfillment_type === 'delivery' ? 'Saiu para entrega' : 'Finalizar retirada') : 'Finalizar pedido'}</button>
+                                                            {publicOrder.fulfillment_type === 'delivery' ? (
+                                                                <button onClick={() => updateStatus(order.id, 'out_for_delivery' as OrderStatus)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-purple-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-purple-200 transition hover:bg-purple-700 sm:w-auto"><Truck size={16} /> Saiu para entrega</button>
+                                                            ) : (
+                                                                <>
+                                                                    <button type="button" onClick={() => markOrderReady(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100 sm:w-auto"><MessageCircle size={16} /> Avisar retirada</button>
+                                                                    <button onClick={() => void handleFinalizeOrder(order)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-6 py-2 text-sm font-bold text-white shadow-lg shadow-green-200 transition hover:bg-green-700 sm:w-auto"><CheckCircle size={16} /> Finalizar retirada</button>
+                                                                </>
+                                                            )}
                                                         </>}
                                                         {order.status === 'ready' && <>
                                                             <button onClick={() => void cancelOrder(order)} className="w-full rounded-lg bg-red-50 px-4 py-2 text-sm font-bold text-red-600 transition hover:bg-red-100 sm:w-auto">{publicOrder.payment_status === 'paid' ? 'Cancelar com estorno' : 'Cancelar'}</button>
