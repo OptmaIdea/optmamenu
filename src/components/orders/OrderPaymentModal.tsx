@@ -21,6 +21,7 @@ interface FinancialAccountOption {
 
 interface PaymentRouteOption {
     id: string;
+    scope?: string | null;
     fulfillment_type: string;
     payment_timing: string;
     payment_method_code: string;
@@ -36,10 +37,10 @@ const METHODS: Array<{
     description: string;
     icon: typeof QrCode;
 }> = [
-    { code: 'pix', label: 'PIX', description: 'Pagamento recebido por PIX', icon: QrCode },
+    { code: 'pix', label: 'PIX', description: 'Pagamento recebido por PIX direto', icon: QrCode },
     { code: 'cash', label: 'Dinheiro', description: 'Pagamento recebido em espécie', icon: Banknote },
-    { code: 'debit_card', label: 'Cartão de débito', description: 'Pagamento no débito', icon: CreditCard },
-    { code: 'credit_card', label: 'Cartão de crédito', description: 'Pagamento no crédito', icon: CreditCard },
+    { code: 'debit_card', label: 'Cartão de débito', description: 'Pagamento na maquininha', icon: CreditCard },
+    { code: 'credit_card', label: 'Cartão de crédito', description: 'Pagamento na maquininha', icon: CreditCard },
 ];
 
 function compactCode(value?: string | null) {
@@ -55,16 +56,65 @@ function getOrderFulfillment(order: Order) {
     return (order as Order & { fulfillment_type?: string | null }).fulfillment_type === 'delivery' ? 'delivery' : 'pickup';
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function asString(value: unknown) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeFinalMethod(value: string): FinalPaymentMethodCode | null {
+    const code = value.trim().toLowerCase();
+    if (['pix', 'pix_direct', 'pix_key', 'pix_manual'].includes(code)) return 'pix';
+    if (['cash', 'dinheiro'].includes(code)) return 'cash';
+    if (['debit_card', 'debit', 'card_debit'].includes(code)) return 'debit_card';
+    if (['credit_card', 'credit', 'card_credit'].includes(code)) return 'credit_card';
+    if (code === 'card') return 'debit_card';
+    return null;
+}
+
+function getInitialPaymentMethod(order: Order): FinalPaymentMethodCode {
+    const publicOrder = order as Order & {
+        payment_method_code?: string | null;
+        payment_method?: string | null;
+        promised_payment_method_code?: string | null;
+        payment_metadata?: Record<string, unknown> | null;
+        commercial_metadata?: Record<string, unknown> | null;
+    };
+    const metadata = asRecord(publicOrder.payment_metadata);
+    const checkout = asRecord(metadata.checkout);
+    const commercial = asRecord(publicOrder.commercial_metadata);
+    return normalizeFinalMethod(asString(checkout.promised_method_code))
+        || normalizeFinalMethod(asString(commercial.promised_payment_method))
+        || normalizeFinalMethod(asString(publicOrder.promised_payment_method_code))
+        || normalizeFinalMethod(asString(publicOrder.payment_method_code))
+        || normalizeFinalMethod(asString(publicOrder.payment_method))
+        || 'pix';
+}
+
 function getRouteForMethod(routes: PaymentRouteOption[], fulfillmentType: string, method: FinalPaymentMethodCode) {
+    const equivalentMethods = method === 'pix'
+        ? ['pix', 'pix_direct']
+        : method === 'debit_card'
+            ? ['debit_card', 'card']
+            : method === 'credit_card'
+                ? ['credit_card', 'card']
+                : [method];
+
     const candidates = routes
         .filter((route) => route.active)
-        .filter((route) => ['public_store', 'any', undefined].includes((route as PaymentRouteOption & { scope?: string }).scope as string | undefined))
+        .filter((route) => ['public_store', 'any', undefined, null].includes(route.scope))
         .filter((route) => [fulfillmentType, 'any'].includes(route.fulfillment_type))
         .filter((route) => ['pay_on_fulfillment', 'any'].includes(route.payment_timing))
-        .filter((route) => [method, '*'].includes(route.payment_method_code))
+        .filter((route) => [...equivalentMethods, '*'].includes(route.payment_method_code))
         .sort((a, b) => {
-            const aScore = (a.fulfillment_type === fulfillmentType ? 0 : 10) + (a.payment_method_code === method ? 0 : 1) + (a.sort_order || 0) / 1000;
-            const bScore = (b.fulfillment_type === fulfillmentType ? 0 : 10) + (b.payment_method_code === method ? 0 : 1) + (b.sort_order || 0) / 1000;
+            const aScore = (a.fulfillment_type === fulfillmentType ? 0 : 10)
+                + (equivalentMethods.includes(a.payment_method_code) ? 0 : 1)
+                + (a.sort_order || 0) / 1000;
+            const bScore = (b.fulfillment_type === fulfillmentType ? 0 : 10)
+                + (equivalentMethods.includes(b.payment_method_code) ? 0 : 1)
+                + (b.sort_order || 0) / 1000;
             return aScore - bScore;
         });
     return candidates[0] || null;
@@ -84,6 +134,10 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
     const selectedAccount = accounts.find((account) => account.id === selectedAccountId) || null;
     const routeAccount = accounts.find((account) => account.id === route?.destination_financial_account_id) || null;
     const canOverrideAccount = route?.allow_override_on_receipt !== false;
+
+    useEffect(() => {
+        if (order) setSelected(getInitialPaymentMethod(order));
+    }, [order?.id]);
 
     useEffect(() => {
         if (!order || !storeId) {
@@ -174,12 +228,12 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
     }
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-gray-850">
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-black/55 p-3 pt-4 backdrop-blur-sm sm:items-center sm:p-4">
+            <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl dark:bg-gray-850 sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-brand-green">Finalizar pedido</p>
-                        <h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">Confirme o pagamento</h2>
+                        <h2 className="mt-1 text-xl font-black text-gray-900 dark:text-white sm:text-2xl">Confirme o pagamento</h2>
                         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                             {compactCode(orderCode)} · {order.customer_name || 'Cliente'}
                         </p>
@@ -189,7 +243,7 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
                     </button>
                 </div>
 
-                <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <div className="mt-5 grid gap-3 sm:mt-6 sm:grid-cols-2">
                     {METHODS.map((method) => {
                         const Icon = method.icon;
                         const active = selected === method.code;
@@ -212,7 +266,7 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
                     })}
                 </div>
 
-                <div className="mt-6 rounded-2xl bg-gray-50 p-4 text-sm dark:bg-gray-800">
+                <div className="mt-5 rounded-2xl bg-gray-50 p-4 text-sm dark:bg-gray-800 sm:mt-6">
                     <div className="flex justify-between gap-4">
                         <span className="text-gray-500">Total a registrar</span>
                         <strong className="text-lg text-gray-900 dark:text-white">
@@ -233,7 +287,7 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
                                 value={selectedAccountId}
                                 disabled={isWorking || routingLoading || !canOverrideAccount}
                                 onChange={(event) => setSelectedAccountId(event.target.value)}
-                                className="mt-3 w-full rounded-xl border border-teal-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-teal-800 dark:bg-gray-950 dark:text-white"
+                                className="mt-3 w-full rounded-xl border border-teal-200 bg-white px-3 py-3 text-base font-bold text-gray-900 outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-teal-800 dark:bg-gray-950 dark:text-white sm:py-2 sm:text-sm"
                             >
                                 <option value="">Selecione uma conta</option>
                                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
@@ -243,7 +297,7 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
                     </div>
                 </div>
 
-                <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <div className="sticky bottom-0 -mx-5 mt-5 flex flex-col-reverse gap-3 border-t border-gray-100 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-850 sm:static sm:mx-0 sm:mt-6 sm:flex-row sm:justify-end sm:border-t-0 sm:bg-transparent sm:p-0 sm:dark:bg-transparent">
                     <button type="button" onClick={onClose} disabled={isWorking} className="rounded-xl border border-gray-200 px-5 py-3 font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300">
                         Voltar
                     </button>
