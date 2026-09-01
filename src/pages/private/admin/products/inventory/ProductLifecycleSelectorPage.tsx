@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Activity, X, ExternalLink, Package, Boxes, SearchX } from 'lucide-react';
+import { Search, Activity, X, Package, Boxes, SearchX } from 'lucide-react';
 import { useProducts } from '@/pages/private/admin/products/products/hooks/useProducts';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import PageContainer from '@/components/common/PageContainer';
@@ -34,8 +34,6 @@ export default function ProductLifecycleSelectorPage() {
   const [selectedAction, setSelectedAction] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [sortBy, setSortBy] = useState<'name-asc' | 'name-desc' | 'category-asc' | 'category-desc'>('name-asc');
-  const [selected, setSelected] = useState<any[]>([]);
-
   const [managementMap, setManagementMap] = useState<Map<string, any>>(new Map());
 
   useEffect(() => {
@@ -43,18 +41,18 @@ export default function ProductLifecycleSelectorPage() {
       const activeStoreId = getActiveStoreId();
 
       if (!activeStoreId) {
-          console.warn('Nenhuma loja ativa encontrada para Vida do Produto.');
-          setManagementMap(new Map());
-          return;
+        console.warn('Nenhuma loja ativa encontrada para Vida do Produto.');
+        setManagementMap(new Map());
+        return;
       }
-      
+
       const { data: managementRows, error: managementError } = await supabase.rpc(
         'get_inventory_management_products',
         {
           p_store_id: activeStoreId,
           p_recommended_action: null,
           p_limit: 1000,
-        }
+        },
       );
 
       if (managementError) {
@@ -67,7 +65,7 @@ export default function ProductLifecycleSelectorPage() {
     };
 
     if (products.length > 0) {
-      fetchManagementData();
+      void fetchManagementData();
     }
   }, [lastUpdated, products.length]);
 
@@ -156,10 +154,7 @@ export default function ProductLifecycleSelectorPage() {
     });
   }, [activeProducts, search, categoryFilter, selectedAction, sortBy]);
 
-  const hasFilters =
-    search.trim() !== '' ||
-    selectedAction !== 'all' ||
-    categoryFilter !== 'all';
+  const hasFilters = search.trim() !== '' || selectedAction !== 'all' || categoryFilter !== 'all';
 
   const clearFilters = () => {
     setSearch('');
@@ -168,14 +163,6 @@ export default function ProductLifecycleSelectorPage() {
     setSortBy('category-asc');
   };
 
-  const isSelected = (p: any) => selected.some((s) => s.id === p.id);
-  const toggleSelect = (p: any) => {
-    setSelected((prev) =>
-      prev.some((s) => s.id === p.id) ? prev.filter((s) => s.id !== p.id) : [...prev, p]
-    );
-  };
-  const removeSelected = (id: string) => setSelected((prev) => prev.filter((s) => s.id !== id));
-  const clearSelected = () => setSelected([]);
   const openSingle = (p: any) => navigate(`/admin/products/${p.id}/lifecycle`);
 
   const hasAnyProducts = activeProducts.length > 0;
@@ -214,39 +201,9 @@ export default function ProductLifecycleSelectorPage() {
       onRefresh={handleRefresh}
       flat
     >
-      {selected.length > 0 && (
-        <div className="rounded-2xl bg-[#19A999]/10 border border-[#19A999]/30 p-4 flex flex-wrap items-center gap-3">
-          <span className="text-sm font-semibold text-[#19A999]">
-            {selected.length} produto{selected.length > 1 ? 's' : ''} selecionado{selected.length > 1 ? 's' : ''}:
-          </span>
-          <div className="flex flex-wrap gap-2 flex-1">
-            {selected.map((p) => (
-              <div key={p.id} className="flex items-center gap-1.5 bg-white dark:bg-gray-800 border border-[#19A999]/40 rounded-full px-3 py-1 text-sm">
-                <span className="font-medium text-gray-800 dark:text-white">{p.name}</span>
-                <button type="button" onClick={() => removeSelected(p.id)} className="text-gray-400 hover:text-red-500 transition" title="Remover">
-                  <X size={13} />
-                </button>
-                <button type="button" onClick={() => openSingle(p)} className="text-[#19A999] hover:text-[#14887B] transition" title="Abrir">
-                  <ExternalLink size={13} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-2 ml-auto shrink-0">
-            <button type="button" onClick={clearSelected} className="text-xs text-gray-500 hover:text-red-500 transition underline">
-              Limpar seleção
-            </button>
-            <button
-              type="button"
-              onClick={() => openSingle(selected[0])}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#19A999] hover:bg-[#14887B] text-white text-sm font-semibold rounded-xl transition"
-            >
-              <Activity size={15} />
-              {selected.length === 1 ? 'Ver vida do produto' : 'Abrir produtos selecionados'}
-            </button>
-          </div>
-        </div>
-      )}
+      <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4 text-sm font-semibold text-teal-950 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100">
+        Abra um produto por vez para consultar sua vida operacional. A seleção múltipla foi removida porque esta tela é uma análise individual.
+      </div>
 
       <div className="rounded-2xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 p-4 shadow-sm space-y-3">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
@@ -277,9 +234,7 @@ export default function ProductLifecycleSelectorPage() {
           >
             <option value="all">Todas as categorias</option>
             {categoryOptions.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+              <option key={category.id} value={category.id}>{category.name}</option>
             ))}
           </select>
 
@@ -344,80 +299,64 @@ export default function ProductLifecycleSelectorPage() {
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filtered.map((p) => {
-            const sel = isSelected(p);
-            return (
-              <div
-                key={p.id}
-                onClick={() => toggleSelect(p)}
-                className={`relative rounded-2xl border-2 cursor-pointer transition-all duration-150 p-4 flex flex-col gap-3 group ${
-                  sel
-                    ? 'border-[#19A999] bg-[#19A999]/5 shadow-md shadow-[#19A999]/10'
-                    : 'border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-[#19A999]/40 hover:shadow-sm'
-                }`}
-              >
-                <div className={`absolute top-3 right-3 w-5 h-5 rounded-full border-2 flex items-center justify-center transition ${
-                  sel ? 'border-[#19A999] bg-[#19A999]' : 'border-gray-300 dark:border-gray-600 group-hover:border-[#19A999]/60'
-                }`}>
-                  {sel && (
-                    <svg viewBox="0 0 10 8" className="w-3 h-3 fill-white" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <div className="h-28 sm:h-32 w-full object-cover rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
-                  {p.images?.[0] ? (
-                    <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <Package size={28} className="text-gray-300 dark:text-gray-600" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2 pr-6">{p.name}</p>
-                  {p.category && <p className="text-xs text-gray-400 truncate">{p.category.name}</p>}
-                </div>
-                
-                <div className="flex flex-col gap-1.5 mt-auto mb-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span
-                      className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                        actionClassMap[p.recommended_action ?? 'ok']
-                      }`}
-                    >
-                      {actionLabelMap[p.recommended_action ?? 'ok']}
-                    </span>
-                    <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
-                      {formatNumberPtBr(p.global_available ?? 0)} un.
-                    </span>
-                  </div>
-                  
-                  {((p.location_stockout_count ?? 0) > 0 || ((p.possible_source_locations ?? 0) > 0 && (p.recommended_action === 'transfer' || p.recommended_action === 'transfer_or_redistribute'))) && (
-                    <div className="flex flex-col gap-0.5">
-                      {(p.location_stockout_count ?? 0) > 0 && (
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                          {p.location_stockout_count} local(is) sem estoque
-                        </p>
-                      )}
-                      {(p.possible_source_locations ?? 0) > 0 &&
-                        (p.recommended_action === 'transfer' || p.recommended_action === 'transfer_or_redistribute') && (
-                          <p className="text-[11px] text-blue-600 dark:text-blue-300">
-                            há origem possível
-                          </p>
-                        )}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); openSingle(p); }}
-                  className="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 dark:bg-gray-700 hover:bg-[#19A999] hover:text-white text-gray-600 dark:text-gray-300 text-xs font-semibold rounded-xl transition-all duration-150"
-                >
-                  <Activity size={13} />
-                  Ver vida do produto
-                </button>
+          {filtered.map((p) => (
+            <article
+              key={p.id}
+              onClick={() => openSingle(p)}
+              className="relative rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all duration-150 hover:border-[#19A999]/50 hover:shadow-md dark:border-gray-700 dark:bg-gray-800 cursor-pointer flex flex-col gap-3 group"
+            >
+              <div className="h-28 sm:h-32 w-full overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                {p.images?.[0] ? (
+                  <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.02]" />
+                ) : (
+                  <Package size={28} className="text-gray-300 dark:text-gray-600" />
+                )}
               </div>
-            );
-          })}
+
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2">{p.name}</p>
+                {p.category && <p className="text-xs text-gray-400 truncate">{p.category.name}</p>}
+              </div>
+
+              <div className="flex flex-col gap-1.5 mt-auto mb-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                      actionClassMap[p.recommended_action ?? 'ok']
+                    }`}
+                  >
+                    {actionLabelMap[p.recommended_action ?? 'ok']}
+                  </span>
+                  <span className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                    {formatNumberPtBr(p.global_available ?? 0)} un.
+                  </span>
+                </div>
+
+                {((p.location_stockout_count ?? 0) > 0 || ((p.possible_source_locations ?? 0) > 0 && (p.recommended_action === 'transfer' || p.recommended_action === 'transfer_or_redistribute'))) && (
+                  <div className="flex flex-col gap-0.5">
+                    {(p.location_stockout_count ?? 0) > 0 && (
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {p.location_stockout_count} local(is) sem estoque
+                      </p>
+                    )}
+                    {(p.possible_source_locations ?? 0) > 0 &&
+                      (p.recommended_action === 'transfer' || p.recommended_action === 'transfer_or_redistribute') && (
+                        <p className="text-[11px] text-blue-600 dark:text-blue-300">há origem possível</p>
+                      )}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openSingle(p); }}
+                className="w-full mt-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-50 dark:bg-gray-700 hover:bg-[#19A999] hover:text-white text-gray-600 dark:text-gray-300 text-xs font-semibold rounded-xl transition-all duration-150"
+              >
+                <Activity size={13} />
+                Ver vida do produto
+              </button>
+            </article>
+          ))}
         </div>
       )}
     </PageContainer>
