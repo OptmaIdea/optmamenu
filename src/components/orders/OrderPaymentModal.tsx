@@ -228,17 +228,17 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
     }
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-black/55 p-3 pt-4 backdrop-blur-sm sm:items-center sm:p-4">
-            <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl dark:bg-gray-850 sm:p-6">
+        <div className="fixed inset-0 z-[110] flex items-start justify-center overflow-y-auto bg-black/60 p-3 pt-4 backdrop-blur-sm sm:items-center sm:p-4">
+            <div className="my-auto max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-3xl border border-gray-100 bg-white p-5 text-gray-900 shadow-2xl dark:border-gray-700 dark:bg-gray-900 dark:text-white sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                     <div>
                         <p className="text-xs font-black uppercase tracking-widest text-brand-green">Finalizar pedido</p>
                         <h2 className="mt-1 text-xl font-black text-gray-900 dark:text-white sm:text-2xl">Confirme o pagamento</h2>
-                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
                             {compactCode(orderCode)} · {order.customer_name || 'Cliente'}
                         </p>
                     </div>
-                    <button type="button" onClick={onClose} disabled={isWorking} className="rounded-xl p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700">
+                    <button type="button" onClick={onClose} disabled={isWorking} className="rounded-xl p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
                         <X size={20} />
                     </button>
                 </div>
@@ -254,51 +254,51 @@ export default function OrderPaymentModal({ order, loading = false, onClose, onC
                                 onClick={() => setSelected(method.code)}
                                 disabled={isWorking}
                                 className={`rounded-2xl border-2 p-4 text-left transition ${active
-                                    ? 'border-brand-green bg-brand-green/5'
-                                    : 'border-gray-200 hover:border-brand-green/40 dark:border-gray-700'
+                                    ? 'border-brand-green bg-brand-green/10 dark:border-teal-400 dark:bg-teal-950/40'
+                                    : 'border-gray-200 bg-white hover:border-brand-green/40 dark:border-gray-700 dark:bg-gray-950/70 dark:hover:border-teal-500'
                                 }`}
                             >
-                                <Icon size={22} className={active ? 'text-brand-green' : 'text-gray-400'} />
+                                <Icon size={22} className={active ? 'text-brand-green dark:text-teal-300' : 'text-gray-400 dark:text-gray-500'} />
                                 <span className="mt-3 block font-black text-gray-900 dark:text-white">{method.label}</span>
-                                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">{method.description}</span>
+                                <span className="mt-1 block text-xs text-gray-600 dark:text-gray-300">{method.description}</span>
                             </button>
                         );
                     })}
                 </div>
 
-                <div className="mt-5 rounded-2xl bg-gray-50 p-4 text-sm dark:bg-gray-800 sm:mt-6">
+                <div className="mt-5 rounded-2xl bg-gray-50 p-4 text-sm dark:bg-gray-950/70 sm:mt-6">
                     <div className="flex justify-between gap-4">
-                        <span className="text-gray-500">Total a registrar</span>
+                        <span className="text-gray-600 dark:text-gray-300">Total a registrar</span>
                         <strong className="text-lg text-gray-900 dark:text-white">
                             {Number(order.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </strong>
                     </div>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-teal-100 bg-teal-50 p-4 text-sm text-teal-950 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100">
+                <div className="mt-4 rounded-2xl border border-teal-100 bg-teal-50 p-4 text-sm text-teal-950 dark:border-teal-700 dark:bg-teal-950/35 dark:text-teal-50">
                     <div className="flex items-start gap-3">
-                        <Landmark size={18} className="mt-0.5 shrink-0" />
+                        <Landmark size={18} className="mt-0.5 shrink-0 text-teal-700 dark:text-teal-200" />
                         <div className="min-w-0 flex-1">
                             <p className="font-black">Conta que receberá o valor</p>
-                            <p className="mt-1 text-xs font-semibold opacity-85">
+                            <p className="mt-1 text-xs font-semibold text-teal-900/80 dark:text-teal-100/90">
                                 Padrão da rota: {routeAccount?.name || 'não definido'}{canOverrideAccount ? ' · pode alterar nesta baixa' : ' · travado pela regra'}.
                             </p>
                             <select
                                 value={selectedAccountId}
                                 disabled={isWorking || routingLoading || !canOverrideAccount}
                                 onChange={(event) => setSelectedAccountId(event.target.value)}
-                                className="mt-3 w-full rounded-xl border border-teal-200 bg-white px-3 py-3 text-base font-bold text-gray-900 outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-teal-800 dark:bg-gray-950 dark:text-white sm:py-2 sm:text-sm"
+                                className="mt-3 w-full rounded-xl border border-teal-200 bg-white px-3 py-3 text-base font-bold text-gray-900 outline-none disabled:cursor-not-allowed disabled:opacity-70 dark:border-teal-700 dark:bg-gray-950 dark:text-white sm:py-2 sm:text-sm"
                             >
                                 <option value="">Selecione uma conta</option>
                                 {accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                             </select>
-                            {selectedAccount && <p className="mt-2 text-xs font-bold opacity-90">Selecionada: {selectedAccount.name}</p>}
+                            {selectedAccount && <p className="mt-2 text-xs font-bold text-teal-900/85 dark:text-teal-100">Selecionada: {selectedAccount.name}</p>}
                         </div>
                     </div>
                 </div>
 
-                <div className="sticky bottom-0 -mx-5 mt-5 flex flex-col-reverse gap-3 border-t border-gray-100 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-850 sm:static sm:mx-0 sm:mt-6 sm:flex-row sm:justify-end sm:border-t-0 sm:bg-transparent sm:p-0 sm:dark:bg-transparent">
-                    <button type="button" onClick={onClose} disabled={isWorking} className="rounded-xl border border-gray-200 px-5 py-3 font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300">
+                <div className="sticky bottom-0 -mx-5 mt-5 flex flex-col-reverse gap-3 border-t border-gray-100 bg-white px-5 py-4 dark:border-gray-700 dark:bg-gray-900 sm:static sm:mx-0 sm:mt-6 sm:flex-row sm:justify-end sm:border-t-0 sm:bg-transparent sm:p-0 sm:dark:bg-transparent">
+                    <button type="button" onClick={onClose} disabled={isWorking} className="rounded-xl border border-gray-200 px-5 py-3 font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
                         Voltar
                     </button>
                     <button type="button" onClick={() => void confirmWithAccount()} disabled={isWorking || !selectedAccountId} className="rounded-xl bg-green-600 px-6 py-3 font-black text-white hover:bg-green-700 disabled:opacity-60">
