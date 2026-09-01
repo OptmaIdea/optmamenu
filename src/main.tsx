@@ -2,9 +2,22 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '@/App';
 import './index.css';
+import './styles/operationalRefinements.css';
 
 const CHUNK_RELOAD_KEY = 'optmamenu.chunk-reload-attempted-at';
 const CHUNK_RELOAD_WINDOW_MS = 30_000;
+
+let lastRoutePathname = '';
+
+function syncRouteDataAttribute() {
+  if (window.location.pathname === lastRoutePathname) return;
+  lastRoutePathname = window.location.pathname;
+  document.documentElement.dataset.route = lastRoutePathname;
+}
+
+syncRouteDataAttribute();
+window.setInterval(syncRouteDataAttribute, 500);
+window.addEventListener('popstate', syncRouteDataAttribute);
 
 function reloadAfterChunkFailure() {
   const previousAttempt = Number(sessionStorage.getItem(CHUNK_RELOAD_KEY) ?? 0);
