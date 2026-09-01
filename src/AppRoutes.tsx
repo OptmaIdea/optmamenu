@@ -102,6 +102,7 @@ const StockMovements = lazy(() => import('@/pages/private/admin/products/invento
 const PurchasesLedger = lazy(() => import('@/pages/private/admin/products/inventory/PurchasesLedger'));
 const PurchaseDocumentsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseDocumentsPage'));
 const PurchaseQuotationsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseQuotationsPage'));
+const PurchaseQuotationBatchPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseQuotationBatchPage'));
 const PurchaseInsightsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseInsightsPage'));
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
@@ -231,6 +232,7 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook/purchases" element={<RequirePermission permission="purchases.view"><PurchasesLedger /></RequirePermission>} />
             <Route path="/admin/stock/purchase-documents" element={<RequirePermission permission="purchases.view"><PurchaseDocumentsPage /></RequirePermission>} />
             <Route path="/admin/stock/purchase-insights" element={<RequirePermission permission="purchases.view"><PurchaseInsightsPage /></RequirePermission>} />
+            <Route path="/admin/stock/quotations/batch" element={<RequirePermission permission="quotes.view"><PurchaseQuotationBatchPage /></RequirePermission>} />
             <Route path="/admin/stock/quotations" element={<RequirePermission permission="quotes.view"><PurchaseQuotationsPage /></RequirePermission>} />
             <Route path="/admin/stock/movements" element={<RequirePermission permission="stock.view"><StockMovements /></RequirePermission>} />
             <Route path="/admin/stock-movements" element={<Navigate to="/admin/stock/movements" replace />} />
