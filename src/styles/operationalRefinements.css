@@ -158,3 +158,9 @@ html.dark[data-route^="/admin/suppliers"] .shadow-sm,
 html.dark[data-route^="/admin/suppliers"] .shadow-xl {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24) !important;
 }
+
+/* UX final: códigos internos de local continuam no dado/exportação, mas não poluem a operação diária. */
+html[data-route^="/admin/inventory"] tbody td:first-child > .text-xs.text-gray-400,
+html[data-route^="/admin/inventory"] tbody td:first-child > div:last-child.text-xs {
+  display: none !important;
+}
