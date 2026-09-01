@@ -1,4 +1,4 @@
-﻿import { useMemo, useState, useEffect, Fragment } from 'react';
+import { useMemo, useState, useEffect, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -101,6 +101,9 @@ export default function InventoryByLocationPage() {
   const { rows: transitRows } = useInventoryTransit(storeId);
   const { permissions } = usePermissions(storeId ?? null);
   const canCreateTransfers = hasEffectivePermission(permissions, 'transfers.create');
+  const canCreateQuotes =
+    hasEffectivePermission(permissions, 'quotes.manage') ||
+    hasEffectivePermission(permissions, 'quotes.create');
 
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
 
@@ -398,6 +401,34 @@ export default function InventoryByLocationPage() {
     navigate(`/admin/transfers?${params.toString()}`);
   };
 
+  const getSuggestedPurchaseQty = (row: any) => {
+    const localMinimum = Number(row.provisional_location_min_stock ?? row.min_stock ?? 0);
+    const globalAvailable = Number(row.global_available ?? row.available ?? 0);
+    const localAvailable = Number(row.available ?? 0);
+    const target = Math.max(localMinimum, 1);
+    const shortage = target - Math.max(globalAvailable, localAvailable);
+
+    return Math.max(1, Math.ceil(shortage > 0 ? shortage : target));
+  };
+
+  const handleCreateQuotationFromRow = (row: any) => {
+    if (!canCreateQuotes) {
+      return;
+    }
+
+    const suggestedQty = getSuggestedPurchaseQty(row);
+    const params = new URLSearchParams({
+      product_id: row.product_id,
+      product_name: row.product_name,
+      location_id: row.location_id,
+      location_name: row.location_name,
+      suggested_qty: String(suggestedQty),
+      source: 'inventory_replenishment',
+    });
+
+    navigate(`/admin/stock/quotations?${params.toString()}`);
+  };
+
   if (loading) return <LoadingSpinner />;
 
   if (!loading && !hasAnyData) {
@@ -451,7 +482,12 @@ export default function InventoryByLocationPage() {
           <div className="text-2xl font-bold">{filteredLocationsCount}</div>
         </div>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <button
+          type="button"
+          onClick={() => setSelectedAction((current) => (current === 'buy' ? 'all' : 'buy'))}
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-red-300 dark:hover:border-red-700"
+          title="Filtrar itens sugeridos para compra"
+        >
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Comprar
             <InfoTooltip text="Produtos cujo estoque global está zerado ou crítico. A ação correta tende a ser compra/reposição." />
@@ -462,9 +498,14 @@ export default function InventoryByLocationPage() {
               {filteredSummary.recommendedBuy}
             </span>
           </div>
-        </div>
+        </button>
 
-        <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+        <button
+          type="button"
+          onClick={() => setSelectedAction((current) => (current === 'transfer' ? 'all' : 'transfer'))}
+          className="text-left rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition hover:border-blue-300 dark:hover:border-blue-700"
+          title="Filtrar itens sugeridos para transferência"
+        >
           <div className="text-sm text-gray-500 flex items-center gap-1">
             Transferir
             <InfoTooltip text="Produtos com saldo global, mas com ruptura ou criticidade em algum local. A ação sugerida é redistribuição." />
@@ -475,7 +516,7 @@ export default function InventoryByLocationPage() {
               {filteredSummary.recommendedTransfer}
             </span>
           </div>
-        </div>
+        </button>
 
         <div className="rounded-2xl bg-white dark:bg-gray-800 p-4 shadow-sm border border-gray-100 dark:border-gray-700">
           <div className="text-sm text-gray-500 flex items-center gap-1">
@@ -713,7 +754,7 @@ export default function InventoryByLocationPage() {
                 <th className="text-left px-4 py-3">Status local</th>
                 <th className="text-left px-4 py-3">Ação</th>
                 <th className="text-left px-4 py-3">Global</th>
-                <th className="text-left px-4 py-3">Origem</th>
+                <th className="text-left px-4 py-3">Origem / Reposição</th>
               </tr>
             </thead>
             <tbody>
@@ -836,25 +877,57 @@ export default function InventoryByLocationPage() {
                       </td>
 
                       <td className="px-4 py-3">
-                        {row.recommended_action === 'transfer' && bestSource && canCreateTransfers ? (
-                          <div className="text-xs space-y-1">
-                            <div className="font-medium text-blue-600 dark:text-blue-300">
-                              {bestSource.location_name}
-                            </div>
-                            <div className="text-gray-400">
-                              Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleCreateTransferFromRow(row)}
-                              className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
-                            >
-                              Criar transferência
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        {(() => {
+                          const action = getTransitAwareAction(row);
+
+                          if (action === 'transfer' && bestSource && canCreateTransfers) {
+                            return (
+                              <div className="text-xs space-y-1">
+                                <div className="font-medium text-blue-600 dark:text-blue-300">
+                                  {bestSource.location_name}
+                                </div>
+                                <div className="text-gray-400">
+                                  Disp.: {formatNumberPtBr(bestSource.available ?? 0)}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateTransferFromRow(row)}
+                                  className="mt-1 inline-flex items-center rounded-lg bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:hover:bg-blue-900/50"
+                                >
+                                  Criar transferência
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (action === 'buy' && canCreateQuotes) {
+                            const suggestedQty = getSuggestedPurchaseQty(row);
+
+                            return (
+                              <div className="text-xs space-y-1">
+                                <div className="font-medium text-red-600 dark:text-red-300">
+                                  Repor por compra
+                                </div>
+                                <div className="text-gray-400">
+                                  Sug.: {formatNumberPtBr(suggestedQty)} un.
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleCreateQuotationFromRow(row)}
+                                  className="mt-1 inline-flex items-center rounded-lg bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:hover:bg-red-900/50"
+                                >
+                                  Criar cotação
+                                </button>
+                              </div>
+                            );
+                          }
+
+                          if (action === 'buy') {
+                            return <span className="text-xs text-gray-400">Cotação indisponível</span>;
+                          }
+
+                          return <span className="text-xs text-gray-400">—</span>;
+                        })()}
                       </td>
                     </tr>
                   );
