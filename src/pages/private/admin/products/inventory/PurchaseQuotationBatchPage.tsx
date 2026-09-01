@@ -5,10 +5,13 @@ import {
   CheckCircle2,
   Clock3,
   FileText,
+  PackagePlus,
   PackageSearch,
+  Plus,
   RefreshCw,
   Send,
   ShoppingCart,
+  Trash2,
   Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -57,6 +60,21 @@ type SupplierOption = {
   preferred_supplier: boolean;
 };
 
+type ProductOption = {
+  id: string;
+  name: string;
+  category_id: string | null;
+  price: number | null;
+  min_stock: number | null;
+  max_stock: number | null;
+  product_codes?: Array<{
+    code_type: string | null;
+    code_value: string | null;
+    active: boolean | null;
+    is_primary: boolean | null;
+  }> | null;
+};
+
 type SelectedItem = {
   productId: string;
   productName: string;
@@ -65,6 +83,7 @@ type SelectedItem = {
   referenceUnitCost: number | null;
   reason: string;
   included: boolean;
+  manual: boolean;
 };
 
 type CreatedQuotation = {
@@ -85,8 +104,18 @@ function toSafePositive(value: number, fallback = 1) {
   return Math.max(1, Math.ceil(value));
 }
 
+function selectOnFocus(event: React.FocusEvent<HTMLInputElement>) {
+  event.currentTarget.select();
+}
+
 function supplierDisplayName(supplier: SupplierOption) {
   return supplier.trade_name?.trim() || supplier.name;
+}
+
+function productDisplayCode(product: ProductOption) {
+  const primary = product.product_codes?.find((code) => code.active !== false && code.is_primary);
+  const fallback = product.product_codes?.find((code) => code.active !== false);
+  return primary?.code_value || fallback?.code_value || null;
 }
 
 function channelForSupplier(supplier: SupplierOption): 'whatsapp' | 'email' | 'manual' {
@@ -113,8 +142,13 @@ export default function PurchaseQuotationBatchPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState<SelectedItem[]>([]);
+  const [products, setProducts] = useState<ProductOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [selectedSuppliers, setSelectedSuppliers] = useState<Record<string, boolean>>({});
+  const [productSearch, setProductSearch] = useState('');
+  const [productToAddId, setProductToAddId] = useState('');
+  const [manualQuantity, setManualQuantity] = useState('1');
+  const [manualUnitCost, setManualUnitCost] = useState('');
   const [deadlineDays, setDeadlineDays] = useState('0');
   const [deadlineHours, setDeadlineHours] = useState('1');
   const [deadlineMinutes, setDeadlineMinutes] = useState('0');
@@ -137,11 +171,24 @@ export default function PurchaseQuotationBatchPage() {
     [suppliers, selectedSuppliers]
   );
 
+  const availableProductsForManualAdd = useMemo(() => {
+    const usedIds = new Set(items.map((item) => item.productId));
+    const normalizedSearch = productSearch.trim().toLowerCase();
+
+    return products
+      .filter((product) => !usedIds.has(product.id))
+      .filter((product) => {
+        if (!normalizedSearch) return true;
+        const code = productDisplayCode(product)?.toLowerCase() || '';
+        return product.name.toLowerCase().includes(normalizedSearch) || code.includes(normalizedSearch);
+      });
+  }, [items, products, productSearch]);
+
   const load = useCallback(async () => {
     if (!storeId) return;
     setLoading(true);
     try {
-      const [suggestionsResult, suppliersResult] = await Promise.all([
+      const [suggestionsResult, suppliersResult, productsResult] = await Promise.all([
         supabase.rpc('get_purchase_suggestions_by_store', { p_store_id: storeId }),
         supabase
           .from('suppliers')
@@ -151,10 +198,18 @@ export default function PurchaseQuotationBatchPage() {
           .eq('blocked', false)
           .order('preferred_supplier', { ascending: false })
           .order('name', { ascending: true }),
+        supabase
+          .from('products')
+          .select('id, name, category_id, price, min_stock, max_stock, product_codes(code_type, code_value, active, is_primary)')
+          .eq('store_id', storeId)
+          .eq('active', true)
+          .eq('is_discontinued', false)
+          .order('name', { ascending: true }),
       ]);
 
       if (suggestionsResult.error) throw suggestionsResult.error;
       if (suppliersResult.error) throw suppliersResult.error;
+      if (productsResult.error) throw productsResult.error;
 
       const queryProductId = searchParams.get('product_id');
       const queryProductName = searchParams.get('product_name');
@@ -173,6 +228,7 @@ export default function PurchaseQuotationBatchPage() {
         referenceUnitCost: Number.isFinite(Number(suggestion.suggested_unit_cost)) ? Number(suggestion.suggested_unit_cost) : null,
         reason: suggestion.recommendation_reason || 'Reposição sugerida pelo estoque',
         included: true,
+        manual: false,
       }));
 
       if (queryProductId && queryProductName && !nextItems.some((item) => item.productId === queryProductId)) {
@@ -184,12 +240,16 @@ export default function PurchaseQuotationBatchPage() {
           referenceUnitCost: null,
           reason: 'Produto selecionado na tela de estoque',
           included: true,
+          manual: false,
         });
       }
 
+      const nextProducts = (productsResult.data || []) as ProductOption[];
       const nextSuppliers = (suppliersResult.data || []) as SupplierOption[];
       setItems(nextItems);
+      setProducts(nextProducts);
       setSuppliers(nextSuppliers);
+      setProductToAddId((current) => current || nextProducts.find((product) => !nextItems.some((item) => item.productId === product.id))?.id || '');
 
       const preferredSupplierIds = new Set(
         suggestions
@@ -215,12 +275,50 @@ export default function PurchaseQuotationBatchPage() {
     setItems((current) => current.map((item) => (item.productId === productId ? { ...item, ...patch } : item)));
   }
 
+  function removeItem(productId: string) {
+    setItems((current) => current.filter((item) => item.productId !== productId));
+  }
+
   function toggleAllItems(included: boolean) {
     setItems((current) => current.map((item) => ({ ...item, included })));
   }
 
   function toggleSupplier(id: string) {
     setSelectedSuppliers((current) => ({ ...current, [id]: !current[id] }));
+  }
+
+  function addManualProduct() {
+    const product = products.find((option) => option.id === productToAddId) || availableProductsForManualAdd[0];
+    if (!product) {
+      toast.warning('Não há produto disponível para adicionar.');
+      return;
+    }
+
+    if (items.some((item) => item.productId === product.id)) {
+      toast.warning('Este produto já está na cotação.');
+      return;
+    }
+
+    const quantity = toSafePositive(parseNumber(manualQuantity));
+    setItems((current) => [
+      ...current,
+      {
+        productId: product.id,
+        productName: product.name,
+        locationName: null,
+        quantity,
+        referenceUnitCost: manualUnitCost.trim() ? parseNumber(manualUnitCost) : Number(product.price ?? 0) || null,
+        reason: 'Incluído manualmente na cotação',
+        included: true,
+        manual: true,
+      },
+    ]);
+
+    setManualQuantity('1');
+    setManualUnitCost('');
+    setProductSearch('');
+    setProductToAddId('');
+    toast.success(`${product.name} adicionado à cotação.`);
   }
 
   function buildMessageBody(supplier: SupplierOption) {
@@ -342,6 +440,18 @@ export default function PurchaseQuotationBatchPage() {
           >
             <ArrowLeft size={16} /> Voltar ao estoque
           </button>
+          <Link
+            to="/admin/stock/quotations"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <FileText size={16} /> Cotações
+          </Link>
+          <Link
+            to="/admin/stock/purchase-documents"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+          >
+            <ShoppingCart size={16} /> Compras
+          </Link>
           <button
             type="button"
             onClick={() => void markExpired()}
@@ -376,15 +486,83 @@ export default function PurchaseQuotationBatchPage() {
               </div>
             </div>
 
+            <div className="border-b border-gray-100 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+              <div className="mb-3 flex items-center gap-2">
+                <PackagePlus className="text-[#19A999]" size={18} />
+                <div>
+                  <p className="text-sm font-black text-gray-900 dark:text-white">Adicionar produto fora da sugestão</p>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Use quando quiser cotar um item que ainda não apareceu como reposição automática.</p>
+                </div>
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)_120px_140px_auto] lg:items-end">
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Buscar</span>
+                  <input
+                    value={productSearch}
+                    onChange={(event) => setProductSearch(event.target.value)}
+                    placeholder="Nome ou código"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Produto</span>
+                  <select
+                    value={productToAddId}
+                    onChange={(event) => setProductToAddId(event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  >
+                    <option value="">Selecione um produto</option>
+                    {availableProductsForManualAdd.map((product) => {
+                      const code = productDisplayCode(product);
+                      return (
+                        <option key={product.id} value={product.id}>
+                          {product.name}{code ? ` · ${code}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Quantidade</span>
+                  <input
+                    value={manualQuantity}
+                    onFocus={selectOnFocus}
+                    onChange={(event) => setManualQuantity(event.target.value)}
+                    inputMode="decimal"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Custo ref.</span>
+                  <input
+                    value={manualUnitCost}
+                    onFocus={selectOnFocus}
+                    onChange={(event) => setManualUnitCost(event.target.value)}
+                    placeholder="0,00"
+                    inputMode="decimal"
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={addManualProduct}
+                  disabled={!availableProductsForManualAdd.length}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-black text-white hover:bg-[#14887B] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus size={16} /> Adicionar
+                </button>
+              </div>
+            </div>
+
             {items.length === 0 ? (
               <div className="p-8 text-center text-gray-500 dark:text-gray-400">
                 <PackageSearch className="mx-auto mb-3 h-8 w-8 text-gray-400" />
-                Nenhuma sugestão de compra encontrada agora.
+                Nenhuma sugestão de compra encontrada agora. Você pode adicionar produtos manualmente acima.
               </div>
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {items.map((item) => (
-                  <div key={item.productId} className="grid gap-3 p-4 md:grid-cols-[auto_minmax(0,1fr)_140px_140px] md:items-center">
+                  <div key={item.productId} className="grid gap-3 p-4 md:grid-cols-[auto_minmax(0,1fr)_140px_140px_auto] md:items-center">
                     <label className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -395,7 +573,14 @@ export default function PurchaseQuotationBatchPage() {
                       <span className="sr-only">Selecionar {item.productName}</span>
                     </label>
                     <div className="min-w-0">
-                      <p className="font-black text-gray-900 dark:text-white">{item.productName}</p>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-gray-900 dark:text-white">{item.productName}</p>
+                        {item.manual && (
+                          <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-200">
+                            Manual
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
                         {item.locationName ? `${item.locationName} · ` : ''}{item.reason}
                       </p>
@@ -407,6 +592,7 @@ export default function PurchaseQuotationBatchPage() {
                         min="1"
                         step="1"
                         value={item.quantity}
+                        onFocus={selectOnFocus}
                         onChange={(event) => updateItem(item.productId, { quantity: toSafePositive(Number(event.target.value)) })}
                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                       />
@@ -416,11 +602,20 @@ export default function PurchaseQuotationBatchPage() {
                       <input
                         type="text"
                         value={item.referenceUnitCost == null ? '' : String(item.referenceUnitCost).replace('.', ',')}
+                        onFocus={selectOnFocus}
                         onChange={(event) => updateItem(item.productId, { referenceUnitCost: event.target.value.trim() ? parseNumber(event.target.value) : null })}
                         placeholder="0,00"
                         className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                       />
                     </label>
+                    <button
+                      type="button"
+                      onClick={() => removeItem(item.productId)}
+                      className="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-rose-50 p-2 text-rose-700 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
+                      title="Remover item da cotação"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -459,9 +654,18 @@ export default function PurchaseQuotationBatchPage() {
                 <h2 className="text-lg font-black text-gray-900 dark:text-white">Prazo de resposta</h2>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <label className="space-y-1"><span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Dias</span><input value={deadlineDays} onChange={(e) => setDeadlineDays(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" /></label>
-                <label className="space-y-1"><span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Horas</span><input value={deadlineHours} onChange={(e) => setDeadlineHours(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" /></label>
-                <label className="space-y-1"><span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Minutos</span><input value={deadlineMinutes} onChange={(e) => setDeadlineMinutes(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" /></label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Dias</span>
+                  <input value={deadlineDays} onFocus={selectOnFocus} onChange={(e) => setDeadlineDays(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Horas</span>
+                  <input value={deadlineHours} onFocus={selectOnFocus} onChange={(e) => setDeadlineHours(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Minutos</span>
+                  <input value={deadlineMinutes} onFocus={selectOnFocus} onChange={(e) => setDeadlineMinutes(e.target.value)} inputMode="numeric" className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                </label>
               </div>
               <p className="mt-3 rounded-xl bg-gray-50 p-3 text-sm font-semibold text-gray-600 dark:bg-gray-950 dark:text-gray-300">
                 {expiresAt ? `Vence em ${dateTime.format(expiresAt)}` : 'Sem vencimento definido'}
