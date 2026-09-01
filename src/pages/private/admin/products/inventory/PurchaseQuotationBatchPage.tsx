@@ -10,7 +10,6 @@ import {
   Send,
   ShoppingCart,
   Users,
-  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
@@ -20,7 +19,6 @@ import { getActiveStoreId } from '@/utils/activeStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
 
-const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const number = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 3 });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
@@ -193,7 +191,11 @@ export default function PurchaseQuotationBatchPage() {
       setItems(nextItems);
       setSuppliers(nextSuppliers);
 
-      const preferredSupplierIds = new Set(suggestions.map((suggestion) => suggestion.suggested_supplier_id).filter(Boolean));
+      const preferredSupplierIds = new Set(
+        suggestions
+          .map((suggestion) => suggestion.suggested_supplier_id)
+          .filter((supplierId): supplierId is string => Boolean(supplierId))
+      );
       setSelectedSuppliers(Object.fromEntries(
         nextSuppliers.map((supplier) => [supplier.id, preferredSupplierIds.has(supplier.id) || supplier.preferred_supplier])
       ));
