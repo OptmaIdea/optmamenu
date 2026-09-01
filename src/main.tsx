@@ -6,6 +6,51 @@ import './styles/operationalRefinements.css';
 
 const CHUNK_RELOAD_KEY = 'optmamenu.chunk-reload-attempted-at';
 const CHUNK_RELOAD_WINDOW_MS = 30_000;
+const THEME_STORAGE_KEY = 'theme';
+const VALID_THEME_PREFERENCES = new Set(['light', 'dark', 'system']);
+
+type ThemePreference = 'light' | 'dark' | 'system';
+
+function getThemePreference(): ThemePreference {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+
+    if (stored && VALID_THEME_PREFERENCES.has(stored)) {
+      return stored as ThemePreference;
+    }
+  } catch {
+    // localStorage pode falhar em contextos restritos.
+  }
+
+  return 'system';
+}
+
+function systemPrefersDark() {
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+}
+
+function applyStoredTheme() {
+  const preference = getThemePreference();
+  const shouldUseDark = preference === 'dark' || (preference === 'system' && systemPrefersDark());
+
+  document.documentElement.classList.toggle('dark', shouldUseDark);
+  document.documentElement.dataset.themePreference = preference;
+}
+
+applyStoredTheme();
+
+try {
+  const mediaQuery = window.matchMedia?.('(prefers-color-scheme: dark)');
+  mediaQuery?.addEventListener?.('change', applyStoredTheme);
+
+  window.addEventListener('storage', (event) => {
+    if (event.key === THEME_STORAGE_KEY) {
+      applyStoredTheme();
+    }
+  });
+} catch {
+  // noop
+}
 
 let lastRoutePathname = '';
 
