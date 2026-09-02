@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type FocusEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -104,7 +104,7 @@ function toSafePositive(value: number, fallback = 1) {
   return Math.max(1, Math.ceil(value));
 }
 
-function selectOnFocus(event: React.FocusEvent<HTMLInputElement>) {
+function selectOnFocus(event: FocusEvent<HTMLInputElement>) {
   event.currentTarget.select();
 }
 
@@ -128,6 +128,14 @@ function channelLabel(channel: string) {
   if (channel === 'whatsapp') return 'WhatsApp';
   if (channel === 'email') return 'E-mail';
   return 'Manual';
+}
+
+function isSupplierEligibleForQuotation(supplier: SupplierOption) {
+  return (
+    supplier.active !== false &&
+    supplier.blocked !== true &&
+    supplier.homologation_status === 'approved'
+  );
 }
 
 export default function PurchaseQuotationBatchPage() {
@@ -196,6 +204,7 @@ export default function PurchaseQuotationBatchPage() {
           .eq('store_id', storeId)
           .eq('active', true)
           .eq('blocked', false)
+          .eq('homologation_status', 'approved')
           .order('preferred_supplier', { ascending: false })
           .order('name', { ascending: true }),
         supabase
@@ -245,7 +254,8 @@ export default function PurchaseQuotationBatchPage() {
       }
 
       const nextProducts = (productsResult.data || []) as ProductOption[];
-      const nextSuppliers = (suppliersResult.data || []) as SupplierOption[];
+      const nextSuppliers = ((suppliersResult.data || []) as SupplierOption[])
+        .filter(isSupplierEligibleForQuotation);
       setItems(nextItems);
       setProducts(nextProducts);
       setSuppliers(nextSuppliers);
@@ -307,7 +317,7 @@ export default function PurchaseQuotationBatchPage() {
         productName: product.name,
         locationName: null,
         quantity,
-        referenceUnitCost: manualUnitCost.trim() ? parseNumber(manualUnitCost) : Number(product.price ?? 0) || null,
+        referenceUnitCost: manualUnitCost.trim() ? parseNumber(manualUnitCost) : null,
         reason: 'Incluído manualmente na cotação',
         included: true,
         manual: true,
@@ -348,7 +358,7 @@ export default function PurchaseQuotationBatchPage() {
     }
 
     if (selectedSupplierList.length === 0) {
-      toast.warning('Selecione ao menos um fornecedor.');
+      toast.warning('Selecione ao menos um fornecedor aprovado para cotação.');
       return;
     }
 
@@ -380,7 +390,7 @@ export default function PurchaseQuotationBatchPage() {
           p_expires_at: expiresAt ? expiresAt.toISOString() : null,
         });
 
-        if (error) throw error;
+        if (error) throw new Error(`${supplierDisplayName(supplier)}: ${error.message}`);
         const result = Array.isArray(data) ? data[0] : data;
         nextCreated.push({
           quotation_id: result.quotation_id,
@@ -426,7 +436,7 @@ export default function PurchaseQuotationBatchPage() {
     <PageContainer
       title="Cotação em lote"
       category="Produtos"
-      subtitle="Escolha produtos de reposição, fornecedores e prazo de resposta em minutos, horas ou dias."
+      subtitle="Escolha produtos de reposição, fornecedores aprovados e prazo de resposta em minutos, horas ou dias."
       icon={<ShoppingCart className="text-[#19A999]" size={28} />}
       flat
       onRefresh={() => void load()}
@@ -467,13 +477,13 @@ export default function PurchaseQuotationBatchPage() {
             <div>
               <p className="font-black">Fluxo desta tela</p>
               <p className="mt-1 font-semibold opacity-90">
-                Cada fornecedor selecionado recebe uma cotação com o mesmo conjunto de produtos e o mesmo prazo. Quando o prazo passar, cotações sem resposta podem ser marcadas como vencidas para não atrapalharem a análise.
+                Cada fornecedor aprovado recebe uma cotação com o mesmo conjunto de produtos e o mesmo prazo. Quando o prazo passar, cotações sem resposta podem ser marcadas como vencidas para não atrapalharem a análise.
               </p>
             </div>
           </div>
         </section>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
+        <div className="grid gap-5 2xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,0.65fr)]">
           <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4 dark:border-gray-800">
               <div>
@@ -494,7 +504,7 @@ export default function PurchaseQuotationBatchPage() {
                   <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Use quando quiser cotar um item que ainda não apareceu como reposição automática.</p>
                 </div>
               </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)_120px_140px_auto] lg:items-end">
+              <div className="grid gap-3 xl:grid-cols-[minmax(180px,0.8fr)_minmax(240px,1.2fr)_120px_140px_auto] xl:items-end">
                 <label className="space-y-1">
                   <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Buscar</span>
                   <input
@@ -562,7 +572,7 @@ export default function PurchaseQuotationBatchPage() {
             ) : (
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
                 {items.map((item) => (
-                  <div key={item.productId} className="grid gap-3 p-4 md:grid-cols-[auto_minmax(0,1fr)_140px_140px_auto] md:items-center">
+                  <div key={item.productId} className="grid gap-3 p-4 lg:grid-cols-[auto_minmax(0,1fr)_140px_140px_auto] lg:items-center">
                     <label className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -626,11 +636,14 @@ export default function PurchaseQuotationBatchPage() {
             <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
               <div className="mb-4 flex items-center gap-2">
                 <Users className="text-[#19A999]" size={20} />
-                <h2 className="text-lg font-black text-gray-900 dark:text-white">Fornecedores</h2>
+                <div>
+                  <h2 className="text-lg font-black text-gray-900 dark:text-white">Fornecedores</h2>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">Somente ativos, desbloqueados e aprovados.</p>
+                </div>
               </div>
               <div className="max-h-80 space-y-2 overflow-auto pr-1">
                 {suppliers.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">Nenhum fornecedor ativo e liberado para cotação.</p>
+                  <p className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">Nenhum fornecedor aprovado e liberado para cotação.</p>
                 ) : suppliers.map((supplier) => {
                   const channel = channelForSupplier(supplier);
                   return (
