@@ -14,6 +14,7 @@ import {
     Printer,
     Save,
     Search,
+    ShoppingCart,
     X,
     XCircle,
 } from 'lucide-react';
@@ -39,8 +40,6 @@ import { isSupplierPurchaseEligible } from './utils/supplierStatusUtils';
 import { getActiveStoreId } from '@/utils/activeStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
-
-/* type StoreLike = { id: string }; */
 
 type SupplierContact = {
     phone?: string | null;
@@ -74,6 +73,8 @@ type InventoryProductLike = {
     is_discontinued?: boolean | null;
 };
 
+type QuotationItem = PurchaseQuotationDetail['items'][number];
+
 const statusOptions = [
     { value: '', label: 'Todos os status' },
     { value: 'draft', label: 'Rascunho' },
@@ -83,6 +84,7 @@ const statusOptions = [
     { value: 'rejected', label: 'Rejeitada' },
     { value: 'converted', label: 'Convertida' },
     { value: 'cancelled', label: 'Cancelada' },
+    { value: 'expired', label: 'Vencida' },
 ];
 
 function getStatusLabel(status?: string | null) {
@@ -99,6 +101,7 @@ function getStatusClassName(status?: string | null) {
             return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
         case 'rejected':
         case 'cancelled':
+        case 'expired':
             return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
         default:
             return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200';
@@ -196,6 +199,17 @@ function getChannelLabel(channel?: string | null) {
     }
 }
 
+function isQuotationItemUnavailable(item: QuotationItem) {
+    const notes = String(item.supplier_notes ?? '').toLowerCase();
+    return Number(item.approved_qty ?? item.requested_qty ?? 0) <= 0 && notes.includes('indispon');
+}
+
+function removeUnavailableNote(value?: string | null) {
+    return String(value ?? '')
+        .replace(/^indispon[ií]vel\.?\s*-?\s*/i, '')
+        .trim();
+}
+
 function buildQuotationText(detail: PurchaseQuotationDetail) {
     if (detail.message_body?.trim()) {
         return detail.message_body;
@@ -203,6 +217,10 @@ function buildQuotationText(detail: PurchaseQuotationDetail) {
 
     const today = getLocalDateInputValue().split('-').reverse().join('/');
     const lines = detail.items.map((item, index) => {
+        if (isQuotationItemUnavailable(item)) {
+            return `${index + 1}. ${item.product_name} — indisponível`;
+        }
+
         const qty = Number(item.approved_qty ?? item.requested_qty ?? 0);
         const cost = item.quoted_unit_cost ?? item.reference_unit_cost;
         const costText = cost != null ? ` | referência/cotado: ${formatCurrency(cost)}` : '';
@@ -259,14 +277,15 @@ function buildQuotationPrintHtml(
 ) {
     const rows = detail.items
         .map((item, index) => {
-            const approvedQty = Number(item.approved_qty ?? item.requested_qty ?? 0);
-            const quotedCost = item.quoted_unit_cost ?? item.reference_unit_cost ?? null;
+            const unavailable = isQuotationItemUnavailable(item);
+            const approvedQty = unavailable ? 0 : Number(item.approved_qty ?? item.requested_qty ?? 0);
+            const quotedCost = unavailable ? null : item.quoted_unit_cost ?? item.reference_unit_cost ?? null;
             const total = approvedQty * Number(quotedCost ?? 0);
 
             return `
         <tr>
           <td>${index + 1}</td>
-          <td>${escapeHtml(item.product_name)}</td>
+          <td>${escapeHtml(item.product_name)}${unavailable ? ' — indisponível' : ''}</td>
           <td class="right">${item.requested_qty}</td>
           <td class="right">${approvedQty}</td>
           <td class="right">${formatCurrency(item.reference_unit_cost)}</td>
@@ -323,7 +342,7 @@ function buildQuotationPrintHtml(
               <th>Produto</th>
               <th class="right">Solicitado</th>
               <th class="right">Aprovado</th>
-              <th class="right">Referência</th>
+              <th class="right">Referência inicial</th>
               <th class="right">Cotado</th>
               <th class="right">Total</th>
               <th>Observações</th>
@@ -414,7 +433,6 @@ export default function PurchaseQuotationsPage() {
             .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
     }, [inventoryProducts]);
 
-
     const eligibleSuppliers = useMemo(
         () => suppliers.filter(isSupplierPurchaseEligible),
         [suppliers],
@@ -442,7 +460,6 @@ export default function PurchaseQuotationsPage() {
             setStoreId(activeStoreId);
 
             if (activeStoreId) {
-                // O bloqueio visual acontece após o carregamento das permissões.
                 await loadQuotations(activeStoreId);
             } else {
                 setLoading(false);
@@ -544,6 +561,7 @@ export default function PurchaseQuotationsPage() {
         return {
             count: filteredQuotations.length,
             totalReference: filteredQuotations.reduce((sum, row) => sum + Number(row.total_reference ?? 0), 0),
+            totalQuoted: filteredQuotations.reduce((sum, row) => sum + Number(row.total_quoted ?? 0), 0),
             sent: filteredQuotations.filter((row) => row.status === 'sent').length,
         };
     }, [filteredQuotations]);
@@ -573,8 +591,8 @@ export default function PurchaseQuotationsPage() {
             'Status': getStatusLabel(quotation.status),
             'Fornecedor': quotation.supplier_name || '—',
             'Itens': quotation.items_count,
-            'Total referência (R$)': formatCsvNumberBR(quotation.total_reference ?? 0),
-            'Total cotado (R$)': formatCsvNumberBR(quotation.total_quoted ?? 0),
+            'Total referência inicial (R$)': formatCsvNumberBR(quotation.total_reference ?? 0),
+            'Total cotado respondido (R$)': formatCsvNumberBR(quotation.total_quoted ?? 0),
             'Criada em': quotation.requested_at_display ?? formatDateTimeCsv(quotation.requested_at),
             'Respondida em': quotation.responded_at_display ?? formatDateTimeCsv(quotation.responded_at),
             'Canal': getChannelLabel(quotation.sent_channel),
@@ -590,8 +608,8 @@ export default function PurchaseQuotationsPage() {
             'Status',
             'Fornecedor',
             'Itens',
-            'Total referência (R$)',
-            'Total cotado (R$)',
+            'Total referência inicial (R$)',
+            'Total cotado respondido (R$)',
             'Criada em',
             'Respondida em',
             'Canal',
@@ -679,7 +697,7 @@ export default function PurchaseQuotationsPage() {
 
     function updateDetailItem(
         itemId: string,
-        patch: Partial<PurchaseQuotationDetail['items'][number]>,
+        patch: Partial<QuotationItem>,
     ) {
         setDetailDraft((current) => {
             if (!current) return current;
@@ -691,10 +709,22 @@ export default function PurchaseQuotationsPage() {
         });
     }
 
+    function toggleUnavailableItem(item: QuotationItem, unavailable: boolean) {
+        const previousNotes = item.supplier_notes ?? '';
+        const cleanNotes = removeUnavailableNote(previousNotes);
+
+        updateDetailItem(item.id, {
+            approved_qty: unavailable ? 0 : Number(item.requested_qty ?? 0),
+            quoted_unit_cost: unavailable ? null : item.quoted_unit_cost,
+            supplier_notes: unavailable ? (cleanNotes ? `Indisponível - ${cleanNotes}` : 'Indisponível') : cleanNotes,
+        });
+    }
+
     function getDetailTotalQuoted() {
         if (!detailDraft) return 0;
 
         return detailDraft.items.reduce((total, item) => {
+            if (isQuotationItemUnavailable(item)) return total;
             const qty = Number(item.approved_qty ?? item.requested_qty ?? 0);
             const cost = Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0);
             return total + qty * cost;
@@ -719,13 +749,15 @@ export default function PurchaseQuotationsPage() {
                 sentChannel: sentChannel || null,
                 responsibleName,
                 notes: quotationNotes,
-                items: detailDraft.items.map((item) => ({
-                    id: item.id,
-                    quoted_unit_cost: item.quoted_unit_cost == null ? null : Number(item.quoted_unit_cost),
-                    approved_qty:
-                        item.approved_qty == null ? Number(item.requested_qty) : Number(item.approved_qty),
-                    supplier_notes: item.supplier_notes ?? null,
-                })),
+                items: detailDraft.items.map((item) => {
+                    const unavailable = isQuotationItemUnavailable(item);
+                    return {
+                        id: item.id,
+                        quoted_unit_cost: unavailable || item.quoted_unit_cost == null ? null : Number(item.quoted_unit_cost),
+                        approved_qty: unavailable ? 0 : item.approved_qty == null ? Number(item.requested_qty) : Number(item.approved_qty),
+                        supplier_notes: item.supplier_notes ?? null,
+                    };
+                }),
             });
 
             toast.success('Resposta da cotação salva.');
@@ -750,7 +782,6 @@ export default function PurchaseQuotationsPage() {
                     return;
                 }
 
-                // Se aprovou mas não quis converter agora, fecha o modal para liberar a lista
                 closeDetail();
             }
         } catch (error) {
@@ -894,14 +925,24 @@ export default function PurchaseQuotationsPage() {
     return (
         <>
             {portalContainer && canManageQuotes && createPortal(
-                <button
-                    type="button"
-                    onClick={() => setManualQuotationOpen(true)}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold rounded-lg transition-colors shadow-sm cursor-pointer shrink-0"
-                >
-                    <Plus size={13} />
-                    <span>Nova Cotação</span>
-                </button>,
+                <div className="flex items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={() => setManualQuotationOpen(true)}
+                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[#19A999] px-3 text-xs font-bold text-white shadow-sm transition-colors hover:bg-[#14887B]"
+                    >
+                        <Plus size={13} />
+                        <span>Nova Cotação</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => navigate('/admin/stock/quotations/batch')}
+                        className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
+                    >
+                        <ShoppingCart size={13} />
+                        <span>Cotação em lote</span>
+                    </button>
+                </div>,
                 portalContainer
             )}
 
@@ -913,670 +954,689 @@ export default function PurchaseQuotationsPage() {
                 onRefresh={() => loadQuotations(storeId, { silent: true })}
                 flat
             >
-            <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-                    <p className="text-sm text-gray-500">Cotações exibidas</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{totals.count}</p>
+                <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Cotações exibidas</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{totals.count}</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Ref. solicitada</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.totalReference)}</p>
+                        <p className="mt-1 text-[11px] font-semibold text-gray-400 dark:text-gray-500">Valor inicial enviado ao fornecedor.</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Total cotado</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.totalQuoted)}</p>
+                        <p className="mt-1 text-[11px] font-semibold text-gray-400 dark:text-gray-500">Atualiza com a resposta.</p>
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                        <p className="text-sm text-gray-500 dark:text-gray-300">Enviadas</p>
+                        <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{totals.sent}</p>
+                    </div>
                 </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-                    <p className="text-sm text-gray-500">Referência total</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(totals.totalReference)}</p>
-                </div>
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-                    <p className="text-sm text-gray-500">Enviadas</p>
-                    <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{totals.sent}</p>
-                </div>
-            </div>
 
-            <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                    Consulte cotações salvas, registre retornos e converta em rascunhos de compra.
-                </div>
+                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                        A referência é o valor inicial solicitado. O valor respondido aparece em Total cotado.
+                    </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                    {canManageQuotes && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {canManageQuotes && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => navigate('/admin/stock/quotations/batch')}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-semibold text-white hover:bg-[#14887B]"
+                                >
+                                    <ShoppingCart className="h-4 w-4" />
+                                    Cotação em lote
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setManualQuotationOpen(true)}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Nova cotação
+                                </button>
+                            </>
+                        )}
+
                         <button
                             type="button"
-                            onClick={() => setManualQuotationOpen(true)}
-                            className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                            onClick={exportFilteredQuotationsCsv}
+                            disabled={!filteredQuotations.length}
+                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
                         >
-                            <Plus className="h-4 w-4" />
-                            Nova cotação
+                            <Download className="h-4 w-4" />
+                            Exportar CSV
                         </button>
-                    )}
-
-                    <button
-                        type="button"
-                        onClick={exportFilteredQuotationsCsv}
-                        disabled={!filteredQuotations.length}
-                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
-                    >
-                        <Download className="h-4 w-4" />
-                        Exportar CSV
-                    </button>
-                    <div className="hidden">
-                        <label className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            <input
-                                value={filters.document}
-                                onChange={(event) => setFilters((current) => ({ ...current, document: event.target.value }))}
-                                placeholder="Buscar por código, fornecedor, responsável ou observação"
-                                className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                            />
-                        </label>
-
-                        <select
-                            value={filters.status}
-                            onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}
-                            className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                        >
-                            {statusOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.label}
-                                </option>
-                            ))}
-                        </select>
                     </div>
                 </div>
-            </div>
 
-            <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-                <div className="mb-3 flex items-start justify-between gap-3">
-                    <div>
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white">Filtros</div>
-                        <div className="text-xs text-gray-500">Combine data, status, fornecedor, produto e cotação.</div>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={clearFilters}
-                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-                    >
-                        <XCircle className="h-4 w-4" />
-                        Limpar filtros
-                    </button>
-                </div>
-
-                <div className="grid gap-3 md:grid-cols-6">
-                    <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Data inicial</span>
-                        <input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
-                    </label>
-                    <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Data final</span>
-                        <input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
-                    </label>
-                    <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Status</span>
-                        <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
-                            {statusOptions.map((option) => (
-                                <option key={option.value} value={option.value}>{option.value ? option.label : 'Todos'}</option>
-                            ))}
-                        </select>
-                    </label>
-                    <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Fornecedor</span>
-                        <select value={filters.supplierId} onChange={(event) => setFilters((current) => ({ ...current, supplierId: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
-                            <option value="">Todos</option>
-                            {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
-                        </select>
-                    </label>
-                    <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Produto</span>
-                        <select value={filters.productId} onChange={(event) => setFilters((current) => ({ ...current, productId: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
-                            <option value="">Todos</option>
-                            {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                        </select>
-                    </label>
-                    <label className="block">
-                        <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Documento / Cotação</span>
-                        <div className="relative">
-                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                            <input value={filters.document} onChange={(event) => setFilters((current) => ({ ...current, document: event.target.value }))} placeholder="Ex: COT-123" className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+                <div className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                            <div className="text-sm font-semibold text-gray-900 dark:text-white">Filtros</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Combine data, status, fornecedor, produto e cotação.</div>
                         </div>
-                    </label>
+                        <button
+                            type="button"
+                            onClick={clearFilters}
+                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                        >
+                            <XCircle className="h-4 w-4" />
+                            Limpar filtros
+                        </button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-6">
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Data inicial</span>
+                            <input type="date" value={filters.dateFrom} onChange={(event) => setFilters((current) => ({ ...current, dateFrom: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Data final</span>
+                            <input type="date" value={filters.dateTo} onChange={(event) => setFilters((current) => ({ ...current, dateTo: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Status</span>
+                            <select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+                                {statusOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.value ? option.label : 'Todos'}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Fornecedor</span>
+                            <select value={filters.supplierId} onChange={(event) => setFilters((current) => ({ ...current, supplierId: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+                                <option value="">Todos</option>
+                                {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Produto</span>
+                            <select value={filters.productId} onChange={(event) => setFilters((current) => ({ ...current, productId: event.target.value }))} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+                                <option value="">Todos</option>
+                                {products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                            </select>
+                        </label>
+                        <label className="block">
+                            <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">Documento / Cotação</span>
+                            <div className="relative">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                <input value={filters.document} onChange={(event) => setFilters((current) => ({ ...current, document: event.target.value }))} placeholder="Ex: COT-123" className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white" />
+                            </div>
+                        </label>
+                    </div>
                 </div>
-            </div>
 
-            {filteredQuotations.length === 0 ? (
-                <EmptyState
-                    icon={<FileText className="h-5 w-5" />}
-                    title="Nenhuma cotação encontrada"
-                    description="As cotações salvas pelas sugestões de compra aparecerão aqui para consulta e reenvio."
-                />
-            ) : (
-                <div className="rounded-lg bg-white dark:bg-gray-800">
-                    <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
-                        <table className="min-w-[980px] w-full text-left">
-                            <thead className="bg-gray-50 text-sm font-medium text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
-                                <tr>
-                                    <th className="px-4 py-4">Cotação</th>
-                                    <th className="px-4 py-4">Fornecedor</th>
-                                    <th className="px-4 py-4">Status</th>
-                                    <th className="px-4 py-4 text-right">Itens</th>
-                                    <th className="px-4 py-4 text-right">Referência</th>
-                                    <th className="px-4 py-4">Criada em</th>
-                                    <th className="px-4 py-4 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {filteredQuotations.map((quotation) => (
-                                    <tr key={quotation.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                        <td className="px-4 py-4 font-semibold text-gray-900 dark:text-white">
-                                            {quotation.quotation_code}
-                                        </td>
-                                        <td className="px-4 py-4 text-gray-700 dark:text-gray-200">
-                                            {quotation.supplier_name}
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${getStatusClassName(quotation.status)}`}>
-                                                {getStatusLabel(quotation.status)}
-                                            </span>
-                                        </td>
-                                        <td className="px-4 py-4 text-right text-gray-700 dark:text-gray-200">
-                                            {quotation.items_count}
-                                        </td>
-                                        <td className="px-4 py-4 text-right font-semibold text-gray-900 dark:text-white">
-                                            {formatCurrency(quotation.total_reference)}
-                                        </td>
-                                        <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
-                                            {quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}
-                                        </td>
-                                        <td className="px-4 py-4 text-right">
-                                            <div className="flex items-center justify-end gap-2">
-                                                <button
-                                                    type="button"
-                                                    disabled={openingDetail}
-                                                    onClick={() => void openDetail(quotation.id)}
-                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-                                                    title="Abrir cotação"
-                                                >
-                                                    <Eye className="h-4 w-4" />
-                                                </button>
-
-                                                {canManageQuotes && quotation.status === 'approved' && (
-                            <button
-                                                        type="button"
-                                                        onClick={() => void convertQuotationToPurchase(quotation.id)}
-                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
-                                                        title="Converter em rascunho de compra"
-                                                    >
-                                                        <CheckCircle2 className="h-4 w-4" />
-                                                    </button>
-                                                )}
-
-                                                {canViewPurchases && quotation.status === 'converted' && quotation.converted_purchase_document_id && (
+                {filteredQuotations.length === 0 ? (
+                    <EmptyState
+                        icon={<FileText className="h-5 w-5" />}
+                        title="Nenhuma cotação encontrada"
+                        description="As cotações salvas pelas sugestões de compra aparecerão aqui para consulta e reenvio."
+                    />
+                ) : (
+                    <div className="rounded-lg bg-white dark:bg-gray-800">
+                        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700">
+                            <table className="min-w-[1080px] w-full text-left">
+                                <thead className="bg-gray-50 text-sm font-medium text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
+                                    <tr>
+                                        <th className="px-4 py-4">Cotação</th>
+                                        <th className="px-4 py-4">Fornecedor</th>
+                                        <th className="px-4 py-4">Status</th>
+                                        <th className="px-4 py-4 text-right">Itens</th>
+                                        <th className="px-4 py-4 text-right">Ref. solicitada</th>
+                                        <th className="px-4 py-4 text-right">Total cotado</th>
+                                        <th className="px-4 py-4">Criada em</th>
+                                        <th className="px-4 py-4 text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                    {filteredQuotations.map((quotation) => (
+                                        <tr key={quotation.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                            <td className="px-4 py-4 font-semibold text-gray-900 dark:text-white">
+                                                {quotation.quotation_code}
+                                            </td>
+                                            <td className="px-4 py-4 text-gray-700 dark:text-gray-200">
+                                                {quotation.supplier_name}
+                                            </td>
+                                            <td className="px-4 py-4">
+                                                <span className={`rounded-full px-3 py-1 text-xs font-bold ${getStatusClassName(quotation.status)}`}>
+                                                    {getStatusLabel(quotation.status)}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-4 text-right text-gray-700 dark:text-gray-200">
+                                                {quotation.items_count}
+                                            </td>
+                                            <td className="px-4 py-4 text-right font-semibold text-gray-900 dark:text-white">
+                                                {formatCurrency(quotation.total_reference)}
+                                            </td>
+                                            <td className="px-4 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-300">
+                                                {formatCurrency(quotation.total_quoted)}
+                                            </td>
+                                            <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
+                                                {quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}
+                                            </td>
+                                            <td className="px-4 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
                                                     <button
                                                         type="button"
-                                                        onClick={() =>
-                                                            navigate(
-                                                                `/admin/stock/purchase-documents?open=${quotation.converted_purchase_document_id}`,
-                                                            )
-                                                        }
-                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950"
-                                                        title="Abrir compra"
+                                                        disabled={openingDetail}
+                                                        onClick={() => void openDetail(quotation.id)}
+                                                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                                                        title="Abrir cotação"
                                                     >
-                                                        <ExternalLink className="h-4 w-4" />
+                                                        <Eye className="h-4 w-4" />
                                                     </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
 
-            {manualQuotationOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-                    <div className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-950">
-                        <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Nova cotação</h3>
-                                <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
-                                    Crie uma cotação manual sem depender das sugestões de compra.
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                onClick={closeManualQuotationModal}
-                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                                aria-label="Fechar"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
+                                                    {canManageQuotes && quotation.status === 'approved' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void convertQuotationToPurchase(quotation.id)}
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                                                            title="Converter em rascunho de compra"
+                                                        >
+                                                            <CheckCircle2 className="h-4 w-4" />
+                                                        </button>
+                                                    )}
 
-                        <div className="max-h-[75vh] overflow-y-auto p-5">
-                            <div className="grid gap-3 md:grid-cols-4">
-                                <label className="md:col-span-2">
-                                    <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Fornecedor aprovado</span>
-                                    <select
-                                        value={manualSupplierId}
-                                        onChange={(event) => setManualSupplierId(event.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                    >
-                                        <option value="">Selecione</option>
-                                        {eligibleSuppliers.map((supplier) => (
-                                            <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                <label>
-                                    <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Canal</span>
-                                    <select
-                                        value={manualSentChannel}
-                                        onChange={(event) => setManualSentChannel(event.target.value as QuotationChannel)}
-                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                    >
-                                        <option value="manual">Manual</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                        <option value="email">E-mail</option>
-                                        <option value="pdf">PDF</option>
-                                        <option value="other">Outro</option>
-                                    </select>
-                                </label>
-
-                                <label>
-                                    <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Responsável</span>
-                                    <input
-                                        value={manualResponsibleName}
-                                        onChange={(event) => setManualResponsibleName(event.target.value)}
-                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                        placeholder="Responsável pela cotação"
-                                    />
-                                </label>
-                            </div>
-
-                            <div className="mt-5 rounded-2xl border border-gray-100 dark:border-gray-800">
-                                <div className="grid grid-cols-12 gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase text-gray-500 dark:border-gray-800 dark:bg-gray-900/60">
-                                    <div className="col-span-5">Produto</div>
-                                    <div className="col-span-2 text-right">Quantidade</div>
-                                    <div className="col-span-3 text-right">Custo referência</div>
-                                    <div className="col-span-2 text-right">Ações</div>
-                                </div>
-
-                                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                                    {manualItems.map((item, index) => (
-                                        <div key={index} className="grid grid-cols-12 items-center gap-2 px-4 py-3">
-                                            <div className="col-span-5">
-                                                <select
-                                                    value={item.productId}
-                                                    onChange={(event) => updateManualItem(index, { productId: event.target.value })}
-                                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                                >
-                                                    <option value="">Selecione</option>
-                                                    {products.map((product) => (
-                                                        <option key={product.id} value={product.id}>{product.name}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-
-                                            <div className="col-span-2">
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="1"
-                                                    value={item.quantity}
-                                                    onChange={(event) => updateManualItem(index, { quantity: Number(event.target.value) })}
-                                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                                />
-                                            </div>
-
-                                            <div className="col-span-3">
-                                                <input
-                                                    type="number"
-                                                    min="0"
-                                                    step="0.01"
-                                                    value={item.unitCost ?? ''}
-                                                    onChange={(event) =>
-                                                        updateManualItem(index, {
-                                                            unitCost: event.target.value === '' ? null : Number(event.target.value),
-                                                        })
-                                                    }
-                                                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                                    placeholder="0,00"
-                                                />
-                                            </div>
-
-                                            <div className="col-span-2 text-right">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeManualItem(index)}
-                                                    disabled={manualItems.length <= 1}
-                                                    className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                                                >
-                                                    Remover
-                                                </button>
-                                            </div>
-                                        </div>
+                                                    {canViewPurchases && quotation.status === 'converted' && quotation.converted_purchase_document_id && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                navigate(
+                                                                    `/admin/stock/purchase-documents?open=${quotation.converted_purchase_document_id}`,
+                                                                )
+                                                            }
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950"
+                                                            title="Abrir compra"
+                                                        >
+                                                            <ExternalLink className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
                                     ))}
-                                </div>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={() => setManualItems((current) => [...current, { productId: '', quantity: 1, unitCost: null }])}
-                                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-                            >
-                                <Plus className="h-4 w-4" />
-                                Adicionar item
-                            </button>
-
-                            <label className="mt-4 block">
-                                <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Observações internas</span>
-                                <textarea
-                                    value={manualNotes}
-                                    onChange={(event) => setManualNotes(event.target.value)}
-                                    className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                    placeholder="Ex.: cotação criada por pedido do gerente, reposição especial..."
-                                />
-                            </label>
-                        </div>
-
-                        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 p-5 dark:border-gray-800">
-                            <button
-                                type="button"
-                                onClick={closeManualQuotationModal}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => void saveManualQuotation()}
-                                disabled={!canSaveManualQuotation || savingManualQuotation}
-                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
-                            >
-                                <Save className="h-4 w-4" />
-                                {savingManualQuotation ? 'Salvando...' : 'Salvar cotação'}
-                            </button>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {detail && detailDraft && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-                    <div className="w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-950">
-                        <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
-                            <div>
-                                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.quotation_code}</h3>
-                                <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
-                                    {detail.supplier_name} · {getStatusLabel(detail.status)}
-                                </p>
-                                <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
-                                    Total cotado estimado: {formatCurrency(getDetailTotalQuoted())}
-                                </p>
+                {manualQuotationOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+                        <div className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-950">
+                            <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">Nova cotação</h3>
+                                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+                                        Crie uma cotação manual sem depender das sugestões de compra.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={closeManualQuotationModal}
+                                    className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                                    aria-label="Fechar"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={closeDetail}
-                                className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                                aria-label="Fechar"
-                            >
-                                <X className="h-5 w-5" />
-                            </button>
-                        </div>
+                            <div className="max-h-[75vh] overflow-y-auto p-5">
+                                <div className="grid gap-3 md:grid-cols-4">
+                                    <label className="md:col-span-2">
+                                        <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Fornecedor aprovado</span>
+                                        <select
+                                            value={manualSupplierId}
+                                            onChange={(event) => setManualSupplierId(event.target.value)}
+                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                        >
+                                            <option value="">Selecione</option>
+                                            {eligibleSuppliers.map((supplier) => (
+                                                <option key={supplier.id} value={supplier.id}>{supplier.name}</option>
+                                            ))}
+                                        </select>
+                                    </label>
 
-                        <div className="max-h-[75vh] overflow-y-auto p-5">
-                            <div className="grid gap-3 md:grid-cols-4">
-                                <div className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
-                                    <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Criada em</div>
-                                    <div className="mt-1 font-semibold dark:text-white">{detail.requested_at_display ?? formatDateTime(detail.requested_at)}</div>
+                                    <label>
+                                        <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Canal</span>
+                                        <select
+                                            value={manualSentChannel}
+                                            onChange={(event) => setManualSentChannel(event.target.value as QuotationChannel)}
+                                            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                        >
+                                            <option value="manual">Manual</option>
+                                            <option value="whatsapp">WhatsApp</option>
+                                            <option value="email">E-mail</option>
+                                            <option value="pdf">PDF</option>
+                                            <option value="other">Outro</option>
+                                        </select>
+                                    </label>
+
+                                    <label>
+                                        <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Responsável</span>
+                                        <input
+                                            value={manualResponsibleName}
+                                            onChange={(event) => setManualResponsibleName(event.target.value)}
+                                            className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                            placeholder="Responsável pela cotação"
+                                        />
+                                    </label>
                                 </div>
 
-                                <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
-                                    <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Status</div>
-                                    <select
-                                        value={responseStatus}
-                                        onChange={(event) => setResponseStatus(event.target.value as QuotationEditableStatus)}
-                                        disabled={!canManageQuotes || detail.status === 'converted'}
-                                        className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                    >
-                                        <option value="draft">Rascunho</option>
-                                        <option value="sent">Enviada</option>
-                                        <option value="answered">Respondida</option>
-                                        <option value="approved">Aprovada</option>
-                                        <option value="rejected">Rejeitada</option>
-                                        <option value="cancelled">Cancelada</option>
-                                    </select>
-                                </label>
-
-                                <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
-                                    <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Canal</div>
-                                    <select
-                                        value={sentChannel}
-                                        onChange={(event) => setSentChannel(event.target.value as QuotationChannel)}
-                                        disabled={!canManageQuotes || detail.status === 'converted'}
-                                        className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                    >
-                                        <option value="">Não informado</option>
-                                        <option value="whatsapp">WhatsApp</option>
-                                        <option value="email">E-mail</option>
-                                        <option value="pdf">PDF</option>
-                                        <option value="manual">Manual</option>
-                                        <option value="other">Outro</option>
-                                    </select>
-                                </label>
-
-                                <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
-                                    <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Responsável</div>
-                                    <input
-                                        value={responsibleName}
-                                        onChange={(event) => setResponsibleName(event.target.value)}
-                                        disabled={!canManageQuotes || detail.status === 'converted'}
-                                        className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                                        placeholder="Responsável pela cotação"
-                                    />
-                                </label>
-                            </div>
-
-                            <div className="mt-4 rounded-2xl border bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-900">
-                                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                                    <div>
-                                        <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Contatos do fornecedor</div>
-                                        <div className="mt-1 text-sm text-slate-700 dark:text-gray-300">
-                                            WhatsApp/telefone: {getSupplierPhone(supplierContact) || 'não informado'} · E-mail:{' '}
-                                            {getSupplierEmail(supplierContact) || 'não informado'}
-                                        </div>
+                                <div className="mt-5 rounded-2xl border border-gray-100 dark:border-gray-800">
+                                    <div className="grid grid-cols-12 gap-2 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase text-gray-500 dark:border-gray-800 dark:bg-gray-900/60">
+                                        <div className="col-span-5">Produto</div>
+                                        <div className="col-span-2 text-right">Quantidade</div>
+                                        <div className="col-span-3 text-right">Custo referência</div>
+                                        <div className="col-span-2 text-right">Ações</div>
                                     </div>
 
-                                    <div className="flex flex-wrap gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => void copyDetailMessage()}
-                                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
-                                        >
-                                            <Copy className="h-4 w-4" />
-                                            Copiar
-                                        </button>
+                                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                                        {manualItems.map((item, index) => (
+                                            <div key={index} className="grid grid-cols-12 items-center gap-2 px-4 py-3">
+                                                <div className="col-span-5">
+                                                    <select
+                                                        value={item.productId}
+                                                        onChange={(event) => updateManualItem(index, { productId: event.target.value })}
+                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                    >
+                                                        <option value="">Selecione</option>
+                                                        {products.map((product) => (
+                                                            <option key={product.id} value={product.id}>{product.name}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
 
-                                        <button
-                                            type="button"
-                                            onClick={printDetail}
-                                            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
-                                        >
-                                            <Printer className="h-4 w-4" />
-                                            Imprimir/PDF
-                                        </button>
+                                                <div className="col-span-2">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="1"
+                                                        value={item.quantity}
+                                                        onChange={(event) => updateManualItem(index, { quantity: Number(event.target.value) })}
+                                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                    />
+                                                </div>
 
-                                        {email ? (
-                                            <a
-                                                href={`mailto:${email}?subject=${encodeURIComponent(
-                                                    detail.message_subject || `Cotação ${detail.quotation_code}`,
-                                                )}&body=${encodeURIComponent(detailMessage)}`}
+                                                <div className="col-span-3">
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="0.01"
+                                                        value={item.unitCost ?? ''}
+                                                        onChange={(event) =>
+                                                            updateManualItem(index, {
+                                                                unitCost: event.target.value === '' ? null : Number(event.target.value),
+                                                            })
+                                                        }
+                                                        className="w-full rounded-xl border border-gray-200 px-3 py-2 text-right text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                                        placeholder="0,00"
+                                                    />
+                                                </div>
+
+                                                <div className="col-span-2 text-right">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeManualItem(index)}
+                                                        disabled={manualItems.length <= 1}
+                                                        className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                                    >
+                                                        Remover
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setManualItems((current) => [...current, { productId: '', quantity: 1, unitCost: null }])}
+                                    className="mt-3 inline-flex items-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                    <Plus className="h-4 w-4" />
+                                    Adicionar item
+                                </button>
+
+                                <label className="mt-4 block">
+                                    <span className="mb-1 block text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Observações internas</span>
+                                    <textarea
+                                        value={manualNotes}
+                                        onChange={(event) => setManualNotes(event.target.value)}
+                                        className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                                        placeholder="Ex.: cotação criada por pedido do gerente, reposição especial..."
+                                    />
+                                </label>
+                            </div>
+
+                            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 p-5 dark:border-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={closeManualQuotationModal}
+                                    className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => void saveManualQuotation()}
+                                    disabled={!canSaveManualQuotation || savingManualQuotation}
+                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+                                >
+                                    <Save className="h-4 w-4" />
+                                    {savingManualQuotation ? 'Salvando...' : 'Salvar cotação'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {detail && detailDraft && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+                        <div className="w-full max-w-6xl overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-950">
+                            <div className="flex items-start justify-between border-b border-gray-100 p-5 dark:border-gray-800">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{detail.quotation_code}</h3>
+                                    <p className="mt-1 text-sm text-slate-500 dark:text-gray-400">
+                                        {detail.supplier_name} · {getStatusLabel(detail.status)}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500 dark:text-gray-400">
+                                        Total cotado estimado: {formatCurrency(getDetailTotalQuoted())}
+                                    </p>
+                                </div>
+
+                                <button
+                                    type="button"
+                                    onClick={closeDetail}
+                                    className="rounded-full p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                                    aria-label="Fechar"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+
+                            <div className="max-h-[75vh] overflow-y-auto p-5">
+                                <div className="grid gap-3 md:grid-cols-4">
+                                    <div className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Criada em</div>
+                                        <div className="mt-1 font-semibold dark:text-white">{detail.requested_at_display ?? formatDateTime(detail.requested_at)}</div>
+                                    </div>
+
+                                    <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Status</div>
+                                        <select
+                                            value={responseStatus}
+                                            onChange={(event) => setResponseStatus(event.target.value as QuotationEditableStatus)}
+                                            disabled={!canManageQuotes || detail.status === 'converted'}
+                                            className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                        >
+                                            <option value="draft">Rascunho</option>
+                                            <option value="sent">Enviada</option>
+                                            <option value="answered">Respondida</option>
+                                            <option value="approved">Aprovada</option>
+                                            <option value="rejected">Rejeitada</option>
+                                            <option value="cancelled">Cancelada</option>
+                                        </select>
+                                    </label>
+
+                                    <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Canal</div>
+                                        <select
+                                            value={sentChannel}
+                                            onChange={(event) => setSentChannel(event.target.value as QuotationChannel)}
+                                            disabled={!canManageQuotes || detail.status === 'converted'}
+                                            className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                        >
+                                            <option value="">Não informado</option>
+                                            <option value="whatsapp">WhatsApp</option>
+                                            <option value="email">E-mail</option>
+                                            <option value="pdf">PDF</option>
+                                            <option value="manual">Manual</option>
+                                            <option value="other">Outro</option>
+                                        </select>
+                                    </label>
+
+                                    <label className="rounded-xl border bg-slate-50 p-3 dark:border-gray-800 dark:bg-gray-900">
+                                        <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Responsável</div>
+                                        <input
+                                            value={responsibleName}
+                                            onChange={(event) => setResponsibleName(event.target.value)}
+                                            disabled={!canManageQuotes || detail.status === 'converted'}
+                                            className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                            placeholder="Responsável pela cotação"
+                                        />
+                                    </label>
+                                </div>
+
+                                <div className="mt-4 rounded-2xl border bg-slate-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+                                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                                        <div>
+                                            <div className="text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Contatos do fornecedor</div>
+                                            <div className="mt-1 text-sm text-slate-700 dark:text-gray-300">
+                                                WhatsApp/telefone: {getSupplierPhone(supplierContact) || 'não informado'} · E-mail:{' '}
+                                                {getSupplierEmail(supplierContact) || 'não informado'}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => void copyDetailMessage()}
                                                 className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
                                             >
-                                                <Mail className="h-4 w-4" />
-                                                E-mail
-                                            </a>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                disabled
-                                                title="Fornecedor sem e-mail cadastrado"
-                                                className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 opacity-70 dark:border-gray-700 dark:bg-gray-950"
-                                            >
-                                                <Mail className="h-4 w-4" />
-                                                E-mail indisponível
+                                                <Copy className="h-4 w-4" />
+                                                Copiar
                                             </button>
-                                        )}
 
-                                        {whatsapp ? (
-                                            <a
-                                                href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(detailMessage)}`}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
-                                            >
-                                                <MessageCircle className="h-4 w-4" />
-                                                WhatsApp
-                                            </a>
-                                        ) : (
                                             <button
                                                 type="button"
-                                                disabled
-                                                title="Fornecedor sem WhatsApp/telefone cadastrado"
-                                                className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 opacity-70 dark:bg-gray-800 dark:text-gray-400"
+                                                onClick={printDetail}
+                                                className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
                                             >
-                                                <MessageCircle className="h-4 w-4" />
-                                                WhatsApp indisponível
+                                                <Printer className="h-4 w-4" />
+                                                Imprimir/PDF
                                             </button>
-                                        )}
+
+                                            {email ? (
+                                                <a
+                                                    href={`mailto:${email}?subject=${encodeURIComponent(
+                                                        detail.message_subject || `Cotação ${detail.quotation_code}`,
+                                                    )}&body=${encodeURIComponent(detailMessage)}`}
+                                                    className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
+                                                >
+                                                    <Mail className="h-4 w-4" />
+                                                    E-mail
+                                                </a>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    title="Fornecedor sem e-mail cadastrado"
+                                                    className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-slate-400 opacity-70 dark:border-gray-700 dark:bg-gray-950"
+                                                >
+                                                    <Mail className="h-4 w-4" />
+                                                    E-mail indisponível
+                                                </button>
+                                            )}
+
+                                            {whatsapp ? (
+                                                <a
+                                                    href={`https://wa.me/${whatsapp}?text=${encodeURIComponent(detailMessage)}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                                                >
+                                                    <MessageCircle className="h-4 w-4" />
+                                                    WhatsApp
+                                                </a>
+                                            ) : (
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    title="Fornecedor sem WhatsApp/telefone cadastrado"
+                                                    className="inline-flex cursor-not-allowed items-center gap-2 rounded-xl bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-500 opacity-70 dark:bg-gray-800 dark:text-gray-400"
+                                                >
+                                                    <MessageCircle className="h-4 w-4" />
+                                                    WhatsApp indisponível
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <OperationalTimeline
-                                compact
-                                className="mt-4"
-                                title="Andamento da cotação"
-                                description="Histórico operacional desta cotação, incluindo criação, envio, resposta, aprovação e conversão."
-                                emptyTitle="Nenhum andamento registrado"
-                                emptyDescription="Os eventos desta cotação aparecerão aqui conforme o fluxo for executado."
-                                events={quotationTimelineEvents}
-                                loading={loadingQuotationTimeline}
-                                onRefresh={() => void refetchQuotationTimeline()}
-                            />
-
-                            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
-                                <div className="overflow-x-auto">
-                                    <table className="w-full min-w-[980px] text-sm">
-                                        <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-gray-900">
-                                            <tr>
-                                                <th className="px-4 py-3">Produto</th>
-                                                <th className="px-4 py-3 text-right">Solicitado</th>
-                                                <th className="px-4 py-3 text-right">Referência</th>
-                                                <th className="px-4 py-3 text-right">Preço cotado</th>
-                                                <th className="px-4 py-3 text-right">Qtd. aprovada</th>
-                                                <th className="px-4 py-3">Obs. fornecedor</th>
-                                                <th className="px-4 py-3 text-right">Total</th>
-                                            </tr>
-                                        </thead>
-
-                                        <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-                                            {detailDraft.items.map((item) => {
-                                                const approvedQty = Number(item.approved_qty ?? item.requested_qty ?? 0);
-                                                const quotedCost = Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0);
-                                                const total = approvedQty * quotedCost;
-
-                                                return (
-                                                    <tr key={item.id} className="dark:text-gray-300">
-                                                        <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">{item.product_name}</td>
-                                                        <td className="px-4 py-3 text-right">{item.requested_qty}</td>
-                                                        <td className="px-4 py-3 text-right">{formatCurrency(item.reference_unit_cost)}</td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                step="0.01"
-                                                                value={item.quoted_unit_cost ?? ''}
-                                                                onChange={(event) =>
-                                                                    updateDetailItem(item.id, {
-                                                                        quoted_unit_cost:
-                                                                            event.target.value === '' ? null : Number(event.target.value),
-                                                                    })
-                                                                }
-                                                                disabled={!canManageQuotes || detail.status === 'converted'}
-                                                                className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950"
-                                                                placeholder="0,00"
-                                                            />
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right">
-                                                            <input
-                                                                type="number"
-                                                                min="0"
-                                                                step="1"
-                                                                value={item.approved_qty ?? item.requested_qty}
-                                                                onChange={(event) =>
-                                                                    updateDetailItem(item.id, {
-                                                                        approved_qty: event.target.value === '' ? 0 : Number(event.target.value),
-                                                                    })
-                                                                }
-                                                                disabled={!canManageQuotes || detail.status === 'converted'}
-                                                                className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm dark:border-gray-700 dark:bg-gray-950"
-                                                            />
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            <input
-                                                                value={item.supplier_notes ?? ''}
-                                                                onChange={(event) =>
-                                                                    updateDetailItem(item.id, {
-                                                                        supplier_notes: event.target.value,
-                                                                    })
-                                                                }
-                                                                disabled={!canManageQuotes || detail.status === 'converted'}
-                                                                className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950"
-                                                                placeholder="Ex.: sem estoque, entrega parcial..."
-                                                            />
-                                                        </td>
-                                                        <td className="px-4 py-3 text-right font-semibold">{formatCurrency(total)}</td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-
-                            <label className="mt-4 block">
-                                <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Observações internas</div>
-                                <textarea
-                                    value={quotationNotes}
-                                    onChange={(event) => setQuotationNotes(event.target.value)}
-                                    disabled={!canManageQuotes || detail.status === 'converted'}
-                                    className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                    placeholder="Ex.: fornecedor confirmou entrega para sexta-feira..."
+                                <OperationalTimeline
+                                    compact
+                                    className="mt-4"
+                                    title="Andamento da cotação"
+                                    description="Histórico operacional desta cotação, incluindo criação, envio, resposta, aprovação e conversão."
+                                    emptyTitle="Nenhum andamento registrado"
+                                    emptyDescription="Os eventos desta cotação aparecerão aqui conforme o fluxo for executado."
+                                    events={quotationTimelineEvents}
+                                    loading={loadingQuotationTimeline}
+                                    onRefresh={() => void refetchQuotationTimeline()}
                                 />
-                            </label>
 
-                            {detail.message_body && (
-                                <div className="mt-4">
-                                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Mensagem salva</div>
-                                    <textarea
-                                        readOnly
-                                        value={detail.message_body}
-                                        className="min-h-[180px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                                    />
+                                <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full min-w-[1120px] text-sm">
+                                            <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500 dark:bg-gray-900 dark:text-gray-400">
+                                                <tr>
+                                                    <th className="px-4 py-3">Produto</th>
+                                                    <th className="px-4 py-3">Disponibilidade</th>
+                                                    <th className="px-4 py-3 text-right">Solicitado</th>
+                                                    <th className="px-4 py-3 text-right">Referência inicial</th>
+                                                    <th className="px-4 py-3 text-right">Preço cotado</th>
+                                                    <th className="px-4 py-3 text-right">Qtd. aprovada</th>
+                                                    <th className="px-4 py-3">Obs. fornecedor</th>
+                                                    <th className="px-4 py-3 text-right">Total</th>
+                                                </tr>
+                                            </thead>
+
+                                            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+                                                {detailDraft.items.map((item) => {
+                                                    const unavailable = isQuotationItemUnavailable(item);
+                                                    const approvedQty = unavailable ? 0 : Number(item.approved_qty ?? item.requested_qty ?? 0);
+                                                    const quotedCost = unavailable ? 0 : Number(item.quoted_unit_cost ?? item.reference_unit_cost ?? 0);
+                                                    const total = approvedQty * quotedCost;
+
+                                                    return (
+                                                        <tr key={item.id} className="dark:text-gray-300">
+                                                            <td className="px-4 py-3 font-medium text-slate-800 dark:text-white">
+                                                                <div className="flex flex-col gap-1">
+                                                                    <span>{item.product_name}</span>
+                                                                    {unavailable && (
+                                                                        <span className="w-fit rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+                                                                            Indisponível
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <label className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2 py-1 text-xs font-bold text-gray-700 dark:border-gray-700 dark:text-gray-200">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={unavailable}
+                                                                        onChange={(event) => toggleUnavailableItem(item, event.target.checked)}
+                                                                        disabled={!canManageQuotes || detail.status === 'converted'}
+                                                                        className="accent-rose-600"
+                                                                    />
+                                                                    Indisponível
+                                                                </label>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right">{item.requested_qty}</td>
+                                                            <td className="px-4 py-3 text-right">{formatCurrency(item.reference_unit_cost)}</td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="0.01"
+                                                                    value={unavailable ? '' : item.quoted_unit_cost ?? ''}
+                                                                    onChange={(event) =>
+                                                                        updateDetailItem(item.id, {
+                                                                            quoted_unit_cost:
+                                                                                event.target.value === '' ? null : Number(event.target.value),
+                                                                        })
+                                                                    }
+                                                                    disabled={!canManageQuotes || detail.status === 'converted' || unavailable}
+                                                                    className="w-28 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950"
+                                                                    placeholder={unavailable ? '—' : '0,00'}
+                                                                />
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right">
+                                                                <input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    step="1"
+                                                                    value={approvedQty}
+                                                                    onChange={(event) =>
+                                                                        updateDetailItem(item.id, {
+                                                                            approved_qty: event.target.value === '' ? 0 : Number(event.target.value),
+                                                                        })
+                                                                    }
+                                                                    disabled={!canManageQuotes || detail.status === 'converted' || unavailable}
+                                                                    className="w-24 rounded-lg border border-gray-200 px-2 py-1 text-right text-sm disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950"
+                                                                />
+                                                            </td>
+                                                            <td className="px-4 py-3">
+                                                                <input
+                                                                    value={item.supplier_notes ?? ''}
+                                                                    onChange={(event) =>
+                                                                        updateDetailItem(item.id, {
+                                                                            supplier_notes: event.target.value,
+                                                                        })
+                                                                    }
+                                                                    disabled={!canManageQuotes || detail.status === 'converted'}
+                                                                    className="w-full rounded-lg border border-gray-200 px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950"
+                                                                    placeholder="Ex.: sem estoque, entrega parcial..."
+                                                                />
+                                                            </td>
+                                                            <td className="px-4 py-3 text-right font-semibold">{formatCurrency(total)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            )}
-                        </div>
 
-                        <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 p-5 dark:border-gray-800">
-                            <button
-                                type="button"
-                                onClick={closeDetail}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
-                            >
-                                Fechar
-                            </button>
+                                <label className="mt-4 block">
+                                    <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Observações internas</div>
+                                    <textarea
+                                        value={quotationNotes}
+                                        onChange={(event) => setQuotationNotes(event.target.value)}
+                                        disabled={!canManageQuotes || detail.status === 'converted'}
+                                        className="min-h-[90px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                                        placeholder="Ex.: fornecedor confirmou entrega para sexta-feira..."
+                                    />
+                                </label>
 
-                            {canManageQuotes && detail.status !== 'converted' && (
-                                <>
+                                {detail.message_body && (
+                                    <div className="mt-4">
+                                        <div className="mb-2 text-xs font-semibold uppercase text-slate-500 dark:text-gray-400">Mensagem salva</div>
+                                        <textarea
+                                            readOnly
+                                            value={detail.message_body}
+                                            className="min-h-[180px] w-full rounded-2xl border border-gray-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 p-5 dark:border-gray-800">
+                                <button
+                                    type="button"
+                                    onClick={closeDetail}
+                                    className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+                                >
+                                    Fechar
+                                </button>
+
+                                {canManageQuotes && detail.status !== 'converted' && (
                                     <button
                                         type="button"
                                         onClick={() => void saveQuotationResponse()}
@@ -1586,14 +1646,12 @@ export default function PurchaseQuotationsPage() {
                                         <Save className="h-4 w-4" />
                                         {savingResponse ? 'Salvando...' : 'Salvar resposta'}
                                     </button>
-                                </>
-                            )}
-
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </PageContainer>
+                )}
+            </PageContainer>
         </>
     );
 }
