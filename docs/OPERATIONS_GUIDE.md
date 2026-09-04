@@ -53,7 +53,11 @@ A aba Vida do Produto consolida todas as informações históricas do item:
 ### 3.2 Pedidos de Compra e Cotações (`/admin/purchases`)
 
 - Emissão de solicitações de compra e cotações de preços.
-- Em `/admin/stock/quotations`, duas ou mais respostas podem ser selecionadas e comparadas como uma rodada concorrencial: a análise agrupa as ofertas por produto, sinaliza itens indisponíveis ou propostas expiradas e destaca o menor preço unitário válido. Prazo, frete, pagamento e quantidade atendida permanecem critérios de decisão do responsável.
+- Cada nova cotação em lote cria uma **rodada** com identificador `RDC-...`; todas as cotações enviadas às empresas ficam relacionadas e disponíveis na aba **Rodadas de cotação**.
+- Em `/admin/stock/quotations`, a rodada funciona como uma análise concorrencial: agrupa ofertas por produto, sinaliza itens indisponíveis ou propostas expiradas e sugere o menor preço unitário válido.
+- O responsável pode manter a sugestão por item, trocar fornecedores e quantidades/preços manualmente ou usar **Comprar tudo em** para concentrar a compra em uma única empresa.
+- Ao confirmar o plano, o sistema cria um pedido de compra em rascunho para cada fornecedor selecionado. A geração é transacional e só pode ocorrer uma vez por rodada.
+- Prazo, frete, pagamento, quantidade atendida e qualidade do fornecedor permanecem critérios obrigatórios de decisão do responsável.
 - No celular, os filtros da listagem são recolhíveis e as cotações aparecem em cartões compactos.
 - Ao dar entrada na nota fiscal/pedido de compra concluído, o sistema dá entrada automática no estoque do local selecionado e gera a provisão no Livro Caixa.
 

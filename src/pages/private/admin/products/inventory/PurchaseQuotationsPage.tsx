@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   Copy,
   Download,
   Eye,
@@ -74,6 +75,9 @@ type InventoryProductLike = {
 type QuotationItem = PurchaseQuotationDetail['items'][number]
 
 type QuotationComparison = {
+  roundId: string | null
+  roundCode: string | null
+  roundGenerated: boolean
   quotations: PurchaseQuotationDetail[]
   products: Array<{
     productId: string
@@ -81,6 +85,7 @@ type QuotationComparison = {
     offers: Array<{
       quotationId: string
       quotationCode: string
+      supplierId: string
       supplierName: string
       status: string
       requestedQty: number
@@ -92,6 +97,33 @@ type QuotationComparison = {
     }>
     bestQuotationId: string | null
   }>
+}
+
+type PurchaseQuotationRoundSummary = {
+  id: string
+  round_code: string
+  title: string
+  status: 'open' | 'under_review' | 'converted' | 'cancelled'
+  expires_at: string | null
+  generated_at: string | null
+  created_at: string
+  suppliers_count: number
+  quotations_count: number
+  answered_count: number
+  expired_count: number
+  items_count: number
+  total_quoted: number
+  quotation_ids: string[]
+}
+
+type PurchaseAllocation = {
+  productId: string
+  productName: string
+  quotationId: string
+  supplierId: string
+  supplierName: string
+  quantity: number
+  unitCost: number
 }
 
 const statusOptions = [
@@ -229,7 +261,10 @@ function removeUnavailableNote(value?: string | null) {
     .trim()
 }
 
-function buildQuotationComparison(quotations: PurchaseQuotationDetail[]): QuotationComparison {
+function buildQuotationComparison(
+  quotations: PurchaseQuotationDetail[],
+  round?: { id: string; code: string; generated?: boolean }
+): QuotationComparison {
   const products = new Map<string, QuotationComparison['products'][number]>()
 
   for (const quotation of quotations) {
@@ -248,6 +283,7 @@ function buildQuotationComparison(quotations: PurchaseQuotationDetail[]): Quotat
       current.offers.push({
         quotationId: quotation.id,
         quotationCode: quotation.quotation_code,
+        supplierId: quotation.supplier_id,
         supplierName: quotation.supplier_name,
         status: quotation.status,
         requestedQty: Number(item.requested_qty ?? 0),
@@ -276,6 +312,9 @@ function buildQuotationComparison(quotations: PurchaseQuotationDetail[]): Quotat
   }
 
   return {
+    roundId: round?.id ?? null,
+    roundCode: round?.code ?? null,
+    roundGenerated: Boolean(round?.generated),
     quotations,
     products: Array.from(products.values()).sort((a, b) =>
       a.productName.localeCompare(b.productName, 'pt-BR')
@@ -438,6 +477,7 @@ function buildQuotationPrintHtml(
 
 export default function PurchaseQuotationsPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null)
 
@@ -451,14 +491,22 @@ export default function PurchaseQuotationsPage() {
   const canViewQuotes = hasEffectivePermission(permissions, 'quotes.view')
   const canManageQuotes = hasEffectivePermission(permissions, 'quotes.manage')
   const canViewPurchases = hasEffectivePermission(permissions, 'purchases.view')
+  const canCreatePurchases =
+    hasEffectivePermission(permissions, 'purchases.create') ||
+    hasEffectivePermission(permissions, 'purchases.manage')
   const [loading, setLoading] = useState(true)
   const [quotations, setQuotations] = useState<PurchaseQuotationSummary[]>([])
+  const [rounds, setRounds] = useState<PurchaseQuotationRoundSummary[]>([])
+  const [viewMode, setViewMode] = useState<'rounds' | 'quotations'>('rounds')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [quotationProductIds, setQuotationProductIds] = useState<Record<string, string[]>>({})
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedQuotationIds, setSelectedQuotationIds] = useState<string[]>([])
   const [loadingComparison, setLoadingComparison] = useState(false)
   const [comparison, setComparison] = useState<QuotationComparison | null>(null)
+  const [allocations, setAllocations] = useState<PurchaseAllocation[]>([])
+  const [generatingDrafts, setGeneratingDrafts] = useState(false)
+  const [concentrateSupplierId, setConcentrateSupplierId] = useState('')
   const [filters, setFilters] = useState({
     dateFrom: '',
     dateTo: '',
@@ -519,8 +567,16 @@ export default function PurchaseQuotationsPage() {
     try {
       if (!options?.silent) setLoading(true)
 
-      const data = await stockService.getPurchaseQuotationsByStore(nextStoreId, null)
+      const [data, roundsResult] = await Promise.all([
+        stockService.getPurchaseQuotationsByStore(nextStoreId, null),
+        supabase.rpc('get_purchase_quotation_rounds_by_store', {
+          p_store_id: nextStoreId,
+          p_limit: 100,
+        }),
+      ])
+      if (roundsResult.error) throw roundsResult.error
       setQuotations(data)
+      setRounds((roundsResult.data ?? []) as PurchaseQuotationRoundSummary[])
     } catch (error) {
       console.error('Erro ao carregar cotações:', error)
       toast.error('Não foi possível carregar as cotações.')
@@ -668,8 +724,11 @@ export default function PurchaseQuotationsPage() {
     )
   }
 
-  async function openComparison() {
-    if (selectedQuotationIds.length < 2) {
+  async function openComparison(
+    quotationIds = selectedQuotationIds,
+    round?: { id: string; code: string; generated?: boolean }
+  ) {
+    if (quotationIds.length < 2) {
       toast.warning('Selecione pelo menos duas cotações para comparar.')
       return
     }
@@ -677,16 +736,145 @@ export default function PurchaseQuotationsPage() {
     try {
       setLoadingComparison(true)
       const details = await Promise.all(
-        selectedQuotationIds.map((quotationId) =>
-          stockService.getPurchaseQuotationDetail(quotationId)
-        )
+        quotationIds.map((quotationId) => stockService.getPurchaseQuotationDetail(quotationId))
       )
-      setComparison(buildQuotationComparison(details))
+      const nextComparison = buildQuotationComparison(details, round)
+      setComparison(nextComparison)
+      setAllocations(
+        nextComparison.products.flatMap((product) => {
+          const offer = product.offers.find(
+            (candidate) => candidate.quotationId === product.bestQuotationId
+          )
+          if (!offer || offer.unitCost == null || offer.approvedQty <= 0) return []
+          return [
+            {
+              productId: product.productId,
+              productName: product.productName,
+              quotationId: offer.quotationId,
+              supplierId: offer.supplierId,
+              supplierName: offer.supplierName,
+              quantity: offer.approvedQty,
+              unitCost: offer.unitCost,
+            },
+          ]
+        })
+      )
+      setConcentrateSupplierId('')
     } catch (error) {
       console.error('Erro ao comparar cotações:', error)
       toast.error('Não foi possível montar a análise comparativa.')
     } finally {
       setLoadingComparison(false)
+    }
+  }
+
+  useEffect(() => {
+    const roundId = searchParams.get('round')
+    if (!roundId || rounds.length === 0 || comparison || loadingComparison) return
+    const round = rounds.find((item) => item.id === roundId)
+    if (!round) return
+    setViewMode('rounds')
+    void openComparison(round.quotation_ids, {
+      id: round.id,
+      code: round.round_code,
+      generated: Boolean(round.generated_at),
+    })
+    setSearchParams({}, { replace: true })
+  }, [rounds, searchParams, comparison, loadingComparison, setSearchParams])
+
+  function updateAllocation(productId: string, quotationId: string) {
+    if (!comparison) return
+    const product = comparison.products.find((item) => item.productId === productId)
+    const offer = product?.offers.find((item) => item.quotationId === quotationId)
+    if (!product || !offer) return
+
+    setAllocations((current) => {
+      const existing = current.find((item) => item.productId === productId)
+      const next: PurchaseAllocation = {
+        productId,
+        productName: product.productName,
+        quotationId: offer.quotationId,
+        supplierId: offer.supplierId,
+        supplierName: offer.supplierName,
+        quantity: offer.approvedQty > 0 ? offer.approvedQty : offer.requestedQty,
+        unitCost: offer.unitCost ?? existing?.unitCost ?? 0,
+      }
+      return existing
+        ? current.map((item) => (item.productId === productId ? next : item))
+        : [...current, next]
+    })
+  }
+
+  function updateAllocationValues(
+    productId: string,
+    patch: Partial<Pick<PurchaseAllocation, 'quantity' | 'unitCost'>>
+  ) {
+    setAllocations((current) =>
+      current.map((item) => (item.productId === productId ? { ...item, ...patch } : item))
+    )
+  }
+
+  function concentratePurchases(supplierId: string) {
+    setConcentrateSupplierId(supplierId)
+    if (!comparison || !supplierId) return
+    setAllocations((current) =>
+      comparison.products
+        .map((product) => {
+          const offer = product.offers.find((item) => item.supplierId === supplierId)
+          const existing = current.find((item) => item.productId === product.productId)
+          if (!offer) return existing as PurchaseAllocation
+          return {
+            productId: product.productId,
+            productName: product.productName,
+            quotationId: offer.quotationId,
+            supplierId: offer.supplierId,
+            supplierName: offer.supplierName,
+            quantity: offer.approvedQty > 0 ? offer.approvedQty : offer.requestedQty,
+            unitCost: offer.unitCost ?? existing?.unitCost ?? 0,
+          }
+        })
+        .filter(Boolean)
+    )
+  }
+
+  async function generatePurchaseDrafts() {
+    if (!comparison?.roundId || generatingDrafts) return
+    if (allocations.length !== comparison.products.length) {
+      toast.warning('Defina fornecedor, quantidade e preço para todos os produtos da rodada.')
+      return
+    }
+    if (allocations.some((item) => item.quantity <= 0 || item.unitCost <= 0)) {
+      toast.warning('Todas as quantidades e preços precisam ser maiores que zero.')
+      return
+    }
+
+    try {
+      setGeneratingDrafts(true)
+      const { data, error } = await supabase.rpc('generate_purchase_drafts_from_quotation_round', {
+        p_round_id: comparison.roundId,
+        p_allocations: allocations.map((item) => ({
+          quotation_id: item.quotationId,
+          supplier_id: item.supplierId,
+          product_id: item.productId,
+          quantity: item.quantity,
+          unit_cost: item.unitCost,
+        })),
+        p_notes: `Compras geradas pela análise da rodada ${comparison.roundCode}.`,
+      })
+      if (error) throw error
+      const drafts = (data ?? []) as Array<{ purchase_document_id: string }>
+      toast.success(`${drafts.length} rascunho(s) de compra criado(s).`)
+      setComparison(null)
+      setAllocations([])
+      await loadQuotations(storeId, { silent: true })
+      if (drafts[0]?.purchase_document_id) {
+        navigate(`/admin/stock/purchase-documents?open=${drafts[0].purchase_document_id}`)
+      }
+    } catch (error) {
+      console.error('Erro ao gerar compras da rodada:', error)
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar os rascunhos.')
+    } finally {
+      setGeneratingDrafts(false)
     }
   }
 
@@ -1081,413 +1269,523 @@ export default function PurchaseQuotationsPage() {
         onRefresh={() => loadQuotations(storeId, { silent: true })}
         flat
       >
-        <div className="mb-4 grid grid-cols-2 gap-2 md:mb-6 md:grid-cols-4 md:gap-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Cotações</p>
-            <p className="mt-0.5 text-lg font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
-              {totals.count}
-            </p>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Ref. solicitada</p>
-            <p className="mt-0.5 text-base font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
-              {formatCurrency(totals.totalReference)}
-            </p>
-            <p className="mt-1 hidden text-[11px] font-semibold text-gray-400 md:block dark:text-gray-500">
-              Valor inicial enviado ao fornecedor.
-            </p>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Total cotado</p>
-            <p className="mt-0.5 text-base font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
-              {formatCurrency(totals.totalQuoted)}
-            </p>
-            <p className="mt-1 hidden text-[11px] font-semibold text-gray-400 md:block dark:text-gray-500">
-              Atualiza com a resposta.
-            </p>
-          </div>
-          <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
-            <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Enviadas</p>
-            <p className="mt-0.5 text-lg font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
-              {totals.sent}
-            </p>
-          </div>
+        <div className="mb-4 inline-flex rounded-xl border border-gray-200 bg-white p-1 dark:border-gray-700 dark:bg-gray-900">
+          <button
+            type="button"
+            onClick={() => setViewMode('rounds')}
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold ${viewMode === 'rounds' ? 'bg-[#19A999] text-white' : 'text-gray-600 dark:text-gray-300'}`}
+          >
+            <ClipboardList className="h-4 w-4" /> Rodadas de cotação
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('quotations')}
+            className={`rounded-lg px-3 py-2 text-sm font-bold ${viewMode === 'quotations' ? 'bg-[#19A999] text-white' : 'text-gray-600 dark:text-gray-300'}`}
+          >
+            Cotações individuais
+          </button>
         </div>
 
-        <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div className="text-sm text-gray-600 dark:text-gray-300">
-            A referência é o valor inicial solicitado. O valor respondido aparece em Total cotado.
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void openComparison()}
-              disabled={selectedQuotationIds.length < 2 || loadingComparison}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#FAA832] px-4 py-2 text-sm font-bold text-slate-900 hover:bg-[#F59E0B] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <Scale className="h-4 w-4" />
-              {loadingComparison ? 'Analisando...' : `Comparar (${selectedQuotationIds.length})`}
-            </button>
-            {canManageQuotes && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => navigate('/admin/stock/quotations/batch')}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-semibold text-white hover:bg-[#14887B]"
+        {viewMode === 'rounds' ? (
+          rounds.length === 0 ? (
+            <EmptyState
+              icon={<ClipboardList className="h-5 w-5" />}
+              title="Nenhuma rodada registrada"
+              description="As novas cotações em lote aparecerão agrupadas aqui com um identificador único."
+            />
+          ) : (
+            <div className="grid gap-3 lg:grid-cols-2">
+              {rounds.map((round) => (
+                <article
+                  key={round.id}
+                  className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
                 >
-                  <ShoppingCart className="h-4 w-4" />
-                  Cotação em lote
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setManualQuotationOpen(true)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
-                >
-                  <Plus className="h-4 w-4" />
-                  Nova cotação
-                </button>
-              </>
-            )}
-
-            <button
-              type="button"
-              onClick={exportFilteredQuotationsCsv}
-              disabled={!filteredQuotations.length}
-              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <Download className="h-4 w-4" />
-              Exportar CSV
-            </button>
-          </div>
-        </div>
-
-        <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:mb-6 md:p-4 dark:border-gray-700 dark:bg-gray-800">
-          <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">Filtros</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                Combine data, status, fornecedor, produto e cotação.
-              </div>
-            </div>
-            <div className="flex gap-2">
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 md:hidden dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-                >
-                  <XCircle className="h-4 w-4" /> Limpar
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setFiltersOpen((current) => !current)}
-                className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-bold text-gray-700 md:hidden dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-                aria-expanded={filtersOpen}
-              >
-                {filtersOpen ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
-                {filtersOpen
-                  ? 'Recolher'
-                  : `Abrir${activeFilterCount ? ` (${activeFilterCount})` : ''}`}
-              </button>
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="hidden items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 md:inline-flex dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-              >
-                <XCircle className="h-4 w-4" /> Limpar filtros
-              </button>
-            </div>
-          </div>
-
-          <div className={`${filtersOpen ? 'grid' : 'hidden'} gap-3 md:grid md:grid-cols-6`}>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Data inicial
-              </span>
-              <input
-                type="date"
-                value={filters.dateFrom}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, dateFrom: event.target.value }))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Data final
-              </span>
-              <input
-                type="date"
-                value={filters.dateTo}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, dateTo: event.target.value }))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Status
-              </span>
-              <select
-                value={filters.status}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, status: event.target.value }))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-              >
-                {statusOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.value ? option.label : 'Todos'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Fornecedor
-              </span>
-              <select
-                value={filters.supplierId}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, supplierId: event.target.value }))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-              >
-                <option value="">Todos</option>
-                {suppliers.map((supplier) => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Produto
-              </span>
-              <select
-                value={filters.productId}
-                onChange={(event) =>
-                  setFilters((current) => ({ ...current, productId: event.target.value }))
-                }
-                className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-              >
-                <option value="">Todos</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
-                Documento / Cotação
-              </span>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                <input
-                  value={filters.document}
-                  onChange={(event) =>
-                    setFilters((current) => ({ ...current, document: event.target.value }))
-                  }
-                  placeholder="Ex: COT-123"
-                  className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
-                />
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {filteredQuotations.length === 0 ? (
-          <EmptyState
-            icon={<FileText className="h-5 w-5" />}
-            title="Nenhuma cotação encontrada"
-            description="As cotações salvas pelas sugestões de compra aparecerão aqui para consulta e reenvio."
-          />
-        ) : (
-          <div className="rounded-lg bg-white dark:bg-gray-800">
-            <div className="space-y-2 bg-[#F8F6F2] md:hidden dark:bg-gray-950">
-              {filteredQuotations.map((quotation) => {
-                const selected = selectedQuotationIds.includes(quotation.id)
-                return (
-                  <article
-                    key={quotation.id}
-                    className={`rounded-xl border bg-white p-3 dark:bg-gray-800 ${selected ? 'border-[#19A999] ring-1 ring-[#19A999]' : 'border-gray-200 dark:border-gray-700'}`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => toggleQuotationSelection(quotation.id)}
-                        className="mt-1 h-4 w-4 accent-[#19A999]"
-                        aria-label={`Selecionar ${quotation.quotation_code} para comparação`}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-gray-900 dark:text-white">
-                              {quotation.quotation_code}
-                            </p>
-                            <p className="truncate text-xs font-semibold text-gray-600 dark:text-gray-300">
-                              {quotation.supplier_name}
-                            </p>
-                          </div>
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${getStatusClassName(quotation.status)}`}
-                          >
-                            {getStatusLabel(quotation.status)}
-                          </span>
-                        </div>
-                        <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
-                          <div>
-                            <span className="block text-[10px] uppercase text-gray-400">Itens</span>
-                            <strong>{quotation.items_count}</strong>
-                          </div>
-                          <div>
-                            <span className="block text-[10px] uppercase text-gray-400">
-                              Referência
-                            </span>
-                            <strong>{formatCurrency(quotation.total_reference)}</strong>
-                          </div>
-                          <div>
-                            <span className="block text-[10px] uppercase text-gray-400">
-                              Cotado
-                            </span>
-                            <strong className="text-emerald-700 dark:text-emerald-300">
-                              {formatCurrency(quotation.total_quoted)}
-                            </strong>
-                          </div>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between gap-2 border-t border-gray-100 pt-2 dark:border-gray-700">
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                            {quotation.requested_at_display ??
-                              formatDateTime(quotation.requested_at)}
-                          </span>
-                          <button
-                            type="button"
-                            disabled={openingDetail}
-                            onClick={() => void openDetail(quotation.id)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:border-gray-600 dark:text-gray-200"
-                          >
-                            <Eye className="h-3.5 w-3.5" /> Abrir
-                          </button>
-                        </div>
-                      </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-black uppercase tracking-wider text-[#19A999]">
+                        {round.round_code}
+                      </p>
+                      <h3 className="truncate font-black text-gray-900 dark:text-white">
+                        {round.title}
+                      </h3>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Criada em {formatDateTime(round.created_at)}
+                        {round.expires_at ? ` · Prazo ${formatDateTime(round.expires_at)}` : ''}
+                      </p>
                     </div>
-                  </article>
-                )
-              })}
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${round.status === 'converted' ? 'bg-emerald-100 text-emerald-700' : round.status === 'under_review' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'}`}
+                    >
+                      {round.status === 'converted'
+                        ? 'Compras geradas'
+                        : round.status === 'under_review'
+                          ? 'Em análise'
+                          : round.status === 'cancelled'
+                            ? 'Cancelada'
+                            : 'Aberta'}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid grid-cols-4 gap-2 rounded-xl bg-slate-50 p-3 text-center dark:bg-gray-900">
+                    <div>
+                      <span className="block text-[10px] uppercase text-gray-400">Empresas</span>
+                      <strong>{round.suppliers_count}</strong>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase text-gray-400">Respostas</span>
+                      <strong>
+                        {round.answered_count}/{round.quotations_count}
+                      </strong>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase text-gray-400">Produtos</span>
+                      <strong>{round.items_count}</strong>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] uppercase text-gray-400">Expiradas</span>
+                      <strong>{round.expired_count}</strong>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void openComparison(round.quotation_ids, {
+                        id: round.id,
+                        code: round.round_code,
+                        generated: Boolean(round.generated_at),
+                      })
+                    }
+                    disabled={loadingComparison || round.quotation_ids.length < 2}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#FAA832] px-4 py-2.5 text-sm font-black text-slate-900 hover:bg-[#F59E0B] disabled:opacity-50"
+                  >
+                    <Scale className="h-4 w-4" />{' '}
+                    {round.status === 'converted' ? 'Rever análise' : 'Analisar e gerar compras'}
+                  </button>
+                </article>
+              ))}
             </div>
-            <div className="hidden overflow-x-auto rounded-2xl border border-gray-100 md:block dark:border-gray-700">
-              <table className="min-w-[1080px] w-full text-left">
-                <thead className="bg-gray-50 text-sm font-medium text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
-                  <tr>
-                    <th className="w-12 px-4 py-4">
-                      <span className="sr-only">Comparar</span>
-                    </th>
-                    <th className="px-4 py-4">Cotação</th>
-                    <th className="px-4 py-4">Fornecedor</th>
-                    <th className="px-4 py-4">Status</th>
-                    <th className="px-4 py-4 text-right">Itens</th>
-                    <th className="px-4 py-4 text-right">Ref. solicitada</th>
-                    <th className="px-4 py-4 text-right">Total cotado</th>
-                    <th className="px-4 py-4">Criada em</th>
-                    <th className="px-4 py-4 text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredQuotations.map((quotation) => (
-                    <tr key={quotation.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                      <td className="px-4 py-4">
-                        <input
-                          type="checkbox"
-                          checked={selectedQuotationIds.includes(quotation.id)}
-                          onChange={() => toggleQuotationSelection(quotation.id)}
-                          className="h-4 w-4 accent-[#19A999]"
-                          aria-label={`Selecionar ${quotation.quotation_code} para comparação`}
-                        />
-                      </td>
-                      <td className="px-4 py-4 font-semibold text-gray-900 dark:text-white">
-                        {quotation.quotation_code}
-                      </td>
-                      <td className="px-4 py-4 text-gray-700 dark:text-gray-200">
-                        {quotation.supplier_name}
-                      </td>
-                      <td className="px-4 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-bold ${getStatusClassName(quotation.status)}`}
-                        >
-                          {getStatusLabel(quotation.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 text-right text-gray-700 dark:text-gray-200">
-                        {quotation.items_count}
-                      </td>
-                      <td className="px-4 py-4 text-right font-semibold text-gray-900 dark:text-white">
-                        {formatCurrency(quotation.total_reference)}
-                      </td>
-                      <td className="px-4 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(quotation.total_quoted)}
-                      </td>
-                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
-                        {quotation.requested_at_display ?? formatDateTime(quotation.requested_at)}
-                      </td>
-                      <td className="px-4 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            type="button"
-                            disabled={openingDetail}
-                            onClick={() => void openDetail(quotation.id)}
-                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
-                            title="Abrir cotação"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </button>
+          )
+        ) : (
+          <>
+            <div className="mb-4 grid grid-cols-2 gap-2 md:mb-6 md:grid-cols-4 md:gap-4">
+              <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
+                <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Cotações</p>
+                <p className="mt-0.5 text-lg font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
+                  {totals.count}
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
+                <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">
+                  Ref. solicitada
+                </p>
+                <p className="mt-0.5 text-base font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
+                  {formatCurrency(totals.totalReference)}
+                </p>
+                <p className="mt-1 hidden text-[11px] font-semibold text-gray-400 md:block dark:text-gray-500">
+                  Valor inicial enviado ao fornecedor.
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
+                <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Total cotado</p>
+                <p className="mt-0.5 text-base font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
+                  {formatCurrency(totals.totalQuoted)}
+                </p>
+                <p className="mt-1 hidden text-[11px] font-semibold text-gray-400 md:block dark:text-gray-500">
+                  Atualiza com a resposta.
+                </p>
+              </div>
+              <div className="rounded-xl border border-gray-200 bg-white p-3 md:p-4 dark:border-gray-700 dark:bg-gray-800">
+                <p className="text-xs text-gray-500 md:text-sm dark:text-gray-300">Enviadas</p>
+                <p className="mt-0.5 text-lg font-bold text-gray-900 md:mt-1 md:text-2xl dark:text-white">
+                  {totals.sent}
+                </p>
+              </div>
+            </div>
 
-                          {canManageQuotes && quotation.status === 'approved' && (
-                            <button
-                              type="button"
-                              onClick={() => void convertQuotationToPurchase(quotation.id)}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
-                              title="Converter em rascunho de compra"
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                            </button>
-                          )}
+            <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                A referência é o valor inicial solicitado. O valor respondido aparece em Total
+                cotado.
+              </div>
 
-                          {canViewPurchases &&
-                            quotation.status === 'converted' &&
-                            quotation.converted_purchase_document_id && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void openComparison()}
+                  disabled={selectedQuotationIds.length < 2 || loadingComparison}
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#FAA832] px-4 py-2 text-sm font-bold text-slate-900 hover:bg-[#F59E0B] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Scale className="h-4 w-4" />
+                  {loadingComparison
+                    ? 'Analisando...'
+                    : `Comparar (${selectedQuotationIds.length})`}
+                </button>
+                {canManageQuotes && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => navigate('/admin/stock/quotations/batch')}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-semibold text-white hover:bg-[#14887B]"
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Cotação em lote
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualQuotationOpen(true)}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#6D28D9] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Nova cotação
+                    </button>
+                  </>
+                )}
+
+                <button
+                  type="button"
+                  onClick={exportFilteredQuotationsCsv}
+                  disabled={!filteredQuotations.length}
+                  className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <Download className="h-4 w-4" />
+                  Exportar CSV
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm md:mb-6 md:p-4 dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Filtros</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Combine data, status, fornecedor, produto e cotação.
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 md:hidden dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                    >
+                      <XCircle className="h-4 w-4" /> Limpar
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setFiltersOpen((current) => !current)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-2.5 py-2 text-xs font-bold text-gray-700 md:hidden dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                    aria-expanded={filtersOpen}
+                  >
+                    {filtersOpen ? (
+                      <ChevronUp className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                    {filtersOpen
+                      ? 'Recolher'
+                      : `Abrir${activeFilterCount ? ` (${activeFilterCount})` : ''}`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearFilters}
+                    className="hidden items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 md:inline-flex dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                  >
+                    <XCircle className="h-4 w-4" /> Limpar filtros
+                  </button>
+                </div>
+              </div>
+
+              <div className={`${filtersOpen ? 'grid' : 'hidden'} gap-3 md:grid md:grid-cols-6`}>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Data inicial
+                  </span>
+                  <input
+                    type="date"
+                    value={filters.dateFrom}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, dateFrom: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Data final
+                  </span>
+                  <input
+                    type="date"
+                    value={filters.dateTo}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, dateTo: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                  />
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Status
+                  </span>
+                  <select
+                    value={filters.status}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, status: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                  >
+                    {statusOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.value ? option.label : 'Todos'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Fornecedor
+                  </span>
+                  <select
+                    value={filters.supplierId}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, supplierId: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">Todos</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Produto
+                  </span>
+                  <select
+                    value={filters.productId}
+                    onChange={(event) =>
+                      setFilters((current) => ({ ...current, productId: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="">Todos</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200">
+                    Documento / Cotação
+                  </span>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                    <input
+                      value={filters.document}
+                      onChange={(event) =>
+                        setFilters((current) => ({ ...current, document: event.target.value }))
+                      }
+                      placeholder="Ex: COT-123"
+                      className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
+                    />
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {filteredQuotations.length === 0 ? (
+              <EmptyState
+                icon={<FileText className="h-5 w-5" />}
+                title="Nenhuma cotação encontrada"
+                description="As cotações salvas pelas sugestões de compra aparecerão aqui para consulta e reenvio."
+              />
+            ) : (
+              <div className="rounded-lg bg-white dark:bg-gray-800">
+                <div className="space-y-2 bg-[#F8F6F2] md:hidden dark:bg-gray-950">
+                  {filteredQuotations.map((quotation) => {
+                    const selected = selectedQuotationIds.includes(quotation.id)
+                    return (
+                      <article
+                        key={quotation.id}
+                        className={`rounded-xl border bg-white p-3 dark:bg-gray-800 ${selected ? 'border-[#19A999] ring-1 ring-[#19A999]' : 'border-gray-200 dark:border-gray-700'}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleQuotationSelection(quotation.id)}
+                            className="mt-1 h-4 w-4 accent-[#19A999]"
+                            aria-label={`Selecionar ${quotation.quotation_code} para comparação`}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-gray-900 dark:text-white">
+                                  {quotation.quotation_code}
+                                </p>
+                                <p className="truncate text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                  {quotation.supplier_name}
+                                </p>
+                              </div>
+                              <span
+                                className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${getStatusClassName(quotation.status)}`}
+                              >
+                                {getStatusLabel(quotation.status)}
+                              </span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                              <div>
+                                <span className="block text-[10px] uppercase text-gray-400">
+                                  Itens
+                                </span>
+                                <strong>{quotation.items_count}</strong>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase text-gray-400">
+                                  Referência
+                                </span>
+                                <strong>{formatCurrency(quotation.total_reference)}</strong>
+                              </div>
+                              <div>
+                                <span className="block text-[10px] uppercase text-gray-400">
+                                  Cotado
+                                </span>
+                                <strong className="text-emerald-700 dark:text-emerald-300">
+                                  {formatCurrency(quotation.total_quoted)}
+                                </strong>
+                              </div>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-2 border-t border-gray-100 pt-2 dark:border-gray-700">
+                              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                                {quotation.requested_at_display ??
+                                  formatDateTime(quotation.requested_at)}
+                              </span>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/admin/stock/purchase-documents?open=${quotation.converted_purchase_document_id}`
-                                  )
-                                }
-                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950"
-                                title="Abrir compra"
+                                disabled={openingDetail}
+                                onClick={() => void openDetail(quotation.id)}
+                                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-bold text-gray-700 dark:border-gray-600 dark:text-gray-200"
                               >
-                                <ExternalLink className="h-4 w-4" />
+                                <Eye className="h-3.5 w-3.5" /> Abrir
                               </button>
-                            )}
+                            </div>
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                      </article>
+                    )
+                  })}
+                </div>
+                <div className="hidden overflow-x-auto rounded-2xl border border-gray-100 md:block dark:border-gray-700">
+                  <table className="min-w-[1080px] w-full text-left">
+                    <thead className="bg-gray-50 text-sm font-medium text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
+                      <tr>
+                        <th className="w-12 px-4 py-4">
+                          <span className="sr-only">Comparar</span>
+                        </th>
+                        <th className="px-4 py-4">Cotação</th>
+                        <th className="px-4 py-4">Fornecedor</th>
+                        <th className="px-4 py-4">Status</th>
+                        <th className="px-4 py-4 text-right">Itens</th>
+                        <th className="px-4 py-4 text-right">Ref. solicitada</th>
+                        <th className="px-4 py-4 text-right">Total cotado</th>
+                        <th className="px-4 py-4">Criada em</th>
+                        <th className="px-4 py-4 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredQuotations.map((quotation) => (
+                        <tr
+                          key={quotation.id}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                        >
+                          <td className="px-4 py-4">
+                            <input
+                              type="checkbox"
+                              checked={selectedQuotationIds.includes(quotation.id)}
+                              onChange={() => toggleQuotationSelection(quotation.id)}
+                              className="h-4 w-4 accent-[#19A999]"
+                              aria-label={`Selecionar ${quotation.quotation_code} para comparação`}
+                            />
+                          </td>
+                          <td className="px-4 py-4 font-semibold text-gray-900 dark:text-white">
+                            {quotation.quotation_code}
+                          </td>
+                          <td className="px-4 py-4 text-gray-700 dark:text-gray-200">
+                            {quotation.supplier_name}
+                          </td>
+                          <td className="px-4 py-4">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-bold ${getStatusClassName(quotation.status)}`}
+                            >
+                              {getStatusLabel(quotation.status)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-4 text-right text-gray-700 dark:text-gray-200">
+                            {quotation.items_count}
+                          </td>
+                          <td className="px-4 py-4 text-right font-semibold text-gray-900 dark:text-white">
+                            {formatCurrency(quotation.total_reference)}
+                          </td>
+                          <td className="px-4 py-4 text-right font-semibold text-emerald-700 dark:text-emerald-300">
+                            {formatCurrency(quotation.total_quoted)}
+                          </td>
+                          <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-400">
+                            {quotation.requested_at_display ??
+                              formatDateTime(quotation.requested_at)}
+                          </td>
+                          <td className="px-4 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                disabled={openingDetail}
+                                onClick={() => void openDetail(quotation.id)}
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700"
+                                title="Abrir cotação"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </button>
+
+                              {canManageQuotes && quotation.status === 'approved' && (
+                                <button
+                                  type="button"
+                                  onClick={() => void convertQuotationToPurchase(quotation.id)}
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300 dark:hover:bg-emerald-950"
+                                  title="Converter em rascunho de compra"
+                                >
+                                  <CheckCircle2 className="h-4 w-4" />
+                                </button>
+                              )}
+
+                              {canViewPurchases &&
+                                quotation.status === 'converted' &&
+                                quotation.converted_purchase_document_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      navigate(
+                                        `/admin/stock/purchase-documents?open=${quotation.converted_purchase_document_id}`
+                                      )
+                                    }
+                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 dark:border-blue-800 dark:text-blue-300 dark:hover:bg-blue-950"
+                                    title="Abrir compra"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </button>
+                                )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {comparison && (
@@ -1502,6 +1800,7 @@ export default function PurchaseQuotationsPage() {
                     </h3>
                   </div>
                   <p className="mt-1 text-xs text-slate-500 md:text-sm dark:text-gray-400">
+                    {comparison.roundCode ? `${comparison.roundCode} · ` : ''}
                     {comparison.quotations.length} fornecedores · {comparison.products.length}{' '}
                     produtos. O destaque indica o menor preço unitário válido por item.
                   </p>
@@ -1627,6 +1926,172 @@ export default function PurchaseQuotationsPage() {
                   pagamento, quantidade atendida e qualidade do fornecedor continuam como critérios
                   de decisão antes da aprovação.
                 </div>
+
+                {comparison.roundId && !comparison.roundGenerated && (
+                  <section className="mt-4 rounded-2xl border border-[#19A999]/30 bg-emerald-50/50 p-3 md:p-4 dark:bg-emerald-950/10">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                      <div>
+                        <h4 className="font-black text-slate-900 dark:text-white">
+                          Plano de compra da rodada
+                        </h4>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+                          A sugestão começa pelo menor preço válido. Você pode trocar o fornecedor,
+                          ajustar os valores ou concentrar tudo em uma empresa.
+                        </p>
+                      </div>
+                      <label className="w-full md:max-w-sm">
+                        <span className="mb-1 block text-xs font-bold uppercase text-gray-500">
+                          Comprar tudo em
+                        </span>
+                        <select
+                          value={concentrateSupplierId}
+                          onChange={(event) => concentratePurchases(event.target.value)}
+                          className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        >
+                          <option value="">Manter melhor preço por item</option>
+                          {comparison.quotations.map((quotation) => (
+                            <option key={quotation.supplier_id} value={quotation.supplier_id}>
+                              {quotation.supplier_name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      {comparison.products.map((product) => {
+                        const allocation = allocations.find(
+                          (item) => item.productId === product.productId
+                        )
+                        return (
+                          <div
+                            key={`allocation-${product.productId}`}
+                            className="grid gap-2 rounded-xl border border-gray-200 bg-white p-3 md:grid-cols-[minmax(180px,1fr)_minmax(180px,1fr)_110px_130px_130px] md:items-end dark:border-gray-700 dark:bg-gray-900"
+                          >
+                            <div>
+                              <span className="block text-[10px] font-bold uppercase text-gray-400">
+                                Produto
+                              </span>
+                              <strong className="text-sm text-slate-900 dark:text-white">
+                                {product.productName}
+                              </strong>
+                            </div>
+                            <label>
+                              <span className="mb-1 block text-[10px] font-bold uppercase text-gray-400">
+                                Fornecedor
+                              </span>
+                              <select
+                                value={allocation?.quotationId ?? ''}
+                                onChange={(event) =>
+                                  updateAllocation(product.productId, event.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                              >
+                                <option value="">Selecione</option>
+                                {product.offers.map((offer) => (
+                                  <option key={offer.quotationId} value={offer.quotationId}>
+                                    {offer.supplierName}
+                                    {offer.unitCost == null
+                                      ? ' · informar preço'
+                                      : ` · ${formatCurrency(offer.unitCost)}`}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label>
+                              <span className="mb-1 block text-[10px] font-bold uppercase text-gray-400">
+                                Quantidade
+                              </span>
+                              <input
+                                type="number"
+                                min="0.001"
+                                step="0.001"
+                                value={allocation?.quantity ?? ''}
+                                onChange={(event) =>
+                                  updateAllocationValues(product.productId, {
+                                    quantity: Number(event.target.value),
+                                  })
+                                }
+                                className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                              />
+                            </label>
+                            <label>
+                              <span className="mb-1 block text-[10px] font-bold uppercase text-gray-400">
+                                Preço unitário
+                              </span>
+                              <input
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value={allocation?.unitCost ?? ''}
+                                onChange={(event) =>
+                                  updateAllocationValues(product.productId, {
+                                    unitCost: Number(event.target.value),
+                                  })
+                                }
+                                className="w-full rounded-lg border border-gray-200 px-2.5 py-2 text-right text-xs dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                              />
+                            </label>
+                            <div>
+                              <span className="block text-[10px] font-bold uppercase text-gray-400">
+                                Subtotal
+                              </span>
+                              <strong className="block py-2 text-sm text-slate-900 dark:text-white">
+                                {formatCurrency(
+                                  Number(allocation?.quantity ?? 0) *
+                                    Number(allocation?.unitCost ?? 0)
+                                )}
+                              </strong>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        Total planejado:{' '}
+                        <strong className="text-slate-900 dark:text-white">
+                          {formatCurrency(
+                            allocations.reduce(
+                              (sum, item) => sum + item.quantity * item.unitCost,
+                              0
+                            )
+                          )}
+                        </strong>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void generatePurchaseDrafts()}
+                        disabled={!canCreatePurchases || generatingDrafts}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-5 py-2.5 text-sm font-black text-white hover:bg-[#14887B] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <ShoppingCart className="h-4 w-4" />
+                        {generatingDrafts ? 'Gerando compras...' : 'Gerar pedidos em rascunho'}
+                      </button>
+                    </div>
+                    {!canCreatePurchases && (
+                      <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                        Seu perfil pode analisar a rodada, mas não possui permissão para criar
+                        compras.
+                      </p>
+                    )}
+                  </section>
+                )}
+
+                {comparison.roundGenerated && (
+                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+                    Os pedidos desta rodada já foram gerados. A análise permanece disponível para
+                    conferência e auditoria.
+                  </div>
+                )}
+
+                {!comparison.roundId && (
+                  <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                    Comparações avulsas são somente analíticas. Para gerar compras automaticamente,
+                    crie uma cotação em lote e use a rodada registrada.
+                  </p>
+                )}
               </div>
             </div>
           </div>

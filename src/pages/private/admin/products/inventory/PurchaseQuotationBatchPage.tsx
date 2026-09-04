@@ -89,8 +89,15 @@ type SelectedItem = {
 type CreatedQuotation = {
   quotation_id: string
   quotation_code: string
+  supplier_id: string
   supplier_name: string
   items_count: number
+}
+
+type CreatedQuotationRound = {
+  round_id: string
+  round_code: string
+  quotations: Array<Omit<CreatedQuotation, 'supplier_name'>>
 }
 
 function parseNumber(value: string) {
@@ -163,6 +170,7 @@ export default function PurchaseQuotationBatchPage() {
   const [messageSubject, setMessageSubject] = useState('Cotação de reposição de estoque')
   const [notes, setNotes] = useState('Cotação criada a partir das sugestões de compra do estoque.')
   const [created, setCreated] = useState<CreatedQuotation[]>([])
+  const [createdRound, setCreatedRound] = useState<{ id: string; code: string } | null>(null)
 
   const deadlineTotalMinutes = useMemo(() => {
     return Math.max(
@@ -409,8 +417,8 @@ export default function PurchaseQuotationBatchPage() {
 
     setSaving(true)
     setCreated([])
+    setCreatedRound(null)
     try {
-      const nextCreated: CreatedQuotation[] = []
       const payloadItems = includedItems.map((item) => ({
         product_id: item.productId,
         quantity: item.quantity,
@@ -418,37 +426,42 @@ export default function PurchaseQuotationBatchPage() {
         notes: item.locationName ? `Reposição sugerida para ${item.locationName}` : item.reason,
       }))
 
-      for (const supplier of selectedSupplierList) {
-        const sentChannel = channelForSupplier(supplier)
-        const { data, error } = await supabase.rpc('create_purchase_quotation', {
-          p_supplier_id: supplier.id,
-          p_items: payloadItems,
-          p_message_subject: messageSubject || 'Cotação de reposição de estoque',
-          p_message_body: buildMessageBody(supplier),
-          p_sent_channel: sentChannel,
-          p_responsible_name: null,
-          p_notes: [
-            notes || null,
-            expiresAt ? `Prazo de resposta: ${dateTime.format(expiresAt)}.` : null,
-            `Criada em lote com ${includedItems.length} produto(s).`,
-          ]
-            .filter(Boolean)
-            .join('\n'),
-          p_expires_at: expiresAt ? expiresAt.toISOString() : null,
-        })
+      const messageBodies = Object.fromEntries(
+        selectedSupplierList.map((supplier) => [supplier.id, buildMessageBody(supplier)])
+      )
+      const supplierChannels = Object.fromEntries(
+        selectedSupplierList.map((supplier) => [supplier.id, channelForSupplier(supplier)])
+      )
+      const { data, error } = await supabase.rpc('create_purchase_quotation_round', {
+        p_supplier_ids: selectedSupplierList.map((supplier) => supplier.id),
+        p_items: payloadItems,
+        p_title: messageSubject || 'Cotação de reposição de estoque',
+        p_message_subject: messageSubject || 'Cotação de reposição de estoque',
+        p_message_bodies: messageBodies,
+        p_supplier_channels: supplierChannels,
+        p_notes: [
+          notes || null,
+          expiresAt ? `Prazo de resposta: ${dateTime.format(expiresAt)}.` : null,
+          `Criada em lote com ${includedItems.length} produto(s).`,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        p_expires_at: expiresAt ? expiresAt.toISOString() : null,
+      })
 
-        if (error) throw new Error(`${supplierDisplayName(supplier)}: ${error.message}`)
-        const result = Array.isArray(data) ? data[0] : data
-        nextCreated.push({
-          quotation_id: result.quotation_id,
-          quotation_code: result.quotation_code,
-          supplier_name: supplierDisplayName(supplier),
-          items_count: Number(result.items_count ?? includedItems.length),
-        })
-      }
+      if (error) throw error
+      const result = data as CreatedQuotationRound
+      const nextCreated = result.quotations.map((quotation) => ({
+        ...quotation,
+        supplier_name:
+          selectedSupplierList.find((supplier) => supplier.id === quotation.supplier_id)?.name ||
+          quotation.supplier_id,
+        items_count: Number(quotation.items_count ?? includedItems.length),
+      }))
 
       setCreated(nextCreated)
-      toast.success(`${nextCreated.length} cotação(ões) criada(s).`)
+      setCreatedRound({ id: result.round_id, code: result.round_code })
+      toast.success(`Rodada ${result.round_code} criada com ${nextCreated.length} cotação(ões).`)
     } catch (error) {
       console.error('Erro ao criar cotações em lote:', error)
       toast.error(
@@ -894,17 +907,17 @@ export default function PurchaseQuotationBatchPage() {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="font-black text-emerald-950 dark:text-emerald-100">
-                  Cotações criadas
+                  Rodada {createdRound?.code} criada
                 </p>
                 <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
-                  Agora elas entram na fila de resposta e vencimento.
+                  Todas as empresas ficaram vinculadas ao mesmo processo de análise.
                 </p>
               </div>
               <Link
-                to="/admin/stock/quotations"
+                to={`/admin/stock/quotations${createdRound ? `?round=${createdRound.id}` : ''}`}
                 className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white"
               >
-                Ver cotações
+                Analisar rodada
               </Link>
             </div>
             <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
