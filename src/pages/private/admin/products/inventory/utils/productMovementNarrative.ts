@@ -90,7 +90,7 @@ export function getMovementOriginLabel(movement: ProductMovementNarrativeInput) 
     );
   }
 
-  if (source === 'purchase_document') {
+  if (source === 'purchase_document' || source === 'purchase_receipt') {
     return asText(movement.supplier_name, 'Fornecedor não informado');
   }
 
@@ -135,7 +135,7 @@ export function getMovementDestinationLabel(movement: ProductMovementNarrativeIn
     );
   }
 
-  if (source === 'purchase_document') {
+  if (source === 'purchase_document' || source === 'purchase_receipt') {
     return asText(movement.location_name ?? movement.to_location_name, 'Local de entrada não identificado');
   }
 
@@ -180,6 +180,10 @@ export function getMovementOperationLabel(movement: ProductMovementNarrativeInpu
 
   if (source === 'stock_transfer' && type === 'entry') {
     return 'Transferência recebida';
+  }
+
+  if (source === 'purchase_receipt' && type === 'entry') {
+    return 'Recebimento de compra';
   }
 
   if (source === 'purchase_document' && type === 'entry') {
@@ -264,6 +268,15 @@ export function getMovementReferenceLabel(movement: ProductMovementNarrativeInpu
     return shortReference(rawOrderCode, 'Pedido');
   }
 
+  if (source === 'purchase_receipt') {
+    const rawReceiptCode =
+      getMetadataText(movement.metadata, 'receipt_code') ??
+      getMetadataText(movement.metadata, 'document_code') ??
+      movement.purchase_document_number ??
+      movement.source_id;
+    return shortReference(rawReceiptCode, 'Recebimento');
+  }
+
   if (source === 'purchase_document') {
     const metadata = movement.metadata ?? {};
     const documentCode =
@@ -329,6 +342,16 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
     return `${location} recebeu ${qty} un. vindas de ${fromLocation}.`;
   }
 
+  if (source === 'purchase_receipt' && type === 'entry') {
+    const supplier = asText(movement.supplier_name, 'fornecedor não informado');
+    const destination = asText(
+      movement.location_name ?? movement.to_location_name,
+      'local de entrada não identificado',
+    );
+    const reference = getMovementReferenceLabel(movement);
+    return `${destination} recebeu ${qty} un. de ${supplier} no recebimento ${reference}.`;
+  }
+
   if (source === 'purchase_document' && type === 'entry') {
     const supplier = asText(movement.supplier_name, 'fornecedor não informado');
     const destination = asText(
@@ -377,7 +400,7 @@ export function getMovementTone(movement: ProductMovementNarrativeInput) {
   if (source === 'manual_adjustment') return 'neutral';
   if (type === 'clearance') return 'danger';
   if (source === 'stock_transfer') return 'transfer';
-  if (source === 'purchase_document') return 'purchase';
+  if (source === 'purchase_document' || source === 'purchase_receipt') return 'purchase';
   if (type === 'entry') return 'entry';
   if (type === 'exit') return 'exit';
 
@@ -391,17 +414,17 @@ export function getMovementToneClass(movement: ProductMovementNarrativeInput) {
     case 'purchase_cancel':
       return 'border-red-300 bg-red-50 text-red-950 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100';
     case 'danger':
-      return 'border-red-200 bg-red-50 text-red-800';
+      return 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/35 dark:text-red-100';
     case 'transfer':
-      return 'border-blue-200 bg-blue-50 text-blue-800';
+      return 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/35 dark:text-blue-100';
     case 'purchase':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/35 dark:text-emerald-100';
     case 'entry':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/35 dark:text-emerald-100';
     case 'exit':
-      return 'border-amber-200 bg-amber-50 text-amber-800';
+      return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/35 dark:text-amber-100';
     default:
-      return 'border-slate-200 bg-slate-50 text-slate-700';
+      return 'border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-100';
   }
 }
 
