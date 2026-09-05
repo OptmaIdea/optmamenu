@@ -24,7 +24,6 @@ import {
 import { toast } from 'sonner';
 import { PurchaseQuotationsPanel } from './components/PurchaseQuotationsPanel';
 import { supabase } from '@/lib/supabase';
-import { stockService } from '@/services/stockService';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import AlertBanner from '@/components/common/AlertBanner';
@@ -54,6 +53,12 @@ type PurchaseDocument = {
   total_amount: number | null;
   cancelled_at?: string | null;
   cancel_reason?: string | null;
+  document_code?: string | null;
+};
+
+type PurchaseDocumentOrigin = {
+  quotationCode: string;
+  roundCode: string | null;
 };
 
 type PurchaseDocumentItemInput = {
@@ -151,6 +156,7 @@ export default function PurchaseDocumentsPage() {
   const eligibleSuppliers = useMemo(() => suppliers.filter(isSupplierPurchaseEligible), [suppliers]);
   const [documents, setDocuments] = useState<PurchaseDocument[]>([]);
   const [documentItems, setDocumentItems] = useState<PurchaseDocumentItemRow[]>([]);
+  const [documentOrigins, setDocumentOrigins] = useState<Record<string, PurchaseDocumentOrigin>>({});
   const [pageError, setPageError] = useState<string | null>(null);
 
   const [draftOpen, setDraftOpen] = useState(false);
@@ -274,13 +280,22 @@ export default function PurchaseDocumentsPage() {
       }
 
       if (filters.invoiceNumber.trim()) {
-        const invoice = (doc.invoice_number || '').toLowerCase();
-        if (!invoice.includes(filters.invoiceNumber.trim().toLowerCase())) return false;
+        const term = filters.invoiceNumber.trim().toLowerCase();
+        const origin = documentOrigins[doc.id];
+        const searchable = [
+          doc.invoice_number,
+          doc.document_code,
+          origin?.quotationCode,
+          origin?.roundCode,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(term));
+        if (!searchable) return false;
       }
 
       return true;
     });
-  }, [documents, filters, itemsByDocument]);
+  }, [documentOrigins, documents, filters, itemsByDocument]);
 
   const exportFilteredDocumentsCsv = useCallback(() => {
     if (!filteredDocuments.length) return;
@@ -292,8 +307,10 @@ export default function PurchaseDocumentsPage() {
         .join(' | ');
 
       return {
-        'Nº interno': shortId(doc.id),
-        'Documento/Nota': doc.invoice_number?.trim() || shortId(doc.id),
+        'Código da compra': doc.document_code?.trim() || shortId(doc.id),
+        'Documento/Nota': doc.invoice_number?.trim() || '',
+        'Cotação de origem': documentOrigins[doc.id]?.quotationCode ?? '',
+        'Rodada de origem': documentOrigins[doc.id]?.roundCode ?? '',
         'Emissão': formatDatePtBr(doc.issue_date),
         'Status': getPurchaseDocumentStatusLabel(doc.status),
         'Fornecedor': supplierName(doc.supplier_id),
@@ -308,8 +325,10 @@ export default function PurchaseDocumentsPage() {
     });
 
     const csv = buildCsv(rows, [
-      'Nº interno',
+      'Código da compra',
       'Documento/Nota',
+      'Cotação de origem',
+      'Rodada de origem',
       'Emissão',
       'Status',
       'Fornecedor',
@@ -324,7 +343,7 @@ export default function PurchaseDocumentsPage() {
 
     const dateSuffix = getLocalDateInputValue();
     downloadCsv(`compras_e_entradas_${dateSuffix}.csv`, csv);
-  }, [filteredDocuments, itemsByDocument, filters.productId, productName, supplierName]);
+  }, [documentOrigins, filteredDocuments, itemsByDocument, filters.productId, productName, supplierName]);
 
   const stats = useMemo(() => {
     const drafts = filteredDocuments.filter((d) => d.status === 'draft').length;
@@ -355,9 +374,9 @@ export default function PurchaseDocumentsPage() {
   }, [searchParams, setSearchParams]);
 
   const canSaveDraft = useMemo(() => {
-    if (!storeId) return false;
+    if (!storeId || !draftSupplierId) return false;
     return draftItems.some((i) => i.product_id && i.quantity > 0);
-  }, [draftItems, storeId]);
+  }, [draftItems, draftSupplierId, storeId]);
 
   const currentDraftTotal = useMemo(() => {
     return draftItems.reduce((sum, item) => {
@@ -392,6 +411,8 @@ export default function PurchaseDocumentsPage() {
         { data: sData, error: sErr },
         { data: dData, error: dErr },
         { data: iData, error: iErr },
+        { data: qData, error: qErr },
+        { data: rData, error: rErr },
       ] = await Promise.all([
         supabase
           .from('suppliers')
@@ -410,15 +431,44 @@ export default function PurchaseDocumentsPage() {
           .from('purchase_document_items')
           .select('id, purchase_document_id, product_id, quantity, unit_cost, total_cost')
           .eq('store_id', activeStoreId),
+        supabase
+          .from('purchase_quotations')
+          .select('converted_purchase_document_id, quotation_code, quotation_round_id')
+          .eq('store_id', activeStoreId)
+          .not('converted_purchase_document_id', 'is', null),
+        supabase
+          .from('purchase_quotation_rounds')
+          .select('id, round_code')
+          .eq('store_id', activeStoreId),
       ]);
 
       if (sErr) throw sErr;
       if (dErr) throw dErr;
       if (iErr) throw iErr;
+      if (qErr) throw qErr;
+      if (rErr) throw rErr;
 
       setSuppliers((sData ?? []) as Supplier[]);
       setDocuments((dData ?? []) as PurchaseDocument[]);
       setDocumentItems((iData ?? []) as PurchaseDocumentItemRow[]);
+      const roundCodes = new Map(
+        (rData ?? []).map((round) => [round.id, round.round_code]),
+      );
+      setDocumentOrigins(
+        Object.fromEntries(
+          (qData ?? [])
+            .filter((quotation) => quotation.converted_purchase_document_id)
+            .map((quotation) => [
+              quotation.converted_purchase_document_id,
+              {
+                quotationCode: quotation.quotation_code,
+                roundCode: quotation.quotation_round_id
+                  ? roundCodes.get(quotation.quotation_round_id) ?? null
+                  : null,
+              },
+            ]),
+        ),
+      );
     } catch (e: unknown) {
       console.error('Error loading purchase documents:', e);
       const message =
@@ -581,75 +631,34 @@ export default function PurchaseDocumentsPage() {
     if (!storeId) return;
 
     if (!canSaveDraft) {
-      toast.error('Adicione ao menos 1 item válido');
+      toast.error('Selecione o fornecedor e adicione ao menos 1 item válido');
       return;
     }
 
     setSaving(true);
 
     try {
-      const payload = {
-        store_id: storeId,
-        supplier_id: draftSupplierId || null,
-        status: 'draft' as const,
-        issue_date: draftIssueDate || null,
-        invoice_number: draftInvoiceNumber.trim() || null,
-        notes: draftNotes.trim() || null,
-        total_amount: currentDraftTotal,
-      };
+      const itemsPayload = draftItems
+        .filter((i) => i.product_id && i.quantity > 0)
+        .map((i) => ({
+          product_id: i.product_id,
+          quantity: i.quantity,
+          unit_cost: i.unit_cost ?? 0,
+        }));
 
-      let docId = editingDocId;
+      const { error: updateError } = await supabase.rpc(
+        'save_purchase_document_draft_atomic',
+        {
+          p_document_id: editingDocId,
+          p_supplier_id: draftSupplierId,
+          p_issue_date: draftIssueDate || null,
+          p_invoice_number: draftInvoiceNumber.trim() || null,
+          p_notes: draftNotes.trim() || null,
+          p_items: itemsPayload,
+        },
+      );
 
-      if (docId) {
-        const { data: updated, error: updateErr } = await supabase
-          .from('purchase_documents')
-          .update(payload)
-          .eq('id', docId)
-          .eq('store_id', storeId)
-          .select('id')
-          .maybeSingle();
-
-        if (updateErr) throw updateErr;
-        if (!updated) throw new Error('Alteração não aplicada. Verifique suas permissões.');
-        const { error: delErr } = await supabase
-          .from('purchase_document_items')
-          .delete()
-          .eq('purchase_document_id', docId);
-
-        if (delErr) throw delErr;
-      } else {
-        const result = await stockService.createPurchaseDocumentDraftBatch({
-          supplierId: draftSupplierId,
-          notes: draftNotes.trim() || null,
-          items: draftItems
-            .filter((i) => i.product_id && i.quantity > 0)
-            .map((i) => ({
-              productId: i.product_id,
-              quantity: i.quantity,
-              unitCost: i.unit_cost ?? 0,
-            })),
-        });
-
-        docId = result.purchase_document_id;
-      }
-
-      if (editingDocId) {
-        const itemsPayload = draftItems
-          .filter((i) => i.product_id && i.quantity > 0)
-          .map((i) => ({
-            store_id: storeId,
-            purchase_document_id: docId,
-            product_id: i.product_id,
-            quantity: i.quantity,
-            unit_cost: i.unit_cost,
-          }));
-
-        const { error: itemsErr } = await supabase
-          .from('purchase_document_items')
-          .insert(itemsPayload);
-
-        if (itemsErr) throw itemsErr;
-      }
+      if (updateError) throw updateError;
 
       toast.success(editingDocId ? 'Documento atualizado' : 'Documento criado');
 
@@ -688,7 +697,7 @@ export default function PurchaseDocumentsPage() {
       }
 
       const confirmed = window.confirm(
-        'Confirmar esta entrada lançará o estoque e não poderá ser desfeito automaticamente.\n\nDeseja continuar?',
+        'Confirmar esta entrada lançará os itens no estoque. Se houver erro depois, o cancelamento exigirá permissão específica, motivo obrigatório e criará movimentações inversas auditáveis.\n\nDeseja continuar?',
       );
 
       if (!confirmed) return;
@@ -1081,13 +1090,27 @@ export default function PurchaseDocumentsPage() {
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
               <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white p-4 shadow-xl dark:bg-gray-900">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    {editingReadOnly
-                      ? 'Documento confirmado (somente leitura)'
-                      : editingDocId
-                        ? 'Editar documento'
-                        : 'Nova entrada por documento'}
-                  </h2>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {editingReadOnly
+                        ? 'Documento confirmado (somente leitura)'
+                        : editingDocId
+                          ? 'Editar documento'
+                          : 'Nova entrada por documento'}
+                    </h2>
+                    {editingDocId ? (
+                      <p className="mt-0.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                        {documents.find((doc) => doc.id === editingDocId)?.document_code ||
+                          shortId(editingDocId)}
+                        {documentOrigins[editingDocId]?.quotationCode
+                          ? ` · ${documentOrigins[editingDocId].quotationCode}`
+                          : ''}
+                        {documentOrigins[editingDocId]?.roundCode
+                          ? ` · ${documentOrigins[editingDocId].roundCode}`
+                          : ''}
+                      </p>
+                    ) : null}
+                  </div>
                   <button
                     className="rounded-lg px-2 py-1 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     onClick={() => setDraftOpen(false)}
@@ -1446,7 +1469,20 @@ export default function PurchaseDocumentsPage() {
                     </div>
 
                     <div className="col-span-2 text-sm text-gray-700 dark:text-gray-300">
-                      <div>{doc.invoice_number || '—'}</div>
+                      <div className="font-semibold text-gray-900 dark:text-white">
+                        {doc.document_code || shortId(doc.id)}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        {doc.invoice_number ? `Nota ${doc.invoice_number}` : 'Sem nota informada'}
+                      </div>
+                      {documentOrigins[doc.id] ? (
+                        <div className="mt-1 text-[11px] font-semibold text-[#14887B] dark:text-emerald-300">
+                          {documentOrigins[doc.id].quotationCode}
+                          {documentOrigins[doc.id].roundCode
+                            ? ` · ${documentOrigins[doc.id].roundCode}`
+                            : ''}
+                        </div>
+                      ) : null}
                       {filters.productId ? (
                         <div className="mt-0.5 text-xs text-purple-600 dark:text-purple-300">
                           Produto filtrado: {productName(filters.productId)}

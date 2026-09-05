@@ -74,6 +74,7 @@
 | `create_purchase_quotation_round`               | Cria atomicamente a rodada e uma cotação relacionada para cada fornecedor selecionado            | Cotação em lote (`/admin/stock/quotations/batch`) |
 | `get_purchase_quotation_rounds_by_store`        | Lista rodadas com totais de fornecedores, respostas, produtos e propostas expiradas              | Aba Rodadas de cotação                            |
 | `generate_purchase_drafts_from_quotation_round` | Valida o plano por produto e cria um rascunho de compra por fornecedor; impede geração duplicada | Análise concorrencial da rodada                   |
+| `save_purchase_document_draft_atomic`           | Cria ou edita cabeçalho e itens do rascunho na mesma transação, validando permissão e fornecedor  | Compras (`/admin/purchases`)                      |
 
 ---
 

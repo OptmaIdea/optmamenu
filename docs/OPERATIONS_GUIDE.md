@@ -57,6 +57,9 @@ A aba Vida do Produto consolida todas as informações históricas do item:
 - Em `/admin/stock/quotations`, a rodada funciona como uma análise concorrencial: agrupa ofertas por produto, sinaliza itens indisponíveis ou propostas expiradas e sugere o menor preço unitário válido.
 - O responsável pode manter a sugestão por item, trocar fornecedores e quantidades/preços manualmente ou usar **Comprar tudo em** para concentrar a compra em uma única empresa.
 - Ao confirmar o plano, o sistema cria um pedido de compra em rascunho para cada fornecedor selecionado. A geração é transacional e só pode ocorrer uma vez por rodada.
+- Em **Compras**, cada rascunho exibe seu identificador operacional `ENT-...` e, quando aplicável, também a cotação `COT-...` e a rodada `RDC-...` que o originaram. Esses identificadores também podem ser pesquisados e exportados no CSV.
+- A criação e a edição manual do rascunho salvam cabeçalho e itens em uma única transação. Data de emissão, número da nota/documento e observações são preservados; se qualquer validação falhar, nenhuma alteração parcial é mantida.
+- A confirmação é o ato que lança os itens no estoque. Um erro posterior deve ser tratado pelo cancelamento autorizado, com motivo obrigatório e movimentações inversas auditáveis.
 - Prazo, frete, pagamento, quantidade atendida e qualidade do fornecedor permanecem critérios obrigatórios de decisão do responsável.
 - No celular, os filtros da listagem são recolhíveis e as cotações aparecem em cartões compactos. Em telas intermediárias, a coluna **Ações** permanece fixa à direita e a interface sinaliza a navegação horizontal.
 - Ao dar entrada na nota fiscal/pedido de compra concluído, o sistema dá entrada automática no estoque do local selecionado e gera a provisão no Livro Caixa.
