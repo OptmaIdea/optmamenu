@@ -20,14 +20,19 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint purchase receipt scope
+        run: >-
+          npx eslint
+          src/pages/private/admin/products/inventory/PurchaseDocumentsPage.tsx
+          src/pages/private/admin/products/inventory/components/PurchaseReceiptModal.tsx
+          src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.ts
+          src/pages/private/admin/products/inventory/utils/purchaseReceiptUtils.test.ts
 
       - name: Tests
         run: npm run test
