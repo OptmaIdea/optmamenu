@@ -58,7 +58,7 @@ A aba Vida do Produto consolida todas as informações históricas do item:
 - O responsável pode manter a sugestão por item, trocar fornecedores e quantidades/preços manualmente ou usar **Comprar tudo em** para concentrar a compra em uma única empresa.
 - Ao confirmar o plano, o sistema cria um pedido de compra em rascunho para cada fornecedor selecionado. A geração é transacional e só pode ocorrer uma vez por rodada.
 - Prazo, frete, pagamento, quantidade atendida e qualidade do fornecedor permanecem critérios obrigatórios de decisão do responsável.
-- No celular, os filtros da listagem são recolhíveis e as cotações aparecem em cartões compactos.
+- No celular, os filtros da listagem são recolhíveis e as cotações aparecem em cartões compactos. Em telas intermediárias, a coluna **Ações** permanece fixa à direita e a interface sinaliza a navegação horizontal.
 - Ao dar entrada na nota fiscal/pedido de compra concluído, o sistema dá entrada automática no estoque do local selecionado e gera a provisão no Livro Caixa.
 
 ---

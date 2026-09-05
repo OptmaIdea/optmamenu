@@ -77,3 +77,5 @@ Telas ainda citadas com problema de contraste:
 - Movimentações de estoque;
 - partes da Vida do Produto;
 - modal de finalização no modo escuro, ajustado parcialmente em 2026-09-01.
+
+Atualização de 2026-09-05: corrigido o contraste do aviso operacional na seção **Status** do modal de criação/edição de fornecedor; a revisão global das demais áreas de Fornecedores continua preservada neste backlog.

@@ -1679,6 +1679,10 @@ export default function PurchaseQuotationsPage() {
                     )
                   })}
                 </div>
+                <div className="mb-2 hidden items-center justify-end gap-2 text-xs font-semibold text-gray-500 md:flex xl:hidden dark:text-gray-400">
+                  <span>Deslize horizontalmente para consultar todas as colunas</span>
+                  <span aria-hidden="true">↔</span>
+                </div>
                 <div className="hidden overflow-x-auto rounded-2xl border border-gray-100 md:block dark:border-gray-700">
                   <table className="min-w-[1080px] w-full text-left">
                     <thead className="bg-gray-50 text-sm font-medium text-gray-500 dark:bg-gray-900/50 dark:text-gray-400">
@@ -1693,14 +1697,16 @@ export default function PurchaseQuotationsPage() {
                         <th className="px-4 py-4 text-right">Ref. solicitada</th>
                         <th className="px-4 py-4 text-right">Total cotado</th>
                         <th className="px-4 py-4">Criada em</th>
-                        <th className="px-4 py-4 text-right">Ações</th>
+                        <th className="sticky right-0 z-20 border-l border-gray-200 bg-gray-50 px-4 py-4 text-right shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.8)] dark:border-gray-700 dark:bg-gray-900">
+                          Ações
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                       {filteredQuotations.map((quotation) => (
                         <tr
                           key={quotation.id}
-                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                          className="group hover:bg-gray-50 dark:hover:bg-gray-700/30"
                         >
                           <td className="px-4 py-4">
                             <input
@@ -1737,7 +1743,7 @@ export default function PurchaseQuotationsPage() {
                             {quotation.requested_at_display ??
                               formatDateTime(quotation.requested_at)}
                           </td>
-                          <td className="px-4 py-4 text-right">
+                          <td className="sticky right-0 z-10 border-l border-gray-200 bg-white px-4 py-4 text-right shadow-[-8px_0_12px_-12px_rgba(15,23,42,0.8)] group-hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:group-hover:bg-gray-800">
                             <div className="flex items-center justify-end gap-2">
                               <button
                                 type="button"
