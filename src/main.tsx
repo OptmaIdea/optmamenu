@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from '@/App';
 import './index.css';
 import './styles/operationalRefinements.css';
+import './styles/financialContrastRefinements.css';
 
 const CHUNK_RELOAD_KEY = 'optmamenu.chunk-reload-attempted-at';
 const CHUNK_RELOAD_WINDOW_MS = 30_000;
