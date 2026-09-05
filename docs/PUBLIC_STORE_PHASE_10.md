@@ -1,173 +1,589 @@
 # Especificação Técnica da Fase 10 — Loja Pública, Microsite Comercial e Experiência do Cliente
 
-> **Versão Oficial:** `0.10.0-rc.1`
-> **Status:** Release Candidate (Início da Fase 10)
-> **Última Validação:** 29/07/2026
-> **Fonte Principal:** Handoff homologado (`docs/archive/handoffs/HANDOFF_FASE_10_LOJA_PUBLICA_MICROSITE_COMERCIAL_20260729.md`)
+> **Versão oficial:** `0.10.0-rc.1`  
+> **Status:** Fase 10.1A — blueprint aprovado para implementação controlada  
+> **Última validação:** 30/07/2026  
+> **Branch de trabalho:** `agent/fase-10-loja-publica-blueprint`  
+> **Fonte principal:** handoff homologado e auditoria direta do código/migrations da `main`
 
 ---
 
-## 📑 Sumário
+## 1. Objetivo e limites
 
-1. [Escopo, Visão Geral e Urgência Responsável](#1-escopo-visão-geral-e-urgência-responsável)
-2. [Direção Visual, Área Institucional e Microsite Mobile-First](#2-direção-visual-área-institucional-e-microsite-mobile-first)
-3. [Mapeamento de Rotas Reais no Código e Aliases](#3-mapeamento-de-rotas-reais-no-código-e-aliases)
-4. [Governança de Estoque Online, Reserva Mínima Local e Limite Máximo](#4-governança-de-estoque-online-reserva-mínima-local-e-limite-máximo)
-5. [Regras de Carrinho sem Reserva ao Adicionar e Reserva no Checkout](#5-regras-de-carrinho-sem-reserva-ao-adicionar-e-reserva-no-checkout)
-6. [Identidade do Cliente e OptmaSMSGate como Dependência Futura](#6-identidade-do-cliente-e-optmasmsgate-como-dependência-futura)
-7. [Fidelidade, Histórico e Área do Cliente](#7-fidelidade-histórico-e-área-do-cliente)
-8. [Meios de Pagamentos, Modalidades de Entrega e Opções de Frete](#8-meios-de-pagamentos-modalidades-de-entrega-e-opções-de-frete)
-9. [Publicidade de Terceiros, Banners Promocionais e Moderação de Conteúdo](#9-publicidade-de-terceiros-banners-promocionais-e-moderação-de-conteúdo)
-10. [Analytics, Métrica de Conversão e Inteligência Comercial](#10-analytics-métrica-de-conversão-e-inteligência-comercial)
-11. [Planos Comerciais, Níveis SaaS e Feature Flags](#11-planos-comerciais-níveis-saas-e-feature-flags)
-12. [Detalhamento Completo das Subfases 10.1 a 10.9](#12-detalhamento-completo-das-subfases-101-a-109)
-13. [Matriz de Factualidade e Classificação das Capacidades](#13-matriz-de-factualidade-e-classificação-das-capacidades)
+A Fase 10 transforma a slug pública em um microsite comercial mobile-first, preservando a loja existente e evoluindo por feature flags. O objetivo é melhorar descoberta, carrinho, checkout, entrega, identidade visual e rastreamento sem comprometer estoque, preços, segurança ou operação presencial.
+
+Nesta fase:
+
+- a loja atual permanece como fallback;
+- não haverá refatoração big bang;
+- preço, estoque, entrega e pedido serão revalidados no backend;
+- WhatsApp será canal complementar, não substituto do checkout;
+- a demonstração de `01/08/2026` representa piloto/blueprint no domínio oficial, não lançamento estável `1.0.0`;
+- autenticação OTP permanece dependente do OptmaSMSGate e não bloqueia a fundação.
 
 ---
 
-## 1. Escopo, Visão Geral e Urgência Responsável
+## 2. Estado atual auditado
 
-A **Fase 10** representa o marco comercial de expansão do OptmaMenu para o consumidor final. O estabelecimento ganha um microsite comercial de alta conversão, responsivo e independente de aplicativos nativos pesados, operando diretamente no navegador móvel do cliente.
+### 2.1 Rotas públicas existentes
 
-- **Objetivo Comercial**: Permitir que o estabelecimento venda via WhatsApp, redes sociais e QR Code presencial sem pagar comissões abusivas por pedido a intermediários.
-- **Princípio da Urgência Responsável**: Garantir que o aumento de fluxo online não comprometa o estoque físico da loja presencial, não gere sobrecarga operacional no balcão e não resulte em pedidos sem atendimento.
-
----
-
-## 2. Direção Visual, Área Institucional e Microsite Mobile-First
-
-- **Design System**: Mobile-first, adaptável a telas desktop, desenvolvido em Tailwind CSS v4, com suporte a tema claro e escuro.
-- **Área Institucional do Estabelecimento**:
-  - Banner de capa (`store_cover_url`) e logomarca oficial (`store_logo_url`).
-  - Identificação institucional completa: Razão Social, Nome Fantasia, CNPJ, Telefone e Endereço Físico.
-  - Indicador de status da loja em tempo real (Aberto / Fechado / Pausado para pedidos).
-  - Horários de funcionamento detalhados por dia da semana (`store_hours`).
-  - Mensagem personalizada de boas-vindas e aviso de sobrecarga quando o tempo de espera exceder o padrão.
-
----
-
-## 3. Mapeamento de Rotas Reais no Código e Aliases
-
-As **rotas reais** do microsite público e da experiência do cliente implementadas no arquivo autêntico [`src/AppRoutes.tsx`](../src/AppRoutes.tsx) são:
-
-| Rota / Padrão | Tipo | Descrição e Finalidade | Status no Código |
-|---|---|---|---|
-| `/loja/:storeSlug` | Rota Principal (pt-BR) | Acesso primário amigável ao microsite comercial | `EXISTENTE` |
-| `/s/:storeSlug` | Alias Curto | Link reduzido para compartilhamento em redes e SMS | `EXISTENTE` |
-| `/cardapio/:storeSlug` | Alias Legado | Compatibilidade com links descritivos pré-existentes | `EXISTENTE` |
-| `/q/:storeSlug/:tableCode` | Rota QR Code Curta | Acesso rápido por QR Code de mesa ou comanda | `EXISTENTE` |
-| `/mesa/:storeSlug/:tableCode` | Rota QR Code Amigável | Acesso descritivo por mesa no restaurante | `EXISTENTE` |
-| `/checkout` | Checkout Público | Tela unificada de finalização de pedido do cliente | `EXISTENTE` |
-| `/p/:publicOrderToken` | Rastreamento Público | Acompanhamento de pedido via token público seguro | `EXISTENTE` |
-
----
-
-## 4. Governança de Estoque Online, Reserva Mínima Local e Limite Máximo
-
-Para evitar o esgotamento do estoque presencial da loja física por vendas virtuais aceleradas, a disponibilidade do catálogo público obedece às regras de segurança:
-
-### 4.1 Fórmulas Matemáticas de Disponibilidade
-
-O saldo físico disponível total no estabelecimento é calculado por:
-
-$$\text{saldo\_fisico\_disponivel} = \text{on\_hand} - \text{reserved}$$
-
-A quantidade disponível para exibição e venda online considera a `reserva_minima_local` (para proteger as vendas de balcão) e o `limite_maximo_online` parametrizado pelo gestor da loja:
-
-$$\text{disponivel\_online} = \min\left( \max(0, \text{saldo\_fisico\_disponivel} - \text{reserva\_minima\_local}), \text{limite\_maximo\_online} \right)$$
-
----
-
-## 5. Regras de Carrinho sem Reserva ao Adicionar e Reserva no Checkout
-
-> ⚠️ **CONTRATO RIGOROSO DE RESERVA DE ESTOQUE**:
-> 1. **Adicionar ao Carrinho**: Apenas valida se `disponivel_online > 0`. **NÃO cria reserva física** no banco de dados.
-> 2. **Alterar Quantidade no Carrinho**: Revalida a quantidade solicitada contra `disponivel_online`. **NÃO cria reserva física**.
-> 3. **Iniciar Checkout (Preenchimento de Dados)**: **Cria a reserva temporária** na tabela `stock_reservations` com TTL (Tempo de Vida) parametrizado (ex: 15 minutos).
-> 4. **Finalizar Pedido (Confirmação)**: Converte a reserva temporária em itens efetivos do pedido (`orders` / `order_items`).
-> 5. **Abandonar Checkout / Expirar TTL**: O serviço de limpeza remove a reserva temporária expirada e restaura o saldo `disponivel_online`.
-
----
-
-## 6. Identidade do Cliente e OptmaSMSGate como Dependência Futura
-
-> ⚠️ **DECLARAÇÃO FORMAL DE DEPENDÊNCIA**: O projeto `OptmaIdea/optmasmsgate` (repositório independente) está em fase de fundação de backend e **NÃO é uma integração ativa ou dependência obrigatória do OptmaMenu v0.10.0-rc.1**.
-
-- **Comportamento Atual (`EXISTENTE`)**: Validação básica de contato via número de WhatsApp e direcionamento do pedido com mensagem formatada via link `wa.me`.
-- **Comportamento Futuro (`DEPENDENTE DO SMSGATE`)**: Envio automatizado de códigos OTP de verificação via SMS e WhatsApp API oficial através do gateway dedicado OptmaSMSGate.
-
----
-
-## 7. Fidelidade, Histórico e Área do Cliente
-
-- **Área do Cliente**: Acesso rápido ao histórico de pedidos ativos e concluídos.
-- **Acúmulo de Pontos**: Atribuído automaticamente após a conclusão do pedido para clientes identificados por CPF/E-mail.
-- **Resgate de Prêmios**: Vouchers de desconto e itens gratuitos do catálogo de prêmios cadastrados na biblioteca `reward_media_library`.
-
----
-
-## 8. Meios de Pagamentos, Modalidades de Entrega e Opções de Frete
-
-### 8.1 Meios de Pagamento Suportados
-- **Dinheiro**: Com indicação opcional do valor para troco (`troco_para`).
-- **Cartões (Débito / Crédito)**: Pagamento presencial na entrega ou retirada através da maquininha da loja.
-- **Pix Estático / Chave Cadastrada**: (`HOMOLOGADA`) Exibição da chave Pix e instrução para envio do comprovante.
-- **Pix Dinâmico / QR Code API**: (`PLANEJADA`) Geração de cobrança Pix dinâmica com reconciliação automática via gateway parceiro.
-
-### 8.2 Modalidades de Atendimento e Frete
-- **Entrega (Delivery)**: Exige preenchimento de endereço e bairro. Frete calculado por tabela fixa por bairro/região.
-- **Retirada (Takeout)**: Cliente realiza a retirada presencial no balcão da loja sem cobrança de frete.
-- **Consumo no Local (Mesa / Comanda)**: Identificado pelas rotas `/q/:storeSlug/:tableCode` e `/mesa/:storeSlug/:tableCode`.
-
----
-
-## 9. Publicidade de Terceiros, Banners Promocionais e Moderação de Conteúdo
-
-- **Banners Promocionais da Loja**: Gestão de banners rotativos cadastrados no painel administrativo em Configurações de Aparência.
-- **Publicidade de Terceiros**: Quando ativada pelo plano comercial do estabelecimento, exige rotulagem clara obrigatoriamente com a tag `"Publicidade"` ou `"Conteúdo Patrocinado"`.
-- **Moderação e Denúncia**: Canal direto no rodapé para reporte de inconsistências de cardápio ou abuso.
-- **Proteção a Menores (Segurança Infantil)**: Restrição compulsória para produtos da categoria de bebidas alcoólicas, exigindo confirmação de maioridade (+18) antes da adição ao carrinho.
-
----
-
-## 10. Analytics, Métrica de Conversão e Inteligência Comercial
-
-- **Métricas do Microsite**: Registro anônimo de visualizações de página, produtos mais consultados e taxa de conversão (carrinho iniciado vs pedidos finalizados).
-- **Funil de Vendas Online**: Indicadores consolidados exibidos no Comercial Dashboard do painel administrativo.
-
----
-
-## 11. Planos Comerciais, Níveis SaaS e Feature Flags
-
-As funcionalidades ativas no microsite público são controladas pelas feature flags da loja (`stores.config`):
-- `online_orders_enabled`: Habilita o recebimento de pedidos online.
-- `loyalty_enabled`: Ativa a exibição do programa de fidelidade para o cliente.
-- `table_orders_enabled`: Ativa o módulo de atendimento em mesa via QR Code.
-
----
-
-## 12. Detalhamento Completo das Subfases 10.1 a 10.9
-
-- **Fase 10.1 — Governança de Slugs e Roteamento**: Mapeamento de `/loja/:slug`, `/s/:slug` e `/cardapio/:slug`. (`10.1 — EM AUDITORIA / BLUEPRINT`)
-- **Fase 10.2 — Microsite Comercial e Catálogo Mobile-First**: Apresentação visual, busca de produtos e catálogo. (`10.2 — PLANEJADA, COM CATÁLOGO LEGADO EXISTENTE`)
-- **Fase 10.3 — Carrinho e Checkout Público**: Fluxo de checkout e reserva temporária em `stock_reservations`. (`10.3 — PLANEJADA, COM CHECKOUT E RESERVAS LEGADAS A AUDITAR`)
-- **Fase 10.4 — Rastreamento Público por Token**: Acompanhamento de status em tempo real via `/p/:publicOrderToken`. (`10.4 — BASE DE RASTREAMENTO EXISTENTE A AUDITAR`)
-- **Fase 10.5 — Identidade do Cliente e Integração SMSGate**: Autenticação OTP via gateway externo. (`10.5 — DEPENDENTE DO SMSGATE`)
-- **Fase 10.6 — Atendimento em Mesa / Comanda por QR Code**: Pedidos presenciais via `/mesa/:storeSlug/:tableCode`. (`10.6 — BASE DE ROTAS EXISTENTE; FLUXO A HOMOLOGAR`)
-- **Fase 10.7 — Banners Promocionais e Gestão de Anúncios**: Banners de destaque e anúncios patrocinados. (`10.7 — PLANEJADA`)
-- **Fase 10.8 — Pix Dinâmico e Conciliação Automática**: Cobrança Pix com baixa automática via webhook. (`10.8 — PLANEJADA`)
-- **Fase 10.9 — Homologação Piloto e Preparação v1.0.0**: Testes reais em estabelecimentos parceiros antes do lançamento oficial. (`10.9 — PLANEJADA`)
-
----
-
-## 13. Matriz de Factualidade e Classificação das Capacidades
-
-| Capacidade / Recurso | Classificação Factual | Fonte Autoritativa / Referência |
+| Rota | Contexto | Situação |
 |---|---|---|
-| Rotas `/loja/:slug`, `/s/:slug`, `/checkout` | `EXISTENTE` | [`src/AppRoutes.tsx`](../src/AppRoutes.tsx) |
-| Rastreamento Público `/p/:publicOrderToken` | `EXISTENTE` | [`src/pages/store/PublicOrderTracking.tsx`](../src/pages/store/PublicOrderTracking.tsx) |
-| Reservas no Checkout (`stock_reservations`) | `EXISTENTE` | Migration `202607231600_fix_public_order_tracking_and_expired_reservation_access.sql` |
-| Fórmulas `reserva_minima_local` e `limite_maximo_online` | `HOMOLOGADA` | Especificação de produto e RPCs de estoque |
-| Autenticação OTP via SMS / OptmaSMSGate | `DEPENDENTE DO SMSGATE` | Repositório `OptmaIdea/optmasmsgate` em desenvolvimento |
-| Pix Dinâmico via Gateway Pagador | `PLANEJADA` | Roadmap pós-v1.0.0 |
-| Frete Dinâmico por Geolocalização / API de Mapas | `DEPENDENTE DE PROVEDOR EXTERNO` | Roadmap futuro |
+| `/s/:storeSlug` | loja remota | existente |
+| `/loja/:storeSlug` | loja remota | existente |
+| `/cardapio/:storeSlug` | alias legado | existente |
+| `/q/:storeSlug/:tableCode` | mesa/QR | existente |
+| `/mesa/:storeSlug/:tableCode` | mesa/QR | existente |
+| `/checkout` | checkout público | existente |
+| `/p/:publicOrderToken` | rastreamento | existente |
+
+As rotas usam o mesmo `Catalog`, diferenciando mesa pela presença de `tableCode`. A Fase 10 separará os contratos de experiência remota e mesa, ainda que componentes visuais sejam compartilhados.
+
+### 2.2 Serviços e RPCs existentes
+
+- `PublicStorefrontService`
+  - `get_public_storefront_by_slug`
+  - `get_public_catalog_by_slug`
+  - `get_public_sales_channels_by_slug`
+  - `get_public_payment_methods_by_slug`
+  - `get_public_delivery_methods_by_slug`
+- `PublicOrderService`
+  - `quote_public_order_by_slug`
+  - `create_public_order_by_slug_v2`
+  - `get_public_order_by_token`
+- motor autoritativo de preço:
+  - `calculate_store_cart_pricing`
+- reservas e expiração:
+  - `stock_reservations`
+  - `cancel_expired_reservations`
+
+### 2.3 Lacunas confirmadas
+
+- carrinho persistido não está isolado por loja;
+- modalidade de entrega/retirada não persiste após reload;
+- checkout atual força `pickup`, mesmo após selecionar entrega;
+- checkout de entrega não coleta endereço;
+- aviso global de pedido mínimo não representa regras por região/modalidade;
+- mesa aparece misturada à experiência remota;
+- drawer de carrinho interrompe a compra ao ocupar grande parte da tela;
+- logo é exposta pela RPC e serviço, mas não é aplicada corretamente no cabeçalho;
+- WhatsApp flutuante do layout contém fallback fixo;
+- `stock_quantity` não representa disponibilidade online com reserva mínima e limite;
+- existem dois caminhos históricos de finalização (`CartDrawer` e `/checkout`);
+- o mecanismo automático que executa a limpeza de reservas ainda precisa ser confirmado.
+
+---
+
+## 3. Decisões de experiência
+
+### 3.1 Contextos separados
+
+**Slug comum** (`/s`, `/loja`, `/cardapio`):
+
+- entrega;
+- retirada;
+- sem mesa/comanda.
+
+**QR/mesa** (`/q`, `/mesa`):
+
+- contexto de mesa/comanda;
+- sem entrega;
+- sem retirada na experiência inicial.
+
+### 3.2 Card e configurador de produto
+
+Clicar no card ou no botão `+` abre o modal/configurador. O botão `+` significa **configurar e adicionar**, não adição imediata.
+
+O configurador deve:
+
+- mostrar foto, descrição e preço-base;
+- permitir incrementar/decrementar quantidade;
+- calcular preço projetado considerando o carrinho inteiro;
+- considerar produtos da mesma categoria e do mesmo grupo de precificação;
+- mostrar preço aplicado, economia, faixa atingida e, quando disponível, próxima faixa;
+- preparar complementos, adicionais e observações futuras;
+- confirmar por botão como `Adicionar 5 ao carrinho • R$ 16,25`.
+
+Após adicionar:
+
+- o modal fecha;
+- aparece confirmação breve e não bloqueante;
+- o catálogo continua visível;
+- a barra inferior do carrinho é atualizada;
+- nenhum drawer grande abre automaticamente.
+
+### 3.3 Carrinho
+
+No mobile, o carrinho será representado por barra discreta:
+
+```text
+3 itens • R$ 26,00              Ver carrinho
+```
+
+O carrinho completo abre somente por ação do usuário. Ele permite revisar itens, quantidades, descontos, modalidade, observações e seguir ao checkout.
+
+### 3.4 Checkout
+
+Fluxo máximo de três etapas:
+
+1. Como receber;
+2. Seus dados;
+3. Revisar e finalizar.
+
+WhatsApp só abre após o pedido estar criado e validado, contendo resumo e link de rastreamento.
+
+---
+
+## 4. Contrato do carrinho V2
+
+```ts
+export type PublicStoreContextType = 'remote' | 'table';
+export type PublicFulfillment = 'pickup' | 'delivery' | 'table';
+
+export interface PublicCartStateV2 {
+  schemaVersion: 2;
+  context: {
+    type: PublicStoreContextType;
+    tableCode?: string;
+  };
+  store: {
+    id: string;
+    slug: string;
+    canonicalSlug: string;
+  };
+  items: PublicCartItemV2[];
+  fulfillment: {
+    type: PublicFulfillment;
+    deliveryMethodCode?: string;
+  };
+  delivery?: {
+    address?: DeliveryAddress;
+    location?: DeliveryLocation;
+    quote?: DeliveryQuote;
+  };
+  customer?: {
+    type: 'guest' | 'registered';
+    name?: string;
+    phone?: string;
+    customerId?: string;
+  };
+  attribution?: {
+    source?: string;
+    campaignId?: string;
+    bannerId?: string;
+    qrCode?: string;
+  };
+  notes?: string;
+  updatedAt: string;
+}
+```
+
+Regras obrigatórias:
+
+- carrinho isolado por loja e contexto;
+- troca de loja exige confirmação para limpar o carrinho anterior;
+- contexto de mesa não pode virar entrega;
+- alteração de item/endereço invalida cotações aplicáveis;
+- persistência versionada para migração do `localStorage` legado;
+- cotação autoritativa antes da criação do pedido.
+
+---
+
+## 5. Preço e desconto
+
+O backend continua sendo autoridade. O frontend pode calcular uma prévia imediata, mas deve confirmar com `quote_public_order_by_slug`.
+
+A cotação considera:
+
+- quantidade já existente do produto;
+- produtos da mesma categoria;
+- produtos do mesmo grupo de precificação;
+- precedência produto → grupo → categoria → preço-base;
+- snapshots de preço, regra, faixa e quantidade.
+
+O configurador projeta o carrinho completo antes da adição. Quando uma nova quantidade altera a faixa do grupo/categoria, todos os itens afetados devem ser atualizados.
+
+O backend atual retorna a faixa aplicada. A próxima faixa deverá ser exposta explicitamente ou calculada a partir das faixas públicas carregadas.
+
+---
+
+## 6. Entrega, retirada e pedido mínimo
+
+### 6.1 Regra de comunicação
+
+Remover aviso global absoluto como `Pedido mínimo: R$ 20,00`.
+
+Usar comunicação geral:
+
+```text
+Entrega sujeita à área atendida, taxas e condições.
+Conheça nossas regras.
+```
+
+Cada modalidade/regra informa suas próprias condições.
+
+### 6.2 Retirada
+
+- sem taxa;
+- sem pedido mínimo por padrão;
+- instruções configuráveis;
+- backend valida a configuração efetiva.
+
+### 6.3 Entrega
+
+- endereço textual obrigatório;
+- CEP opcional como assistente de preenchimento;
+- localização opcional e complementar;
+- regras variáveis por região, bairro, CEP, raio ou cálculo futuro por rota;
+- taxa, mínimo, gratuidade e estimativa pertencem à regra aplicável.
+
+```ts
+export interface DeliveryAddress {
+  postalCode?: string;
+  street: string;
+  number: string;
+  complement?: string;
+  district: string;
+  city: string;
+  state: string;
+  reference?: string;
+}
+
+export interface DeliveryLocation {
+  latitude: number;
+  longitude: number;
+  accuracyMeters?: number;
+  source: 'device' | 'map_pin';
+  capturedAt: string;
+}
+```
+
+A localização não substitui o endereço, pois o comprador pode solicitar entrega em ponto diferente de sua posição atual.
+
+### 6.4 Cotação de entrega
+
+```ts
+export interface DeliveryQuote {
+  id: string;
+  ruleId?: string;
+  methodCode: string;
+  coverageType: 'all' | 'district' | 'postal_code' | 'radius' | 'polygon' | 'manual';
+  pricingType: 'free' | 'fixed' | 'distance' | 'manual';
+  subtotal: number;
+  fee: number;
+  minimumOrder: number;
+  freeAbove?: number;
+  eligible: boolean;
+  reason?: string;
+  estimateMinMinutes?: number;
+  estimateMaxMinutes?: number;
+  expiresAt: string;
+}
+```
+
+Base recomendada para pedido mínimo: subtotal comercial dos produtos após precificação autoritativa e antes do frete.
+
+---
+
+## 7. Estoque online
+
+### 7.1 Fórmulas
+
+```text
+saldo_fisico_disponivel = on_hand - reserved
+
+disponivel_online =
+min(
+  max(0, saldo_fisico_disponivel - reserva_minima_local),
+  limite_maximo_online
+)
+```
+
+`limite_maximo_online` pode ser nulo, significando ausência de teto adicional.
+
+### 7.2 Administração
+
+**Configurações → Pedido Online → Estoque online**
+
+- local de venda padrão;
+- reserva mínima padrão;
+- limite máximo online;
+- limiar de baixa disponibilidade;
+- modo de exibição;
+- comportamento seguro em falha.
+
+**Estoque → Disponibilidade online**
+
+- saldo físico;
+- reservado;
+- reserva local;
+- limite online;
+- disponível online;
+- status público;
+- edição em lote.
+
+**Produto → Estoque e disponibilidade → Venda online**
+
+- herdar padrão;
+- habilitar/desabilitar online;
+- local de origem;
+- reserva mínima própria;
+- limite próprio;
+- modo de exibição.
+
+### 7.3 Contrato público
+
+```ts
+export interface PublicAvailability {
+  status: 'available' | 'low_stock' | 'unavailable' | 'unknown';
+  availableOnline?: number;
+  displayMode: 'exact' | 'low_stock_only' | 'status_only' | 'hidden';
+  message?: string;
+}
+```
+
+O catálogo não recebe o saldo físico bruto como autoridade.
+
+---
+
+## 8. Reserva e criação do pedido
+
+O modelo existente vincula `stock_reservations` a um pedido já criado com status reservado. Portanto, para o piloto:
+
+```text
+carrinho
+→ revisar checkout
+→ criar pedido atomicamente
+→ reservar estoque
+→ abrir WhatsApp
+→ rastrear por token
+```
+
+Não será afirmado que iniciar o preenchimento do checkout já cria reserva. Uma sessão de checkout com reserva anterior ao pedido fica como evolução opcional futura.
+
+Pré-condições:
+
+- revalidar preço, entrega, mínimo e estoque na criação;
+- transação única;
+- idempotência/replay seguro;
+- liberação automática de reservas expiradas sem depender de abrir tela administrativa;
+- snapshot comercial e de entrega no pedido.
+
+---
+
+## 9. Identidade visual
+
+A RPC pública já expõe `logo_url`, `theme_config` e `visual_config`. O serviço também repassa `logo_url`; a lacuna atual está na renderização/integração do cabeçalho.
+
+A V2 deve suportar:
+
+- logo com fallback para nome da loja;
+- capa opcional;
+- logo clara/escura futura;
+- identidade configurada pela loja;
+- preferência do visitante: sistema, claro ou escuro;
+- contraste e legibilidade obrigatórios.
+
+O WhatsApp flutuante deve usar somente contato configurado da loja e desaparecer quando não houver número válido.
+
+---
+
+## 10. Slugs e canonicalização
+
+O banco já possui:
+
+- `reserved_store_slugs`;
+- `store_slug_history`;
+- `resolve_public_store_id_by_slug`;
+- proteção de slugs já usadas;
+- resolução de slug atual e histórica.
+
+Ao abrir alias histórico:
+
+```text
+slug antiga
+→ resolver a loja
+→ carregar conteúdo
+→ substituir a URL pela slug canônica
+```
+
+Os prefixos `/s`, `/loja` e `/cardapio` são aliases de rota; o histórico de slug é governado no banco.
+
+---
+
+## 11. Arquitetura de componentes
+
+```text
+PublicStoreApp
+├── StoreHeader
+├── StoreStatusBar
+├── StoreNavigation
+├── PublicCatalog
+│   ├── Search
+│   ├── CategoryTabs
+│   ├── ProductGrid
+│   ├── ProductCard
+│   └── ProductConfigurator
+├── CartSummaryBar
+├── CartPage
+├── CheckoutFlow
+│   ├── FulfillmentStep
+│   ├── CustomerStep
+│   └── ReviewStep
+├── OrderSuccess
+└── PublicOrderTracking
+```
+
+Contextos:
+
+```text
+RemoteStorefront → entrega e retirada
+TableStorefront  → mesa e comanda
+```
+
+---
+
+## 12. Feature flags
+
+```ts
+export interface PublicStoreFeatures {
+  storefrontV2: boolean;
+  cartV2: boolean;
+  checkoutV2: boolean;
+  deliveryRulesV2: boolean;
+  onlineStockPolicy: boolean;
+  publicCustomerAccount: boolean;
+  promotionalBanners: boolean;
+  publicAnalytics: boolean;
+  onlinePayments: boolean;
+}
+```
+
+A ativação inicial será restrita à loja piloto. A experiência legada permanece como fallback.
+
+---
+
+## 13. Sequência de implementação
+
+1. `docs: consolidate phase 10 storefront blueprint`
+2. `refactor(storefront): establish public store context`
+3. `refactor(cart): isolate public carts by store and context`
+4. `feat(storefront): add mobile-first catalog shell`
+5. `feat(storefront): add product configurator and projected pricing`
+6. `feat(checkout): persist pickup and delivery selection`
+7. `feat(delivery): add structured delivery rules and quotes`
+8. `feat(stock): add online availability policies`
+9. `refactor(orders): consolidate public order creation`
+10. `feat(storefront): improve public order confirmation`
+11. `chore(storefront): enable phase 10 pilot`
+
+Migrations só começam depois da fundação frontend, contratos e aprovação específica das estruturas de entrega/estoque.
+
+---
+
+## 14. Testes obrigatórios
+
+### Carrinho e configurador
+
+- card e `+` abrem o mesmo modal;
+- quantidade projetada considera o carrinho existente;
+- desconto por categoria/grupo atualiza todos os itens afetados;
+- próxima faixa é coerente;
+- adicionar não abre drawer automaticamente;
+- carrinho persiste após reload;
+- carrinhos não se misturam entre lojas/contextos.
+
+### Entrega
+
+- retirada sem mínimo;
+- entrega com taxa fixa;
+- regra gratuita;
+- gratuidade por subtotal;
+- mínimo por região;
+- CEP ausente;
+- endereço incompleto;
+- localização aceita/negada;
+- troca de endereço invalida cotação;
+- região não atendida;
+- cotação expirada.
+
+### Estoque
+
+- saldo disponível;
+- última unidade;
+- reserva mínima;
+- limite máximo;
+- concorrência;
+- expiração e liberação;
+- replay idempotente.
+
+### Slug e aparência
+
+- slug atual e histórica;
+- canonicalização;
+- loja/catálogo desabilitado;
+- logo válida/quebrada/ausente;
+- temas claro, escuro e sistema;
+- mobile e desktop.
+
+---
+
+## 15. Critérios do piloto
+
+O piloto pode ser demonstrado quando:
+
+- abrir pelo domínio oficial;
+- aplicar logo e identidade;
+- exibir produtos rapidamente;
+- card/`+` abrirem configurador;
+- mostrar desconto projetado corretamente;
+- adicionar não interromper a compra;
+- isolar carrinho por loja;
+- retirada não exigir mínimo;
+- entrega solicitar endereço e aplicar regra;
+- criar pedido antes de abrir WhatsApp;
+- revalidar preço e estoque;
+- rastrear por token;
+- permitir fallback imediato ao legado.
+
+---
+
+## 16. Matriz de factualidade
+
+| Capacidade | Classificação |
+|---|---|
+| Rotas públicas e aliases de prefixo | `EXISTENTE` |
+| Histórico e resolução de slug | `EXISTENTE` |
+| Carrinho persistente de itens | `EXISTENTE, CONTRATO INSUFICIENTE` |
+| Modal de produto | `EXISTENTE, A EVOLUIR` |
+| Cotação autoritativa de preço | `EXISTENTE` |
+| Grupos combinados de precificação | `EXISTENTE` |
+| Checkout público | `EXISTENTE, FORÇA RETIRADA` |
+| Endereço no contrato do pedido | `EXISTENTE, NÃO CONECTADO AO CHECKOUT` |
+| Regras por região e cotação de frete | `PLANEJADA` |
+| Reserva vinculada ao pedido | `EXISTENTE` |
+| Job automático de expiração | `A CONFIRMAR` |
+| Política de estoque online | `HOMOLOGADA NO BLUEPRINT, NÃO IMPLEMENTADA` |
+| Logo no contrato público | `EXISTENTE, NÃO RENDERIZADA CORRETAMENTE` |
+| OTP via OptmaSMSGate | `DEPENDENTE DO SMSGATE` |
+| Pix dinâmico | `PLANEJADO` |
+| Analytics público | `PLANEJADO` |
+
+---
+
+## 17. Parecer
+
+```text
+BLUEPRINT APROVÁVEL PARA IMPLEMENTAÇÃO
+COM PRÉ-CONDIÇÕES TÉCNICAS CONTROLÁVEIS
+```
+
+Pré-condições:
+
+1. preservar o motor autoritativo de preço;
+2. não implementar entrega/estoque apenas no frontend;
+3. isolar carrinho por loja e contexto;
+4. manter fallback legado por feature flag;
+5. confirmar execução automática da expiração;
+6. começar pela fundação sem migration ampla;
+7. tratar `01/08/2026` como demonstração do piloto/blueprint, não lançamento `1.0.0`.

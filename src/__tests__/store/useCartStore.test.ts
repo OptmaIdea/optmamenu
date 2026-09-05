@@ -35,9 +35,32 @@ function mockVolumeCategory(overrides: Partial<Category> = {}): Category {
     }
 }
 
+const remoteContext = {
+    storeId: 'store-1',
+    requestedSlug: 'gelinhares',
+    canonicalSlug: 'gelinhares',
+    type: 'remote' as const,
+}
+
+const tableContext = {
+    storeId: 'store-1',
+    requestedSlug: 'gelinhares',
+    canonicalSlug: 'gelinhares',
+    type: 'table' as const,
+    tableCode: 'MESA-01',
+}
+
 describe('useCartStore', () => {
     beforeEach(() => {
-        useCartStore.setState({ items: [], categoryRules: {}, isCartOpen: false })
+        useCartStore.setState({
+            schemaVersion: 2,
+            context: null,
+            fulfillmentType: null,
+            deliveryMethodCode: null,
+            items: [],
+            categoryRules: {},
+            isCartOpen: false,
+        })
     })
 
     describe('basic operations', () => {
@@ -60,6 +83,11 @@ describe('useCartStore', () => {
             expect(useCartStore.getState().items[0].quantity).toBe(5)
         })
 
+        it('should normalize invalid additions to one unit', () => {
+            useCartStore.getState().addToCart(mockProduct(), 0)
+            expect(useCartStore.getState().items[0].quantity).toBe(1)
+        })
+
         it('should remove an item from the cart', () => {
             useCartStore.getState().addToCart(mockProduct(), 1)
             useCartStore.getState().removeFromCart('prod-1')
@@ -77,6 +105,76 @@ describe('useCartStore', () => {
             useCartStore.getState().addToCart(mockProduct({ id: 'p2', name: 'Sorvete' }), 1)
             useCartStore.getState().clearCart()
             expect(useCartStore.getState().items).toHaveLength(0)
+        })
+    })
+
+    describe('store and fulfillment context', () => {
+        it('should bind a remote store with pickup as the safe default', () => {
+            useCartStore.getState().bindContext(remoteContext)
+
+            const state = useCartStore.getState()
+            expect(state.context).toEqual(remoteContext)
+            expect(state.fulfillmentType).toBe('pickup')
+        })
+
+        it('should persist a remote delivery selection', () => {
+            useCartStore.getState().bindContext(remoteContext)
+            useCartStore.getState().setFulfillment('delivery', 'local_delivery')
+
+            const state = useCartStore.getState()
+            expect(state.fulfillmentType).toBe('delivery')
+            expect(state.deliveryMethodCode).toBe('local_delivery')
+        })
+
+        it('should reject table fulfillment in a remote cart', () => {
+            useCartStore.getState().bindContext(remoteContext)
+            useCartStore.getState().setFulfillment('table', 'qr_table')
+
+            expect(useCartStore.getState().fulfillmentType).toBe('pickup')
+        })
+
+        it('should force table fulfillment for a table context', () => {
+            useCartStore.getState().bindContext(tableContext)
+            useCartStore.getState().setFulfillment('delivery', 'local_delivery')
+
+            const state = useCartStore.getState()
+            expect(state.fulfillmentType).toBe('table')
+            expect(state.context?.tableCode).toBe('MESA-01')
+        })
+
+        it('should keep items when binding the same store and context again', () => {
+            useCartStore.getState().bindContext(remoteContext)
+            useCartStore.getState().addToCart(mockProduct(), 2)
+            useCartStore.getState().bindContext({ ...remoteContext, requestedSlug: 'slug-antiga' })
+
+            expect(useCartStore.getState().items).toHaveLength(1)
+            expect(useCartStore.getState().context?.requestedSlug).toBe('slug-antiga')
+        })
+
+        it('should clear items when changing stores', () => {
+            useCartStore.getState().bindContext(remoteContext)
+            useCartStore.getState().addToCart(mockProduct(), 2)
+
+            const result = useCartStore.getState().bindContext({
+                ...remoteContext,
+                storeId: 'store-2',
+                requestedSlug: 'outra-loja',
+                canonicalSlug: 'outra-loja',
+            })
+
+            expect(result.changedStore).toBe(true)
+            expect(useCartStore.getState().items).toHaveLength(0)
+        })
+
+        it('should clear items when changing between remote and table contexts', () => {
+            useCartStore.getState().bindContext(remoteContext)
+            useCartStore.getState().addToCart(mockProduct(), 2)
+
+            const result = useCartStore.getState().bindContext(tableContext)
+
+            expect(result.changedContext).toBe(true)
+            expect(useCartStore.getState().items).toHaveLength(0)
+            expect(useCartStore.getState().fulfillmentType).toBe('table')
         })
     })
 

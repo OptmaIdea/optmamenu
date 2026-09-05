@@ -29,6 +29,13 @@ export interface Category {
     active?: boolean;
 }
 
+export interface PublicAvailability {
+    status: 'available' | 'low_stock' | 'unavailable' | 'unknown';
+    availableOnline?: number;
+    displayMode: 'exact' | 'low_stock_only' | 'status_only' | 'hidden';
+    message?: string;
+}
+
 export interface Product {
     id: string;
     category_id?: string | null;
@@ -45,6 +52,7 @@ export interface Product {
     featured: boolean;
     sales_count: number;
     stock_quantity: number;
+    public_availability?: PublicAvailability;
     rating_avg: number;
     review_count: number;
     active?: boolean;
@@ -56,7 +64,7 @@ export interface CartItem extends Product {
 }
 
 export type PaymentMethod = 'pix' | 'cash' | 'card' | 'pending';
-export type OrderStatus = 'reserved' | 'confirmed' | 'ready' | 'completed' | 'cancelled';
+export type OrderStatus = 'reserved' | 'confirmed' | 'ready' | 'out_for_delivery' | 'completed' | 'cancelled';
 
 export interface Profile {
     id: string;
@@ -84,6 +92,25 @@ export interface Customer {
     email_verified?: boolean;
 }
 
+export type StorefrontBannerMediaType = 'image' | 'video' | 'html5';
+
+export interface StorefrontBannerMedia {
+    id?: string;
+    type: StorefrontBannerMediaType;
+    url: string;
+    poster_url?: string;
+    mobile_url?: string;
+    alt_text?: string;
+    title?: string;
+    subtitle?: string;
+    link?: string;
+    open_in_new_tab?: boolean;
+    sort_order?: number;
+    active?: boolean;
+    published?: boolean;
+    duration_seconds?: number;
+}
+
 export interface StoreConfig {
     timer_duration_minutes?: number;
     extension_minutes?: number;
@@ -100,6 +127,13 @@ export interface StoreConfig {
     visual_color_text?: string;
     visual_color_highlight?: string;
     visual_banner_url?: string;
+    visual_banner_video_url?: string;
+    visual_banner_video_poster_url?: string;
+    visual_banner_eyebrow?: string;
+    visual_banner_title?: string;
+    visual_banner_subtitle?: string;
+    visual_banner_alignment?: 'left' | 'center';
+    visual_banner_overlay_opacity?: number;
     loyalty_active?: boolean;
     visual_slogan?: string;
     about_text?: string;
@@ -120,7 +154,8 @@ export interface StoreConfig {
     };
     footer_text?: string;
     footer_show_contact?: boolean;
-    banners?: Array<{ url: string; type: 'image' | 'video'; link?: string }>;
+    banners?: StorefrontBannerMedia[];
+    banner_publication_limit?: number;
     custom_domain?: string;
     opening_time?: string;
     closing_time?: string;

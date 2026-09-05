@@ -1,0 +1,166 @@
+/* Refinamentos operacionais pontuais, escopados por rota para não alterar o Painel operacional. */
+
+html.dark[data-route*="/lifecycle"] .bg-white,
+html.dark[data-route^="/admin/suppliers"] .bg-white,
+html.dark[data-route^="/admin/stock/movements"] .bg-white {
+  background-color: #1f2937 !important;
+}
+
+html.dark[data-route*="/lifecycle"] .bg-gray-50,
+html.dark[data-route^="/admin/suppliers"] .bg-gray-50,
+html.dark[data-route^="/admin/stock/movements"] .bg-gray-50 {
+  background-color: #111827 !important;
+}
+
+html.dark[data-route*="/lifecycle"] .border-gray-100,
+html.dark[data-route^="/admin/suppliers"] .border-gray-100,
+html.dark[data-route^="/admin/stock/movements"] .border-gray-100 {
+  border-color: #334155 !important;
+}
+
+html.dark[data-route*="/lifecycle"] .text-gray-900,
+html.dark[data-route*="/lifecycle"] .text-gray-800,
+html.dark[data-route*="/lifecycle"] .text-gray-700,
+html.dark[data-route^="/admin/suppliers"] .text-gray-900,
+html.dark[data-route^="/admin/suppliers"] .text-gray-800,
+html.dark[data-route^="/admin/suppliers"] .text-gray-700,
+html.dark[data-route^="/admin/stock/movements"] .text-gray-900,
+html.dark[data-route^="/admin/stock/movements"] .text-gray-800,
+html.dark[data-route^="/admin/stock/movements"] .text-gray-700 {
+  color: #f8fafc !important;
+}
+
+html.dark[data-route*="/lifecycle"] .text-gray-600,
+html.dark[data-route*="/lifecycle"] .text-gray-500,
+html.dark[data-route^="/admin/suppliers"] .text-gray-600,
+html.dark[data-route^="/admin/suppliers"] .text-gray-500,
+html.dark[data-route^="/admin/stock/movements"] .text-gray-600,
+html.dark[data-route^="/admin/stock/movements"] .text-gray-500 {
+  color: #cbd5e1 !important;
+}
+
+html.dark[data-route*="/lifecycle"] .text-gray-400,
+html.dark[data-route^="/admin/suppliers"] .text-gray-400,
+html.dark[data-route^="/admin/stock/movements"] .text-gray-400 {
+  color: #94a3b8 !important;
+}
+
+html.dark[data-route*="/lifecycle"] input,
+html.dark[data-route*="/lifecycle"] select,
+html.dark[data-route*="/lifecycle"] textarea,
+html.dark[data-route^="/admin/suppliers"] input,
+html.dark[data-route^="/admin/suppliers"] select,
+html.dark[data-route^="/admin/suppliers"] textarea,
+html.dark[data-route^="/admin/stock/movements"] input,
+html.dark[data-route^="/admin/stock/movements"] select,
+html.dark[data-route^="/admin/stock/movements"] textarea {
+  background-color: #0f172a !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+html.dark[data-route*="/lifecycle"] input::placeholder,
+html.dark[data-route*="/lifecycle"] textarea::placeholder,
+html.dark[data-route^="/admin/suppliers"] input::placeholder,
+html.dark[data-route^="/admin/suppliers"] textarea::placeholder,
+html.dark[data-route^="/admin/stock/movements"] input::placeholder,
+html.dark[data-route^="/admin/stock/movements"] textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+html.dark[data-route*="/lifecycle"] table,
+html.dark[data-route^="/admin/suppliers"] table,
+html.dark[data-route^="/admin/stock/movements"] table {
+  color: #e5e7eb;
+}
+
+html.dark[data-route*="/lifecycle"] tr:hover,
+html.dark[data-route^="/admin/suppliers"] tr:hover,
+html.dark[data-route^="/admin/stock/movements"] tr:hover {
+  background-color: rgba(15, 23, 42, 0.75) !important;
+}
+
+/* Fornecedores ainda usa badges e botões antigos sem variantes dark. */
+html.dark[data-route^="/admin/suppliers"] .border-gray-200 {
+  border-color: #334155 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+html.dark[data-route^="/admin/suppliers"] .divide-gray-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #334155 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-gray-100 {
+  background-color: #334155 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-green-100 {
+  background-color: #064e3b !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-yellow-100 {
+  background-color: #713f12 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-rose-100,
+html.dark[data-route^="/admin/suppliers"] .bg-red-100 {
+  background-color: #7f1d1d !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-purple-100 {
+  background-color: #4c1d95 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-blue-100 {
+  background-color: #1e3a8a !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .bg-indigo-100 {
+  background-color: #312e81 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .text-green-700 {
+  color: #bbf7d0 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .text-yellow-700 {
+  color: #fde68a !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .text-rose-700,
+html.dark[data-route^="/admin/suppliers"] .text-red-700,
+html.dark[data-route^="/admin/suppliers"] .text-red-600 {
+  color: #fecdd3 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .text-purple-700 {
+  color: #ddd6fe !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .text-blue-700,
+html.dark[data-route^="/admin/suppliers"] .text-blue-600 {
+  color: #bfdbfe !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .text-indigo-700 {
+  color: #c7d2fe !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] button:disabled,
+html.dark[data-route^="/admin/suppliers"] .opacity-50 {
+  color: #94a3b8 !important;
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  opacity: 0.75 !important;
+}
+
+html.dark[data-route^="/admin/suppliers"] .shadow-sm,
+html.dark[data-route^="/admin/suppliers"] .shadow-xl {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24) !important;
+}
+
+/* UX final: códigos internos de local continuam no dado/exportação, mas não poluem a operação diária. */
+html[data-route^="/admin/inventory"] tbody td:first-child > .text-xs.text-gray-400,
+html[data-route^="/admin/inventory"] tbody td:first-child > div:last-child.text-xs {
+  display: none !important;
+}

@@ -1,125 +1,630 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Minus, Plus, Send, ShoppingBag, Store, Trash2, Wallet } from 'lucide-react';
+import {
+    ArrowLeft,
+    CheckCircle2,
+    ChevronRight,
+    FileText,
+    ImageOff,
+    LocateFixed,
+    MapPin,
+    MessageSquareText,
+    Minus,
+    Plus,
+    ReceiptText,
+    Send,
+    ShoppingBag,
+    Store,
+    Trash2,
+    UserRound,
+    Wallet,
+} from 'lucide-react';
+import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
-import { PublicOrderService } from '@/services/publicOrderService';
+import { ProductModal } from '@/pages/store/ProductModal';
+import { CheckoutPromotionsModal } from '@/pages/store/components/CheckoutPromotionsModal';
+import {
+    PublicOrderService,
+    type PublicCheckoutPaymentOptionsResponse,
+    type PublicPaymentTiming,
+    type PublicPromisedPaymentMethod,
+} from '@/services/publicOrderService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
+import { formatBRL } from '@/utils/pricing';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
+const CHECKOUT_DRAFT_VERSION = 3;
 
-type PaymentChoice = 'pending';
+type CheckoutView = 'cart' | 'review' | 'fulfillment' | 'customer' | 'payment' | 'cpf' | 'notes';
+type PaymentTimingChoice = '' | PublicPaymentTiming;
+
+type PhoneValidation = {
+    normalized: string;
+    displayFormatted: string;
+    isValid: boolean;
+    error?: string;
+};
+
+interface DeliveryAddressState {
+    zipCode: string;
+    street: string;
+    number: string;
+    district: string;
+    city: string;
+    state: string;
+    complement: string;
+    reference: string;
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+}
+
+interface CheckoutDraft {
+    version: number;
+    clientName: string;
+    clientPhone: string;
+    isBrazil: boolean;
+    internationalDdi: string;
+    paymentTiming: PaymentTimingChoice;
+    paymentMethodCode: string;
+    promisedPaymentMethodCode: PublicPromisedPaymentMethod | '';
+    needsChange: boolean;
+    changeFor: string;
+    cpf: string;
+    notes: string;
+    deliveryAddress: DeliveryAddressState;
+    savedAt: string;
+}
+
+const EMPTY_ADDRESS: DeliveryAddressState = {
+    zipCode: '',
+    street: '',
+    number: '',
+    district: '',
+    city: '',
+    state: '',
+    complement: '',
+    reference: '',
+};
+
+const EMPTY_PAYMENT_OPTIONS: PublicCheckoutPaymentOptionsResponse = {
+    ok: true,
+    pay_now: [],
+    pay_on_fulfillment: {
+        enabled: false,
+        label: 'Pagar na retirada',
+        requires_method_choice: false,
+        methods: [],
+    },
+};
 
 function compactOrderCode(orderCode: string) {
     const suffix = orderCode.split('-').pop();
     return suffix ? `#${suffix}` : orderCode;
 }
 
+function getItemImage(item: { images?: string[] | null; image_url?: string | null }) {
+    if (Array.isArray(item.images) && item.images.length > 0) return item.images.find(Boolean) || null;
+    return item.image_url || null;
+}
+
+function onlyDigits(value: string) {
+    return value.replace(/\D/g, '');
+}
+
+function formatCep(value: string) {
+    const digits = onlyDigits(value).slice(0, 8);
+    return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+}
+
+function normalizeBrazilianPhone(rawInput: string): PhoneValidation {
+    let digits = onlyDigits(rawInput);
+
+    if (!digits) {
+        return { normalized: '', displayFormatted: '', isValid: false, error: 'Informe DDD e número de telefone.' };
+    }
+
+    while (digits.startsWith('0') && digits.length > 11) digits = digits.slice(1);
+    if (digits.startsWith('55') && digits.length >= 12) digits = digits.slice(2);
+    if (digits.startsWith('0') && (digits.length === 11 || digits.length === 12)) digits = digits.slice(1);
+
+    if (digits.length !== 10 && digits.length !== 11) {
+        return {
+            normalized: '',
+            displayFormatted: rawInput,
+            isValid: false,
+            error: 'Informe DDD + telefone com 8 ou 9 dígitos.',
+        };
+    }
+
+    const ddd = Number(digits.slice(0, 2));
+    if (!Number.isInteger(ddd) || ddd < 11 || ddd > 99) {
+        return { normalized: '', displayFormatted: rawInput, isValid: false, error: 'Informe um DDD brasileiro válido.' };
+    }
+
+    if (digits.length === 11 && digits[2] !== '9') {
+        return {
+            normalized: '',
+            displayFormatted: rawInput,
+            isValid: false,
+            error: 'Celular com 9 dígitos deve começar com 9 após o DDD.',
+        };
+    }
+
+    const displayFormatted = digits.length === 11
+        ? `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`
+        : `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+
+    return {
+        normalized: `+55${digits}`,
+        displayFormatted,
+        isValid: true,
+    };
+}
+
+function normalizeInternationalPhone(ddiInput: string, phoneInput: string): PhoneValidation {
+    const ddi = onlyDigits(ddiInput).slice(0, 3);
+    const number = onlyDigits(phoneInput);
+
+    if (!ddi) {
+        return { normalized: '', displayFormatted: phoneInput, isValid: false, error: 'Informe o DDI do país.' };
+    }
+
+    if (number.length < 6 || number.length > 15) {
+        return {
+            normalized: '',
+            displayFormatted: phoneInput,
+            isValid: false,
+            error: 'Informe o número internacional sem o sinal + e sem o DDI.',
+        };
+    }
+
+    return {
+        normalized: `+${ddi}${number}`,
+        displayFormatted: `+${ddi} ${number}`,
+        isValid: true,
+    };
+}
+
+function CheckoutHeader({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack: () => void }) {
+    return (
+        <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+            <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
+                <button type="button" onClick={onBack} className="rounded-full p-2 hover:bg-slate-100" aria-label="Voltar">
+                    <ArrowLeft className="h-7 w-7" />
+                </button>
+                <div className="min-w-0 flex-1">
+                    <h1 className="text-2xl font-black tracking-tight text-slate-950">{title}</h1>
+                    {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+                </div>
+            </div>
+        </header>
+    );
+}
+
+function ReviewRow({ icon, title, description, missing, actionLabel, onClick }: {
+    icon: React.ReactNode;
+    title: string;
+    description: string;
+    missing?: boolean;
+    actionLabel?: string;
+    onClick: () => void;
+}) {
+    return (
+        <button type="button" onClick={onClick} className="flex w-full items-center gap-4 border-b border-slate-100 px-4 py-5 text-left last:border-b-0 hover:bg-slate-50">
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${missing ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                {icon}
+            </span>
+            <span className="min-w-0 flex-1">
+                <span className="block text-base font-black text-slate-950">{title}</span>
+                <span className={`mt-0.5 block text-sm leading-relaxed ${missing ? 'font-bold text-red-600' : 'text-slate-500'}`}>
+                    {missing ? 'Preencher os dados' : description}
+                </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-1 text-sm font-bold text-slate-600">
+                {actionLabel}<ChevronRight size={18} />
+            </span>
+        </button>
+    );
+}
+
 export default function Checkout() {
     const navigate = useNavigate();
     const location = useLocation();
-    const { items, total, clearCart, updateQuantity, removeFromCart } = useCartStore();
+    const {
+        items,
+        total,
+        clearCart,
+        updateQuantity,
+        removeFromCart,
+        addToCart,
+        categoryRules,
+        fulfillmentType,
+        setFulfillment,
+        context,
+    } = useCartStore();
 
+    const [view, setView] = useState<CheckoutView>('cart');
+    const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+    const [isProductModalOpen, setIsProductModalOpen] = useState(false);
+    const [showPromotionsModal, setShowPromotionsModal] = useState(false);
     const [clientName, setClientName] = useState('');
     const [clientPhone, setClientPhone] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState<PaymentChoice>('pending');
+    const [isBrazil, setIsBrazil] = useState(true);
+    const [internationalDdi, setInternationalDdi] = useState('');
+    const [paymentTiming, setPaymentTiming] = useState<PaymentTimingChoice>('');
+    const [paymentMethodCode, setPaymentMethodCode] = useState('');
+    const [promisedPaymentMethodCode, setPromisedPaymentMethodCode] = useState<PublicPromisedPaymentMethod | ''>('');
+    const [paymentOptions, setPaymentOptions] = useState<PublicCheckoutPaymentOptionsResponse>(EMPTY_PAYMENT_OPTIONS);
+    const [paymentOptionsLoading, setPaymentOptionsLoading] = useState(false);
+    const [paymentOptionsError, setPaymentOptionsError] = useState<string | null>(null);
+    const [needsChange, setNeedsChange] = useState(false);
+    const [changeFor, setChangeFor] = useState('');
+    const [cpf, setCpf] = useState('');
+    const [notes, setNotes] = useState('');
+    const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressState>(EMPTY_ADDRESS);
+    const [cepLoading, setCepLoading] = useState(false);
+    const [locationLoading, setLocationLoading] = useState(false);
+    const [addressError, setAddressError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [stockIssue, setStockIssue] = useState(false);
+    const [showValidationTip, setShowValidationTip] = useState(false);
+    const [draftLoaded, setDraftLoaded] = useState(false);
 
-    const storeSlug = useMemo(() => {
-        const querySlug = new URLSearchParams(location.search).get('store')?.trim();
-        return querySlug || DEFAULT_STORE_SLUG;
-    }, [location.search]);
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [view]);
 
+    const storeSlug = useMemo(
+        () => new URLSearchParams(location.search).get('store')?.trim() || context?.canonicalSlug || DEFAULT_STORE_SLUG,
+        [context?.canonicalSlug, location.search],
+    );
     const storePath = `/s/${encodeURIComponent(storeSlug)}`;
+    const draftKey = `optmamenu.publicCheckoutDraft.v${CHECKOUT_DRAFT_VERSION}.${storeSlug}`;
     const totalValue = total();
+    const baseSubtotal = items.reduce((sum, item) => sum + Number(item.originalPrice || item.price || 0) * item.quantity, 0);
+    const discountTotal = Math.max(0, baseSubtotal - totalValue);
+    const totalUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+    const isTableContext = context?.type === 'table';
+    const effectiveFulfillment = isTableContext ? 'table' : (fulfillmentType || 'pickup');
+    const withoutNumber = deliveryAddress.number.trim().toUpperCase() === 'S/N';
 
-    const handleClearCart = () => {
-        if (!window.confirm('Deseja realmente limpar seu carrinho?')) return;
-        clearCart();
-        navigate(storePath, { replace: true });
+    const phoneValidation = isBrazil
+        ? normalizeBrazilianPhone(clientPhone)
+        : normalizeInternationalPhone(internationalDdi, clientPhone);
+    const customerValid = Boolean(clientName.trim()) && phoneValidation.isValid;
+    const addressValid = effectiveFulfillment !== 'delivery' || (
+        onlyDigits(deliveryAddress.zipCode).length === 8
+        && Boolean(deliveryAddress.street.trim())
+        && Boolean(deliveryAddress.number.trim())
+        && Boolean(deliveryAddress.district.trim())
+        && Boolean(deliveryAddress.city.trim())
+        && deliveryAddress.state.trim().length === 2
+        && (!withoutNumber || Boolean(deliveryAddress.complement.trim()))
+    );
+
+    const selectedPayNowMethod = paymentOptions.pay_now.find((method) => method.code === paymentMethodCode) || null;
+    const selectedPayLaterMethod = paymentOptions.pay_on_fulfillment.methods.find((method) => method.code === promisedPaymentMethodCode) || null;
+    const cashAtDelivery = paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === 'cash';
+    const changeValue = Number(changeFor.replace(',', '.'));
+    const paymentValid = paymentTiming === 'pay_now'
+        ? Boolean(selectedPayNowMethod)
+        : paymentTiming === 'pay_on_fulfillment'
+            ? paymentOptions.pay_on_fulfillment.enabled
+                && (!paymentOptions.pay_on_fulfillment.requires_method_choice || Boolean(selectedPayLaterMethod))
+                && (!cashAtDelivery || !needsChange || (Number.isFinite(changeValue) && changeValue >= totalValue))
+            : false;
+    const fulfillmentValid = isTableContext || ['pickup', 'delivery'].includes(effectiveFulfillment);
+    const checkoutValid = customerValid && addressValid && paymentValid && fulfillmentValid && items.length > 0;
+
+    const hasEligibleDiscountProducts = useMemo(() => items.some((item) => {
+        if (!item.category_id || !item.use_category_pricing) return false;
+        const categoryRule = categoryRules[item.category_id];
+        return Boolean(categoryRule?.pricingGroup?.rules?.length || categoryRule?.rules?.length);
+    }), [categoryRules, items]);
+
+    useEffect(() => {
+        let active = true;
+        setPaymentOptionsLoading(true);
+        setPaymentOptionsError(null);
+
+        void PublicOrderService.getCheckoutPaymentOptions(storeSlug, effectiveFulfillment)
+            .then((result) => {
+                if (!active) return;
+                setPaymentOptions(result);
+                if (!result.ok) setPaymentOptionsError('As opções de pagamento estão temporariamente indisponíveis.');
+            })
+            .catch((cause) => {
+                if (!active) return;
+                console.error('Erro ao carregar regras de pagamento do checkout:', cause);
+                setPaymentOptions(EMPTY_PAYMENT_OPTIONS);
+                setPaymentOptionsError('Não foi possível carregar as opções de pagamento agora.');
+            })
+            .finally(() => {
+                if (active) setPaymentOptionsLoading(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [effectiveFulfillment, storeSlug]);
+
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem(draftKey);
+            if (raw) {
+                const parsed = JSON.parse(raw) as Partial<CheckoutDraft>;
+                if (parsed.version === CHECKOUT_DRAFT_VERSION) {
+                    setClientName(parsed.clientName || '');
+                    setClientPhone(parsed.clientPhone || '');
+                    setIsBrazil(parsed.isBrazil !== false);
+                    setInternationalDdi(parsed.internationalDdi || '');
+                    setPaymentTiming(parsed.paymentTiming || '');
+                    setPaymentMethodCode(parsed.paymentMethodCode || '');
+                    setPromisedPaymentMethodCode(parsed.promisedPaymentMethodCode || '');
+                    setNeedsChange(Boolean(parsed.needsChange));
+                    setChangeFor(parsed.changeFor || '');
+                    setCpf(parsed.cpf || '');
+                    setNotes(parsed.notes || '');
+                    setDeliveryAddress({ ...EMPTY_ADDRESS, ...(parsed.deliveryAddress || {}) });
+                }
+            }
+        } catch (cause) {
+            console.warn('Não foi possível carregar os dados locais do checkout:', cause);
+        } finally {
+            setDraftLoaded(true);
+        }
+    }, [draftKey]);
+
+    useEffect(() => {
+        if (!draftLoaded) return;
+        const draft: CheckoutDraft = {
+            version: CHECKOUT_DRAFT_VERSION,
+            clientName,
+            clientPhone,
+            isBrazil,
+            internationalDdi,
+            paymentTiming,
+            paymentMethodCode,
+            promisedPaymentMethodCode,
+            needsChange,
+            changeFor,
+            cpf,
+            notes,
+            deliveryAddress,
+            savedAt: new Date().toISOString(),
+        };
+        try {
+            localStorage.setItem(draftKey, JSON.stringify(draft));
+        } catch (cause) {
+            console.warn('Não foi possível salvar os dados locais do checkout:', cause);
+        }
+    }, [
+        changeFor,
+        clientName,
+        clientPhone,
+        cpf,
+        deliveryAddress,
+        draftKey,
+        draftLoaded,
+        internationalDdi,
+        isBrazil,
+        needsChange,
+        notes,
+        paymentMethodCode,
+        paymentTiming,
+        promisedPaymentMethodCode,
+    ]);
+
+    const resetPaymentSelection = () => {
+        setPaymentTiming('');
+        setPaymentMethodCode('');
+        setPromisedPaymentMethodCode('');
+        setNeedsChange(false);
+        setChangeFor('');
     };
 
-    const changeQuantity = (productId: string, currentQuantity: number, delta: number) => {
-        const nextQuantity = currentQuantity + delta;
-        if (nextQuantity <= 0) {
-            removeFromCart(productId);
-            return;
-        }
-        updateQuantity(productId, nextQuantity);
+    const openProduct = (product: Product) => {
+        setSelectedProduct(product);
+        setIsProductModalOpen(true);
     };
 
-    const finishOrder = async () => {
-        if (!clientName.trim()) {
-            setError('Informe seu nome para continuar.');
-            return;
-        }
+    const changeQuantity = (id: string, current: number, delta: number) => {
+        if (current + delta <= 0) removeFromCart(id);
+        else updateQuantity(id, current + delta);
+    };
 
-        const phoneDigits = clientPhone.replace(/\D/g, '');
-        if (phoneDigits.length < 10) {
-            setError('Informe um WhatsApp válido com DDD.');
-            return;
-        }
+    const setDirectQuantity = (id: string, raw: string) => {
+        const parsed = Math.trunc(Number(raw));
+        if (Number.isFinite(parsed)) updateQuantity(id, Math.max(1, parsed));
+    };
 
-        if (items.length === 0) {
-            setError('Seu carrinho está vazio.');
+    const goToReview = () => {
+        setError(null);
+        setStockIssue(false);
+        setView('review');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const lookupCep = async () => {
+        const cep = onlyDigits(deliveryAddress.zipCode);
+        if (cep.length !== 8) {
+            setAddressError('Informe um CEP válido com 8 dígitos.');
             return;
         }
 
         try {
+            setCepLoading(true);
+            setAddressError(null);
+            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            if (!response.ok) throw new Error('cep_lookup_failed');
+            const data = await response.json() as {
+                erro?: boolean;
+                logradouro?: string;
+                bairro?: string;
+                localidade?: string;
+                uf?: string;
+            };
+            if (data.erro) {
+                setAddressError('CEP não encontrado. Confira ou preencha o endereço manualmente.');
+                return;
+            }
+            setDeliveryAddress((current) => ({
+                ...current,
+                street: data.logradouro || current.street,
+                district: data.bairro || current.district,
+                city: data.localidade || current.city,
+                state: data.uf || current.state,
+            }));
+        } catch {
+            setAddressError('Não foi possível consultar o CEP agora. Preencha o endereço manualmente.');
+        } finally {
+            setCepLoading(false);
+        }
+    };
+
+    const captureLocation = () => {
+        if (!navigator.geolocation) {
+            setAddressError('Este navegador não oferece localização. Continue com o endereço manual.');
+            return;
+        }
+        if (!window.isSecureContext) {
+            setAddressError('A localização exige HTTPS. Neste teste em HTTP, continue com o endereço manual.');
+            return;
+        }
+
+        setLocationLoading(true);
+        setAddressError(null);
+        navigator.geolocation.getCurrentPosition(
+            ({ coords }) => {
+                setDeliveryAddress((current) => ({
+                    ...current,
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    accuracy: coords.accuracy,
+                }));
+                setLocationLoading(false);
+            },
+            () => {
+                setAddressError('Não foi possível obter sua localização. Confira a permissão do navegador.');
+                setLocationLoading(false);
+            },
+            { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
+        );
+    };
+
+    const finishOrder = async () => {
+        if (!checkoutValid) {
+            setShowValidationTip(true);
+            setError('Confirme os blocos marcados em vermelho antes de finalizar.');
+            window.setTimeout(() => setShowValidationTip(false), 3500);
+            return;
+        }
+
+        const paymentDescription = paymentTiming === 'pay_now'
+            ? `Pagar agora: ${selectedPayNowMethod?.name || paymentMethodCode}`
+            : `${paymentOptions.pay_on_fulfillment.label}${selectedPayLaterMethod ? `: ${selectedPayLaterMethod.name}` : ''}`;
+        const changeNote = cashAtDelivery && needsChange ? `Troco para: R$ ${changeFor}` : '';
+        const locationNote = deliveryAddress.latitude && deliveryAddress.longitude
+            ? `Localização: ${deliveryAddress.latitude},${deliveryAddress.longitude} (precisão ${Math.round(deliveryAddress.accuracy || 0)}m)`
+            : '';
+
+        try {
             setLoading(true);
             setError(null);
+            setStockIssue(false);
 
             const result = await PublicOrderService.createPublicOrder({
                 slug: storeSlug,
                 customer_name: clientName.trim(),
-                customer_phone: phoneDigits,
-                fulfillment_type: 'pickup',
-                sales_channel: 'public_store',
-                payment_method_code: paymentMethod,
-                delivery_method_code: 'pickup',
-                items: items.map((item) => ({
-                    product_id: item.id,
-                    quantity: item.quantity,
-                })),
-                delivery_address: {},
-                table_code: null,
-                notes: null,
+                customer_phone: phoneValidation.normalized,
+                fulfillment_type: effectiveFulfillment,
+                sales_channel: isTableContext ? 'qr_table' : 'public_store',
+                payment_selection: paymentTiming === 'pay_now'
+                    ? {
+                        timing: 'pay_now',
+                        method_code: paymentMethodCode,
+                    }
+                    : {
+                        timing: 'pay_on_fulfillment',
+                        promised_method_code: promisedPaymentMethodCode || null,
+                        change_for: cashAtDelivery && needsChange && Number.isFinite(changeValue) ? changeValue : null,
+                    },
+                delivery_method_code: effectiveFulfillment === 'delivery'
+                    ? 'delivery'
+                    : effectiveFulfillment === 'table'
+                        ? 'qr_table'
+                        : 'pickup',
+                items: items.map((item) => ({ product_id: item.id, quantity: item.quantity })),
+                delivery_address: effectiveFulfillment === 'delivery'
+                    ? {
+                        street: deliveryAddress.street,
+                        number: deliveryAddress.number,
+                        complement: deliveryAddress.complement,
+                        district: deliveryAddress.district,
+                        city: deliveryAddress.city,
+                        state: deliveryAddress.state,
+                        zip_code: onlyDigits(deliveryAddress.zipCode),
+                        reference: deliveryAddress.reference,
+                    }
+                    : {},
+                table_code: context?.tableCode || null,
+                notes: [
+                    notes.trim(),
+                    cpf.trim() ? `CPF: ${onlyDigits(cpf)}` : '',
+                    `Pagamento: ${paymentDescription}`,
+                    changeNote,
+                    locationNote,
+                ].filter(Boolean).join('\n') || null,
             });
 
             if (!result.ok || !result.order) {
-                const labels: Record<string, string> = {
-                    insufficient_stock: `Estoque insuficiente para ${result.product_name || 'um dos itens'}.`,
-                    product_unavailable: 'Um dos produtos não está mais disponível.',
-                    payment_method_disabled: 'Forma de pagamento indisponível.',
-                    delivery_method_disabled: 'Forma de retirada indisponível.',
-                    invalid_customer_phone: 'WhatsApp inválido.',
-                    empty_cart: 'Carrinho vazio.',
-                };
-                setError(labels[result.error || ''] || result.message || 'Não foi possível criar o pedido.');
+                if (['insufficient_stock', 'product_unavailable'].includes(result.error || '')) {
+                    setStockIssue(true);
+                    setError(`☹️ Que pena… ${result.product_name || 'Um produto que você queria'} não está mais disponível. Revise o carrinho para continuar.`);
+                } else if (['minimum_order_not_reached', 'minimum_order_value_not_met', 'delivery_minimum_order_value_not_met', 'delivery_minimum_not_met'].includes(result.error || '')) {
+                    const minimum = Number(result.minimum_order_value || 0);
+                    const current = Number(result.current_total || totalValue);
+                    setError(minimum > 0
+                        ? `Pedido mínimo para delivery: R$ ${formatBRL(minimum)}. Seu carrinho está em R$ ${formatBRL(current)}.`
+                        : 'O valor do pedido está abaixo do mínimo configurado para delivery.');
+                } else {
+                    const labels: Record<string, string> = {
+                        payment_method_disabled: 'A forma de pagamento escolhida não está disponível para este pedido.',
+                        payment_method_required: 'Escolha uma forma para pagar agora.',
+                        payment_integration_unavailable: 'A integração desta forma de pagamento ainda não está disponível.',
+                        payment_method_misconfigured: 'Esta forma de pagamento precisa ser revisada pela loja.',
+                        invalid_payment_timing: 'Escolha se deseja pagar agora ou no recebimento.',
+                        delivery_payment_method_required: 'Escolha como pretende pagar na entrega.',
+                        delivery_payment_method_disabled: 'A forma escolhida para pagar na entrega não está disponível.',
+                        invalid_change_for: 'Confira o valor informado para o troco.',
+                        delivery_method_disabled: 'A forma de recebimento escolhida não está disponível.',
+                        invalid_customer_phone: 'Confira o número de telefone informado.',
+                        empty_cart: 'Seu carrinho está vazio.',
+                    };
+                    setError(labels[result.error || ''] || result.message || 'Não foi possível criar o pedido. Confira os dados e tente novamente.');
+                }
                 return;
             }
 
             const trackingUrl = `${window.location.origin}/p/${encodeURIComponent(result.order.public_order_token)}`;
-            const catalogUrl = `${window.location.origin}${storePath}`;
             const firstName = clientName.trim().split(/\s+/)[0] || 'Cliente';
             const message = [
                 `Olá! Acabei de fazer o pedido nº *${compactOrderCode(result.order.order_code)}* pelo catálogo.`,
                 '',
                 `Meu nome é *${firstName}*.`,
                 '',
-                'Acompanhar pedido:',
-                trackingUrl,
+                'Veja o link para acompanhamento do pedido ↓↓:',
                 '',
-                'Catálogo:',
-                catalogUrl,
+                trackingUrl,
             ].join('\n');
-
             const whatsappUrl = result.whatsapp?.digits && canOpenWhatsapp(result.whatsapp.digits)
                 ? buildWhatsappUrl(result.whatsapp.digits, message)
                 : result.whatsapp?.url;
 
+            localStorage.removeItem(draftKey);
             clearCart();
-
             navigate(storePath, {
                 replace: true,
                 state: {
@@ -132,15 +637,10 @@ export default function Checkout() {
                     },
                 },
             });
-
-            if (whatsappUrl) {
-                window.setTimeout(() => {
-                    window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
-                }, 150);
-            }
-        } catch (err) {
-            console.error('Erro ao finalizar pedido público:', err);
-            setError('Não foi possível finalizar o pedido agora. Tente novamente.');
+            if (whatsappUrl) window.setTimeout(() => window.open(whatsappUrl, '_blank', 'noopener,noreferrer'), 150);
+        } catch (cause) {
+            console.error('Erro ao finalizar pedido público:', cause);
+            setError('Não foi possível concluir o pedido neste dispositivo. Confira a conexão e tente novamente.');
         } finally {
             setLoading(false);
         }
@@ -148,121 +648,458 @@ export default function Checkout() {
 
     if (items.length === 0) {
         return (
-            <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50">
-                <ShoppingBag size={64} className="text-gray-300 mb-4" />
-                <p className="text-gray-500 mb-6 font-medium">Seu carrinho está vazio.</p>
-                <Link to={storePath} className="bg-green-600 text-white px-8 py-3 rounded-full font-bold shadow-lg hover:bg-green-700 transition uppercase text-sm tracking-wide">
-                    Voltar ao cardápio
+            <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4">
+                <ShoppingBag size={64} className="mb-4 text-slate-300" />
+                <h1 className="text-xl font-black text-slate-800">Seu carrinho está vazio</h1>
+                <p className="mb-6 mt-2 text-center text-slate-500">Seus dados de checkout continuam salvos neste navegador.</p>
+                <Link to={storePath} className="rounded-full bg-emerald-600 px-8 py-3 text-sm font-bold text-white">
+                    Ver cardápio
                 </Link>
             </div>
         );
     }
 
-    return (
-        <div className="min-h-screen bg-gray-50 pb-32 font-sans">
-            <header className="bg-white p-4 sticky top-0 z-40 border-b flex items-center gap-4">
-                <Link to={storePath} className="p-2 hover:bg-gray-100 rounded-full transition">
-                    <ArrowLeft className="w-6 h-6 text-gray-700" />
-                </Link>
-                <h1 className="text-xl font-black text-gray-800 uppercase tracking-tighter">Finalizar pedido</h1>
-            </header>
-
-            <main className="max-w-2xl mx-auto px-4 mt-6 space-y-6">
-                <section>
-                    <div className="flex items-center justify-between mb-3">
-                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Seu carrinho</h2>
-                        <button type="button" onClick={handleClearCart} className="text-xs font-bold text-red-500 flex items-center gap-1.5">
-                            <Trash2 size={14} /> Limpar
+    if (view === 'cart') {
+        return (
+            <div className="min-h-screen bg-white pb-32 text-slate-950">
+                <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95">
+                    <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
+                        <Link to={storePath} className="rounded-full p-2"><ArrowLeft className="h-7 w-7" /></Link>
+                        <div className="min-w-0 flex-1">
+                            <h1 className="text-2xl font-black">Seu carrinho</h1>
+                            <p className="text-slate-500">{totalUnits} {totalUnits === 1 ? 'item' : 'itens'}</p>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (window.confirm('Deseja realmente limpar seu carrinho? Os dados de entrega e identificação serão preservados.')) {
+                                    clearCart();
+                                    navigate(storePath, { replace: true });
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-2 font-bold text-red-600"
+                        >
+                            <Trash2 size={18} /> Limpar
                         </button>
                     </div>
-                    <div className="bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
-                        {items.map((item, index) => (
-                            <div key={item.id} className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${index !== items.length - 1 ? 'border-b border-gray-100 pb-4 mb-4' : ''}`}>
-                                <div className="min-w-0">
-                                    <p className="truncate text-sm font-semibold text-gray-700">{item.name}</p>
-                                    <p className="mt-1 text-xs text-gray-400">R$ {item.price.toFixed(2).replace('.', ',')} cada</p>
-                                </div>
-                                <div className="flex items-center justify-between gap-4 sm:justify-end">
-                                    <div className="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
-                                        <button
-                                            type="button"
-                                            onClick={() => changeQuantity(item.id, item.quantity, -1)}
-                                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition hover:bg-white hover:text-red-600"
-                                            aria-label={`Diminuir quantidade de ${item.name}`}
-                                        >
-                                            <Minus size={16} />
+                </header>
+
+                <main className="mx-auto max-w-3xl px-4 py-5">
+                    <section className="divide-y divide-slate-100">
+                        {items.map((item) => {
+                            const imageUrl = getItemImage(item);
+                            const original = Number(item.originalPrice || item.price || 0);
+                            const applied = Number(item.price || 0);
+                            const baseLine = original * item.quantity;
+                            const line = applied * item.quantity;
+                            const saving = Math.max(0, baseLine - line);
+
+                            return (
+                                <article key={item.id} className="py-5 first:pt-1">
+                                    <div className="flex gap-4">
+                                        <button type="button" onClick={() => openProduct(item)} className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                                            {imageUrl ? <img src={imageUrl} alt={item.name} className="h-full w-full object-cover" /> : <ImageOff className="text-slate-300" />}
                                         </button>
-                                        <span className="min-w-10 text-center text-sm font-black text-gray-800">{item.quantity}</span>
-                                        <button
-                                            type="button"
-                                            onClick={() => changeQuantity(item.id, item.quantity, 1)}
-                                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition hover:bg-white hover:text-green-700"
-                                            aria-label={`Aumentar quantidade de ${item.name}`}
-                                        >
-                                            <Plus size={16} />
-                                        </button>
+                                        <div className="min-w-0 flex-1">
+                                            <button type="button" onClick={() => openProduct(item)} className="text-left">
+                                                <h2 className="line-clamp-2 text-lg font-bold">{item.name}</h2>
+                                            </button>
+                                            <div className="mt-2 flex items-end justify-between gap-3">
+                                                <div>
+                                                    <div className="flex flex-wrap items-baseline gap-2">
+                                                        <p className="text-xl font-black text-emerald-700">R$ {formatBRL(line)}</p>
+                                                        <p className="text-xs font-semibold text-emerald-700">R$ {formatBRL(applied)} un</p>
+                                                    </div>
+                                                    {saving > 0.009 && (
+                                                        <div className="mt-1 text-xs">
+                                                            <p className="flex gap-2 text-slate-400 line-through">
+                                                                <span>R$ {formatBRL(baseLine)}</span><span>R$ {formatBRL(original)} un</span>
+                                                            </p>
+                                                            <p className="mt-1 font-bold text-emerald-700">Economizou R$ {formatBRL(saving)}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="inline-flex h-11 items-center rounded-full border border-slate-300 px-1">
+                                                    <button type="button" onClick={() => changeQuantity(item.id, item.quantity, -1)} className="h-9 w-9"><Minus size={18} /></button>
+                                                    <input type="number" min={1} value={item.quantity} onChange={(event) => setDirectQuantity(item.id, event.target.value)} className="h-9 w-10 text-center font-black outline-none" />
+                                                    <button type="button" onClick={() => changeQuantity(item.id, item.quantity, 1)} className="h-9 w-9"><Plus size={18} /></button>
+                                                </div>
+                                            </div>
+                                            <div className="mt-4 flex justify-between gap-3">
+                                                <button type="button" className="text-sm font-semibold text-emerald-700">+ Adicionar observação</button>
+                                                <button type="button" onClick={() => removeFromCart(item.id)} className="text-sm font-bold text-red-600">Remover</button>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <span className="min-w-24 text-right font-bold">R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</span>
-                                </div>
-                            </div>
-                        ))}
+                                </article>
+                            );
+                        })}
+                    </section>
+
+                    <Link to={storePath} className="mt-2 flex items-center justify-center gap-2 border-y border-slate-100 py-5 font-black text-emerald-700">
+                        <Plus size={20} /> Adicionar mais itens
+                    </Link>
+
+                    {hasEligibleDiscountProducts && (
+                        <section className="my-5 rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+                            <h2 className="font-black">Compre mais e aumente seu desconto</h2>
+                            <p className="mt-1 text-sm font-medium">
+                                Comprando mais unidades dos produtos elegíveis o seu desconto aumenta!{' '}
+                                <button type="button" onClick={() => setShowPromotionsModal(true)} className="font-black underline">Saiba mais →</button>
+                            </p>
+                        </section>
+                    )}
+                </main>
+
+                <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white px-4 pb-4 pt-3">
+                    <div className="mx-auto flex max-w-3xl items-center gap-4">
+                        <div className="flex-1">
+                            <p className="text-2xl font-black">R$ {formatBRL(totalValue)}</p>
+                            {discountTotal > 0.009 && <p className="text-sm font-bold text-emerald-700">Economizou R$ {formatBRL(discountTotal)}</p>}
+                        </div>
+                        <button type="button" onClick={goToReview} className="flex min-h-14 items-center gap-3 rounded-2xl bg-emerald-600 px-6 text-lg font-black text-white">
+                            Continuar <span className="rounded-full bg-white px-2 py-1 text-sm text-emerald-700">{totalUnits}</span>
+                        </button>
                     </div>
+                </div>
+
+                <ProductModal product={selectedProduct} isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} onAddToCart={(product, quantity) => addToCart(product, quantity)} />
+                <CheckoutPromotionsModal isOpen={showPromotionsModal} onClose={() => setShowPromotionsModal(false)} />
+            </div>
+        );
+    }
+
+    if (view === 'fulfillment') {
+        return (
+            <div className="min-h-screen bg-slate-50 pb-24">
+                <CheckoutHeader title="Entrega" subtitle="Escolha como deseja receber" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl px-4 py-5">
+                    <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                        <button type="button" onClick={() => { setFulfillment('pickup', 'pickup'); resetPaymentSelection(); setView('review'); }} className="flex w-full items-center gap-4 border-b px-4 py-5 text-left">
+                            <Store /><span className="flex-1"><span className="block font-black">Retirar na loja</span><span className="text-sm text-slate-500">Sem taxa de entrega</span></span>
+                            {effectiveFulfillment === 'pickup' && <CheckCircle2 className="text-emerald-600" />}
+                        </button>
+                        <button type="button" onClick={() => { setFulfillment('delivery', 'delivery'); resetPaymentSelection(); }} className="flex w-full items-center gap-4 px-4 py-5 text-left">
+                            <MapPin /><span className="flex-1"><span className="block font-black">Receber em casa</span><span className="text-sm text-slate-500">Informe o endereço para calcular condições</span></span>
+                            {effectiveFulfillment === 'delivery' && <CheckCircle2 className="text-emerald-600" />}
+                        </button>
+                    </section>
+
+                    {effectiveFulfillment === 'delivery' && (
+                        <section className="mt-4 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+                            <h2 className="font-black">Endereço de entrega</h2>
+                            <div className="flex gap-2">
+                                <input placeholder="CEP" inputMode="numeric" value={deliveryAddress.zipCode} onChange={(event) => setDeliveryAddress((state) => ({ ...state, zipCode: formatCep(event.target.value) }))} onBlur={() => { if (onlyDigits(deliveryAddress.zipCode).length === 8) void lookupCep(); }} className="min-w-0 flex-1 rounded-xl bg-slate-50 p-4" />
+                                <button type="button" onClick={() => void lookupCep()} disabled={cepLoading} className="rounded-xl border px-4 font-bold text-emerald-700">
+                                    {cepLoading ? 'Buscando…' : 'Buscar'}
+                                </button>
+                            </div>
+                            <input placeholder="Logradouro" value={deliveryAddress.street} onChange={(event) => setDeliveryAddress((state) => ({ ...state, street: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+                                <input placeholder="Número" disabled={withoutNumber} value={withoutNumber ? '' : deliveryAddress.number} onChange={(event) => setDeliveryAddress((state) => ({ ...state, number: event.target.value }))} className="min-w-0 rounded-xl bg-slate-50 p-4 disabled:text-slate-400" />
+                                <label className="flex items-center gap-2 whitespace-nowrap text-sm font-bold text-slate-700">
+                                    <input type="checkbox" checked={withoutNumber} onChange={(event) => setDeliveryAddress((state) => ({ ...state, number: event.target.checked ? 'S/N' : '' }))} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
+                                    Sem número
+                                </label>
+                            </div>
+                            <input placeholder={withoutNumber ? 'Complemento obrigatório' : 'Complemento'} value={deliveryAddress.complement} onChange={(event) => setDeliveryAddress((state) => ({ ...state, complement: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <input placeholder="Bairro" value={deliveryAddress.district} onChange={(event) => setDeliveryAddress((state) => ({ ...state, district: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <div className="grid grid-cols-[2fr_1fr] gap-3">
+                                <input placeholder="Cidade" value={deliveryAddress.city} onChange={(event) => setDeliveryAddress((state) => ({ ...state, city: event.target.value }))} className="rounded-xl bg-slate-50 p-4" />
+                                <input placeholder="UF" maxLength={2} value={deliveryAddress.state} onChange={(event) => setDeliveryAddress((state) => ({ ...state, state: event.target.value.toUpperCase() }))} className="rounded-xl bg-slate-50 p-4 uppercase" />
+                            </div>
+                            <input placeholder="Ponto de referência" value={deliveryAddress.reference} onChange={(event) => setDeliveryAddress((state) => ({ ...state, reference: event.target.value }))} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <button type="button" onClick={captureLocation} disabled={locationLoading} className="flex w-full items-center justify-center gap-2 rounded-xl border p-4 font-bold text-emerald-700">
+                                <LocateFixed size={19} />
+                                {deliveryAddress.latitude ? 'Localização adicionada' : locationLoading ? 'Obtendo localização…' : 'Usar minha localização atual'}
+                            </button>
+                            {addressError && <p className="text-sm font-bold text-red-600">{addressError}</p>}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!addressValid) {
+                                        setAddressError('Preencha corretamente CEP, logradouro, número, bairro, cidade e UF. Para endereço sem número, informe o complemento.');
+                                        return;
+                                    }
+                                    setAddressError(null);
+                                    setView('review');
+                                }}
+                                className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white"
+                            >
+                                Salvar endereço
+                            </button>
+                        </section>
+                    )}
+                </main>
+            </div>
+        );
+    }
+
+    if (view === 'customer') {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <CheckoutHeader title="Seus dados" subtitle="Identificação do pedido" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl px-4 py-5">
+                    <section className="space-y-3 rounded-2xl bg-white p-4">
+                        <input placeholder="Seu nome" value={clientName} onChange={(event) => setClientName(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
+                        <label className="flex items-center gap-3 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-700">
+                            <input type="checkbox" checked={isBrazil} onChange={(event) => setIsBrazil(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
+                            Número do Brasil
+                        </label>
+                        {isBrazil ? (
+                            <input type="tel" inputMode="tel" placeholder="(DDD) telefone — aceita 0 e +55" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} onBlur={() => { const result = normalizeBrazilianPhone(clientPhone); if (result.isValid) setClientPhone(result.displayFormatted); }} className="w-full rounded-xl bg-slate-50 p-4" />
+                        ) : (
+                            <div className="grid grid-cols-[6rem_1fr] gap-3">
+                                <input inputMode="numeric" placeholder="DDI" value={internationalDdi} onChange={(event) => setInternationalDdi(onlyDigits(event.target.value).slice(0, 3))} className="rounded-xl bg-slate-50 p-4" />
+                                <input type="tel" inputMode="tel" placeholder="Número sem DDI" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} className="rounded-xl bg-slate-50 p-4" />
+                            </div>
+                        )}
+                        {clientPhone.trim() && !phoneValidation.isValid && <p className="text-sm font-bold text-red-600">{phoneValidation.error}</p>}
+                        <p className="text-xs leading-relaxed text-slate-500">Os dados ficam salvos apenas neste navegador até a conclusão do pedido ou limpeza dos dados do site.</p>
+                        <button type="button" onClick={() => { if (customerValid) setView('review'); }} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-40" disabled={!customerValid}>
+                            Salvar dados
+                        </button>
+                    </section>
+                </main>
+            </div>
+        );
+    }
+
+    if (view === 'payment') {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <CheckoutHeader title="Pagamento" subtitle="Escolha quando pagar e depois a forma disponível" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
+                    {paymentOptionsLoading && (
+                        <section className="rounded-2xl bg-white p-5 text-sm font-semibold text-slate-500">Carregando opções de pagamento…</section>
+                    )}
+                    {paymentOptionsError && (
+                        <section className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{paymentOptionsError}</section>
+                    )}
+
+                    {!paymentOptionsLoading && paymentOptions.pay_now.length > 0 && (
+                        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                            <div className="border-b border-slate-100 px-4 py-4">
+                                <h2 className="text-lg font-black text-slate-950">Pagar agora</h2>
+                                <p className="mt-1 text-sm text-slate-500">Somente formas configuradas pela loja aparecem aqui.</p>
+                            </div>
+                            {paymentOptions.pay_now.map((method) => (
+                                <button
+                                    key={method.code}
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentTiming('pay_now');
+                                        setPaymentMethodCode(method.code);
+                                        setPromisedPaymentMethodCode('');
+                                        setNeedsChange(false);
+                                        setChangeFor('');
+                                    }}
+                                    className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_now' && paymentMethodCode === method.code ? 'bg-emerald-50' : ''}`}
+                                >
+                                    <Wallet />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block font-black text-slate-950">{method.name}</span>
+                                        <span className="mt-1 block text-sm text-slate-500">
+                                            {method.description || (method.requires_proof ? 'Envie o comprovante após criar o pedido.' : 'Confirmação automática pela integração configurada.')}
+                                        </span>
+                                        <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-[11px] font-black uppercase text-slate-600">
+                                            {method.requires_proof ? 'comprovante manual' : 'confirmação automática'}
+                                        </span>
+                                    </span>
+                                    {paymentTiming === 'pay_now' && paymentMethodCode === method.code && <CheckCircle2 className="shrink-0 text-emerald-600" />}
+                                </button>
+                            ))}
+                        </section>
+                    )}
+
+                    {!paymentOptionsLoading && paymentOptions.pay_on_fulfillment.enabled && (
+                        <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                            <div className="border-b border-slate-100 px-4 py-4">
+                                <h2 className="text-lg font-black text-slate-950">{paymentOptions.pay_on_fulfillment.label}</h2>
+                                <p className="mt-1 text-sm text-slate-500">
+                                    {paymentOptions.pay_on_fulfillment.requires_method_choice
+                                        ? 'Informe como pretende pagar quando o pedido chegar.'
+                                        : 'A forma real será escolhida no momento do recebimento.'}
+                                </p>
+                            </div>
+
+                            {!paymentOptions.pay_on_fulfillment.requires_method_choice ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPaymentTiming('pay_on_fulfillment');
+                                        setPaymentMethodCode('');
+                                        setPromisedPaymentMethodCode('');
+                                        setNeedsChange(false);
+                                        setChangeFor('');
+                                    }}
+                                    className={`flex w-full items-center gap-4 px-4 py-5 text-left ${paymentTiming === 'pay_on_fulfillment' ? 'bg-emerald-50' : ''}`}
+                                >
+                                    <Store />
+                                    <span className="flex-1 font-black text-slate-950">Escolher a forma no recebimento</span>
+                                    {paymentTiming === 'pay_on_fulfillment' && <CheckCircle2 className="text-emerald-600" />}
+                                </button>
+                            ) : (
+                                paymentOptions.pay_on_fulfillment.methods.map((method) => (
+                                    <button
+                                        key={method.code}
+                                        type="button"
+                                        onClick={() => {
+                                            setPaymentTiming('pay_on_fulfillment');
+                                            setPaymentMethodCode('');
+                                            setPromisedPaymentMethodCode(method.code);
+                                            if (method.code !== 'cash') {
+                                                setNeedsChange(false);
+                                                setChangeFor('');
+                                            }
+                                        }}
+                                        className={`flex w-full items-center gap-4 border-b px-4 py-5 text-left last:border-0 ${paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code ? 'bg-emerald-50' : ''}`}
+                                    >
+                                        <Wallet />
+                                        <span className="flex-1 font-black text-slate-950">{method.name}</span>
+                                        {paymentTiming === 'pay_on_fulfillment' && promisedPaymentMethodCode === method.code && <CheckCircle2 className="text-emerald-600" />}
+                                    </button>
+                                ))
+                            )}
+                        </section>
+                    )}
+
+                    {cashAtDelivery && (
+                        <section className="space-y-3 rounded-2xl bg-white p-4 shadow-sm">
+                            <p className="font-black">Precisa de troco?</p>
+                            <div className="flex gap-3">
+                                <button type="button" onClick={() => { setNeedsChange(false); setChangeFor(''); }} className={`flex-1 rounded-xl border p-3 font-bold ${!needsChange ? 'border-emerald-500 bg-emerald-50' : ''}`}>Não</button>
+                                <button type="button" onClick={() => setNeedsChange(true)} className={`flex-1 rounded-xl border p-3 font-bold ${needsChange ? 'border-emerald-500 bg-emerald-50' : ''}`}>Sim</button>
+                            </div>
+                            {needsChange && <input inputMode="decimal" placeholder="Troco para R$" value={changeFor} onChange={(event) => setChangeFor(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />}
+                            {needsChange && changeFor && (!Number.isFinite(changeValue) || changeValue < totalValue) && <p className="text-sm font-bold text-red-600">O valor do troco deve ser igual ou maior que o total.</p>}
+                        </section>
+                    )}
+
+                    {!paymentOptionsLoading && paymentOptions.pay_now.length === 0 && !paymentOptions.pay_on_fulfillment.enabled && !paymentOptionsError && (
+                        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                            A loja ainda não configurou uma forma de pagamento disponível para este tipo de recebimento.
+                        </section>
+                    )}
+
+                    <button type="button" onClick={() => setView('review')} disabled={!paymentValid} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-40">
+                        Salvar pagamento
+                    </button>
+                </main>
+            </div>
+        );
+    }
+
+    if (view === 'cpf') {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <CheckoutHeader title="CPF no documento" subtitle="Campo opcional" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl px-4 py-5">
+                    <section className="space-y-3 rounded-2xl bg-white p-4">
+                        <input inputMode="numeric" placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
+                        <button type="button" onClick={() => setView('review')} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white">Salvar CPF</button>
+                    </section>
+                </main>
+            </div>
+        );
+    }
+
+    if (view === 'notes') {
+        return (
+            <div className="min-h-screen bg-slate-50">
+                <CheckoutHeader title="Observações" subtitle="Instruções gerais do pedido" onBack={() => setView('review')} />
+                <main className="mx-auto max-w-3xl px-4 py-5">
+                    <section className="space-y-3 rounded-2xl bg-white p-4">
+                        <textarea rows={6} placeholder="Ex.: chamar no portão..." value={notes} onChange={(event) => setNotes(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
+                        <button type="button" onClick={() => setView('review')} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white">Salvar observações</button>
+                    </section>
+                </main>
+            </div>
+        );
+    }
+
+    const fulfillmentDescription = effectiveFulfillment === 'delivery'
+        ? (addressValid ? `${deliveryAddress.street}, ${deliveryAddress.number} — ${deliveryAddress.district}` : 'Informe o endereço de entrega')
+        : effectiveFulfillment === 'table'
+            ? `Mesa/comanda ${context?.tableCode || ''}`
+            : 'Retirada na loja';
+    const customerDescription = customerValid ? `${clientName} • ${phoneValidation.displayFormatted}` : 'Informe nome e telefone';
+    const paymentDescription = paymentTiming === 'pay_now'
+        ? selectedPayNowMethod
+            ? `Pagar agora • ${selectedPayNowMethod.name}`
+            : 'Escolha a forma para pagar agora'
+        : paymentTiming === 'pay_on_fulfillment'
+            ? selectedPayLaterMethod
+                ? `${paymentOptions.pay_on_fulfillment.label} • ${selectedPayLaterMethod.name}${cashAtDelivery && needsChange ? ` • troco para R$ ${changeFor}` : ''}`
+                : paymentOptions.pay_on_fulfillment.label
+            : 'Escolha quando e como pagar';
+
+    return (
+        <div className="min-h-screen bg-slate-50 pb-32 text-slate-950">
+            <CheckoutHeader title="Finalizar pedido" subtitle="Revise as informações antes de confirmar" onBack={() => setView('cart')} />
+            <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
+                <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                    <ReviewRow icon={<MapPin size={21} />} title="Informações da entrega" description={fulfillmentDescription} missing={!fulfillmentValid || !addressValid} actionLabel="Alterar" onClick={() => setView('fulfillment')} />
+                    <ReviewRow icon={<UserRound size={21} />} title="Seus dados" description={customerDescription} missing={!customerValid} actionLabel="Alterar" onClick={() => setView('customer')} />
+                    <ReviewRow icon={<Wallet size={21} />} title="Pagamento" description={paymentDescription} missing={!paymentValid} actionLabel="Ver tudo" onClick={() => setView('payment')} />
                 </section>
 
-                <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-4">
-                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Identificação</h2>
-                    <input
-                        type="text"
-                        placeholder="Seu nome"
-                        value={clientName}
-                        onChange={(event) => setClientName(event.target.value)}
-                        className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-green-400"
-                    />
-                    <input
-                        type="tel"
-                        inputMode="tel"
-                        placeholder="WhatsApp com DDD"
-                        value={clientPhone}
-                        onChange={(event) => setClientPhone(event.target.value)}
-                        className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-green-400"
-                    />
+                <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
+                    <ReviewRow icon={<ShoppingBag size={21} />} title="Resumo do pedido" description={`${totalUnits} ${totalUnits === 1 ? 'item' : 'itens'} no carrinho`} actionLabel="Editar" onClick={() => setView('cart')} />
+                    <ReviewRow icon={<FileText size={21} />} title="CPF no documento" description={cpf.trim() ? `CPF final ${onlyDigits(cpf).slice(-4)}` : 'Não informado'} onClick={() => setView('cpf')} />
+                    <ReviewRow icon={<MessageSquareText size={21} />} title="Observações" description={notes.trim() || 'Nenhuma observação adicionada'} onClick={() => setView('notes')} />
                 </section>
 
-                <section className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-3">
-                    <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Pagamento</h2>
-                    <button type="button" disabled className="w-full flex items-center p-4 rounded-2xl border-2 border-gray-100 bg-gray-50 opacity-70 cursor-not-allowed">
-                        <Wallet className="w-5 h-5 mr-3 text-gray-400" />
-                        <span className="text-left">
-                            <span className="block font-bold text-gray-600">Pagar aqui</span>
-                            <span className="block text-xs text-gray-400">PIX e cartão serão habilitados quando a integração online estiver configurada.</span>
-                        </span>
-                    </button>
-                    <button type="button" onClick={() => setPaymentMethod('pending')} className={`w-full flex items-center p-4 rounded-2xl border-2 ${paymentMethod === 'pending' ? 'border-green-500 bg-green-50' : 'border-gray-100'}`}>
-                        <Store className="w-5 h-5 mr-3 text-gray-500" />
-                        <span className="text-left">
-                            <span className="block font-bold text-gray-700">Pagar na retirada</span>
-                            <span className="block text-xs text-gray-500">A forma real será informada ao finalizar: PIX, dinheiro ou cartão.</span>
-                        </span>
-                        {paymentMethod === 'pending' && <CheckCircle2 className="w-5 h-5 ml-auto text-green-600" />}
-                    </button>
+                {discountTotal > 0.009 && (
+                    <section className="rounded-2xl bg-emerald-50 px-4 py-4 text-emerald-900">
+                        <h2 className="font-black">Economize hoje</h2>
+                        <p className="mt-1 text-sm font-medium">Você economizou R$ {formatBRL(discountTotal)} com os descontos aplicados.</p>
+                    </section>
+                )}
+
+                <section className="rounded-2xl bg-white p-4 shadow-sm">
+                    <div className="flex items-center gap-2"><ReceiptText size={20} className="text-slate-500" /><h2 className="font-black">Detalhes dos valores</h2></div>
+                    <div className="mt-4 space-y-3 text-sm">
+                        <div className="flex justify-between text-slate-600"><span>Subtotal</span><span>R$ {formatBRL(baseSubtotal)}</span></div>
+                        {discountTotal > 0.009 && <div className="flex justify-between font-bold text-emerald-700"><span>Descontos</span><span>- R$ {formatBRL(discountTotal)}</span></div>}
+                        <div className="flex justify-between text-slate-600"><span>Entrega*</span><span>{effectiveFulfillment === 'delivery' ? 'A calcular' : 'Sem taxa'}</span></div>
+                        <div className="flex justify-between text-slate-600"><span>Taxas*</span><span>A calcular</span></div>
+                        <div className="flex justify-between border-t border-slate-100 pt-3 text-base font-black"><span>Total parcial</span><span>R$ {formatBRL(totalValue)}</span></div>
+                    </div>
+                    <p className="mt-4 text-xs leading-relaxed text-slate-500">*Calculado após o preenchimento correto dos dados de entrega e pagamento.</p>
                 </section>
 
                 {error && (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                        {error}
+                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm font-medium text-red-700">
+                        <p>{error}</p>
+                        {stockIssue && (
+                            <button type="button" onClick={() => { setStockIssue(false); setError(null); setView('cart'); }} className="mt-3 rounded-xl bg-white px-4 py-2 font-black text-red-700 shadow-sm ring-1 ring-red-200">
+                                Revisar carrinho
+                            </button>
+                        )}
                     </div>
                 )}
             </main>
 
-            <div className="fixed bottom-0 left-0 right-0 p-5 bg-white/90 backdrop-blur-md border-t">
-                <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
-                    <div>
-                        <span className="block text-xs font-bold text-gray-400 uppercase">Total</span>
-                        <span className="text-2xl font-black text-green-600">R$ {totalValue.toFixed(2).replace('.', ',')}</span>
+            <div className="fixed inset-x-0 bottom-0 z-50 border-t bg-white px-4 pb-4 pt-3 shadow-[0_-8px_24px_rgba(15,23,42,0.08)]">
+                <div className="relative mx-auto flex max-w-3xl items-center gap-4">
+                    <div className="min-w-0 flex-1">
+                        <p className="text-2xl font-black">R$ {formatBRL(totalValue)}</p>
+                        {discountTotal > 0.009 && <p className="text-sm font-bold text-emerald-700">Economizou R$ {formatBRL(discountTotal)}</p>}
                     </div>
-                    <button type="button" onClick={finishOrder} disabled={loading} className="flex-1 bg-green-600 hover:bg-green-700 text-white py-4 rounded-2xl font-black uppercase text-sm flex items-center justify-center gap-3 disabled:opacity-60">
-                        {loading ? 'Criando pedido...' : 'Finalizar pelo WhatsApp'}
-                        {!loading && <Send className="w-5 h-5" />}
+                    {showValidationTip && (
+                        <div className="absolute bottom-full right-0 mb-2 max-w-xs rounded-xl bg-slate-950 px-3 py-2 text-xs font-bold text-white shadow-lg">
+                            Confirme os blocos marcados em vermelho.
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => void finishOrder()}
+                        aria-disabled={!checkoutValid || loading}
+                        className={`flex min-h-14 flex-1 items-center justify-center gap-3 rounded-2xl px-5 text-base font-black text-white sm:flex-none ${checkoutValid && !loading ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300'}`}
+                    >
+                        {loading ? 'Criando pedido...' : checkoutValid ? 'Finalizar pelo WhatsApp' : 'Confirme os dados'}
+                        {!loading && <Send size={19} />}
                     </button>
                 </div>
             </div>
