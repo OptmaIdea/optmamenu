@@ -880,7 +880,11 @@ export default function PurchaseDocumentsPage() {
       if (!receipts.length && doc.status === 'draft') return null
       return (
         <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-          Recebida {received.toLocaleString('pt-BR')} de {ordered.toLocaleString('pt-BR')} · Pendente {pending.toLocaleString('pt-BR')}
+          {doc.status === 'confirmed' && pending > 0 ? (
+            <>Recebida {received.toLocaleString('pt-BR')} de {ordered.toLocaleString('pt-BR')} · Entrada física encerrada · {pending.toLocaleString('pt-BR')} un. em ressalva comercial/documental</>
+          ) : (
+            <>Recebida {received.toLocaleString('pt-BR')} de {ordered.toLocaleString('pt-BR')} · Pendente {pending.toLocaleString('pt-BR')}</>
+          )}
         </div>
       )
     },

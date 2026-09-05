@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -253,6 +254,7 @@ export default function PurchaseReceiptModal(props: Props) {
     open, documentId, documentCode, supplierName, items, receipts, receiptItems, stockLocations,
     productName, actorName, canReceive, canReverse, saving, onClose, onReceive, onReverse,
   } = props
+  const navigate = useNavigate()
   const [locationId, setLocationId] = useState('')
   const [notes, setNotes] = useState('')
   const [formItems, setFormItems] = useState<Record<string, ReceiptFormItem>>({})
@@ -451,8 +453,8 @@ export default function PurchaseReceiptModal(props: Props) {
         })
         if (error) throw error
         toast.success('Tratativa atualizada e auditada.')
+        closeIssueAction()
         await loadIssues()
-        window.location.reload()
         return
       }
       if (actionMode === 'resolve') {
@@ -470,8 +472,8 @@ export default function PurchaseReceiptModal(props: Props) {
       const { error } = await supabase.rpc('cancel_purchase_receipt_issue', { p_issue_id: issue.id, p_reason: actionNotes.trim() })
       if (error) throw error
       toast.success('Ressalva cancelada sem apagar o histórico.')
+      closeIssueAction()
       await loadIssues()
-      window.location.reload()
     } catch (error) {
       console.error('Error handling purchase receipt issue:', error)
       toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a ressalva.')
@@ -588,6 +590,7 @@ export default function PurchaseReceiptModal(props: Props) {
               const openIssue = !['resolved', 'cancelled'].includes(issue.status)
               return <article key={issue.id} className={`rounded-xl border p-3 ${issue.status === 'resolved' ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/20' : issue.status === 'cancelled' ? 'border-slate-300 bg-slate-100 dark:border-slate-700 dark:bg-slate-900' : 'border-amber-200 bg-white dark:border-amber-800 dark:bg-slate-950'}`}>
                 <div className="flex flex-col gap-3 sm:flex-row sm:justify-between"><div><div className="flex flex-wrap gap-2"><b className="text-slate-950 dark:text-white">{issue.issue_code}</b><span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-900 dark:bg-amber-900/50 dark:text-amber-100">{TYPE_LABEL[issue.issue_type]} · {qty(issue.quantity)} un.</span><span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-bold dark:bg-slate-800">{STATUS_LABEL[issue.status]}</span></div><p className="mt-1 text-sm font-semibold">{productName(issue.product_id)} · {DISPOSITION_LABEL[issue.disposition]}</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{dateTime(issue.opened_at)} · {actorName(issue.opened_by)} · impacto {money(issue.estimated_amount)}</p>{issue.replacement_pending_quantity > 0 && <p className="mt-1 text-xs font-bold text-blue-700 dark:text-blue-300"><Truck className="mr-1 inline h-3.5 w-3.5" />Aguardando reposição: {qty(issue.replacement_pending_quantity)} un.</p>}{issue.notes && <p className="mt-2 text-sm">{issue.notes}</p>}{issue.resolution_notes && <p className="mt-2 rounded-lg bg-emerald-100/70 p-2 text-xs dark:bg-emerald-950/50">Solução: {issue.resolution_notes}{issue.resolution_reference ? ` · Ref.: ${issue.resolution_reference}` : ''}</p>}{issue.cancellation_reason && <p className="mt-2 text-xs text-slate-500">Cancelada: {issue.cancellation_reason}</p>}</div>
+                {openIssue && <button type="button" onClick={() => { onClose(); navigate(`/admin/stock/divergences?issue=${encodeURIComponent(issue.issue_code)}`) }} className="h-fit rounded-lg bg-teal-600 px-2.5 py-1.5 text-xs font-semibold text-white">Tratar pendência</button>}
                 {openIssue && canReceive && <div className="flex h-fit flex-wrap gap-2"><button type="button" onClick={() => beginIssueAction(issue, 'treatment')} className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-semibold dark:border-slate-600">Alterar tratativa</button>{issue.status !== 'waiting_supplier' && <button type="button" onClick={() => beginIssueAction(issue, 'resolve')} className="rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white">Registrar solução</button>}{canReverse && <button type="button" onClick={() => beginIssueAction(issue, 'cancel')} className="rounded-lg border border-rose-300 px-2.5 py-1.5 text-xs font-semibold text-rose-700 dark:border-rose-700 dark:text-rose-200">Cancelar</button>}</div>}</div>
                 {actionOpen && <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">{actionMode === 'treatment' && <label className="text-xs font-semibold">Nova tratativa<select value={actionDisposition} onChange={(event) => setActionDisposition(event.target.value as IssueDisposition)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white">{DISPOSITIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>}<label className="mt-2 block text-xs font-semibold">{actionMode === 'cancel' ? 'Motivo' : actionMode === 'resolve' ? 'Como foi resolvida?' : 'Observação'}<textarea rows={2} value={actionNotes} onChange={(event) => setActionNotes(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white" /></label>{actionMode !== 'cancel' && <label className="mt-2 block text-xs font-semibold">Referência (opcional)<input value={actionReference} onChange={(event) => setActionReference(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-950 dark:text-white" /></label>}<div className="mt-3 flex justify-end gap-2"><button type="button" onClick={closeIssueAction} className="rounded-lg border border-slate-300 px-3 py-2 text-xs dark:border-slate-600">Voltar</button><button type="button" disabled={issueSaving} onClick={() => void saveIssueAction(issue)} className={`rounded-lg px-3 py-2 text-xs font-semibold text-white disabled:opacity-50 ${actionMode === 'cancel' ? 'bg-rose-600' : 'bg-emerald-600'}`}>{issueSaving ? 'Salvando...' : 'Confirmar'}</button></div></div>}
               </article>

@@ -106,9 +106,12 @@ export default function StockDiscrepanciesPage() {
   const { hasPermission } = usePermissions(storeId ?? null);
   const canResolve = hasPermission('stock.manage') || hasPermission('stock.adjust');
   const canOpenPurchases = hasPermission('purchases.view') || hasPermission('purchases.confirm') || hasPermission('purchases.cancel');
+  const canTreatPurchaseIssues = hasPermission('purchases.confirm');
+  const canCancelPurchaseIssues = hasPermission('purchases.cancel');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const focusedOrderId = searchParams.get('orderId');
+  const focusedPurchaseIssueCode = searchParams.get('issue');
   const returnTo = searchParams.get('returnTo');
   const requestedStatus = searchParams.get('status') as StockDiscrepancyStatus | 'all' | null;
 
@@ -130,6 +133,12 @@ export default function StockDiscrepanciesPage() {
   const [resolutionType, setResolutionType] = useState('');
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selectedPurchaseIssue, setSelectedPurchaseIssue] = useState<PurchaseReceiptIssueQueueItem | null>(null);
+  const [purchaseIssueAction, setPurchaseIssueAction] = useState<'treatment' | 'resolve' | 'cancel'>('resolve');
+  const [purchaseIssueDisposition, setPurchaseIssueDisposition] = useState<PurchaseIssueDisposition>('partial_return');
+  const [purchaseIssueNotes, setPurchaseIssueNotes] = useState('');
+  const [purchaseIssueReference, setPurchaseIssueReference] = useState('');
+  const [purchaseIssueSaving, setPurchaseIssueSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!storeId) return;
@@ -167,6 +176,18 @@ export default function StockDiscrepanciesPage() {
   useEffect(() => {
     if (focusedOrderId) setStatus('all');
   }, [focusedOrderId]);
+
+  useEffect(() => {
+    if (!focusedPurchaseIssueCode) return;
+    const issue = purchaseIssues.find((item) => item.issue_code === focusedPurchaseIssueCode);
+    if (!issue) return;
+    setSearch(focusedPurchaseIssueCode);
+    setSelectedPurchaseIssue(issue);
+    setPurchaseIssueAction(issue.issue_status === 'waiting_supplier' ? 'treatment' : 'resolve');
+    setPurchaseIssueDisposition(issue.disposition);
+    setPurchaseIssueNotes('');
+    setPurchaseIssueReference(issue.resolution_reference || '');
+  }, [focusedPurchaseIssueCode, purchaseIssues]);
 
   const counts = useMemo(() => ({
     open: allOccurrences.filter((item) => item.status === 'open').length,
@@ -238,6 +259,63 @@ export default function StockDiscrepanciesPage() {
       toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a divergência.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  function beginPurchaseIssueTreatment(issue: PurchaseReceiptIssueQueueItem, action?: 'treatment' | 'resolve' | 'cancel') {
+    setSelectedPurchaseIssue(issue);
+    setPurchaseIssueAction(action || (issue.issue_status === 'waiting_supplier' ? 'treatment' : 'resolve'));
+    setPurchaseIssueDisposition(issue.disposition);
+    setPurchaseIssueNotes('');
+    setPurchaseIssueReference(issue.resolution_reference || '');
+  }
+
+  async function savePurchaseIssueTreatment() {
+    if (!selectedPurchaseIssue || !canTreatPurchaseIssues || purchaseIssueSaving) return;
+    const notes = purchaseIssueNotes.trim();
+    const reference = purchaseIssueReference.trim();
+    if ((purchaseIssueAction === 'resolve' || purchaseIssueAction === 'cancel') && notes.length < 3) {
+      toast.error(purchaseIssueAction === 'resolve' ? 'Descreva como a pendência foi resolvida.' : 'Informe o motivo do cancelamento.');
+      return;
+    }
+    if (purchaseIssueAction === 'cancel' && !canCancelPurchaseIssues) {
+      toast.error('Você não tem permissão para cancelar esta ressalva.');
+      return;
+    }
+    try {
+      setPurchaseIssueSaving(true);
+      if (purchaseIssueAction === 'treatment') {
+        const { error } = await supabase.rpc('update_purchase_receipt_issue_treatment', {
+          p_issue_id: selectedPurchaseIssue.issue_id,
+          p_disposition: purchaseIssueDisposition,
+          p_notes: notes || null,
+          p_resolution_reference: reference || null,
+        });
+        if (error) throw error;
+        toast.success('Tratativa atualizada e auditada.');
+      } else if (purchaseIssueAction === 'resolve') {
+        const { error } = await supabase.rpc('resolve_purchase_receipt_issue', {
+          p_issue_id: selectedPurchaseIssue.issue_id,
+          p_resolution_notes: notes,
+          p_resolution_reference: reference || null,
+        });
+        if (error) throw error;
+        toast.success('Pendência resolvida e preservada no histórico.');
+      } else {
+        const { error } = await supabase.rpc('cancel_purchase_receipt_issue', {
+          p_issue_id: selectedPurchaseIssue.issue_id,
+          p_reason: notes,
+        });
+        if (error) throw error;
+        toast.success('Ressalva cancelada sem apagar o histórico.');
+      }
+      setSelectedPurchaseIssue(null);
+      await load();
+    } catch (error) {
+      console.error('Erro ao tratar pendência de recebimento:', error);
+      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a pendência.');
+    } finally {
+      setPurchaseIssueSaving(false);
     }
   }
 
@@ -354,8 +432,8 @@ export default function StockDiscrepanciesPage() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300">Compras e fornecedores</p>
-                <h2 className="mt-1 text-lg font-black text-gray-900 dark:text-white">Ressalvas de recebimento de compras</h2>
-                <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">Faltas, avarias, itens incorretos, excessos, reposições, abatimentos, créditos e devoluções permanecem auditados até a solução final.</p>
+                <h2 className="mt-1 text-lg font-black text-gray-900 dark:text-white">Pendências de recebimento</h2>
+                <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">Fila operacional para tratar reposições, abatimentos, créditos e devoluções. Registre referência/protocolo, observação e conclusão sem reabrir a obrigação física já encerrada.</p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs font-black">
                 <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Ativas: {purchaseIssueCounts.active}</span>
@@ -421,11 +499,18 @@ export default function StockDiscrepanciesPage() {
                         {issue.cancellation_reason && <p className="mt-2 rounded-xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 dark:bg-gray-950 dark:text-gray-300">Cancelada: {issue.cancellation_reason}</p>}
                       </div>
 
-                      {canOpenPurchases && (
-                        <button type="button" onClick={() => navigate(`/admin/products/inventory/purchases?open=${encodeURIComponent(issue.purchase_document_id)}`)} className="h-fit shrink-0 rounded-xl border border-teal-300 bg-white px-4 py-2 text-sm font-black text-teal-700 hover:bg-teal-50 dark:border-teal-700 dark:bg-gray-950 dark:text-teal-200 dark:hover:bg-teal-950/30">
-                          Abrir compra
-                        </button>
-                      )}
+                      <div className="flex h-fit shrink-0 flex-wrap gap-2">
+                        {canTreatPurchaseIssues && !['resolved', 'cancelled'].includes(issue.issue_status) && (
+                          <button type="button" onClick={() => beginPurchaseIssueTreatment(issue)} className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white hover:bg-teal-700">
+                            Tratar pendência
+                          </button>
+                        )}
+                        {canOpenPurchases && (
+                          <button type="button" onClick={() => navigate(`/admin/stock/purchase-documents?open=${encodeURIComponent(issue.purchase_document_id)}`)} className="rounded-xl border border-teal-300 bg-white px-4 py-2 text-sm font-black text-teal-700 hover:bg-teal-50 dark:border-teal-700 dark:bg-gray-950 dark:text-teal-200 dark:hover:bg-teal-950/30">
+                            Abrir compra
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </article>
                 ))}
@@ -434,6 +519,74 @@ export default function StockDiscrepanciesPage() {
           </section>
         )}
       </div>
+
+      {selectedPurchaseIssue && (
+        <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/55 sm:items-center sm:p-4">
+          <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl dark:bg-gray-900 sm:rounded-3xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300">Pendência de recebimento</p>
+                <h2 className="mt-1 text-xl font-black text-gray-900 dark:text-white">{selectedPurchaseIssue.issue_code}</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{selectedPurchaseIssue.document_code || getShortDocumentReference(selectedPurchaseIssue.purchase_document_id, { fallbackLabel: 'Compra' })} · {selectedPurchaseIssue.supplier_name}</p>
+              </div>
+              <span className={`rounded-full px-3 py-1 text-xs font-black ${purchaseIssueBadgeClass(selectedPurchaseIssue.issue_status)}`}>{PURCHASE_ISSUE_STATUS_LABELS[selectedPurchaseIssue.issue_status]}</span>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60"><p className="text-xs font-black uppercase tracking-wider text-gray-400">Produto</p><p className="mt-1 font-black text-gray-900 dark:text-white">{selectedPurchaseIssue.product_name}</p></div>
+              <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60"><p className="text-xs font-black uppercase tracking-wider text-gray-400">Quantidade</p><p className="mt-1 font-black text-gray-900 dark:text-white">{formatQuantity(selectedPurchaseIssue.quantity)} un.</p></div>
+              <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60"><p className="text-xs font-black uppercase tracking-wider text-gray-400">Impacto</p><p className="mt-1 font-black text-gray-900 dark:text-white">{formatMoney(selectedPurchaseIssue.estimated_amount)}</p></div>
+            </div>
+
+            {Number(selectedPurchaseIssue.physical_closed_quantity) > 0 && (
+              <p className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200">
+                Obrigação física encerrada em {formatQuantity(selectedPurchaseIssue.physical_closed_quantity)} un. Esta tratativa não reabre quantidade para recebimento.
+              </p>
+            )}
+
+            <div className="mt-5 space-y-4">
+              <label className="block text-sm font-black text-gray-700 dark:text-gray-200">Ação
+                <select value={purchaseIssueAction} onChange={(event) => setPurchaseIssueAction(event.target.value as 'treatment' | 'resolve' | 'cancel')} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                  <option value="treatment">Alterar tratativa</option>
+                  {selectedPurchaseIssue.issue_status !== 'waiting_supplier' && <option value="resolve">Registrar solução e concluir</option>}
+                  {canCancelPurchaseIssues && <option value="cancel">Cancelar ressalva</option>}
+                </select>
+              </label>
+
+              {purchaseIssueAction === 'treatment' && (
+                <label className="block text-sm font-black text-gray-700 dark:text-gray-200">Tratativa
+                  <select value={purchaseIssueDisposition} onChange={(event) => setPurchaseIssueDisposition(event.target.value as PurchaseIssueDisposition)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                    <option value="awaiting_replacement">Fornecedor vai repor</option>
+                    <option value="discount">Abatimento / desconto</option>
+                    <option value="supplier_credit">Crédito / bonificação</option>
+                    <option value="partial_return">Devolução parcial</option>
+                    <option value="accepted_closed">Aceitar diferença e encerrar</option>
+                    <option value="other">Outra tratativa</option>
+                  </select>
+                </label>
+              )}
+
+              <label className="block text-sm font-black text-gray-700 dark:text-gray-200">{purchaseIssueAction === 'cancel' ? 'Motivo do cancelamento' : purchaseIssueAction === 'resolve' ? 'Como a pendência foi resolvida?' : 'Observação da tratativa'}
+                <textarea value={purchaseIssueNotes} onChange={(event) => setPurchaseIssueNotes(event.target.value)} rows={4} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder={purchaseIssueAction === 'resolve' ? 'Ex.: devolução entregue ao fornecedor e documento recebido.' : 'Registre o andamento da tratativa.'} />
+              </label>
+
+              {purchaseIssueAction !== 'cancel' && (
+                <label className="block text-sm font-black text-gray-700 dark:text-gray-200">Referência / protocolo / documento <span className="font-semibold text-gray-400">(opcional)</span>
+                  <input value={purchaseIssueReference} onChange={(event) => setPurchaseIssueReference(event.target.value)} className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-950 dark:text-white" placeholder="Ex.: protocolo, NF de devolução, crédito ou acordo" />
+                </label>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+              <button type="button" onClick={() => navigate(`/admin/stock/purchase-documents?open=${encodeURIComponent(selectedPurchaseIssue.purchase_document_id)}`)} className="rounded-xl border border-teal-300 px-4 py-2 text-sm font-black text-teal-700 dark:border-teal-700 dark:text-teal-200">Abrir compra</button>
+              <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                <button type="button" onClick={() => setSelectedPurchaseIssue(null)} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-black dark:border-gray-700 dark:text-white">Fechar</button>
+                <button type="button" onClick={() => void savePurchaseIssueTreatment()} disabled={purchaseIssueSaving} className={`rounded-xl px-4 py-2 text-sm font-black text-white disabled:opacity-60 ${purchaseIssueAction === 'cancel' ? 'bg-rose-600' : 'bg-teal-600'}`}>{purchaseIssueSaving ? 'Salvando…' : purchaseIssueAction === 'resolve' ? 'Concluir pendência' : purchaseIssueAction === 'cancel' ? 'Cancelar ressalva' : 'Salvar tratativa'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selected && (
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 sm:items-center sm:p-4">
