@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, ArrowLeft, CheckCircle2, RefreshCw, Search } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileWarning, RefreshCw, Search } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 import { getShortDocumentReference, getDocumentReferenceTitle } from '@/utils/documentReference';
 import PageContainer from '@/components/common/PageContainer';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -19,6 +20,62 @@ const STATUS_LABELS: Record<StockDiscrepancyStatus, string> = {
 };
 
 type TreatmentStatus = 'under_review' | 'waiting_stock_count' | 'resolved' | 'cancelled';
+type PurchaseIssueStatus = 'waiting_supplier' | 'waiting_financial' | 'waiting_document' | 'resolved' | 'cancelled';
+type PurchaseIssueType = 'shortage' | 'damage' | 'wrong_item' | 'excess' | 'other';
+type PurchaseIssueDisposition = 'awaiting_replacement' | 'discount' | 'supplier_credit' | 'partial_return' | 'accepted_closed' | 'other';
+
+type PurchaseReceiptIssueQueueItem = {
+  issue_id: string;
+  issue_code: string;
+  purchase_document_id: string;
+  document_code: string | null;
+  invoice_number: string | null;
+  supplier_id: string;
+  supplier_name: string;
+  product_id: string;
+  product_name: string;
+  issue_type: PurchaseIssueType;
+  issue_scope: string;
+  quantity: number;
+  disposition: PurchaseIssueDisposition;
+  issue_status: PurchaseIssueStatus;
+  replacement_pending_quantity: number;
+  physical_closed_quantity: number;
+  estimated_amount: number;
+  notes: string | null;
+  opened_by: string;
+  opened_at: string;
+  resolved_at: string | null;
+  resolution_notes: string | null;
+  resolution_reference: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+};
+
+const PURCHASE_ISSUE_STATUS_LABELS: Record<PurchaseIssueStatus, string> = {
+  waiting_supplier: 'Aguardando reposição',
+  waiting_financial: 'Aguardando acerto financeiro',
+  waiting_document: 'Aguardando documento / devolução',
+  resolved: 'Resolvida',
+  cancelled: 'Cancelada',
+};
+
+const PURCHASE_ISSUE_TYPE_LABELS: Record<PurchaseIssueType, string> = {
+  shortage: 'Falta',
+  damage: 'Avaria',
+  wrong_item: 'Item incorreto',
+  excess: 'Excesso',
+  other: 'Outro',
+};
+
+const PURCHASE_ISSUE_DISPOSITION_LABELS: Record<PurchaseIssueDisposition, string> = {
+  awaiting_replacement: 'Fornecedor vai repor',
+  discount: 'Abatimento / desconto',
+  supplier_credit: 'Crédito / bonificação',
+  partial_return: 'Devolução parcial',
+  accepted_closed: 'Diferença aceita e encerrada',
+  other: 'Outra tratativa',
+};
 
 function localDate(value: Date) {
   const year = value.getFullYear();
@@ -27,10 +84,28 @@ function localDate(value: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatQuantity(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return (Number.isFinite(numeric) ? numeric : 0).toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+}
+
+function formatMoney(value: number | string | null | undefined) {
+  const numeric = Number(value ?? 0);
+  return (Number.isFinite(numeric) ? numeric : 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function purchaseIssueBadgeClass(status: PurchaseIssueStatus) {
+  if (status === 'resolved') return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200';
+  if (status === 'cancelled') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200';
+  if (status === 'waiting_supplier') return 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200';
+  return 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200';
+}
+
 export default function StockDiscrepanciesPage() {
   const { storeId, loading: loadingStore } = useCurrentStore();
   const { hasPermission } = usePermissions(storeId ?? null);
   const canResolve = hasPermission('stock.manage') || hasPermission('stock.adjust');
+  const canOpenPurchases = hasPermission('purchases.view') || hasPermission('purchases.confirm') || hasPermission('purchases.cancel');
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const focusedOrderId = searchParams.get('orderId');
@@ -39,8 +114,10 @@ export default function StockDiscrepanciesPage() {
 
   const [occurrences, setOccurrences] = useState<StockDiscrepancyOccurrence[]>([]);
   const [allOccurrences, setAllOccurrences] = useState<StockDiscrepancyOccurrence[]>([]);
+  const [purchaseIssues, setPurchaseIssues] = useState<PurchaseReceiptIssueQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StockDiscrepancyStatus | 'all'>(() => focusedOrderId ? 'all' : requestedStatus || 'open');
+  const [purchaseIssueStatus, setPurchaseIssueStatus] = useState<PurchaseIssueStatus | 'all'>('all');
   const [search, setSearch] = useState('');
   const [startDate, setStartDate] = useState(() => {
     const value = new Date();
@@ -58,19 +135,28 @@ export default function StockDiscrepanciesPage() {
     if (!storeId) return;
     try {
       setLoading(true);
-      const [filtered, all] = await Promise.all([
+      const [filtered, all, purchaseIssueResult] = await Promise.all([
         StockDiscrepancyService.list(storeId, status, startDate, endDate),
         StockDiscrepancyService.list(storeId, 'all', startDate, endDate),
+        supabase.rpc('list_purchase_receipt_issues_safe', {
+          p_store_id: storeId,
+          p_status: purchaseIssueStatus,
+          p_start_date: startDate || null,
+          p_end_date: endDate || null,
+          p_limit: 500,
+        }),
       ]);
+      if (purchaseIssueResult.error) throw purchaseIssueResult.error;
       setOccurrences(filtered);
       setAllOccurrences(all);
+      setPurchaseIssues((purchaseIssueResult.data ?? []) as PurchaseReceiptIssueQueueItem[]);
     } catch (error) {
-      console.error('Erro ao carregar divergências de estoque:', error);
+      console.error('Erro ao carregar divergências operacionais:', error);
       toast.error(error instanceof Error ? error.message : 'Não foi possível carregar as divergências.');
     } finally {
       setLoading(false);
     }
-  }, [storeId, status, startDate, endDate]);
+  }, [storeId, status, purchaseIssueStatus, startDate, endDate]);
 
   useRefreshFrame(load);
 
@@ -88,6 +174,13 @@ export default function StockDiscrepanciesPage() {
     resolved: allOccurrences.filter((item) => item.status === 'resolved').length,
   }), [allOccurrences]);
 
+  const purchaseIssueCounts = useMemo(() => ({
+    active: purchaseIssues.filter((item) => !['resolved', 'cancelled'].includes(item.issue_status)).length,
+    supplier: purchaseIssues.filter((item) => item.issue_status === 'waiting_supplier').length,
+    financial: purchaseIssues.filter((item) => item.issue_status === 'waiting_financial').length,
+    document: purchaseIssues.filter((item) => item.issue_status === 'waiting_document').length,
+  }), [purchaseIssues]);
+
   const term = search.trim().toLocaleLowerCase('pt-BR');
   const visibleOccurrences = occurrences.filter((occurrence) => {
     if (focusedOrderId && occurrence.order_id !== focusedOrderId) return false;
@@ -98,6 +191,20 @@ export default function StockDiscrepanciesPage() {
       occurrence.location_name || '',
       occurrence.operator_name || '',
       products,
+    ].some((value) => value.toLocaleLowerCase('pt-BR').includes(term));
+  });
+
+  const visiblePurchaseIssues = purchaseIssues.filter((issue) => {
+    if (!term) return true;
+    return [
+      issue.issue_code,
+      issue.document_code || '',
+      issue.invoice_number || '',
+      issue.supplier_name || '',
+      issue.product_name || '',
+      issue.notes || '',
+      issue.resolution_notes || '',
+      issue.resolution_reference || '',
     ].some((value) => value.toLocaleLowerCase('pt-BR').includes(term));
   });
 
@@ -152,7 +259,7 @@ export default function StockDiscrepanciesPage() {
             <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-600 dark:text-amber-300">Auditoria operacional</p>
             <h1 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">Divergências de estoque</h1>
             <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
-              Uma divergência só deixa de ser pendente quando o estado é marcado como <strong>Resolvida</strong> ou <strong>Cancelada</strong>. “Aguardando contagem física” continua em tratamento.
+              Centraliza divergências físicas de vendas e ressalvas de recebimento de compras. Cada fluxo mantém seu próprio estado e histórico de tratamento.
             </p>
             {focusedOrderId && <p className="mt-2 text-xs font-black text-teal-700 dark:text-teal-300">Exibindo somente a divergência vinculada à venda selecionada.</p>}
           </div>
@@ -163,7 +270,7 @@ export default function StockDiscrepanciesPage() {
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-            <p className="text-xs font-black uppercase tracking-widest text-gray-400">No filtro</p>
+            <p className="text-xs font-black uppercase tracking-widest text-gray-400">Vendas no filtro</p>
             <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{visibleOccurrences.length}</p>
           </div>
           <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
@@ -180,54 +287,151 @@ export default function StockDiscrepanciesPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid gap-3 rounded-2xl border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:grid-cols-2 xl:grid-cols-6">
           <label className="relative xl:col-span-2">
             <Search size={16} className="absolute left-3 top-3 text-gray-400" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Venda, produto, local ou operador" className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Venda, compra, produto, fornecedor, local ou operador" className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
           </label>
-          <select value={status} onChange={(event) => setStatus(event.target.value as StockDiscrepancyStatus | 'all')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white">
-            <option value="all">Todos os estados</option>
-            {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          <select value={status} onChange={(event) => setStatus(event.target.value as StockDiscrepancyStatus | 'all')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white" title="Estado das divergências de venda/estoque">
+            <option value="all">Vendas: todos os estados</option>
+            {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>Vendas: {label}</option>)}
+          </select>
+          <select value={purchaseIssueStatus} onChange={(event) => setPurchaseIssueStatus(event.target.value as PurchaseIssueStatus | 'all')} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white" title="Estado das ressalvas de recebimento">
+            <option value="all">Compras: todos os estados</option>
+            {Object.entries(PURCHASE_ISSUE_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>Compras: {label}</option>)}
           </select>
           <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
           <input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
         </div>
 
-        {loading ? <LoadingSpinner /> : visibleOccurrences.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-gray-300 p-12 text-center text-sm font-bold text-gray-500 dark:border-gray-700">
-            Nenhuma divergência encontrada neste filtro.
+        <section className="space-y-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-gray-400">Vendas e saldo físico</p>
+            <h2 className="mt-1 text-lg font-black text-gray-900 dark:text-white">Divergências físicas de vendas</h2>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">“Aguardando contagem física” continua em tratamento; somente Resolvida ou Cancelada encerra a ocorrência.</p>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {visibleOccurrences.map((occurrence) => (
-              <article key={occurrence.id} className="rounded-3xl border border-gray-100 bg-white p-5 shadow-xs dark:border-gray-800 dark:bg-gray-900">
-                <div className="flex flex-col gap-4 xl:flex-row xl:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${occurrence.status === 'resolved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : occurrence.status === 'cancelled' ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'}`}>
-                        {occurrence.status === 'resolved' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />} {STATUS_LABELS[occurrence.status]}
-                      </span>
-                      <span className="text-xs font-bold text-gray-400">{new Date(occurrence.created_at).toLocaleString('pt-BR')}</span>
+
+          {loading ? <LoadingSpinner /> : visibleOccurrences.length === 0 ? (
+            <div className="rounded-3xl border border-dashed border-gray-300 p-8 text-center text-sm font-bold text-gray-500 dark:border-gray-700">
+              Nenhuma divergência de venda encontrada neste filtro.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {visibleOccurrences.map((occurrence) => (
+                <article key={occurrence.id} className="rounded-3xl border border-gray-100 bg-white p-5 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${occurrence.status === 'resolved' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200' : occurrence.status === 'cancelled' ? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200'}`}>
+                          {occurrence.status === 'resolved' ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />} {STATUS_LABELS[occurrence.status]}
+                        </span>
+                        <span className="text-xs font-bold text-gray-400">{new Date(occurrence.created_at).toLocaleString('pt-BR')}</span>
+                      </div>
+                      <h3 className="mt-3 cursor-help text-lg font-black text-gray-900 dark:text-white" title={getDocumentReferenceTitle(occurrence.order_code || occurrence.order_id)}>
+                        {getShortDocumentReference(occurrence.order_code || occurrence.order_id, { fallbackLabel: 'Venda' })}
+                      </h3>
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Local: {occurrence.location_name || 'Não identificado'} · Operador: {occurrence.operator_name || 'Não identificado'}</p>
+                      {occurrence.resolution_notes && <p className="mt-2 rounded-xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 dark:bg-gray-950 dark:text-gray-300">Última anotação: {occurrence.resolution_notes}</p>}
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {occurrence.items.map((item, index) => (
+                          <div key={item.product_id || index} className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
+                            <p className="font-black text-gray-900 dark:text-white">{item.product_name || 'Produto'}</p>
+                            <p className="mt-1 text-xs font-bold text-gray-500">Solicitado {Number(item.requested_quantity ?? item.requested ?? 0)} · disponível {Number(item.available_quantity ?? item.available ?? 0)} · divergência {Number(item.shortage_quantity ?? item.shortage ?? 0)}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <h2 className="mt-3 cursor-help text-lg font-black text-gray-900 dark:text-white" title={getDocumentReferenceTitle(occurrence.order_code || occurrence.order_id)}>
-                      {getShortDocumentReference(occurrence.order_code || occurrence.order_id, { fallbackLabel: 'Venda' })}
-                    </h2>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Local: {occurrence.location_name || 'Não identificado'} · Operador: {occurrence.operator_name || 'Não identificado'}</p>
-                    {occurrence.resolution_notes && <p className="mt-2 rounded-xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 dark:bg-gray-950 dark:text-gray-300">Última anotação: {occurrence.resolution_notes}</p>}
-                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {occurrence.items.map((item, index) => (
-                        <div key={item.product_id || index} className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
-                          <p className="font-black text-gray-900 dark:text-white">{item.product_name || 'Produto'}</p>
-                          <p className="mt-1 text-xs font-bold text-gray-500">Solicitado {Number(item.requested_quantity ?? item.requested ?? 0)} · disponível {Number(item.available_quantity ?? item.available ?? 0)} · divergência {Number(item.shortage_quantity ?? item.shortage ?? 0)}</p>
-                        </div>
-                      ))}
-                    </div>
+                    {canResolve && !['resolved', 'cancelled'].includes(occurrence.status) && <button type="button" onClick={() => beginTreatment(occurrence)} className="h-fit shrink-0 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white">Tratar divergência</button>}
                   </div>
-                  {canResolve && !['resolved', 'cancelled'].includes(occurrence.status) && <button type="button" onClick={() => beginTreatment(occurrence)} className="h-fit shrink-0 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white">Tratar divergência</button>}
-                </div>
-              </article>
-            ))}
-          </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {!focusedOrderId && (
+          <section className="space-y-3 border-t border-gray-200 pt-5 dark:border-gray-800">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300">Compras e fornecedores</p>
+                <h2 className="mt-1 text-lg font-black text-gray-900 dark:text-white">Ressalvas de recebimento de compras</h2>
+                <p className="mt-1 max-w-3xl text-xs text-gray-500 dark:text-gray-400">Faltas, avarias, itens incorretos, excessos, reposições, abatimentos, créditos e devoluções permanecem auditados até a solução final.</p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs font-black">
+                <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Ativas: {purchaseIssueCounts.active}</span>
+                <span className="rounded-full bg-blue-100 px-3 py-1.5 text-blue-800 dark:bg-blue-950 dark:text-blue-200">Reposição: {purchaseIssueCounts.supplier}</span>
+                <span className="rounded-full bg-amber-100 px-3 py-1.5 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Financeiro: {purchaseIssueCounts.financial}</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-700 dark:bg-slate-800 dark:text-slate-200">Documento: {purchaseIssueCounts.document}</span>
+              </div>
+            </div>
+
+            {loading ? <LoadingSpinner /> : visiblePurchaseIssues.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-gray-300 p-8 text-center text-sm font-bold text-gray-500 dark:border-gray-700">
+                Nenhuma ressalva de recebimento encontrada neste filtro.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {visiblePurchaseIssues.map((issue) => (
+                  <article key={issue.issue_id} className="rounded-3xl border border-amber-100 bg-white p-5 shadow-xs dark:border-amber-900/50 dark:bg-gray-900">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-black ${purchaseIssueBadgeClass(issue.issue_status)}`}>
+                            {issue.issue_status === 'resolved' ? <CheckCircle2 size={13} /> : <FileWarning size={13} />} {PURCHASE_ISSUE_STATUS_LABELS[issue.issue_status]}
+                          </span>
+                          <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-black text-gray-700 dark:bg-gray-800 dark:text-gray-200">{PURCHASE_ISSUE_TYPE_LABELS[issue.issue_type]}</span>
+                          <span className="text-xs font-bold text-gray-400">{new Date(issue.opened_at).toLocaleString('pt-BR')}</span>
+                        </div>
+
+                        <div className="mt-3 flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3">
+                          <h3 className="text-lg font-black text-gray-900 dark:text-white">{issue.issue_code}</h3>
+                          <span className="text-sm font-black text-teal-700 dark:text-teal-300">{issue.document_code || getShortDocumentReference(issue.purchase_document_id, { fallbackLabel: 'Compra' })}</span>
+                          {issue.invoice_number && <span className="text-xs font-bold text-gray-500">NF/Documento: {issue.invoice_number}</span>}
+                        </div>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Fornecedor: <strong>{issue.supplier_name || 'Não identificado'}</strong></p>
+
+                        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                          <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
+                            <p className="text-xs font-black uppercase tracking-wider text-gray-400">Produto</p>
+                            <p className="mt-1 font-black text-gray-900 dark:text-white">{issue.product_name || 'Produto'}</p>
+                          </div>
+                          <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
+                            <p className="text-xs font-black uppercase tracking-wider text-gray-400">Quantidade afetada</p>
+                            <p className="mt-1 font-black text-gray-900 dark:text-white">{formatQuantity(issue.quantity)} un.</p>
+                          </div>
+                          <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
+                            <p className="text-xs font-black uppercase tracking-wider text-gray-400">Tratativa</p>
+                            <p className="mt-1 font-black text-gray-900 dark:text-white">{PURCHASE_ISSUE_DISPOSITION_LABELS[issue.disposition]}</p>
+                          </div>
+                          <div className="rounded-2xl bg-gray-50 p-3 dark:bg-gray-950/60">
+                            <p className="text-xs font-black uppercase tracking-wider text-gray-400">Impacto estimado</p>
+                            <p className="mt-1 font-black text-gray-900 dark:text-white">{formatMoney(issue.estimated_amount)}</p>
+                          </div>
+                        </div>
+
+                        {(Number(issue.replacement_pending_quantity) > 0 || Number(issue.physical_closed_quantity) > 0) && (
+                          <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                            {Number(issue.replacement_pending_quantity) > 0 && <span className="rounded-lg bg-blue-50 px-2.5 py-1.5 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">Reposição física pendente: {formatQuantity(issue.replacement_pending_quantity)}</span>}
+                            {Number(issue.physical_closed_quantity) > 0 && <span className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">Obrigação física encerrada: {formatQuantity(issue.physical_closed_quantity)}</span>}
+                          </div>
+                        )}
+
+                        {issue.notes && <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-100">Ocorrência: {issue.notes}</p>}
+                        {issue.resolution_notes && <p className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">Solução: {issue.resolution_notes}{issue.resolution_reference ? ` · Ref.: ${issue.resolution_reference}` : ''}</p>}
+                        {issue.cancellation_reason && <p className="mt-2 rounded-xl bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600 dark:bg-gray-950 dark:text-gray-300">Cancelada: {issue.cancellation_reason}</p>}
+                      </div>
+
+                      {canOpenPurchases && (
+                        <button type="button" onClick={() => navigate(`/admin/products/inventory/purchases?open=${encodeURIComponent(issue.purchase_document_id)}`)} className="h-fit shrink-0 rounded-xl border border-teal-300 bg-white px-4 py-2 text-sm font-black text-teal-700 hover:bg-teal-50 dark:border-teal-700 dark:bg-gray-950 dark:text-teal-200 dark:hover:bg-teal-950/30">
+                          Abrir compra
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         )}
       </div>
 
