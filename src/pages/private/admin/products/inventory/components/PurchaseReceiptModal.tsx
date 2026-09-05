@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
+  BadgeDollarSign,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -13,7 +14,14 @@ import {
   X,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { usePermissions } from '@/hooks/usePermissions'
 import { supabase } from '@/lib/supabase'
+import {
+  AccountsPayableService,
+  type AccountsPayablePaymentOptions,
+  type PurchasePaymentTerm,
+} from '@/services/accountsPayableService'
+import { getActiveStoreId } from '@/utils/activeStore'
 import {
   buildPurchaseReceiptProgress,
   type PurchaseReceiptItemLike,
@@ -120,6 +128,14 @@ type IssueRow = {
   resolution_notes: string | null
   resolution_reference: string | null
   cancellation_reason: string | null
+}
+
+type PurchaseFinancialRow = {
+  supplier_id: string | null
+  payment_term_id: string | null
+  payment_method_code: string | null
+  preferred_financial_account_id: string | null
+  financial_status: string | null
 }
 
 type IssueDraft = { issueType: IssueType; disposition: IssueDisposition; note: string }
@@ -255,6 +271,11 @@ export default function PurchaseReceiptModal(props: Props) {
     productName, actorName, canReceive, canReverse, saving, onClose, onReceive, onReverse,
   } = props
   const navigate = useNavigate()
+  const storeId = getActiveStoreId()
+  const { hasPermission } = usePermissions(storeId)
+  const canManageFinancial = hasPermission('accounts_payable.manage') || hasPermission('purchases.create')
+  const initializedDocumentRef = useRef<string | null>(null)
+
   const [locationId, setLocationId] = useState('')
   const [notes, setNotes] = useState('')
   const [formItems, setFormItems] = useState<Record<string, ReceiptFormItem>>({})
@@ -269,6 +290,15 @@ export default function PurchaseReceiptModal(props: Props) {
   const [actionNotes, setActionNotes] = useState('')
   const [actionReference, setActionReference] = useState('')
   const [issueSaving, setIssueSaving] = useState(false)
+
+  const [paymentTerms, setPaymentTerms] = useState<PurchasePaymentTerm[]>([])
+  const [paymentOptions, setPaymentOptions] = useState<AccountsPayablePaymentOptions>({ financial_accounts: [], payment_methods: [] })
+  const [financialRow, setFinancialRow] = useState<PurchaseFinancialRow | null>(null)
+  const [paymentTermId, setPaymentTermId] = useState('')
+  const [paymentMethodCode, setPaymentMethodCode] = useState('')
+  const [preferredFinancialAccountId, setPreferredFinancialAccountId] = useState('')
+  const [financialLoading, setFinancialLoading] = useState(false)
+  const [financialSaving, setFinancialSaving] = useState(false)
 
   const progress = useMemo(() => buildPurchaseReceiptProgress(items, receipts, receiptItems), [items, receiptItems, receipts])
 
@@ -295,6 +325,19 @@ export default function PurchaseReceiptModal(props: Props) {
     return map
   }, [receiptItems])
 
+  const paymentTermName = useMemo(
+    () => paymentTerms.find((term) => term.id === paymentTermId)?.name || 'Não definida',
+    [paymentTermId, paymentTerms]
+  )
+  const paymentMethodName = useMemo(
+    () => paymentOptions.payment_methods.find((method) => method.code === paymentMethodCode)?.name || 'Não definida',
+    [paymentMethodCode, paymentOptions.payment_methods]
+  )
+  const preferredAccountName = useMemo(
+    () => paymentOptions.financial_accounts.find((account) => account.id === preferredFinancialAccountId)?.name || 'Definida somente na baixa',
+    [paymentOptions.financial_accounts, preferredFinancialAccountId]
+  )
+
   const loadIssues = useCallback(async () => {
     if (!open || !documentId) return
     setIssuesLoading(true)
@@ -311,17 +354,55 @@ export default function PurchaseReceiptModal(props: Props) {
     }
   }, [documentId, open])
 
+  const loadFinancial = useCallback(async () => {
+    if (!open || !documentId || !storeId) return
+    setFinancialLoading(true)
+    try {
+      const [docResult, terms, options] = await Promise.all([
+        supabase.from('purchase_documents').select('supplier_id,payment_term_id,payment_method_code,preferred_financial_account_id,financial_status').eq('id', documentId).eq('store_id', storeId).single(),
+        AccountsPayableService.listPaymentTerms(storeId, false),
+        AccountsPayableService.listPaymentOptions(storeId),
+      ])
+      if (docResult.error) throw docResult.error
+      const row = docResult.data as PurchaseFinancialRow
+      let termId = row.payment_term_id || ''
+      let methodCode = row.payment_method_code || ''
+      if (!termId && row.supplier_id) {
+        const suggestion = await AccountsPayableService.suggestSupplierPaymentTerm(storeId, row.supplier_id)
+        const suggestedTerm = typeof suggestion?.payment_term_id === 'string' ? suggestion.payment_term_id : ''
+        const suggestedMethod = typeof suggestion?.payment_method_code === 'string' ? suggestion.payment_method_code : ''
+        termId = suggestedTerm || terms.find((term) => term.is_default)?.id || terms[0]?.id || ''
+        methodCode = suggestedMethod || terms.find((term) => term.id === termId)?.payment_method_code || ''
+      }
+      setFinancialRow(row)
+      setPaymentTerms(terms)
+      setPaymentOptions(options)
+      setPaymentTermId(termId)
+      setPaymentMethodCode(methodCode)
+      setPreferredFinancialAccountId(row.preferred_financial_account_id || '')
+    } catch (error) {
+      console.error('Error loading purchase financial terms:', error)
+      toast.error('Não foi possível carregar a condição financeira desta compra.')
+    } finally {
+      setFinancialLoading(false)
+    }
+  }, [documentId, open, storeId])
+
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      initializedDocumentRef.current = null
+      return
+    }
+    if (initializedDocumentRef.current === documentId) return
+    initializedDocumentRef.current = documentId
     setLocationId(stockLocations.find((item) => item.is_default)?.id || stockLocations[0]?.id || '')
     setNotes('')
     setReverseReceiptId(null)
     setReverseReason('')
-    setFormItems(Object.fromEntries(items.map((item) => [item.id, { ...emptyItem(), existingQuantity: pendingFor(item) }])))
+    setFormItems(Object.fromEntries(items.map((item) => [item.id, { ...emptyItem(), existingQuantity: Math.max(0, numeric(item.quantity) - numeric(progress.get(item.id)?.received)) }])))
     void loadIssues()
-  }, [documentId, items, loadIssues, open, pendingFor, stockLocations])
-
-  useEffect(() => { if (open) void loadIssues() }, [loadIssues, open, receipts])
+    void loadFinancial()
+  }, [documentId, items, loadFinancial, loadIssues, open, progress, stockLocations])
 
   const patchItem = (itemId: string, patch: Partial<ReceiptFormItem>) =>
     setFormItems((current) => ({ ...current, [itemId]: { ...(current[itemId] ?? emptyItem()), ...patch } }))
@@ -355,6 +436,35 @@ export default function PurchaseReceiptModal(props: Props) {
     })
     return next
   })
+
+  const changePaymentTerm = (termId: string) => {
+    setPaymentTermId(termId)
+    const method = paymentTerms.find((term) => term.id === termId)?.payment_method_code
+    if (method) setPaymentMethodCode(method)
+  }
+
+  const saveFinancialTerms = async () => {
+    if (!storeId || !paymentTermId || financialSaving) {
+      if (!paymentTermId) toast.warning('Selecione a condição de pagamento da compra.')
+      return
+    }
+    setFinancialSaving(true)
+    try {
+      await AccountsPayableService.setPurchaseFinancialTerms({
+        purchaseDocumentId: documentId,
+        paymentTermId,
+        paymentMethodCode: paymentMethodCode || null,
+        preferredFinancialAccountId: preferredFinancialAccountId || null,
+        paymentTermSource: financialRow?.payment_term_id ? 'manual' : 'manual',
+      })
+      toast.success('Condição financeira da compra salva.')
+      await loadFinancial()
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar a condição financeira.')
+    } finally {
+      setFinancialSaving(false)
+    }
+  }
 
   const issuesFor = useCallback((item: PurchaseReceiptDocumentItem, value: ReceiptFormItem) => {
     const pending = pendingFor(item)
@@ -419,7 +529,10 @@ export default function PurchaseReceiptModal(props: Props) {
       } satisfies PurchaseReceiptSubmitItem
     }).filter((item) => item.received_quantity > 0 || item.accepted_quantity > 0 || (item.issues?.length ?? 0) > 0)
     await onReceive({ locationId, notes: notes.trim() || null, items: payload })
+    setNotes('')
+    setFormItems(Object.fromEntries(items.map((item) => [item.id, emptyItem()])))
     await loadIssues()
+    await loadFinancial()
   }
 
   const beginIssueAction = (issue: IssueRow, mode: 'treatment' | 'resolve' | 'cancel') => {
@@ -503,6 +616,51 @@ export default function PurchaseReceiptModal(props: Props) {
         </header>
 
         <div className="space-y-5 p-4 sm:p-6">
+          <section className="rounded-2xl border border-teal-200 bg-teal-50/70 p-4 dark:border-teal-800 dark:bg-teal-950/20">
+            <div className="flex items-start gap-3">
+              <BadgeDollarSign className="mt-0.5 h-5 w-5 shrink-0 text-teal-700 dark:text-teal-300" />
+              <div className="min-w-0 flex-1">
+                <h3 className="font-semibold text-slate-950 dark:text-white">Condição financeira da compra</h3>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">A condição e a forma de pagamento ficam ligadas à compra. A conta efetiva que terá a saída pode ser escolhida depois, no momento da baixa em Contas a Pagar.</p>
+              </div>
+            </div>
+            {financialLoading ? (
+              <p className="mt-3 text-sm text-slate-500">Carregando condição financeira...</p>
+            ) : canManageFinancial ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Condição de pagamento
+                  <select value={paymentTermId} onChange={(event) => changePaymentTerm(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm text-slate-950 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                    <option value="">Selecione...</option>
+                    {paymentTerms.map((term) => <option key={term.id} value={term.id}>{term.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Forma de pagamento
+                  <select value={paymentMethodCode} onChange={(event) => setPaymentMethodCode(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm text-slate-950 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                    <option value="">Definir depois</option>
+                    {paymentOptions.payment_methods.map((method) => <option key={method.code} value={method.code}>{method.name}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Conta prevista <span className="font-normal text-slate-500">(opcional)</span>
+                  <select value={preferredFinancialAccountId} onChange={(event) => setPreferredFinancialAccountId(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-2.5 text-sm text-slate-950 dark:border-slate-600 dark:bg-slate-900 dark:text-white">
+                    <option value="">Escolher somente na baixa</option>
+                    {paymentOptions.financial_accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                  </select>
+                </label>
+                <div className="md:col-span-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">A conta prevista não obriga a baixa nessa conta. O financeiro poderá escolher outra conta quando efetivamente pagar.</p>
+                  <button type="button" disabled={financialSaving || !paymentTermId} onClick={() => void saveFinancialTerms()} className="shrink-0 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{financialSaving ? 'Salvando...' : 'Salvar condição financeira'}</button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                <div className="rounded-xl border border-teal-200 bg-white p-3 dark:border-teal-800 dark:bg-slate-950"><p className="text-[10px] font-bold uppercase text-slate-400">Condição</p><p className="mt-1 font-semibold">{paymentTermName}</p></div>
+                <div className="rounded-xl border border-teal-200 bg-white p-3 dark:border-teal-800 dark:bg-slate-950"><p className="text-[10px] font-bold uppercase text-slate-400">Forma</p><p className="mt-1 font-semibold">{paymentMethodName}</p></div>
+                <div className="rounded-xl border border-teal-200 bg-white p-3 dark:border-teal-800 dark:bg-slate-950"><p className="text-[10px] font-bold uppercase text-slate-400">Conta prevista</p><p className="mt-1 font-semibold">{preferredAccountName}</p></div>
+                {!financialRow?.payment_term_id && <p className="sm:col-span-3 text-xs font-semibold text-amber-700 dark:text-amber-300">A condição financeira ainda precisa ser definida por um usuário com permissão financeira. Isso não impede o registro físico do recebimento.</p>}
+              </div>
+            )}
+          </section>
+
           {activeIssues.length > 0 && (
             <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
               <div className="flex gap-3"><FileWarning className="mt-0.5 h-5 w-5 shrink-0" /><div><b>{activeIssues.length} ressalva(s) em tratamento.</b><p className="mt-1">{replacementOpen > 0 ? `${qty(replacementOpen)} un. aguardam reposição física.` : 'Nenhuma mercadoria está aguardando reposição; restam apenas tratativas comerciais/documentais.'}</p></div></div>
@@ -520,7 +678,7 @@ export default function PurchaseReceiptModal(props: Props) {
                   <label className="min-w-0 flex-1 text-sm font-semibold text-slate-900 dark:text-slate-100">1. Local que recebe esta entrega
                     <select value={locationId} onChange={(event) => setLocationId(event.target.value)} className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-950 dark:border-slate-600 dark:bg-slate-900 dark:text-white sm:max-w-xl">
                       <option value="">Selecione o local</option>
-                      {stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name} ({location.code}){location.is_default ? ' · padrão' : ''}</option>)}
+                      {stockLocations.map((location) => <option key={location.id} value={location.id}>{location.name}{location.is_default ? ' · padrão' : ''}</option>)}
                     </select>
                   </label>
                   <button type="button" onClick={fillAll} className="rounded-xl border border-emerald-300 px-3 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-700 dark:text-emerald-200">Receber todo o saldo em aberto</button>
