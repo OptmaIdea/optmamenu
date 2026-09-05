@@ -85,6 +85,7 @@ const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook
 const AccountPlanPage = lazy(() => import('@/pages/private/admin/financial/accountPlan/AccountPlanPage'));
 const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/settings/financialAccounts/FinancialAccountsSettingsPage'));
 const OnlinePaymentsPage = lazy(() => import('@/pages/private/admin/financial/onlinePayments/OnlinePaymentsPage'));
+const AccountsPayablePage = lazy(() => import('@/pages/private/admin/financial/accountsPayable/AccountsPayablePage'));
 
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
@@ -197,6 +198,8 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
             <Route path="/admin/account-plan" element={<RequirePermission permission="financial.account_plan.view"><AccountPlanPage /></RequirePermission>} />
             <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
+            <Route path="/admin/accounts-payable" element={<RequirePermission permission="accounts_payable.view"><AccountsPayablePage /></RequirePermission>} />
+            <Route path="/admin/payables" element={<Navigate to="/admin/accounts-payable" replace />} />
             <Route path="/admin/online-payments" element={<RequirePermission permission="payments.online.view"><OnlinePaymentsPage /></RequirePermission>} />
             <Route path="/admin/payments" element={<Navigate to="/admin/online-payments" replace />} />
 

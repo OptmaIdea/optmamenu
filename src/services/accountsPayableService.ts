@@ -56,17 +56,87 @@ export type AccountsPayableInstallment = {
   preferred_financial_account_id?: string | null
 }
 
+export type AccountsPayableAdjustment = {
+  id: string
+  store_id: string
+  accounts_payable_id: string
+  installment_id?: string | null
+  purchase_receipt_issue_id?: string | null
+  adjustment_type: AccountsPayableAdjustmentType
+  direction: AccountsPayableAdjustmentDirection
+  amount: number
+  status: 'active' | 'reversed'
+  notes?: string | null
+  created_at: string
+  reversed_at?: string | null
+  reversal_reason?: string | null
+}
+
+export type AccountsPayablePayment = {
+  id: string
+  store_id: string
+  accounts_payable_id: string
+  installment_id: string
+  amount: number
+  paid_at: string
+  financial_account_id: string
+  payment_method_code: string
+  reference?: string | null
+  notes?: string | null
+  cashbook_entry_id?: string | null
+  status: 'confirmed' | 'reversed'
+  created_at: string
+  reversed_at?: string | null
+  reversal_reason?: string | null
+  reversal_cashbook_entry_id?: string | null
+}
+
+export type AccountsPayableEvent = {
+  id: string
+  store_id: string
+  accounts_payable_id: string
+  event_type: string
+  title: string
+  description?: string | null
+  old_data?: Record<string, unknown> | null
+  new_data?: Record<string, unknown> | null
+  metadata?: Record<string, unknown>
+  created_at: string
+}
+
 export type AccountsPayableDetail = {
   payable: AccountsPayable
   installments: AccountsPayableInstallment[]
-  adjustments: Array<Record<string, unknown>>
-  payments: Array<Record<string, unknown>>
-  events: Array<Record<string, unknown>>
+  adjustments: AccountsPayableAdjustment[]
+  payments: AccountsPayablePayment[]
+  events: AccountsPayableEvent[]
 }
 
 export type AccountsPayableListItem = AccountsPayable & {
   supplier_name: string
   next_due_date?: string | null
+}
+
+export type AccountsPayableFinancialOption = {
+  id: string
+  code: string
+  name: string
+  account_type: string
+  is_default: boolean
+  sort_order: number
+}
+
+export type AccountsPayablePaymentMethodOption = {
+  code: string
+  base_code: string
+  name: string
+  preferred_financial_account_id?: string | null
+  sort_order: number
+}
+
+export type AccountsPayablePaymentOptions = {
+  financial_accounts: AccountsPayableFinancialOption[]
+  payment_methods: AccountsPayablePaymentMethodOption[]
 }
 
 function rpcError(error: unknown, fallback: string) {
@@ -84,6 +154,46 @@ export const AccountsPayableService = {
     })
     if (error) throw rpcError(error, 'Não foi possível carregar as condições de pagamento.')
     return (data ?? []) as PurchasePaymentTerm[]
+  },
+
+  async upsertPaymentTerm(input: {
+    storeId: string
+    termId?: string | null
+    name: string
+    code?: string | null
+    paymentMode: 'cash' | 'term'
+    offsetDays: number[]
+    paymentMethodCode?: string | null
+    isDefault?: boolean
+    active?: boolean
+    metadata?: Record<string, unknown>
+  }): Promise<PurchasePaymentTerm> {
+    const { data, error } = await supabase.rpc('upsert_purchase_payment_term_safe', {
+      p_store_id: input.storeId,
+      p_term_id: input.termId || null,
+      p_name: input.name,
+      p_code: input.code || null,
+      p_payment_mode: input.paymentMode,
+      p_offset_days: input.offsetDays,
+      p_payment_method_code: input.paymentMethodCode || null,
+      p_is_default: input.isDefault ?? false,
+      p_active: input.active ?? true,
+      p_metadata: input.metadata || {},
+    })
+    if (error) throw rpcError(error, 'Não foi possível salvar a condição de pagamento.')
+    return data as PurchasePaymentTerm
+  },
+
+  async listPaymentOptions(storeId: string): Promise<AccountsPayablePaymentOptions> {
+    const { data, error } = await supabase.rpc('list_accounts_payable_payment_options_safe', {
+      p_store_id: storeId,
+    })
+    if (error) throw rpcError(error, 'Não foi possível carregar contas e formas de pagamento.')
+    const value = (data || {}) as Partial<AccountsPayablePaymentOptions>
+    return {
+      financial_accounts: value.financial_accounts || [],
+      payment_methods: value.payment_methods || [],
+    }
   },
 
   async suggestSupplierPaymentTerm(storeId: string, supplierId: string): Promise<Record<string, unknown> | null> {

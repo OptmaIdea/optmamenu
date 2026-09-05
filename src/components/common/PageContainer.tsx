@@ -1,7 +1,7 @@
 // src/components/common/PageContainer.tsx
 import type { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Clock, RefreshCw, ShoppingCart } from 'lucide-react';
+import { BadgeDollarSign, Clock, RefreshCw, ShoppingCart } from 'lucide-react';
 
 interface PageContainerProps {
   title: string;
@@ -36,6 +36,12 @@ export default function PageContainer({
     '/admin/stock/purchase-documents',
     '/admin/cashbook/purchases',
   ].includes(pathname);
+  const showAccountsPayableShortcut = [
+    '/admin/stock/purchase-documents',
+    '/admin/cashbook/purchases',
+    '/admin/cashbook',
+    '/admin/financial-accounts',
+  ].includes(pathname);
 
   const bulkQuotationShortcut = showBulkQuotationShortcut ? (
     <Link
@@ -44,6 +50,16 @@ export default function PageContainer({
     >
       <ShoppingCart size={16} />
       <span className="hidden sm:inline">Cotação em lote</span>
+    </Link>
+  ) : null;
+
+  const accountsPayableShortcut = showAccountsPayableShortcut ? (
+    <Link
+      to="/admin/accounts-payable"
+      className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-[#19A999]/30 rounded-xl text-[#14887B] dark:text-[#37d0bb] hover:bg-[#19A999]/5 dark:hover:bg-[#19A999]/10 transition-all font-candara text-sm font-bold shadow-sm"
+    >
+      <BadgeDollarSign size={16} />
+      <span className="hidden sm:inline">Contas a pagar</span>
     </Link>
   ) : null;
 
@@ -80,6 +96,7 @@ export default function PageContainer({
               </div>
 
               <div className="flex items-center gap-3">
+                {accountsPayableShortcut}
                 {bulkQuotationShortcut}
                 {onRefresh && (
                   <button
@@ -133,6 +150,7 @@ export default function PageContainer({
               </div>
 
               <div className="flex items-center gap-3">
+                {accountsPayableShortcut}
                 {bulkQuotationShortcut}
                 {onRefresh && (
                   <button
