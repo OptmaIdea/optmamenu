@@ -60,6 +60,8 @@ A aba Vida do Produto consolida todas as informações históricas do item:
 - Em **Compras**, cada rascunho exibe seu identificador operacional `ENT-...` e, quando aplicável, também a cotação `COT-...` e a rodada `RDC-...` que o originaram. Esses identificadores também podem ser pesquisados e exportados no CSV.
 - A criação e a edição manual do rascunho salvam cabeçalho e itens em uma única transação. Data de emissão, número da nota/documento e observações são preservados; se qualquer validação falhar, nenhuma alteração parcial é mantida.
 - A confirmação é o ato que lança os itens no estoque. Um erro posterior deve ser tratado pelo cancelamento autorizado, com motivo obrigatório e movimentações inversas auditáveis.
+- O recebimento total exige a escolha explícita do local físico de destino. A compra, o local e a aplicação ao estoque são confirmados na mesma transação e ficam registrados na linha do tempo.
+- A listagem de Compras pode ser ordenada diretamente pelos cabeçalhos **Fornecedor**, **Documento**, **Emissão**, **Status** e **Total**; um segundo clique inverte a direção.
 - Prazo, frete, pagamento, quantidade atendida e qualidade do fornecedor permanecem critérios obrigatórios de decisão do responsável.
 - No celular, os filtros da listagem são recolhíveis e as cotações aparecem em cartões compactos. Em telas intermediárias, a coluna **Ações** permanece fixa à direita e a interface sinaliza a navegação horizontal.
 - Ao dar entrada na nota fiscal/pedido de compra concluído, o sistema dá entrada automática no estoque do local selecionado e gera a provisão no Livro Caixa.
