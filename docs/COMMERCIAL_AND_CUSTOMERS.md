@@ -56,7 +56,12 @@ RPCs relevantes:
 
 A coluna `customers.marketing_consent` representa o estado agregado de marketing: fica `true` quando **ao menos um** canal de marketing possui como último evento uma concessão ativa, e `false` quando nenhum canal está ativo. Assim, revogar e-mail não desliga WhatsApp que continue consentido, por exemplo. `customers.loyalty_opt_in` é sincronizado com o último evento de `loyalty_program`.
 
-A migration `20260913103142_customer_consent_current_state.sql` consolidou essa regra na RPC `set_customer_self_consent_safe`.
+Migrations C3:
+- `20260913103142_customer_consent_current_state.sql` — consolida o estado agregado de marketing e fidelidade.
+- `20260913103711_fix_customer_consent_event_ordering.sql` — usa timestamp real por evento (`clock_timestamp()`) para garantir ordenação determinística mesmo dentro da mesma transação.
+- `20260913103900_harden_customer_self_consent_rpc_grants.sql` — remove execução anônima das RPCs de autogestão de consentimento.
+
+> **Fronteira atual de segurança:** o portal autenticado do cliente continua propositalmente *fail-closed*. `CUSTOMER_PORTAL_AUTH_ENABLED` permanece desabilitado e a Edge Function `issue_customer_jwt` não emite sessão enquanto senha + OTP não forem provados no servidor. Portanto, a infraestrutura de autogestão de consentimentos está pronta e segura no backend, mas não deve ser exposta ao cliente até a conclusão da sessão autenticada do portal.
 
 ---
 
