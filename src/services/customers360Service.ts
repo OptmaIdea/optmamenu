@@ -124,6 +124,40 @@ export interface UpdateAdminCustomerInput extends CreateAdminCustomerInput {
     status: string;
 }
 
+export interface CustomerDuplicateSummary {
+    id: string;
+    full_name: string | null;
+    phone: string;
+    email: string | null;
+    birth_date?: string | null;
+    status: string;
+    source: CustomerSource | string;
+    data_ownership: CustomerDataOwnership;
+    total_orders: number;
+    total_spent: number;
+    has_credentials: boolean;
+    phone_verified: boolean;
+}
+
+export interface CustomerDuplicateCandidate {
+    score: number;
+    match_reasons: Array<'phone' | 'cpf' | 'email' | 'name_birth_date' | string>;
+    suggested_canonical_id: string;
+    customer_a: CustomerDuplicateSummary;
+    customer_b: CustomerDuplicateSummary;
+}
+
+export interface CustomerMergeHistoryItem {
+    id: string;
+    canonical_customer_id: string;
+    duplicate_customer_id: string;
+    actor_user_id: string | null;
+    reason: string;
+    match_basis: string[];
+    moved_counts: Record<string, number>;
+    created_at: string;
+}
+
 export const Customers360Service = {
     async listCustomers(storeId: string, limit = 500): Promise<CustomerListItem[]> {
         const { data, error } = await supabase.rpc('get_admin_customers_safe', {
@@ -134,7 +168,9 @@ export const Customers360Service = {
         if (error) throw error;
         if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar clientes.');
 
-        return (data.customers || []) as CustomerListItem[];
+        return ((data.customers || []) as CustomerListItem[]).filter(
+            (customer) => !['merged', 'anonymized'].includes(customer.status),
+        );
     },
 
     async getCustomer360(storeId: string, customerId: string): Promise<Customer360> {
@@ -205,5 +241,60 @@ export const Customers360Service = {
             customer_id?: string;
             protected_data?: boolean;
         };
+    },
+
+    async listDuplicateCandidates(storeId: string, customerId?: string | null, limit = 100) {
+        const { data, error } = await supabase.rpc('get_customer_duplicate_candidates_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId || null,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.message || data?.error || 'Erro ao analisar possíveis duplicidades.');
+
+        return {
+            candidates: (data.candidates || []) as CustomerDuplicateCandidate[],
+            sensitiveDataVisible: Boolean(data.sensitive_data_visible),
+        };
+    },
+
+    async mergeCustomers(input: {
+        storeId: string;
+        canonicalCustomerId: string;
+        duplicateCustomerId: string;
+        reason: string;
+    }) {
+        const { data, error } = await supabase.rpc('merge_customers_safe', {
+            p_store_id: input.storeId,
+            p_canonical_customer_id: input.canonicalCustomerId,
+            p_duplicate_customer_id: input.duplicateCustomerId,
+            p_reason: input.reason,
+        });
+
+        if (error) throw error;
+        return data as {
+            ok: boolean;
+            error?: string;
+            message?: string;
+            merge_id?: string;
+            canonical_customer_id?: string;
+            duplicate_customer_id?: string;
+            match_basis?: string[];
+            moved_counts?: Record<string, number>;
+        };
+    },
+
+    async getMergeHistory(storeId: string, customerId?: string | null, limit = 100) {
+        const { data, error } = await supabase.rpc('get_customer_merge_history_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId || null,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar histórico de fusões.');
+
+        return (data.events || []) as CustomerMergeHistoryItem[];
     },
 };
