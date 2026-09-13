@@ -39,6 +39,7 @@ export interface CustomerListItem {
     last_order_at: string | null;
     total_orders: number;
     total_spent: number;
+    sensitive_data_visible?: boolean;
 }
 
 export interface Customer360Order {
@@ -85,6 +86,10 @@ export interface Customer360Consent {
     action: string;
     ip_address?: string | null;
     user_agent?: string | null;
+    terms_version?: string | null;
+    privacy_version?: string | null;
+    source?: string | null;
+    revoked_at?: string | null;
     created_at: string;
 }
 
@@ -98,6 +103,7 @@ export interface Customer360 {
     loyalty_transactions: Customer360LoyaltyTransaction[];
     addresses: Customer360Address[];
     consents: Customer360Consent[];
+    sensitive_data_visible?: boolean;
 }
 
 export interface CreateAdminCustomerInput {
@@ -126,10 +132,7 @@ export const Customers360Service = {
         });
 
         if (error) throw error;
-
-        if (!data?.ok) {
-            throw new Error(data?.error || 'Erro ao carregar clientes.');
-        }
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar clientes.');
 
         return (data.customers || []) as CustomerListItem[];
     },
@@ -141,10 +144,7 @@ export const Customers360Service = {
         });
 
         if (error) throw error;
-
-        if (!data?.ok) {
-            throw new Error(data?.error || 'Erro ao carregar Vida do Cliente.');
-        }
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar Vida do Cliente.');
 
         return {
             customer: data.customer,
@@ -152,6 +152,7 @@ export const Customers360Service = {
             loyalty_transactions: data.loyalty_transactions || [],
             addresses: data.addresses || [],
             consents: data.consents || [],
+            sensitive_data_visible: Boolean(data.sensitive_data_visible),
         } as Customer360;
     },
 
@@ -166,7 +167,7 @@ export const Customers360Service = {
             p_tags: input.tags || [],
             p_internal_notes: input.internalNotes || null,
             p_marketing_consent: input.marketingConsent ?? false,
-            p_loyalty_opt_in: input.loyaltyOptIn ?? true,
+            p_loyalty_opt_in: input.loyaltyOptIn ?? false,
         });
 
         if (error) throw error;
@@ -192,7 +193,7 @@ export const Customers360Service = {
             p_tags: input.tags || [],
             p_internal_notes: input.internalNotes || null,
             p_marketing_consent: input.marketingConsent ?? false,
-            p_loyalty_opt_in: input.loyaltyOptIn ?? true,
+            p_loyalty_opt_in: input.loyaltyOptIn ?? false,
         });
 
         if (error) throw error;
