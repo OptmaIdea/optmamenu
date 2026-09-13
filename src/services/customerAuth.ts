@@ -1,13 +1,23 @@
-import { supabaseCustomer } from '@/lib/supabase';
+import { supabaseCustomer, supabasePublic } from '@/lib/supabase';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { issueCustomerJwt, setCustomerToken, clearCustomerToken } from '@/lib/jwt';
 import type { Customer } from '@/types';
+
+type CustomerOtpPurpose =
+    | 'login'
+    | 'registration'
+    | 'password_reset'
+    | 'profile_change'
+    | 'phone_change'
+    | 'sensitive_action'
+    | 'account_delete';
 
 type VerifyOtpRpcResponse = {
     isValid: boolean;
     isNewUser?: boolean;
     locked?: boolean;
-    customer?: any; // vem do RPC como jsonb; tipamos abaixo
+    purpose?: CustomerOtpPurpose;
+    customer?: any;
 };
 
 export const AuthService = {
@@ -25,31 +35,43 @@ export const AuthService = {
 
         return {
             exists: !!data,
-            // se você quiser mesmo saber "tem senha", faça isso via RPC (não via select de hash)
             hasPassword: false,
             customer: data,
         };
     },
 
-    async sendOtp(phone: string, storeId: string) {
-        const digits = phone.replace(/\D/g, '');
-
-        const { data, error } = await supabaseCustomer.rpc('send_customer_otp', {
-            p_phone: digits,
-            p_store_id: storeId,
+    async sendOtp(phone: string, storeId: string, purpose: CustomerOtpPurpose = 'login') {
+        const { data, error } = await supabasePublic.functions.invoke('send-customer-otp-sms', {
+            body: { phone, storeId, purpose },
         });
 
-        if (error) throw error;
+        if (error) throw new Error('Não foi possível enviar o código por SMS.');
+        if (!data?.ok) {
+            if (data?.error === 'rate_limited' || data?.error === 'daily_limit_reached' || data?.error === 'sms_rate_limited') {
+                throw new Error('Muitas solicitações de código. Aguarde alguns minutos e tente novamente.');
+            }
+            if (data?.error === 'sms_gateway_not_configured') {
+                throw new Error('O serviço de SMS ainda não está configurado.');
+            }
+            throw new Error('Não foi possível enviar o código por SMS.');
+        }
+
         return data;
     },
 
-    async verifyOtp(phone: string, otp: string, storeId: string) {
+    async verifyOtp(
+        phone: string,
+        otp: string,
+        storeId: string,
+        purpose: CustomerOtpPurpose = 'login',
+    ) {
         const digits = phone.replace(/\D/g, '');
 
-        const { data, error } = await supabaseCustomer.rpc('verify_customer_otp', {
+        const { data, error } = await supabasePublic.rpc('verify_customer_otp_sms_safe', {
             p_phone: digits,
             p_otp: otp,
             p_store_id: storeId,
+            p_purpose: purpose,
         });
 
         if (error) throw error;
@@ -61,7 +83,6 @@ export const AuthService = {
             throw new Error('Código inválido ou expirado.');
         }
 
-        // Se retornou customer, cria token e faz login local
         if (res.customer?.id && res.customer?.store_id) {
             const { token } = await issueCustomerJwt({
                 customer_id: String(res.customer.id),
@@ -70,7 +91,6 @@ export const AuthService = {
 
             setCustomerToken(token);
 
-            // Tipagem: garante que bate com src/types Customer (campos podem ser null)
             const customer: Customer = {
                 id: String(res.customer.id),
                 store_id: String(res.customer.store_id),
@@ -94,14 +114,11 @@ export const AuthService = {
         return {
             valid: true,
             isNewUser: !!res.isNewUser,
+            purpose: res.purpose ?? purpose,
             customer: res.customer ?? null,
         };
     },
 
-    /**
-     * Login com senha via RPC server-side.
-     * O RPC `customer_login_with_password` valida a senha e retorna o customer.
-     */
     async loginWithPassword(phone: string, password: string, storeId: string) {
         const cleanPhone = phone.replace(/\D/g, '');
 
@@ -142,10 +159,6 @@ export const AuthService = {
         return { customer, isNewUser: false };
     },
 
-    /**
-     * Mantido para o build (Catalog.tsx).
-     * Você pode cadastrar sem senha e depois usar OTP para criar senha.
-     */
     async registerUser(data: {
         phone: string;
         storeId: string;
@@ -179,7 +192,6 @@ export const AuthService = {
         if (error) throw error;
         if (!newCustomer?.id) throw new Error('Falha ao criar cliente');
 
-        // Emite token logo após criar (opcional, mas deixa o fluxo suave)
         const { token } = await issueCustomerJwt({
             customer_id: String(newCustomer.id),
             store_id: String(newCustomer.store_id),
