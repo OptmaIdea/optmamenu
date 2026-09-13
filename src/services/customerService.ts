@@ -1,21 +1,74 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseCustomer } from '@/lib/supabase';
+
+export type CustomerConsentType =
+    | 'loyalty_program'
+    | 'marketing_whatsapp'
+    | 'marketing_email'
+    | 'marketing_sms';
+
+export type CustomerConsentAction = 'granted' | 'revoked';
+
+export interface CustomerSelfConsentEvent {
+    consent_type: string;
+    action: CustomerConsentAction | string;
+    terms_version?: string | null;
+    privacy_version?: string | null;
+    source?: string | null;
+    created_at: string;
+    revoked_at?: string | null;
+}
+
+export interface CustomerSelfConsentResult {
+    ok: boolean;
+    error?: string;
+    message?: string;
+    consent_type?: string;
+    action?: CustomerConsentAction;
+    marketing_consent?: boolean;
+    loyalty_opt_in?: boolean;
+}
 
 export const CustomerService = {
     // --- Profile Management ---
-    async updateProfile(customerId: string, data: { full_name?: string, cpf?: string, email?: string, birth_date?: string, phone?: string, loyalty_opt_in?: boolean }) {
+    async updateProfile(
+        customerId: string,
+        data: {
+            full_name?: string;
+            cpf?: string;
+            email?: string;
+            birth_date?: string;
+            phone?: string;
+            loyalty_opt_in?: boolean;
+            marketing_consent?: boolean;
+        },
+    ) {
         console.log(`[CUSTOMER_SERVICE] Atualizando perfil para ${customerId}:`, data);
+
+        const keys = Object.keys(data);
+        const isConsentCompatibilityUpdate =
+            keys.length > 0
+            && keys.every((key) => key === 'loyalty_opt_in' || key === 'marketing_consent');
+
+        // Compatibilidade com componentes antigos: consentimentos são persistidos
+        // exclusivamente por logConsent/setSelfConsent, que usam o JWT do cliente e
+        // a RPC auditável. Evita a antiga atualização direta da tabela customers.
+        if (isConsentCompatibilityUpdate) {
+            return true;
+        }
+
         const { error } = await supabase
             .from('customers')
             .update(data)
             .eq('id', customerId);
 
         if (error) {
-            console.error(`[CUSTOMER_SERVICE] ERRO em updateProfile:`, error);
-            if (error.code === '23505') { // Unique violation
+            console.error('[CUSTOMER_SERVICE] ERRO em updateProfile:', error);
+            if (error.code === '23505') {
                 throw new Error('Este número de telefone já está em uso.');
             }
             throw new Error('Erro ao atualizar perfil.');
         }
+
         console.log(`[CUSTOMER_SERVICE] Perfil atualizado com sucesso para ${customerId}`);
         return true;
     },
@@ -34,7 +87,6 @@ export const CustomerService = {
     },
 
     async addAddress(address: any) {
-        // If default, unset others first
         if (address.is_default) {
             await supabase
                 .from('customer_addresses')
@@ -53,7 +105,6 @@ export const CustomerService = {
     },
 
     async updateAddress(id: string, address: any) {
-        // If setting to default, unset others first
         if (address.is_default) {
             await supabase
                 .from('customer_addresses')
@@ -90,13 +141,20 @@ export const CustomerService = {
         return data;
     },
 
-    async addNotification(notification: { customer_id: string, store_id: string, title: string, message: string, type?: 'info' | 'success' | 'warning' | 'error' }) {
+    async addNotification(notification: {
+        customer_id: string;
+        store_id: string;
+        title: string;
+        message: string;
+        type?: 'info' | 'success' | 'warning' | 'error';
+    }) {
         console.log(`[CUSTOMER_SERVICE] Adicionando notificação para ${notification.customer_id}:`, notification.title);
         const { error } = await supabase
             .from('customer_notifications')
             .insert(notification);
+
         if (error) {
-            console.error(`[CUSTOMER_SERVICE] ERRO em addNotification:`, error);
+            console.error('[CUSTOMER_SERVICE] ERRO em addNotification:', error);
         } else {
             console.log(`[CUSTOMER_SERVICE] Notificação criada para ${notification.customer_id}`);
         }
@@ -119,34 +177,65 @@ export const CustomerService = {
         if (error) console.error('Erro ao marcar todas as notificações como lidas:', error);
     },
 
-    // --- Consent Logging ---
-    async logConsent(customerId: string, consentType: string, action: 'granted' | 'revoked') {
-        const { error } = await supabase
-            .from('customer_consent_logs')
-            .insert({
-                customer_id: customerId,
-                consent_type: consentType,
-                action: action,
-                user_agent: navigator.userAgent
-            });
+    // --- Consentimentos do próprio cliente ---
+    async getSelfConsents(): Promise<CustomerSelfConsentEvent[]> {
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_consents_safe');
+        if (error) throw error;
 
-        if (error) console.error('Erro ao registrar consentimento:', error);
+        const payload = data as { ok?: boolean; error?: string; consents?: CustomerSelfConsentEvent[] } | null;
+        if (!payload?.ok) {
+            throw new Error(payload?.error === 'access_denied'
+                ? 'Sua sessão de cliente expirou. Entre novamente.'
+                : 'Não foi possível carregar seus consentimentos.');
+        }
+
+        return Array.isArray(payload.consents) ? payload.consents : [];
+    },
+
+    async setSelfConsent(
+        consentType: CustomerConsentType,
+        granted: boolean,
+        options: {
+            termsVersion?: string | null;
+            privacyVersion?: string | null;
+            source?: string;
+        } = {},
+    ): Promise<CustomerSelfConsentResult> {
+        const { data, error } = await supabaseCustomer.rpc('set_customer_self_consent_safe', {
+            p_consent_type: consentType,
+            p_granted: granted,
+            p_terms_version: options.termsVersion ?? null,
+            p_privacy_version: options.privacyVersion ?? null,
+            p_source: options.source || 'customer_portal',
+        });
+
+        if (error) throw error;
+
+        const payload = data as CustomerSelfConsentResult | null;
+        if (!payload?.ok) {
+            throw new Error(
+                payload?.message
+                || (payload?.error === 'access_denied'
+                    ? 'Sua sessão de cliente expirou. Entre novamente.'
+                    : 'Não foi possível atualizar sua preferência.'),
+            );
+        }
+
+        return payload;
+    },
+
+    // Mantido por compatibilidade com componentes existentes. O customerId não
+    // é usado para autorização: a identidade válida sempre vem do JWT do cliente.
+    async logConsent(
+        _customerId: string,
+        consentType: CustomerConsentType,
+        action: CustomerConsentAction,
+    ) {
+        return this.setSelfConsent(consentType, action === 'granted');
     },
 
     // --- Order History ---
     async getOrders(customerId: string) {
-        // Use phone number for now as relation, or if we have customer_id in orders table use that.
-        // Based on previous conversations/schema, orders link to store. 
-        // We typically link via customer details or if there is a customer_id column.
-        // For this implementation, I will assume we might need to filter by phone number 
-        // if customer_id isn't strictly enforced yet, BUT `customers` table exists now.
-        // Let's check if `orders` has `customer_id`. The Orders interface in Orders.tsx didn't show it but it might be there.
-        // Safest bet for now: Filter by customer_phone matching customer.phone
-
-        // Wait, better to check if we can link by ID.
-        // If not, fall back to phone.
-        // Let's try fetching by customer_id column first.
-
         const { data, error } = await supabase
             .from('orders')
             .select(`
@@ -158,15 +247,10 @@ export const CustomerService = {
                     product:products (name)
                 )
             `)
-            .or(`customer_id.eq.${customerId}`) // If customer_id exists
+            .or(`customer_id.eq.${customerId}`)
             .order('created_at', { ascending: false });
-
-        // If error or empty, we might need phone fallback logic, 
-        // but let's assume we are migrating to use customer_id.
-        // Note: The user just ran migrations for customers table.
-        // Existing orders might NOT have customer_id.
 
         if (error) throw new Error('Erro ao buscar pedidos.');
         return data || [];
-    }
+    },
 };
