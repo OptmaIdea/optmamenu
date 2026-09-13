@@ -31,7 +31,32 @@ Os pedidos comerciais (originados pela loja pública, WhatsApp ou balcão) trans
 ### 2.2 Painel Visão 360º do Cliente (`/admin/customers/:id`)
 - Histórico completo de pedidos e ticket médio.
 - Saldo de pontos no programa de fidelidade.
-- Preferências de comunicação e consentimento LGPD (`preserve_public_customer_marketing_consent`).
+- Preferências de comunicação e consentimento LGPD.
+- Estado atual de Termos de Uso, Política de Privacidade, Fidelidade, WhatsApp, e-mail e SMS.
+- Histórico cronológico dos eventos de consentimento, com origem e versões legais quando disponíveis.
+
+### 2.3 Identidade, deduplicação e fusão segura
+A frente C2 consolidou a identidade de clientes com normalização e detecção de candidatos duplicados por telefone, CPF, e-mail e nome + data de nascimento.
+
+A tela `/admin/customers` possui as abas **Possíveis duplicidades** e **Histórico de fusões**. A fusão é sempre manual e auditada. O backend mantém o cadastro principal, transfere vínculos suportados e marca o cadastro absorvido como `merged`.
+
+RPCs principais:
+- `get_customer_duplicate_candidates_safe(uuid, uuid, integer)` — lista pares candidatos e informa a sugestão de cadastro principal.
+- `merge_customers_safe(uuid, uuid, uuid, text)` — executa a fusão transacional. Para usuários administrativos exige `customers.manage` + `customers.sensitive.view`, salvo owner.
+- `get_customer_merge_history_safe(uuid, uuid, integer)` — consulta o ledger das fusões.
+
+### 2.4 Consentimentos e preferências — C3
+O histórico oficial é `customer_consent_logs`. Alterações feitas pelo próprio cliente passam por RPC server-side e não por `insert/update` direto nas tabelas de clientes.
+
+RPCs relevantes:
+- `get_customer_self_consents_safe()` — retorna ao cliente autenticado o próprio histórico de consentimentos.
+- `set_customer_self_consent_safe(text, boolean, text, text, text)` — registra concessão/revogação do próprio cliente para `loyalty_program`, `marketing_whatsapp`, `marketing_email` e `marketing_sms`.
+- `create_admin_customer_safe(...)` / `update_admin_customer_safe(...)` — alterações de consentimento pelo backoffice exigem `customers.consent.manage` e registram evidência administrativa explícita.
+- `get_customer_360_safe(uuid, uuid)` — expõe consentimentos ao administrativo somente quando houver acesso a dados sensíveis.
+
+A coluna `customers.marketing_consent` representa o estado agregado de marketing: fica `true` quando **ao menos um** canal de marketing possui como último evento uma concessão ativa, e `false` quando nenhum canal está ativo. Assim, revogar e-mail não desliga WhatsApp que continue consentido, por exemplo. `customers.loyalty_opt_in` é sincronizado com o último evento de `loyalty_program`.
+
+A migration `20260913103142_customer_consent_current_state.sql` consolidou essa regra na RPC `set_customer_self_consent_safe`.
 
 ---
 
