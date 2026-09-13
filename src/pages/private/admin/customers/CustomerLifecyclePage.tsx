@@ -30,6 +30,15 @@ function statusLabel(status?: string | null) {
   return labels[status || ''] || status || 'Não informado';
 }
 
+function consentLabel(type?: string | null) {
+  const labels: Record<string, string> = {
+    terms_of_use: 'Termos de uso', privacy_policy: 'Política de privacidade',
+    loyalty_program: 'Fidelidade', marketing_whatsapp: 'Marketing por WhatsApp',
+    marketing_email: 'Marketing por e-mail', marketing_sms: 'Marketing por SMS',
+  };
+  return labels[type || ''] || type || 'Consentimento';
+}
+
 function shortOrderReference(order?: Pick<Customer360Order, 'id' | 'order_code'> | null) {
   return getShortDocumentReference(order?.order_code || order?.id, { fallbackLabel: 'Pedido' });
 }
@@ -63,6 +72,7 @@ export default function CustomerLifecyclePage() {
 
   const customer = data.customer;
   const isProtected = customer.data_ownership === 'customer_owned' || customer.editable_by_store === false;
+  const canSeeSensitive = Boolean(data.sensitive_data_visible || customer.sensitive_data_visible);
 
   return <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
     <div className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -71,16 +81,16 @@ export default function CustomerLifecyclePage() {
         <div className="flex items-start gap-4"><div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-700"><UserRound size={28} /></div><div>
           <h1 className="text-2xl font-black text-gray-900 dark:text-white sm:text-3xl">{customer.full_name || 'Cliente sem nome'}</h1>
           <p className="mt-1 text-sm text-gray-500">{customer.phone}{customer.email ? ` • ${customer.email}` : ''}</p>
-          <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">{sourceLabel(customer.source)}</span>{isProtected ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"><ShieldCheck size={13} />Dados protegidos</span> : <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700"><Edit3 size={13} />Editável pelo lojista</span>}</div>
+          <div className="mt-3 flex flex-wrap gap-2"><span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">{sourceLabel(customer.source)}</span>{isProtected ? <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-xs font-black text-amber-700"><ShieldCheck size={13} />Dados do cliente protegidos</span> : <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700"><Edit3 size={13} />Cadastro da loja</span>}</div>
         </div></div>
-        {canManageCustomers && !isProtected && <button type="button" onClick={() => navigate(`/admin/customers/${customer.id}/edit`)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black"><Edit3 size={18} />Editar</button>}
+        {canManageCustomers && <button type="button" onClick={() => navigate(`/admin/customers/${customer.id}/edit`)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-gray-200 px-5 py-3 text-sm font-black"><Edit3 size={18} />{isProtected ? 'Campos internos' : 'Editar cliente'}</button>}
       </div>
     </div>
 
     <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
       <Summary icon={<ClipboardList size={17} />} label="Pedidos" value={String(customer.total_orders || data.orders.length)} note={`${totalCompletedOrders} concluídos`} />
       <Summary icon={<BadgeDollarSign size={17} />} label="Total gasto" value={formatCurrency(customer.total_spent || 0)} />
-      <Summary icon={<Coins size={17} />} label="Pontos" value={String(customer.loyalty_points || 0)} note={customer.current_tier_name || customer.loyalty_tier || 'Bronze'} accent />
+      <Summary icon={<Coins size={17} />} label="Pontos" value={String(customer.loyalty_points || 0)} note={`${customer.current_tier_name || customer.loyalty_tier || 'Bronze'} · ${customer.loyalty_opt_in ? 'adesão ativa' : 'sem adesão'}`} accent />
       <Summary icon={<CalendarClock size={17} />} label="Última compra" value={formatDateTime(customer.last_order_at)} small />
     </div>
 
@@ -104,7 +114,8 @@ export default function CustomerLifecyclePage() {
       <aside className="space-y-6">
         <Aside title="Tags" icon={<Tags size={18} className="text-emerald-600" />}>{customer.tags?.length ? <div className="flex flex-wrap gap-2">{customer.tags.map((tag) => <span key={tag} className="rounded-full bg-gray-100 px-3 py-1 text-xs font-bold">{tag}</span>)}</div> : <p className="text-sm text-gray-500">Sem tags cadastradas.</p>}</Aside>
         <Aside title="Observações internas"><p className="text-sm text-gray-500">{customer.internal_notes || 'Nenhuma observação interna.'}</p></Aside>
-        <Aside title="Endereços" icon={<MapPin size={18} className="text-emerald-600" />}>{data.addresses.length ? <div className="space-y-2 text-sm">{data.addresses.map((address) => <p key={address.id}>{address.street}, {address.number} — {address.city}/{address.state}</p>)}</div> : <p className="text-sm text-gray-500">Nenhum endereço cadastrado.</p>}</Aside>
+        <Aside title="Endereços" icon={<MapPin size={18} className="text-emerald-600" />}>{canSeeSensitive ? (data.addresses.length ? <div className="space-y-2 text-sm">{data.addresses.map((address) => <p key={address.id}>{address.street}, {address.number} — {address.city}/{address.state}</p>)}</div> : <p className="text-sm text-gray-500">Nenhum endereço cadastrado.</p>) : <p className="text-sm text-gray-500">Dados ocultos pela permissão customers.sensitive.view.</p>}</Aside>
+        <Aside title="Consentimentos" icon={<ShieldCheck size={18} className="text-emerald-600" />}>{canSeeSensitive ? (data.consents.length ? <div className="space-y-2">{data.consents.slice(0, 8).map((consent) => <div key={consent.id} className="rounded-xl border border-gray-100 p-3 text-xs dark:border-gray-800"><p className="font-black">{consentLabel(consent.consent_type)} · {consent.action === 'granted' ? 'Concedido' : 'Revogado'}</p><p className="mt-1 text-gray-500">{formatDateTime(consent.created_at)}{consent.source ? ` · ${consent.source}` : ''}</p></div>)}</div> : <p className="text-sm text-gray-500">Nenhum consentimento registrado.</p>) : <p className="text-sm text-gray-500">Histórico restrito pela permissão customers.sensitive.view.</p>}</Aside>
       </aside>
     </div>
   </div>;
