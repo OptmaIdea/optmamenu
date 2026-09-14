@@ -1,4 +1,4 @@
-import { supabaseCustomer } from '@/lib/supabase';
+import { supabasePublic } from '@/lib/supabase';
 import type { Category, Product, PublicAvailability, StoreConfig } from '@/types';
 
 export interface PublicStorefrontStore {
@@ -199,7 +199,7 @@ function normalizePublicAvailability(value: unknown): PublicAvailability | undef
 
 export const PublicStorefrontService = {
     async getStorefrontBySlug(slug: string): Promise<PublicStorefrontResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_storefront_by_slug',
             { p_slug: slug }
         );
@@ -213,7 +213,7 @@ export const PublicStorefrontService = {
     },
 
     async getCatalogBySlug(slug: string): Promise<PublicCatalogResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_catalog_by_slug',
             { p_slug: slug }
         );
@@ -271,7 +271,7 @@ export const PublicStorefrontService = {
     },
 
     async getPublicSalesChannelsBySlug(slug: string): Promise<PublicSalesChannelsResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_sales_channels_by_slug',
             { p_slug: slug }
         );
@@ -285,7 +285,7 @@ export const PublicStorefrontService = {
     },
 
     async getPublicPaymentMethodsBySlug(slug: string): Promise<PublicPaymentMethodsResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_payment_methods_by_slug',
             { p_slug: slug }
         );
@@ -299,7 +299,7 @@ export const PublicStorefrontService = {
     },
 
     async getPublicDeliveryMethodsBySlug(slug: string): Promise<PublicDeliveryMethodsResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_delivery_methods_by_slug',
             { p_slug: slug }
         );
