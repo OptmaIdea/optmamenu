@@ -1,8 +1,14 @@
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
+import {
+    activateCustomerCart,
+    deactivateCustomerCart,
+    prepareCustomerCartForSessionRestore,
+} from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
+import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { formatBRL } from '@/utils/pricing';
 
 function getStoreSlugFromPath(pathname: string): string | null {
@@ -21,6 +27,9 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
     const items = useCartStore((state) => state.items);
     const context = useCartStore((state) => state.context);
+    const customer = useCustomerAuth((state) => state.customer);
+    const isAuthenticated = useCustomerAuth((state) => state.isAuthenticated);
+    const sessionRestored = useCustomerAuth((state) => state.sessionRestored);
     const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
     const cartTotal = items.reduce(
         (acc, item) => acc + Number(item.price || 0) * item.quantity,
@@ -33,9 +42,39 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     const isTableContext = context?.type === 'table';
     const isCheckoutRoute = location.pathname === '/checkout';
 
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        const previousDark = root.classList.contains('dark');
+
+        // A loja pública tem fronteira visual própria. Ela inicia em modo claro para
+        // não herdar inadvertidamente o tema do painel administrativo ou do sistema.
+        root.classList.remove('dark');
+        root.dataset.storefrontTheme = 'light';
+
+        // Se havia um carrinho pertencente a um cliente autenticado, não o exibe
+        // até a sessão ser revalidada pelo backend.
+        prepareCustomerCartForSessionRestore();
+
+        return () => {
+            root.classList.toggle('dark', previousDark);
+            delete root.dataset.storefrontTheme;
+        };
+    }, []);
+
     useEffect(() => {
         window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }, [location.pathname, location.search]);
+
+    useEffect(() => {
+        if (!sessionRestored) return;
+
+        if (isAuthenticated && customer) {
+            activateCustomerCart(customer.id, customer.store_id);
+            return;
+        }
+
+        deactivateCustomerCart();
+    }, [customer, isAuthenticated, sessionRestored]);
 
     return (
         <div className={`min-h-screen ${isCheckoutRoute ? '' : 'pb-24 sm:pb-0'}`}>
