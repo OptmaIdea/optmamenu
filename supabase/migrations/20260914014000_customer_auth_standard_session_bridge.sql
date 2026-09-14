@@ -32,6 +32,9 @@ create policy customer_auth_identities_no_direct_access
   using (false)
   with check (false);
 
+revoke all on table public.customer_auth_identities from anon, authenticated;
+grant all on table public.customer_auth_identities to service_role;
+
 create or replace function public.app_current_customer_id()
 returns uuid
 language sql
@@ -97,6 +100,13 @@ begin
 end;
 $function$;
 
+revoke all on function public.app_current_customer_id() from public, anon;
+revoke all on function public.app_current_store_id() from public, anon;
+revoke all on function public.app_current_role() from public, anon;
+grant execute on function public.app_current_customer_id() to authenticated, service_role;
+grant execute on function public.app_current_store_id() to authenticated, service_role;
+grant execute on function public.app_current_role() to authenticated, service_role;
+
 create or replace function public.validate_customer_auth_identity_store()
 returns trigger
 language plpgsql
@@ -119,3 +129,5 @@ drop trigger if exists trg_validate_customer_auth_identity_store on public.custo
 create trigger trg_validate_customer_auth_identity_store
 before insert or update on public.customer_auth_identities
 for each row execute function public.validate_customer_auth_identity_store();
+
+revoke all on function public.validate_customer_auth_identity_store() from public, anon, authenticated, service_role;
