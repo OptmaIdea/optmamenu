@@ -113,6 +113,65 @@ export interface PublicCatalogResponse {
     categories: PublicCatalogCategory[];
 }
 
+type Rgb = { r: number; g: number; b: number };
+
+function parseHexColor(value: unknown): Rgb | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().replace(/^#/, '');
+    const expanded = normalized.length === 3
+        ? normalized.split('').map((char) => `${char}${char}`).join('')
+        : normalized;
+
+    if (!/^[0-9a-f]{6}$/i.test(expanded)) return null;
+
+    return {
+        r: Number.parseInt(expanded.slice(0, 2), 16),
+        g: Number.parseInt(expanded.slice(2, 4), 16),
+        b: Number.parseInt(expanded.slice(4, 6), 16),
+    };
+}
+
+function relativeLuminance(color: Rgb) {
+    const normalize = (channel: number) => {
+        const value = channel / 255;
+        return value <= 0.03928
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4;
+    };
+
+    return 0.2126 * normalize(color.r)
+        + 0.7152 * normalize(color.g)
+        + 0.0722 * normalize(color.b);
+}
+
+function contrastRatio(background: Rgb, foreground: Rgb) {
+    const backgroundLuminance = relativeLuminance(background);
+    const foregroundLuminance = relativeLuminance(foreground);
+    const lighter = Math.max(backgroundLuminance, foregroundLuminance);
+    const darker = Math.min(backgroundLuminance, foregroundLuminance);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+export function ensureReadableStorefrontTextColor(background: unknown, preferred: unknown) {
+    const backgroundRgb = parseHexColor(background);
+    const preferredRgb = parseHexColor(preferred);
+    const preferredValue = typeof preferred === 'string' && preferred.trim()
+        ? preferred.trim()
+        : '#ffffff';
+
+    if (!backgroundRgb) return preferredValue;
+    if (preferredRgb && contrastRatio(backgroundRgb, preferredRgb) >= 4.5) {
+        return preferredValue;
+    }
+
+    const light = { r: 255, g: 255, b: 255 };
+    const dark = { r: 17, g: 24, b: 39 };
+
+    return contrastRatio(backgroundRgb, light) >= contrastRatio(backgroundRgb, dark)
+        ? '#ffffff'
+        : '#111827';
+}
+
 function normalizePriceRules(value: unknown) {
     if (Array.isArray(value)) {
         return value
@@ -313,6 +372,13 @@ export const PublicStorefrontService = {
     },
 
     toCatalogStore(store: PublicStorefrontStore) {
+        const visualConfig = store.visual_config || {};
+        const primaryColor = visualConfig.visual_color_primary || '#19A999';
+        const readableTextColor = ensureReadableStorefrontTextColor(
+            primaryColor,
+            visualConfig.visual_color_text || '#ffffff',
+        );
+
         return {
             id: store.id,
             name: store.name,
@@ -331,7 +397,8 @@ export const PublicStorefrontService = {
                 whatsapp_business: store.whatsapp?.digits || store.phone_number || '',
             },
             config: {
-                ...(store.visual_config || {}),
+                ...visualConfig,
+                visual_color_text: readableTextColor,
                 timer_duration_minutes: store.reservation_time_minutes || 10,
             } as StoreConfig,
         };
