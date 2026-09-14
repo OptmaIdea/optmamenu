@@ -116,6 +116,7 @@ export interface StoreConfig {
     extension_minutes?: number;
     ready_hold_minutes?: number;
     expiration_grace_minutes?: number;
+    customer_cart_retention_hours?: number;
     payment_timing?: {
         pay_now_enabled?: boolean;
         pay_on_pickup_enabled?: boolean;
