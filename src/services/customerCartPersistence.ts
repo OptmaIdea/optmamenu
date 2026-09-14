@@ -127,7 +127,12 @@ export function prepareCustomerCartForSessionRestore() {
     const marker = readOwnerMarker();
     if (!marker) return;
 
-    // Nunca exibe o carrinho de uma sessão anterior antes de revalidar a identidade.
+    // Suspende a gravação antes de ocultar o carrinho. Assim, o clearCart usado
+    // durante a revalidação não sobrescreve o snapshot individual com [] vazio.
+    activeOwner = null;
+
+    // O marcador permanece no storage até sabermos se a sessão ainda é válida.
+    // Nunca exibimos o carrinho de uma sessão anterior antes de revalidar a identidade.
     useCartStore.getState().clearCart();
 }
 
