@@ -86,6 +86,16 @@ async function refreshCustomerSessionIfNeeded() {
 }
 
 export const AuthService = {
+    // Compatibilidade temporária com a UI antiga enquanto ela migra para OTP-only.
+    // Não revela se um telefone já está cadastrado.
+    async checkStatus(_phone: string, _storeId: string) {
+        return {
+            exists: false,
+            hasPassword: false,
+            customer: null,
+        };
+    },
+
     async sendOtp(phone: string, storeId: string, purpose: CustomerOtpPurpose = 'login') {
         const { data, error } = await supabasePublic.functions.invoke('send-customer-otp-sms', {
             body: { phone, storeId, purpose },
@@ -145,6 +155,7 @@ export const AuthService = {
 
         return {
             valid: true,
+            isNewUser: false,
             purpose,
             customer,
         };
@@ -174,6 +185,20 @@ export const AuthService = {
 
     async loginWithPassword(_phone: string, _password: string, _storeId: string) {
         throw new Error('Para entrar com segurança, use o código enviado por SMS.');
+    },
+
+    async registerUser(_data: {
+        phone: string;
+        storeId: string;
+        storeName: string;
+        nickname: string;
+        marketingConsent: boolean;
+        email?: string;
+        contactPreference?: 'whatsapp' | 'sms';
+        birthDate?: string;
+        loyaltyOptIn?: boolean;
+    }) {
+        throw new Error('Cadastro seguro deve ser concluído pelo código SMS.');
     },
 
     async logoutCustomer() {
