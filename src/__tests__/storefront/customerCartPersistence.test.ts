@@ -36,8 +36,8 @@ function product(id = 'prod-1', overrides: Partial<Product> = {}): Product {
 
 describe('customerCartPersistence', () => {
     beforeEach(() => {
-        localStorage.clear();
         deactivateCustomerCart();
+        localStorage.clear();
         useCartStore.setState({
             context,
             fulfillmentType: 'pickup',
