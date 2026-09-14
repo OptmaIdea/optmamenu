@@ -224,7 +224,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
     };
 
     return (
-        <div className={`fixed inset-0 z-[60] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+        <div className={`fixed inset-0 z-[90] transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
             <button
                 type="button"
                 className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm"
