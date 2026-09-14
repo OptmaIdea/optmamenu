@@ -219,7 +219,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
     if (!sessionRestored) {
         return (
-            <div className="fixed bottom-5 left-4 z-[65] flex h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-900/90 px-4 text-xs font-bold text-white shadow-xl backdrop-blur">
+            <div className="fixed bottom-28 left-4 z-[65] flex h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-900/90 px-4 text-xs font-bold text-white shadow-xl backdrop-blur sm:bottom-5">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Verificando conta
             </div>
@@ -228,7 +228,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
     return (
         <>
-            <div className="fixed bottom-5 left-4 z-[65]">
+            <div className="fixed bottom-28 left-4 z-[65] sm:bottom-5">
                 {isAuthenticated && customer ? (
                     <div className="flex items-center gap-1 rounded-full border border-emerald-200 bg-white p-1 pl-3 shadow-xl dark:border-emerald-900 dark:bg-slate-900">
                         <ShieldCheck className="h-4 w-4 text-emerald-600" />
