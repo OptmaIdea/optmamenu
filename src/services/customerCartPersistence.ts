@@ -359,18 +359,22 @@ export function activateCustomerCart(customerId: string, storeId: string) {
 }
 
 export function deactivateCustomerCart(customerId?: string, storeId?: string) {
-    if (
-        activeOwner
+    const ownerToDeactivate = activeOwner
         && (!customerId || activeOwner.customerId === customerId)
         && (!storeId || activeOwner.storeId === storeId)
-    ) {
-        writeSnapshot(activeOwner);
+        ? activeOwner
+        : null;
+
+    if (ownerToDeactivate) {
+        writeSnapshot(ownerToDeactivate);
     }
 
     activeOwner = null;
     writeOwnerMarker(null);
 
-    // O carrinho some da sessão pública, mas a cópia individual continua guardada
-    // até o prazo configurado para o próximo login do mesmo cliente.
-    clearCartWithoutPersistence();
+    // Só uma sessão autenticada que estava realmente ativa deve limpar o carrinho
+    // visível. A inicialização de um visitante anônimo não pode apagar seu carrinho.
+    if (ownerToDeactivate) {
+        clearCartWithoutPersistence();
+    }
 }
