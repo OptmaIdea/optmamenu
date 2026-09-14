@@ -2,10 +2,13 @@ import { useEffect, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
+import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import {
     activateCustomerCart,
+    configureCustomerCartRetention,
     deactivateCustomerCart,
     prepareCustomerCartForSessionRestore,
+    syncCustomerCartCatalog,
 } from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
@@ -75,6 +78,40 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
         deactivateCustomerCart();
     }, [customer, isAuthenticated, sessionRestored]);
+
+    useEffect(() => {
+        if (!storeSlug || !context?.storeId) return;
+
+        let active = true;
+
+        void Promise.all([
+            PublicStorefrontService.getStorefrontBySlug(storeSlug),
+            PublicStorefrontService.getCatalogBySlug(storeSlug),
+        ])
+            .then(([storefront, catalog]) => {
+                if (!active) return;
+
+                configureCustomerCartRetention(
+                    context.storeId,
+                    storefront.store?.visual_config?.customer_cart_retention_hours,
+                );
+
+                const products = (catalog.categories || []).flatMap((category) =>
+                    (category.products || []).map((product) => ({
+                        ...product,
+                        category_id: product.category_id || category.id,
+                    })),
+                );
+                syncCustomerCartCatalog(context.storeId, products);
+            })
+            .catch((error) => {
+                console.error('Não foi possível aplicar a política do carrinho público:', error);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [context?.storeId, storeSlug]);
 
     return (
         <div className={`min-h-screen ${isCheckoutRoute ? '' : 'pb-24 sm:pb-0'}`}>
