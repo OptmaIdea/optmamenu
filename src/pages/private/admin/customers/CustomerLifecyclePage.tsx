@@ -27,6 +27,7 @@ import {
   type Customer360Order,
 } from '@/services/customers360Service';
 import { getShortDocumentReference } from '@/utils/documentReference';
+import CustomerTimelineSection from './CustomerTimelineSection';
 
 function formatCurrency(value: unknown) {
   return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -68,9 +69,11 @@ function statusLabel(status?: string | null) {
     confirmed: 'Confirmado',
     preparing: 'Em preparo',
     ready: 'Pronto',
+    out_for_delivery: 'Saiu para entrega',
     completed: 'Concluído',
     cancelled: 'Cancelado',
     rejected: 'Recusado',
+    expired: 'Expirado',
   };
   return labels[status || ''] || status || 'Não informado';
 }
@@ -166,7 +169,7 @@ export default function CustomerLifecyclePage() {
     );
   }
 
-  if (error || !data?.customer) {
+  if (error || !data?.customer || !storeId || !customerId) {
     return (
       <div className="p-6">
         <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-800 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-200">
@@ -237,7 +240,7 @@ export default function CustomerLifecyclePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-        <Summary icon={<ClipboardList size={17} />} label="Pedidos" value={String(customer.total_orders || data.orders.length)} note={`${totalCompletedOrders} concluídos`} />
+        <Summary icon={<ClipboardList size={17} />} label="Pedidos vinculados" value={String(customer.total_orders || data.orders.length)} note={`${totalCompletedOrders} concluídos`} />
         <Summary icon={<BadgeDollarSign size={17} />} label="Total gasto" value={formatCurrency(customer.total_spent || 0)} />
         <Summary
           icon={<Coins size={17} />}
@@ -251,8 +254,16 @@ export default function CustomerLifecyclePage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          <CustomerTimelineSection storeId={storeId} customerId={customerId} />
+
           <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-            <h2 className="text-lg font-black text-gray-900 dark:text-white">Pedidos do cliente</h2>
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-gray-900 dark:text-white">Pedidos do cliente</h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Somente pedidos vinculados de forma confirmada ao cadastro.</p>
+              </div>
+              <span className="text-xs font-black text-gray-400">{data.orders.length} registro(s)</span>
+            </div>
             <div className="mt-4 space-y-3">
               {data.orders.map((order) => (
                 <Link
@@ -273,7 +284,7 @@ export default function CustomerLifecyclePage() {
                   </div>
                 </Link>
               ))}
-              {!data.orders.length && <Empty text="Nenhum pedido encontrado." />}
+              {!data.orders.length && <Empty text="Nenhum pedido confirmado está vinculado a este cadastro." />}
             </div>
           </section>
 
