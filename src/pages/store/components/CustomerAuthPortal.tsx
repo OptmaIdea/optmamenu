@@ -54,18 +54,15 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     }, [markSessionRestored]);
 
     useEffect(() => {
-        if (storeId) {
-            setResolvedStoreId(storeId);
-            return;
-        }
-
+        if (storeId) setResolvedStoreId(storeId);
         if (!storeSlug) return;
+
         let active = true;
 
         void PublicStorefrontService.getStorefrontBySlug(storeSlug)
             .then((result) => {
                 if (!active || !result.ok || !result.store) return;
-                setResolvedStoreId(result.store.id);
+                if (!storeId) setResolvedStoreId(result.store.id);
                 setStoreName(result.store.name);
             })
             .catch(() => undefined);
@@ -90,6 +87,11 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     const displayName = useMemo(
         () => customer?.nickname || customer?.full_name || 'cliente',
         [customer?.full_name, customer?.nickname],
+    );
+
+    const senderLabel = useMemo(
+        () => storeName.trim() || storeSlug?.trim() || 'esta loja',
+        [storeName, storeSlug],
     );
 
     const resetFlow = (nextMode: AuthMode = 'login') => {
@@ -153,7 +155,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
             );
             setStep('otp');
             setOtp('');
-            setNotice('Código enviado por SMS. Ele é válido por 5 minutos.');
+            setNotice(`Código de ${senderLabel} enviado por SMS. Ele é válido por 5 minutos.`);
         } catch (sendError) {
             setError(sendError instanceof Error ? sendError.message : 'Não foi possível enviar o código.');
         } finally {
@@ -279,10 +281,10 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                             </h2>
                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                 {step === 'otp'
-                                    ? `Digite o código enviado para ${phone}.`
+                                    ? `Digite o código enviado por ${senderLabel} para ${phone}.`
                                     : mode === 'login'
-                                        ? `Use seu telefone para entrar${storeName ? ` na ${storeName}` : ''}.`
-                                        : 'Confirme seu telefone para proteger sua conta.'}
+                                        ? `Use seu telefone para entrar${storeName ? ` na ${storeName}` : ''}. Você receberá um SMS identificado como ${senderLabel}.`
+                                        : `Confirme seu telefone para proteger sua conta. Você receberá um SMS identificado como ${senderLabel}.`}
                             </p>
                         </div>
 
