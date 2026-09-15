@@ -93,6 +93,34 @@ export interface Customer360Consent {
     created_at: string;
 }
 
+export type CustomerTimelineCategory =
+    | 'profile'
+    | 'order'
+    | 'loyalty'
+    | 'consent'
+    | 'address'
+    | 'merge'
+    | 'communication'
+    | string;
+
+export interface CustomerTimelineEvent {
+    id: string;
+    category: CustomerTimelineCategory;
+    event_type: string;
+    title: string;
+    description: string | null;
+    occurred_at: string;
+    source: string | null;
+    related_id: string | null;
+    metadata: Record<string, unknown>;
+}
+
+export interface CustomerTimelineResult {
+    events: CustomerTimelineEvent[];
+    sensitiveDataVisible: boolean;
+    identityLinkPolicy: 'confirmed_customer_id_only' | string;
+}
+
 export interface Customer360 {
     customer: CustomerListItem & {
         current_tier_color?: string | null;
@@ -190,6 +218,23 @@ export const Customers360Service = {
             consents: data.consents || [],
             sensitive_data_visible: Boolean(data.sensitive_data_visible),
         } as Customer360;
+    },
+
+    async getCustomerTimeline(storeId: string, customerId: string, limit = 150): Promise<CustomerTimelineResult> {
+        const { data, error } = await supabase.rpc('get_customer_timeline_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar histórico consolidado do cliente.');
+
+        return {
+            events: (data.events || []) as CustomerTimelineEvent[],
+            sensitiveDataVisible: Boolean(data.sensitive_data_visible),
+            identityLinkPolicy: data.identity_link_policy || 'confirmed_customer_id_only',
+        };
     },
 
     async createAdminCustomer(input: CreateAdminCustomerInput) {
