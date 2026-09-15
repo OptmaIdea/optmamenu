@@ -256,19 +256,40 @@ function normalizePublicAvailability(value: unknown): PublicAvailability | undef
     };
 }
 
+function wait(milliseconds: number) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 export const PublicStorefrontService = {
     async getStorefrontBySlug(slug: string): Promise<PublicStorefrontResponse> {
-        const { data, error } = await supabasePublic.rpc(
-            'get_public_storefront_by_slug',
-            { p_slug: slug }
-        );
+        const normalizedSlug = slug.trim();
+        let lastError: unknown = null;
+        let lastPayload: PublicStorefrontResponse | null = null;
 
-        if (error) {
-            console.error('get_public_storefront_by_slug error:', error);
-            throw error;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            const { data, error } = await supabasePublic.rpc(
+                'get_public_storefront_by_slug',
+                { p_slug: normalizedSlug }
+            );
+
+            if (!error) {
+                const payload = data as PublicStorefrontResponse;
+                lastPayload = payload;
+                if (payload?.ok && payload.store) return payload;
+                if (attempt === 2) return payload;
+            } else {
+                lastError = error;
+                if (attempt === 2) {
+                    console.error('get_public_storefront_by_slug error:', error);
+                    throw error;
+                }
+            }
+
+            await wait(150 * (attempt + 1));
         }
 
-        return data as PublicStorefrontResponse;
+        if (lastError) throw lastError;
+        return lastPayload || { ok: false, error: 'storefront_unavailable' };
     },
 
     async getCatalogBySlug(slug: string): Promise<PublicCatalogResponse> {
