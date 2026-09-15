@@ -31,8 +31,20 @@ function reply(body: unknown, status = 200, origin: string | null = null) {
   });
 }
 
-function messageForOtp(otp: string) {
-  return `OptmaMenu: codigo ${otp}. Valido por 5 min. Nao compartilhe este codigo.`;
+function smsSafeLabel(value: unknown) {
+  const normalized = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9 ._-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 32);
+
+  return normalized || "OptmaMenu";
+}
+
+function messageForOtp(otp: string, senderLabel: string) {
+  return `${senderLabel}: codigo ${otp}. Valido por 5 min. Nao compartilhe este codigo.`;
 }
 
 function toGatewayE164(value: unknown) {
@@ -78,6 +90,28 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  let senderLabel = "OptmaMenu";
+  try {
+    const { data: storeData, error: storeError } = await service
+      .from("stores")
+      .select("name, slug, config")
+      .eq("id", storeId)
+      .maybeSingle();
+
+    if (storeError) throw storeError;
+
+    const visualTitle = storeData?.config && typeof storeData.config === "object"
+      ? String((storeData.config as Record<string, unknown>).visual_title || "").trim()
+      : "";
+
+    senderLabel = smsSafeLabel(visualTitle || storeData?.name || storeData?.slug || "OptmaMenu");
+  } catch (error) {
+    console.warn("customer_otp_store_label_fallback", {
+      error: error instanceof Error ? error.name : "unknown_error",
+      storeId,
+    });
+  }
+
   let issued: any = null;
   try {
     const { data, error } = await service.rpc("issue_customer_otp_for_sms_safe", {
@@ -117,7 +151,7 @@ Deno.serve(async (req: Request) => {
 
   const providerRequestId = crypto.randomUUID();
   const idempotencyKey = `optmamenu-otp-${otpId}`;
-  const smsBody = messageForOtp(otp);
+  const smsBody = messageForOtp(otp, senderLabel);
 
   let providerStatus = "failed";
   let providerMessageId: string | null = null;
@@ -186,5 +220,5 @@ Deno.serve(async (req: Request) => {
     return reply({ ok: false, error: providerErrorCode === "rate_limit_exceeded" ? "sms_rate_limited" : "sms_delivery_unavailable" }, responseStatus, origin);
   }
 
-  return reply({ ok: true, expiresAt, status: "queued", messageId: providerMessageId }, 200, origin);
+  return reply({ ok: true, expiresAt, status: "queued", messageId: providerMessageId, senderLabel }, 200, origin);
 });
