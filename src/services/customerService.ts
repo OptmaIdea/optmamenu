@@ -38,15 +38,18 @@ type SelfRpcPayload = {
 type SelfAddress = {
     id?: string;
     customer_id?: string;
-    zip_code?: string | null;
-    street?: string | null;
-    number?: string | null;
-    complement?: string | null;
-    district?: string | null;
-    city?: string | null;
-    state?: string | null;
-    is_default?: boolean;
+    zip_code: string;
+    street: string;
+    number: string;
+    complement: string;
+    district: string;
+    city: string;
+    state: string;
+    is_default: boolean;
+    created_at?: string;
 };
+
+type SelfAddressPatch = Partial<SelfAddress> & { customer_id?: string };
 
 function selfServiceError(payload: SelfRpcPayload | null | undefined, fallback: string) {
     switch (payload?.error) {
@@ -73,7 +76,22 @@ function selfServiceError(payload: SelfRpcPayload | null | undefined, fallback: 
     }
 }
 
-async function upsertSelfAddress(addressId: string | null, address: SelfAddress) {
+function normalizeSelfAddress(item: Record<string, unknown>): SelfAddress {
+    return {
+        id: item.id ? String(item.id) : undefined,
+        zip_code: String(item.zip_code ?? ''),
+        street: String(item.street ?? ''),
+        number: String(item.number ?? ''),
+        complement: String(item.complement ?? ''),
+        district: String(item.district ?? ''),
+        city: String(item.city ?? ''),
+        state: String(item.state ?? ''),
+        is_default: Boolean(item.is_default),
+        created_at: item.created_at ? String(item.created_at) : undefined,
+    };
+}
+
+async function upsertSelfAddress(addressId: string | null, address: SelfAddressPatch) {
     const { data, error } = await supabaseCustomer.rpc('upsert_customer_self_address_safe', {
         p_address_id: addressId,
         p_zip_code: address.zip_code ?? null,
@@ -154,25 +172,27 @@ export const CustomerService = {
     },
 
     // --- Address Management ---
-    async getAddresses(_customerId?: string) {
+    async getAddresses(_customerId?: string): Promise<SelfAddress[]> {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_addresses_safe');
         if (error) throw new Error('Não foi possível carregar seus endereços.');
 
-        const payload = data as (SelfRpcPayload & { addresses?: SelfAddress[] }) | null;
+        const payload = data as (SelfRpcPayload & { addresses?: Record<string, unknown>[] }) | null;
         if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível carregar seus endereços.');
-        return Array.isArray(payload.addresses) ? payload.addresses : [];
+        return Array.isArray(payload.addresses)
+            ? payload.addresses.map(normalizeSelfAddress)
+            : [];
     },
 
-    async addAddress(address: SelfAddress) {
+    async addAddress(address: SelfAddressPatch) {
         const payload = await upsertSelfAddress(null, address);
         return { id: payload.address_id, ...address };
     },
 
-    async updateAddress(id: string, address: SelfAddress) {
+    async updateAddress(id: string, address: SelfAddressPatch) {
         // Alguns componentes antigos enviam somente { is_default: true }.
         // A RPC segura valida o endereço completo, então mesclamos com o endereço
         // já pertencente à própria sessão antes de persistir.
-        let completeAddress = address;
+        let completeAddress: SelfAddressPatch = address;
         const requiredFields = ['zip_code', 'street', 'number', 'district', 'city', 'state'] as const;
         if (requiredFields.some((field) => !String(address[field] ?? '').trim())) {
             const current = await this.getAddresses();
