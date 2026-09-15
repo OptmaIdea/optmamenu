@@ -51,7 +51,7 @@ jobs:
                   text = text.replace(old, new)
 
           delete_old = "if (!confirm('Excluir endereço?')) return;"
-          delete_new = "confirmed = await systemConfirm({\n            title: 'Excluir endereço?',\n            description: 'Este endereço será removido da sua conta. Se ele for o endereço padrão, outro endereço salvo poderá assumir como padrão.',\n            confirmLabel: 'Excluir endereço',\n            cancelLabel: 'Manter endereço',\n            tone: 'danger',\n        });\n        if (!confirmed) return;"
+          delete_new = "const confirmed = await systemConfirm({\n            title: 'Excluir endereço?',\n            description: 'Este endereço será removido da sua conta. Se ele for o endereço padrão, outro endereço salvo poderá assumir como padrão.',\n            confirmLabel: 'Excluir endereço',\n            cancelLabel: 'Manter endereço',\n            tone: 'danger',\n        });\n        if (!confirmed) return;"
           if delete_old in text:
               text = text.replace(delete_old, delete_new)
 
