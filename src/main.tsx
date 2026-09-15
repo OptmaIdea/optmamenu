@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from '@/App';
+import { SystemDialogProvider } from '@/components/common/SystemDialogProvider';
 import './index.css';
 import './styles/operationalRefinements.css';
 import './styles/financialContrastRefinements.css';
@@ -102,7 +103,9 @@ const root = ReactDOM.createRoot(rootElement);
 
 root.render(
   <React.StrictMode>
-    <App />
+    <SystemDialogProvider>
+      <App />
+    </SystemDialogProvider>
   </React.StrictMode>
 );
 
