@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, LogOut, ShieldCheck, Smartphone, User, X } from 'lucide-react';
+import { KeyRound, Loader2, LogOut, ShieldCheck, Smartphone, User, X } from 'lucide-react';
 import { AuthService } from '@/services/customerAuth';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 
 type AuthMode = 'login' | 'register';
-type AuthStep = 'form' | 'otp';
+type AuthStep = 'form' | 'otp' | 'password_setup';
+type OtpContext = 'registration' | 'password_stepup' | 'sms_login';
 
 interface CustomerAuthPortalProps {
     storeSlug?: string | null;
@@ -15,6 +16,20 @@ interface CustomerAuthPortalProps {
 
 function cleanPhone(value: string) {
     return value.replace(/\D/g, '');
+}
+
+function validPassword(value: string) {
+    return value.length >= 8 && value.length <= 72 && /[A-Za-z]/.test(value) && /[0-9]/.test(value);
+}
+
+function stepUpMessage(reason?: string | null) {
+    if (reason === 'verification_expired') {
+        return 'Já faz 30 dias desde a última confirmação deste aparelho. Enviamos um novo código de segurança.';
+    }
+    if (reason === 'inactive') {
+        return 'Este aparelho ficou mais de 15 dias sem acesso. Enviamos um código para confirmar que é você.';
+    }
+    return 'Este aparelho ainda não foi confirmado. Enviamos um código de segurança por SMS.';
 }
 
 export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalProps) {
@@ -30,7 +45,10 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     const [open, setOpen] = useState(false);
     const [mode, setMode] = useState<AuthMode>('login');
     const [step, setStep] = useState<AuthStep>('form');
+    const [otpContext, setOtpContext] = useState<OtpContext>('sms_login');
     const [phone, setPhone] = useState('');
+    const [password, setPassword] = useState('');
+    const [confirmPassword, setConfirmPassword] = useState('');
     const [nickname, setNickname] = useState('');
     const [birthDate, setBirthDate] = useState('');
     const [termsAccepted, setTermsAccepted] = useState(false);
@@ -58,11 +76,10 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         if (!storeSlug) return;
 
         let active = true;
-
         void PublicStorefrontService.getStorefrontBySlug(storeSlug)
             .then((result) => {
                 if (!active || !result.ok || !result.store) return;
-                if (!storeId) setResolvedStoreId(result.store.id);
+                setResolvedStoreId(result.store.id);
                 setStoreName(result.store.name);
             })
             .catch(() => undefined);
@@ -88,16 +105,15 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         () => customer?.nickname || customer?.full_name || 'cliente',
         [customer?.full_name, customer?.nickname],
     );
-
-    const senderLabel = useMemo(
-        () => storeName.trim() || storeSlug?.trim() || 'esta loja',
-        [storeName, storeSlug],
-    );
+    const senderName = storeName || storeSlug || 'esta loja';
 
     const resetFlow = (nextMode: AuthMode = 'login') => {
         setMode(nextMode);
         setStep('form');
+        setOtpContext(nextMode === 'register' ? 'registration' : 'sms_login');
         setOtp('');
+        setPassword('');
+        setConfirmPassword('');
         setError('');
         setNotice('');
         setLoading(false);
@@ -122,40 +138,100 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         resetFlow(nextMode);
     };
 
-    const sendCode = async () => {
+    const validatePhone = () => {
         const digits = cleanPhone(phone);
         if (!resolvedStoreId) {
             setError('A loja ainda está sendo carregada. Tente novamente em alguns segundos.');
-            return;
+            return null;
         }
         if (digits.length < 10 || digits.length > 13) {
             setError('Informe um telefone válido com DDD.');
-            return;
+            return null;
         }
-        if (mode === 'register') {
-            if (!nickname.trim()) {
-                setError('Informe seu nome ou apelido.');
-                return;
-            }
-            if (!termsAccepted) {
-                setError('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
-                return;
-            }
+        return digits;
+    };
+
+    const sendLoginOtp = async (context: OtpContext, customNotice?: string) => {
+        const digits = validatePhone();
+        if (!digits) return;
+
+        setLoading(true);
+        setError('');
+        setNotice('');
+        try {
+            await AuthService.sendOtp(digits, resolvedStoreId, 'login');
+            setOtpContext(context);
+            setStep('otp');
+            setOtp('');
+            setNotice(customNotice || `Código de ${senderName} enviado por SMS. Ele é válido por 5 minutos.`);
+        } catch (sendError) {
+            setError(sendError instanceof Error ? sendError.message : 'Não foi possível enviar o código.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const submitPasswordLogin = async () => {
+        const digits = validatePhone();
+        if (!digits) return;
+        if (!password) {
+            setError('Informe sua senha.');
+            return;
         }
 
         setLoading(true);
         setError('');
         setNotice('');
-
         try {
-            await AuthService.sendOtp(
-                digits,
-                resolvedStoreId,
-                mode === 'register' ? 'registration' : 'login',
-            );
+            const result = await AuthService.loginWithPassword(digits, password, resolvedStoreId);
+            if (result.authenticated) {
+                closeModal();
+                return;
+            }
+
+            if (result.otpRequired) {
+                await AuthService.sendOtp(digits, resolvedStoreId, 'login');
+                setOtpContext('password_stepup');
+                setStep('otp');
+                setOtp('');
+                setNotice(stepUpMessage(result.reason));
+            }
+        } catch (loginError) {
+            setError(loginError instanceof Error ? loginError.message : 'Não foi possível entrar.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const sendRegistrationOtp = async () => {
+        const digits = validatePhone();
+        if (!digits) return;
+        if (!nickname.trim()) {
+            setError('Informe seu nome ou apelido.');
+            return;
+        }
+        if (!validPassword(password)) {
+            setError('Crie uma senha de 8 a 72 caracteres, com pelo menos uma letra e um número.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('As senhas não coincidem.');
+            return;
+        }
+        if (!termsAccepted) {
+            setError('Aceite os Termos de Uso e a Política de Privacidade para continuar.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        setNotice('');
+        try {
+            await AuthService.sendOtp(digits, resolvedStoreId, 'registration');
+            setOtpContext('registration');
             setStep('otp');
             setOtp('');
-            setNotice(`Código de ${senderLabel} enviado por SMS. Ele é válido por 5 minutos.`);
+            setNotice(`Código de ${senderName} enviado por SMS. Ele é válido por 5 minutos.`);
         } catch (sendError) {
             setError(sendError instanceof Error ? sendError.message : 'Não foi possível enviar o código.');
         } finally {
@@ -176,30 +252,57 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         setNotice('');
 
         try {
-            await AuthService.verifyOtp(
+            const result = await AuthService.verifyOtp(
                 digits,
                 cleanOtp,
                 resolvedStoreId,
-                mode === 'register' ? 'registration' : 'login',
-                mode === 'register'
+                otpContext === 'registration' ? 'registration' : 'login',
+                otpContext === 'registration'
                     ? {
                         nickname: nickname.trim(),
                         birthDate: birthDate || undefined,
                         termsAccepted: true,
                         marketingConsent: false,
                         loyaltyOptIn: false,
+                        password,
                     }
                     : undefined,
             );
-            setOpen(false);
-            setOtp('');
-            setError('');
-            setNotice('');
+
+            if (otpContext === 'sms_login' && !result.passwordConfigured) {
+                setStep('password_setup');
+                setPassword('');
+                setConfirmPassword('');
+                setOtp('');
+                setNotice('Telefone confirmado. Crie uma senha para que os próximos acessos sejam mais rápidos.');
+                return;
+            }
+
+            closeModal();
         } catch (verifyError) {
-            const message = verifyError instanceof Error
-                ? verifyError.message
-                : 'Não foi possível validar o código.';
-            setError(message);
+            setError(verifyError instanceof Error ? verifyError.message : 'Não foi possível validar o código.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const savePassword = async () => {
+        if (!validPassword(password)) {
+            setError('A senha deve ter de 8 a 72 caracteres, com pelo menos uma letra e um número.');
+            return;
+        }
+        if (password !== confirmPassword) {
+            setError('As senhas não coincidem.');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+        try {
+            await AuthService.setPassword(password);
+            closeModal();
+        } catch (passwordError) {
+            setError(passwordError instanceof Error ? passwordError.message : 'Não foi possível salvar a senha.');
         } finally {
             setLoading(false);
         }
@@ -207,7 +310,11 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
     const resendCode = async () => {
         if (loading) return;
-        await sendCode();
+        if (otpContext === 'registration') {
+            await sendRegistrationOtp();
+            return;
+        }
+        await sendLoginOtp(otpContext);
     };
 
     const logout = async () => {
@@ -274,17 +381,25 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
                         <div className="mb-6 pr-10">
                             <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300">
-                                <Smartphone className="h-5 w-5" />
+                                {step === 'password_setup' ? <KeyRound className="h-5 w-5" /> : <Smartphone className="h-5 w-5" />}
                             </div>
                             <h2 className="text-xl font-black text-slate-900 dark:text-white">
-                                {mode === 'login' ? 'Entrar com SMS' : 'Criar sua conta'}
+                                {step === 'password_setup'
+                                    ? 'Crie sua senha'
+                                    : step === 'otp'
+                                        ? (mode === 'register' ? 'Confirmar seu telefone' : 'Confirmação por SMS')
+                                        : mode === 'login'
+                                            ? 'Entrar'
+                                            : 'Criar sua conta'}
                             </h2>
                             <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                                 {step === 'otp'
-                                    ? `Digite o código enviado por ${senderLabel} para ${phone}.`
-                                    : mode === 'login'
-                                        ? `Use seu telefone para entrar${storeName ? ` na ${storeName}` : ''}. Você receberá um SMS identificado como ${senderLabel}.`
-                                        : `Confirme seu telefone para proteger sua conta. Você receberá um SMS identificado como ${senderLabel}.`}
+                                    ? `Digite o código enviado por ${senderName} para ${phone}.`
+                                    : step === 'password_setup'
+                                        ? 'Sua senha será usada nos próximos acessos. O SMS será pedido novamente apenas quando a política de segurança exigir.'
+                                        : mode === 'login'
+                                            ? `Entre com telefone e senha${storeName ? ` na ${storeName}` : ''}.`
+                                            : 'Confirme seu telefone e crie uma senha para proteger sua conta.'}
                             </p>
                         </div>
 
@@ -300,14 +415,12 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                             </div>
                         )}
 
-                        {step === 'form' ? (
+                        {step === 'form' && (
                             <div className="space-y-4">
                                 {mode === 'register' && (
                                     <>
                                         <div>
-                                            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
-                                                Nome ou apelido
-                                            </label>
+                                            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Nome ou apelido</label>
                                             <input
                                                 type="text"
                                                 value={nickname}
@@ -332,9 +445,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                 )}
 
                                 <div>
-                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">
-                                        Telefone com DDD
-                                    </label>
+                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Telefone com DDD</label>
                                     <input
                                         type="tel"
                                         value={phone}
@@ -346,36 +457,71 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                     />
                                 </div>
 
+                                <div>
+                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Senha</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(event) => setPassword(event.target.value)}
+                                        autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                        placeholder={mode === 'login' ? 'Sua senha' : 'Mínimo de 8 caracteres'}
+                                    />
+                                </div>
+
                                 {mode === 'register' && (
-                                    <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                        <input
-                                            type="checkbox"
-                                            checked={termsAccepted}
-                                            onChange={(event) => setTermsAccepted(event.target.checked)}
-                                            className="mt-1 h-4 w-4"
-                                        />
-                                        <span>
-                                            Li e aceito os{' '}
-                                            <Link to="/terms" target="_blank" className="font-bold text-emerald-600 hover:underline">
-                                                Termos de Uso
-                                            </Link>{' '}
-                                            e a{' '}
-                                            <Link to="/politica-privacidade" target="_blank" className="font-bold text-emerald-600 hover:underline">
-                                                Política de Privacidade
-                                            </Link>.
-                                        </span>
-                                    </label>
+                                    <>
+                                        <div>
+                                            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Repita a senha</label>
+                                            <input
+                                                type="password"
+                                                value={confirmPassword}
+                                                onChange={(event) => setConfirmPassword(event.target.value)}
+                                                autoComplete="new-password"
+                                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                                placeholder="Repita a senha"
+                                            />
+                                        </div>
+                                        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                            Use de 8 a 72 caracteres, com pelo menos uma letra e um número.
+                                        </p>
+                                        <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                                            <input
+                                                type="checkbox"
+                                                checked={termsAccepted}
+                                                onChange={(event) => setTermsAccepted(event.target.checked)}
+                                                className="mt-1 h-4 w-4"
+                                            />
+                                            <span>
+                                                Li e aceito os{' '}
+                                                <Link to="/terms" target="_blank" className="font-bold text-emerald-600 hover:underline">Termos de Uso</Link>{' '}
+                                                e a{' '}
+                                                <Link to="/politica-privacidade" target="_blank" className="font-bold text-emerald-600 hover:underline">Política de Privacidade</Link>.
+                                            </span>
+                                        </label>
+                                    </>
                                 )}
 
                                 <button
                                     type="button"
-                                    onClick={sendCode}
+                                    onClick={mode === 'login' ? submitPasswordLogin : sendRegistrationOtp}
                                     disabled={loading || !resolvedStoreId}
                                     className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
                                 >
                                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                                    Enviar código por SMS
+                                    {mode === 'login' ? 'Entrar' : 'Confirmar telefone por SMS'}
                                 </button>
+
+                                {mode === 'login' && (
+                                    <button
+                                        type="button"
+                                        onClick={() => sendLoginOtp('sms_login')}
+                                        disabled={loading || !resolvedStoreId}
+                                        className="w-full rounded-2xl border border-emerald-200 py-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+                                    >
+                                        Entrar com código SMS
+                                    </button>
+                                )}
 
                                 <button
                                     type="button"
@@ -385,7 +531,9 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                     {mode === 'login' ? 'Ainda não tenho conta' : 'Já tenho conta'}
                                 </button>
                             </div>
-                        ) : (
+                        )}
+
+                        {step === 'otp' && (
                             <div className="space-y-4">
                                 <input
                                     type="text"
@@ -431,16 +579,50 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                         Reenviar código
                                     </button>
                                 </div>
+                            </div>
+                        )}
 
-                                {mode === 'login' && error.includes('Cliente não encontrado') && (
-                                    <button
-                                        type="button"
-                                        onClick={() => switchMode('register')}
-                                        className="w-full rounded-2xl border border-emerald-200 bg-emerald-50 py-3 text-sm font-black text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300"
-                                    >
-                                        Criar conta com este telefone
-                                    </button>
-                                )}
+                        {step === 'password_setup' && (
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Nova senha</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(event) => setPassword(event.target.value)}
+                                        autoComplete="new-password"
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                        placeholder="Mínimo de 8 caracteres"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Repita a senha</label>
+                                    <input
+                                        type="password"
+                                        value={confirmPassword}
+                                        onChange={(event) => setConfirmPassword(event.target.value)}
+                                        autoComplete="new-password"
+                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                                        placeholder="Repita a senha"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={savePassword}
+                                    disabled={loading}
+                                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3.5 font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                >
+                                    {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+                                    Salvar senha e continuar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={closeModal}
+                                    disabled={loading}
+                                    className="w-full py-2 text-sm font-bold text-slate-500 hover:underline disabled:opacity-50 dark:text-slate-400"
+                                >
+                                    Fazer isso depois
+                                </button>
                             </div>
                         )}
                     </div>
