@@ -31,6 +31,7 @@ import {
 } from '@/services/publicOrderService';
 import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 
 const DEFAULT_STORE_SLUG = 'gelinharessjn';
 const CHECKOUT_DRAFT_VERSION = 3;
@@ -671,11 +672,18 @@ export default function Checkout() {
                         </div>
                         <button
                             type="button"
-                            onClick={() => {
-                                if (window.confirm('Deseja realmente limpar seu carrinho? Os dados de entrega e identificação serão preservados.')) {
-                                    clearCart();
-                                    navigate(storePath, { replace: true });
-                                }
+                            onClick={async () => {
+                                const confirmed = await systemConfirm({
+                                    title: 'Limpar seu carrinho?',
+                                    description: 'Os itens serão removidos do carrinho. Seus dados de entrega e identificação continuarão salvos neste dispositivo.',
+                                    confirmLabel: 'Sim, limpar',
+                                    cancelLabel: 'Manter itens',
+                                    tone: 'danger',
+                                });
+                                if (!confirmed) return;
+
+                                clearCart();
+                                navigate(storePath, { replace: true });
                             }}
                             className="flex items-center gap-1.5 px-3 py-2 font-bold text-red-600"
                         >
