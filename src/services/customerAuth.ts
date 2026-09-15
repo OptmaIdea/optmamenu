@@ -20,10 +20,19 @@ type RegistrationPayload = {
     termsAccepted: boolean;
     loyaltyOptIn?: boolean;
     marketingConsent?: boolean;
+    password?: string;
+};
+
+export type PasswordLoginResult = {
+    authenticated: boolean;
+    otpRequired: boolean;
+    reason?: 'new_device' | 'verification_expired' | 'inactive' | string | null;
+    customer?: Customer;
 };
 
 const CUSTOMER_REFRESH_TOKEN_KEY = 'customer_refresh_token';
 const CUSTOMER_EXPIRES_AT_KEY = 'customer_expires_at';
+const CUSTOMER_DEVICE_SECRET_KEY = 'customer_device_secret_v1';
 
 function toCustomer(payload: any): Customer {
     return {
@@ -62,6 +71,38 @@ function clearPersistedCustomerSession() {
     localStorage.removeItem(CUSTOMER_EXPIRES_AT_KEY);
 }
 
+function bytesToHex(bytes: Uint8Array) {
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function getOrCreateDeviceSecret() {
+    const existing = localStorage.getItem(CUSTOMER_DEVICE_SECRET_KEY);
+    if (existing && /^[0-9a-f]{64}$/i.test(existing)) return existing.toLowerCase();
+
+    if (!globalThis.crypto?.getRandomValues) {
+        throw new Error('Este navegador não oferece os recursos de segurança necessários para proteger a sessão.');
+    }
+
+    const random = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(random);
+    const secret = bytesToHex(random);
+    localStorage.setItem(CUSTOMER_DEVICE_SECRET_KEY, secret);
+    return secret;
+}
+
+async function getDeviceTokenHash() {
+    const secret = getOrCreateDeviceSecret();
+    if (!globalThis.crypto?.subtle) {
+        throw new Error('Este navegador não oferece os recursos de segurança necessários para proteger a sessão.');
+    }
+
+    const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(secret),
+    );
+    return bytesToHex(new Uint8Array(digest));
+}
+
 async function refreshCustomerSessionIfNeeded() {
     const token = getCustomerToken();
     const refreshToken = localStorage.getItem(CUSTOMER_REFRESH_TOKEN_KEY);
@@ -85,9 +126,32 @@ async function refreshCustomerSessionIfNeeded() {
     return data.session.access_token;
 }
 
+async function completeSession(data: any) {
+    if (!data?.tokenHash || !data?.customer) {
+        throw new Error('Não foi possível iniciar a sessão. Tente novamente.');
+    }
+
+    const { data: authData, error: authError } = await supabasePublic.auth.verifyOtp({
+        token_hash: String(data.tokenHash),
+        type: 'magiclink',
+    });
+
+    if (authError || !authData.session) {
+        throw new Error('A identidade foi confirmada, mas não foi possível iniciar a sessão. Tente novamente.');
+    }
+
+    persistCustomerSession(authData.session);
+    const customer = toCustomer(data.customer);
+    useCustomerAuth.getState().login(customer);
+
+    return {
+        customer,
+        passwordConfigured: Boolean(data.passwordConfigured),
+    };
+}
+
 export const AuthService = {
-    // Compatibilidade temporária com a UI antiga enquanto ela migra para OTP-only.
-    // Não revela se um telefone já está cadastrado.
+    // Mantido sem enumeração pública de telefone. O servidor decide o fluxo de login.
     async checkStatus(_phone: string, _storeId: string) {
         return {
             exists: false,
@@ -101,18 +165,15 @@ export const AuthService = {
             body: { phone, storeId, purpose },
         });
 
-        if (error) throw new Error('Não foi possível enviar o código por SMS.');
-        if (!data?.ok) {
-            if (data?.error === 'rate_limited' || data?.error === 'daily_limit_reached' || data?.error === 'sms_rate_limited') {
-                throw new Error('Muitas solicitações de código. Aguarde alguns minutos e tente novamente.');
-            }
-            if (data?.error === 'sms_gateway_not_configured') {
-                throw new Error('O serviço de SMS ainda não está configurado.');
-            }
-            throw new Error('Não foi possível enviar o código por SMS.');
+        if (data?.ok) return data;
+        if (data?.error === 'rate_limited' || data?.error === 'daily_limit_reached' || data?.error === 'sms_rate_limited') {
+            throw new Error('Muitas solicitações de código. Aguarde alguns minutos e tente novamente.');
         }
-
-        return data;
+        if (data?.error === 'sms_gateway_not_configured') {
+            throw new Error('O serviço de SMS ainda não está configurado.');
+        }
+        if (error) throw new Error('Não foi possível enviar o código por SMS.');
+        throw new Error('Não foi possível enviar o código por SMS.');
     },
 
     async verifyOtp(
@@ -122,6 +183,7 @@ export const AuthService = {
         purpose: CustomerOtpPurpose = 'login',
         registration?: RegistrationPayload,
     ) {
+        const deviceTokenHash = await getDeviceTokenHash();
         const { data, error } = await supabasePublic.functions.invoke('customer-auth-session', {
             body: {
                 action: 'otp',
@@ -130,35 +192,88 @@ export const AuthService = {
                 storeId,
                 purpose,
                 registration,
+                deviceTokenHash,
             },
         });
 
         if (error || !data?.ok || !data?.tokenHash || !data?.customer) {
             if (data?.error === 'otp_locked') throw new Error('Muitas tentativas. Solicite um novo código.');
             if (data?.error === 'terms_required') throw new Error('É necessário aceitar os Termos de Uso e a Política de Privacidade.');
+            if (data?.error === 'password_required') throw new Error('Crie uma senha para concluir o cadastro.');
+            if (data?.error === 'weak_password') throw new Error('A senha deve ter de 8 a 72 caracteres, com letras e números.');
+            if (data?.error === 'customer_already_exists') throw new Error('Já existe uma conta com este telefone. Use a opção Entrar.');
             if (data?.error === 'customer_not_found') throw new Error('Cliente não encontrado para este número.');
             throw new Error('Código inválido, expirado ou não foi possível iniciar a sessão.');
         }
 
-        const { data: authData, error: authError } = await supabasePublic.auth.verifyOtp({
-            token_hash: String(data.tokenHash),
-            type: 'magiclink',
-        });
-
-        if (authError || !authData.session) {
-            throw new Error('Código confirmado, mas não foi possível iniciar a sessão. Tente novamente.');
-        }
-
-        persistCustomerSession(authData.session);
-        const customer = toCustomer(data.customer);
-        useCustomerAuth.getState().login(customer);
+        const session = await completeSession(data);
 
         return {
             valid: true,
-            isNewUser: false,
+            isNewUser: purpose === 'registration',
             purpose,
-            customer,
+            customer: session.customer,
+            passwordConfigured: session.passwordConfigured,
         };
+    },
+
+    async loginWithPassword(phone: string, password: string, storeId: string): Promise<PasswordLoginResult> {
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabasePublic.functions.invoke('customer-auth-session', {
+            body: {
+                action: 'password_login',
+                phone,
+                password,
+                storeId,
+                deviceTokenHash,
+            },
+        });
+
+        if (data?.error === 'locked') {
+            const seconds = Math.max(60, Number(data.retryAfterSeconds || 900));
+            const minutes = Math.ceil(seconds / 60);
+            throw new Error(`Muitas tentativas de senha. Aguarde cerca de ${minutes} minuto(s) e tente novamente.`);
+        }
+        if (data?.error === 'invalid_credentials') {
+            throw new Error('Telefone ou senha incorretos.');
+        }
+        if (error || !data?.ok) {
+            throw new Error('Não foi possível entrar agora. Tente novamente em alguns instantes.');
+        }
+
+        if (data.otpRequired) {
+            return {
+                authenticated: false,
+                otpRequired: true,
+                reason: data.reason || 'new_device',
+            };
+        }
+
+        const session = await completeSession(data);
+        return {
+            authenticated: true,
+            otpRequired: false,
+            customer: session.customer,
+        };
+    },
+
+    async setPassword(password: string) {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) throw new Error('Sua sessão expirou. Confirme seu telefone novamente.');
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: { action: 'set_password', password, deviceTokenHash },
+        });
+
+        if (data?.error === 'weak_password') {
+            throw new Error('A senha deve ter de 8 a 72 caracteres, com letras e números.');
+        }
+        if (data?.error === 'reauth_required') {
+            throw new Error('Por segurança, confirme seu telefone novamente antes de definir a senha.');
+        }
+        if (error || !data?.ok) throw new Error('Não foi possível salvar a senha agora.');
+        return true;
     },
 
     async restoreSession() {
@@ -168,23 +283,24 @@ export const AuthService = {
             return null;
         }
 
+        const deviceTokenHash = await getDeviceTokenHash();
         const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
-            body: { action: 'me' },
+            body: { action: 'me', deviceTokenHash },
         });
 
         if (error || !data?.ok || !data?.customer) {
             clearPersistedCustomerSession();
+            await supabasePublic.auth.signOut({ scope: 'local' }).catch(() => undefined);
             useCustomerAuth.getState().logout?.();
             return null;
         }
 
         const customer = toCustomer(data.customer);
         useCustomerAuth.getState().login(customer);
-        return customer;
-    },
-
-    async loginWithPassword(_phone: string, _password: string, _storeId: string) {
-        throw new Error('Para entrar com segurança, use o código enviado por SMS.');
+        return {
+            customer,
+            passwordConfigured: Boolean(data.passwordConfigured),
+        };
     },
 
     async registerUser(_data: {
