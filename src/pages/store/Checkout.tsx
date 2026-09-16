@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import type { Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
+import { useCustomerAuth } from '@/store/useCustomerAuth';
+import { CustomerService } from '@/services/customerService';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { CheckoutPromotionsModal } from '@/pages/store/components/CheckoutPromotionsModal';
 import {
@@ -58,6 +60,18 @@ interface DeliveryAddressState {
     latitude?: number;
     longitude?: number;
     accuracy?: number;
+}
+
+interface SavedCustomerAddress {
+    id?: string;
+    zip_code: string;
+    street: string;
+    number: string;
+    complement: string;
+    district: string;
+    city: string;
+    state: string;
+    is_default: boolean;
 }
 
 interface CheckoutDraft {
@@ -232,6 +246,8 @@ function ReviewRow({ icon, title, description, missing, actionLabel, onClick }: 
 export default function Checkout() {
     const navigate = useNavigate();
     const location = useLocation();
+    const customer = useCustomerAuth((state) => state.customer);
+    const isAuthenticated = useCustomerAuth((state) => state.isAuthenticated);
     const {
         items,
         total,
@@ -264,6 +280,7 @@ export default function Checkout() {
     const [cpf, setCpf] = useState('');
     const [notes, setNotes] = useState('');
     const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressState>(EMPTY_ADDRESS);
+    const [savedAddresses, setSavedAddresses] = useState<SavedCustomerAddress[]>([]);
     const [cepLoading, setCepLoading] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [addressError, setAddressError] = useState<string | null>(null);
@@ -379,6 +396,56 @@ export default function Checkout() {
     }, [draftKey]);
 
     useEffect(() => {
+        if (!draftLoaded || !isAuthenticated || !customer) return;
+        let active = true;
+
+        // Em sessão autenticada, a identidade do cadastro prevalece sobre um rascunho
+        // anônimo que possa ter ficado salvo neste navegador.
+        setClientName(customer.full_name || customer.nickname || '');
+        setClientPhone(customer.phone || '');
+        setIsBrazil(true);
+        setInternationalDdi('');
+
+        void CustomerService.getAddresses(customer.id)
+            .then((data) => {
+                if (!active) return;
+                const normalized = data.map((address) => ({
+                    id: address.id,
+                    zip_code: address.zip_code,
+                    street: address.street,
+                    number: address.number,
+                    complement: address.complement,
+                    district: address.district,
+                    city: address.city,
+                    state: address.state,
+                    is_default: address.is_default,
+                }));
+                setSavedAddresses(normalized);
+
+                const preferred = normalized.find((address) => address.is_default) || normalized[0];
+                if (preferred) {
+                    setDeliveryAddress((current) => ({
+                        ...current,
+                        zipCode: formatCep(preferred.zip_code),
+                        street: preferred.street,
+                        number: preferred.number,
+                        complement: preferred.complement || '',
+                        district: preferred.district,
+                        city: preferred.city,
+                        state: preferred.state,
+                    }));
+                }
+            })
+            .catch((cause) => {
+                console.warn('Não foi possível carregar os endereços salvos do cliente:', cause);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [customer?.id, draftLoaded, isAuthenticated]);
+
+    useEffect(() => {
         if (!draftLoaded) return;
         const draft: CheckoutDraft = {
             version: CHECKOUT_DRAFT_VERSION,
@@ -446,6 +513,20 @@ export default function Checkout() {
         setStockIssue(false);
         setView('review');
         window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const useSavedAddress = (address: SavedCustomerAddress) => {
+        setAddressError(null);
+        setDeliveryAddress((current) => ({
+            ...current,
+            zipCode: formatCep(address.zip_code),
+            street: address.street,
+            number: address.number,
+            complement: address.complement || '',
+            district: address.district,
+            city: address.city,
+            state: address.state,
+        }));
     };
 
     const lookupCep = async () => {
@@ -796,6 +877,26 @@ export default function Checkout() {
                     {effectiveFulfillment === 'delivery' && (
                         <section className="mt-4 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
                             <h2 className="font-black">Endereço de entrega</h2>
+                            {isAuthenticated && savedAddresses.length > 0 && (
+                                <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
+                                    <p className="text-sm font-black text-emerald-900">Seus endereços salvos</p>
+                                    {savedAddresses.map((address) => (
+                                        <button
+                                            key={address.id || `${address.zip_code}-${address.number}`}
+                                            type="button"
+                                            onClick={() => useSavedAddress(address)}
+                                            className="flex w-full items-center gap-3 rounded-xl bg-white p-3 text-left ring-1 ring-emerald-100"
+                                        >
+                                            <MapPin className="h-4 w-4 shrink-0 text-emerald-600" />
+                                            <span className="min-w-0 flex-1 text-sm">
+                                                <span className="block truncate font-bold text-slate-900">{address.street}, {address.number}</span>
+                                                <span className="block truncate text-slate-500">{address.district} · {address.city}/{address.state}</span>
+                                            </span>
+                                            {address.is_default && <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-black uppercase text-emerald-700">Padrão</span>}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                             <div className="flex gap-2">
                                 <input placeholder="CEP" inputMode="numeric" value={deliveryAddress.zipCode} onChange={(event) => setDeliveryAddress((state) => ({ ...state, zipCode: formatCep(event.target.value) }))} onBlur={() => { if (onlyDigits(deliveryAddress.zipCode).length === 8) void lookupCep(); }} className="min-w-0 flex-1 rounded-xl bg-slate-50 p-4" />
                                 <button type="button" onClick={() => void lookupCep()} disabled={cepLoading} className="rounded-xl border px-4 font-bold text-emerald-700">
@@ -849,21 +950,26 @@ export default function Checkout() {
                 <CheckoutHeader title="Seus dados" subtitle="Identificação do pedido" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="space-y-3 rounded-2xl bg-white p-4">
-                        <input placeholder="Seu nome" value={clientName} onChange={(event) => setClientName(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
+                        {isAuthenticated && customer && (
+                            <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+                                Dados carregados da sua conta. Para alterá-los de forma permanente, use “Minha conta”.
+                            </div>
+                        )}
+                        <input placeholder="Seu nome" value={clientName} onChange={(event) => setClientName(event.target.value)} readOnly={isAuthenticated} className="w-full rounded-xl bg-slate-50 p-4 read-only:text-slate-600" />
                         <label className="flex items-center gap-3 rounded-xl bg-slate-50 p-4 text-sm font-bold text-slate-700">
-                            <input type="checkbox" checked={isBrazil} onChange={(event) => setIsBrazil(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
+                            <input type="checkbox" checked={isBrazil} disabled={isAuthenticated} onChange={(event) => setIsBrazil(event.target.checked)} className="h-5 w-5 rounded border-slate-300 text-emerald-600" />
                             Número do Brasil
                         </label>
                         {isBrazil ? (
-                            <input type="tel" inputMode="tel" placeholder="(DDD) telefone — aceita 0 e +55" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} onBlur={() => { const result = normalizeBrazilianPhone(clientPhone); if (result.isValid) setClientPhone(result.displayFormatted); }} className="w-full rounded-xl bg-slate-50 p-4" />
+                            <input type="tel" inputMode="tel" placeholder="(DDD) telefone — aceita 0 e +55" value={clientPhone} readOnly={isAuthenticated} onChange={(event) => setClientPhone(event.target.value)} onBlur={() => { const result = normalizeBrazilianPhone(clientPhone); if (result.isValid) setClientPhone(result.displayFormatted); }} className="w-full rounded-xl bg-slate-50 p-4 read-only:text-slate-600" />
                         ) : (
                             <div className="grid grid-cols-[6rem_1fr] gap-3">
-                                <input inputMode="numeric" placeholder="DDI" value={internationalDdi} onChange={(event) => setInternationalDdi(onlyDigits(event.target.value).slice(0, 3))} className="rounded-xl bg-slate-50 p-4" />
-                                <input type="tel" inputMode="tel" placeholder="Número sem DDI" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} className="rounded-xl bg-slate-50 p-4" />
+                                <input inputMode="numeric" placeholder="DDI" value={internationalDdi} disabled={isAuthenticated} onChange={(event) => setInternationalDdi(onlyDigits(event.target.value).slice(0, 3))} className="rounded-xl bg-slate-50 p-4" />
+                                <input type="tel" inputMode="tel" placeholder="Número sem DDI" value={clientPhone} readOnly={isAuthenticated} onChange={(event) => setClientPhone(event.target.value)} className="rounded-xl bg-slate-50 p-4 read-only:text-slate-600" />
                             </div>
                         )}
                         {clientPhone.trim() && !phoneValidation.isValid && <p className="text-sm font-bold text-red-600">{phoneValidation.error}</p>}
-                        <p className="text-xs leading-relaxed text-slate-500">Os dados ficam salvos apenas neste navegador até a conclusão do pedido ou limpeza dos dados do site.</p>
+                        <p className="text-xs leading-relaxed text-slate-500">{isAuthenticated ? 'O pedido será vinculado à sua conta autenticada.' : 'Os dados ficam salvos apenas neste navegador até a conclusão do pedido ou limpeza dos dados do site.'}</p>
                         <button type="button" onClick={() => { if (customerValid) setView('review'); }} className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-40" disabled={!customerValid}>
                             Salvar dados
                         </button>
@@ -1046,6 +1152,11 @@ export default function Checkout() {
         <div className="min-h-screen bg-slate-50 pb-32 text-slate-950">
             <CheckoutHeader title="Finalizar pedido" subtitle="Revise as informações antes de confirmar" onBack={() => setView('cart')} />
             <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
+                {isAuthenticated && customer && (
+                    <section className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+                        Pedido identificado como <strong>{customer.full_name || customer.nickname || 'cliente'}</strong>. Seus dados e endereço padrão foram carregados da conta.
+                    </section>
+                )}
                 <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
                     <ReviewRow icon={<MapPin size={21} />} title="Informações da entrega" description={fulfillmentDescription} missing={!fulfillmentValid || !addressValid} actionLabel="Alterar" onClick={() => setView('fulfillment')} />
                     <ReviewRow icon={<UserRound size={21} />} title="Seus dados" description={customerDescription} missing={!customerValid} actionLabel="Alterar" onClick={() => setView('customer')} />
