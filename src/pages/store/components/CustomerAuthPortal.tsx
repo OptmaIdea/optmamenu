@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { KeyRound, Loader2, LogOut, ShieldCheck, Smartphone, User, X } from 'lucide-react';
+import {
+    Eye,
+    EyeOff,
+    KeyRound,
+    Loader2,
+    Smartphone,
+    User,
+    X,
+} from 'lucide-react';
 import { AuthService } from '@/services/customerAuth';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
@@ -19,7 +27,10 @@ function cleanPhone(value: string) {
 }
 
 function validPassword(value: string) {
-    return value.length >= 8 && value.length <= 72 && /[A-Za-z]/.test(value) && /[0-9]/.test(value);
+    return value.length >= 8
+        && value.length <= 72
+        && /[A-Za-z]/.test(value)
+        && /[0-9]/.test(value);
 }
 
 function stepUpMessage(reason?: string | null) {
@@ -30,6 +41,47 @@ function stepUpMessage(reason?: string | null) {
         return 'Este aparelho ficou mais de 15 dias sem acesso. Enviamos um código para confirmar que é você.';
     }
     return 'Este aparelho ainda não foi confirmado. Enviamos um código de segurança por SMS.';
+}
+
+function PasswordField({
+    label,
+    value,
+    onChange,
+    autoComplete,
+    placeholder,
+}: {
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    autoComplete: string;
+    placeholder: string;
+}) {
+    const [visible, setVisible] = useState(false);
+
+    return (
+        <div>
+            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">{label}</label>
+            <div className="relative">
+                <input
+                    type={visible ? 'text' : 'password'}
+                    value={value}
+                    onChange={(event) => onChange(event.target.value)}
+                    autoComplete={autoComplete}
+                    className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-3 pr-12 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    placeholder={placeholder}
+                />
+                <button
+                    type="button"
+                    onClick={() => setVisible((current) => !current)}
+                    className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-500 transition hover:text-emerald-600"
+                    aria-label={visible ? 'Ocultar senha' : 'Mostrar senha'}
+                    title={visible ? 'Ocultar senha' : 'Mostrar senha'}
+                >
+                    {visible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+            </div>
+        </div>
+    );
 }
 
 export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalProps) {
@@ -59,13 +111,11 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
     useEffect(() => {
         let active = true;
-
         void AuthService.restoreSession()
             .catch(() => null)
             .finally(() => {
                 if (active) markSessionRestored();
             });
-
         return () => {
             active = false;
         };
@@ -101,10 +151,6 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         }
     }, [customer?.store_id, isAuthenticated, resolvedStoreId, sessionRestored]);
 
-    const displayName = useMemo(
-        () => customer?.nickname || customer?.full_name || 'cliente',
-        [customer?.full_name, customer?.nickname],
-    );
     const senderName = storeName || storeSlug || 'esta loja';
 
     const resetFlow = (nextMode: AuthMode = 'login') => {
@@ -132,10 +178,6 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     const startLogin = () => {
         resetFlow('login');
         setOpen(true);
-    };
-
-    const switchMode = (nextMode: AuthMode) => {
-        resetFlow(nextMode);
     };
 
     const validatePhone = () => {
@@ -250,7 +292,6 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         setLoading(true);
         setError('');
         setNotice('');
-
         try {
             const result = await AuthService.verifyOtp(
                 digits,
@@ -317,15 +358,6 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         await sendLoginOtp(otpContext);
     };
 
-    const logout = async () => {
-        setLoading(true);
-        try {
-            await AuthService.logoutCustomer();
-        } finally {
-            setLoading(false);
-        }
-    };
-
     if (!sessionRestored) {
         return (
             <div className="fixed bottom-28 left-4 z-[65] flex h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-900/90 px-4 text-xs font-bold text-white shadow-xl backdrop-blur sm:bottom-5">
@@ -335,36 +367,19 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         );
     }
 
+    if (isAuthenticated && customer) return null;
+
     return (
         <>
             <div className="fixed bottom-28 left-4 z-[65] sm:bottom-5">
-                {isAuthenticated && customer ? (
-                    <div className="flex items-center gap-1 rounded-full border border-emerald-200 bg-white p-1 pl-3 shadow-xl dark:border-emerald-900 dark:bg-slate-900">
-                        <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                        <span className="max-w-32 truncate text-xs font-black text-slate-800 dark:text-white">
-                            Olá, {displayName}
-                        </span>
-                        <button
-                            type="button"
-                            onClick={logout}
-                            disabled={loading}
-                            className="ml-1 flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-50 dark:bg-red-950/40 dark:text-red-300"
-                            aria-label="Sair da conta"
-                            title="Sair da conta"
-                        >
-                            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                        </button>
-                    </div>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={startLogin}
-                        className="flex h-11 items-center gap-2 rounded-full bg-slate-900 px-4 text-sm font-black text-white shadow-xl transition hover:bg-slate-800 dark:bg-white dark:text-slate-900"
-                    >
-                        <User className="h-4 w-4" />
-                        Entrar
-                    </button>
-                )}
+                <button
+                    type="button"
+                    onClick={startLogin}
+                    className="flex h-11 items-center gap-2 rounded-full bg-slate-900 px-4 text-sm font-black text-white shadow-xl transition hover:bg-slate-800 dark:bg-white dark:text-slate-900"
+                >
+                    <User className="h-4 w-4" />
+                    Entrar
+                </button>
             </div>
 
             {open && (
@@ -457,34 +472,24 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Senha</label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={(event) => setPassword(event.target.value)}
-                                        autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                                        placeholder={mode === 'login' ? 'Sua senha' : 'Mínimo de 8 caracteres'}
-                                    />
-                                </div>
+                                <PasswordField
+                                    label="Senha"
+                                    value={password}
+                                    onChange={setPassword}
+                                    autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                                    placeholder={mode === 'login' ? 'Sua senha' : 'Mínimo de 8 caracteres'}
+                                />
 
                                 {mode === 'register' && (
                                     <>
-                                        <div>
-                                            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Repita a senha</label>
-                                            <input
-                                                type="password"
-                                                value={confirmPassword}
-                                                onChange={(event) => setConfirmPassword(event.target.value)}
-                                                autoComplete="new-password"
-                                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                                                placeholder="Repita a senha"
-                                            />
-                                        </div>
-                                        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                            Use de 8 a 72 caracteres, com pelo menos uma letra e um número.
-                                        </p>
+                                        <PasswordField
+                                            label="Repita a senha"
+                                            value={confirmPassword}
+                                            onChange={setConfirmPassword}
+                                            autoComplete="new-password"
+                                            placeholder="Repita a senha"
+                                        />
+                                        <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">Use de 8 a 72 caracteres, com pelo menos uma letra e um número.</p>
                                         <label className="flex cursor-pointer items-start gap-3 rounded-2xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                                             <input
                                                 type="checkbox"
@@ -525,7 +530,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
                                 <button
                                     type="button"
-                                    onClick={() => switchMode(mode === 'login' ? 'register' : 'login')}
+                                    onClick={() => resetFlow(mode === 'login' ? 'register' : 'login')}
                                     className="w-full py-2 text-sm font-bold text-emerald-700 hover:underline dark:text-emerald-400"
                                 >
                                     {mode === 'login' ? 'Ainda não tenho conta' : 'Já tenho conta'}
@@ -546,7 +551,6 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                     className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center text-3xl font-black tracking-[0.35em] text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                                     placeholder="000000"
                                 />
-
                                 <button
                                     type="button"
                                     onClick={verifyCode}
@@ -556,7 +560,6 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                                     Validar código e entrar
                                 </button>
-
                                 <div className="flex items-center justify-between gap-3 text-sm">
                                     <button
                                         type="button"
@@ -584,28 +587,20 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
                         {step === 'password_setup' && (
                             <div className="space-y-4">
-                                <div>
-                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Nova senha</label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={(event) => setPassword(event.target.value)}
-                                        autoComplete="new-password"
-                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                                        placeholder="Mínimo de 8 caracteres"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Repita a senha</label>
-                                    <input
-                                        type="password"
-                                        value={confirmPassword}
-                                        onChange={(event) => setConfirmPassword(event.target.value)}
-                                        autoComplete="new-password"
-                                        className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
-                                        placeholder="Repita a senha"
-                                    />
-                                </div>
+                                <PasswordField
+                                    label="Nova senha"
+                                    value={password}
+                                    onChange={setPassword}
+                                    autoComplete="new-password"
+                                    placeholder="Mínimo de 8 caracteres"
+                                />
+                                <PasswordField
+                                    label="Repita a senha"
+                                    value={confirmPassword}
+                                    onChange={setConfirmPassword}
+                                    autoComplete="new-password"
+                                    placeholder="Repita a senha"
+                                />
                                 <button
                                     type="button"
                                     onClick={savePassword}
