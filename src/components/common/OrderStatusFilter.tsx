@@ -1,5 +1,7 @@
+import { useEffect, useRef } from 'react';
 import { Filter } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { supabase } from '@/lib/supabase';
 
 interface OrderStatusFilterProps {
   value: string;
@@ -7,6 +9,59 @@ interface OrderStatusFilterProps {
 }
 
 export default function OrderStatusFilter({ value, onChange }: OrderStatusFilterProps) {
+  const deepLinkHandled = useRef(false);
+
+  useEffect(() => {
+    const orderId = new URLSearchParams(window.location.search).get('orderId');
+    if (!orderId || deepLinkHandled.current) return;
+
+    // Pedidos concluídos/cancelados não pertencem ao filtro padrão "Pedidos atuais".
+    // Ao chegar da Vida do Cliente, abre o histórico automaticamente antes de
+    // localizar e expandir o pedido solicitado.
+    if (value !== 'all') {
+      onChange('all');
+      return;
+    }
+
+    deepLinkHandled.current = true;
+    let disposed = false;
+    let timer: number | null = null;
+
+    void supabase
+      .from('orders')
+      .select('order_code')
+      .eq('id', orderId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (disposed) return;
+        const orderCode = data?.order_code ? String(data.order_code) : '';
+        if (!orderCode) return;
+
+        let attempts = 0;
+        const focusOrder = () => {
+          if (disposed) return;
+          attempts += 1;
+          const heading = Array.from(document.querySelectorAll('h3')).find(
+            (element) => element.textContent?.trim() === orderCode,
+          );
+          const clickable = heading?.closest('.cursor-pointer') as HTMLElement | null;
+          if (clickable) {
+            clickable.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            clickable.click();
+            return;
+          }
+          if (attempts < 20) timer = window.setTimeout(focusOrder, 150);
+        };
+        focusOrder();
+      })
+      .catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, [onChange, value]);
+
   return createPortal(
     <div className="relative flex-1 md:w-56">
       <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400" size={15} />
