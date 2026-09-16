@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
+import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import {
@@ -119,10 +120,14 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                 {children}
             </main>
 
-            <CustomerAuthPortal
-                storeSlug={storeSlug}
-                storeId={context?.storeId || null}
-            />
+            {sessionRestored && isAuthenticated && customer ? (
+                <CustomerAccountPortal />
+            ) : (
+                <CustomerAuthPortal
+                    storeSlug={storeSlug}
+                    storeId={context?.storeId || null}
+                />
+            )}
 
             {!isCheckoutRoute && cartCount > 0 && (
                 <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[26rem] sm:px-0 sm:pb-0">
