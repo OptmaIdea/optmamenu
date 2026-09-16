@@ -1,0 +1,101 @@
+/*
+ * Contraste operacional — Financeiro
+ * Escopo restrito a Contas a Pagar e Contas Financeiras.
+ * Mantemos a identidade escura, mas separamos fundo, painéis, bordas e textos auxiliares.
+ */
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark {
+  --finance-panel: #1e293b;
+  --finance-panel-strong: #172033;
+  --finance-surface: #0f172a;
+  --finance-border: #475569;
+  --finance-border-strong: #64748b;
+  --finance-text: #f8fafc;
+  --finance-muted: #cbd5e1;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-900 {
+  background-color: var(--finance-panel) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-950 {
+  background-color: var(--finance-surface) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-950\/50 {
+  background-color: rgba(15, 23, 42, 0.86) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-800\/60,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-800\/70,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-800\/80,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:bg-gray-800\/95 {
+  background-color: var(--finance-panel-strong) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:border-gray-800,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:border-gray-700 {
+  border-color: var(--finance-border) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:border-gray-600 {
+  border-color: var(--finance-border-strong) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-gray-400,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-gray-500,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:text-gray-400 {
+  color: var(--finance-muted) !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-gray-600,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-gray-700,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:text-gray-300,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .dark\:text-gray-200 {
+  color: #e2e8f0 !important;
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark input,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark select,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark textarea {
+  border-color: var(--finance-border-strong) !important;
+  color: var(--finance-text);
+}
+
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark input::placeholder,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1;
+}
+
+/* Blocos sem variante dark explícita ficam legíveis sem virar cartões brancos no tema escuro. */
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.34) !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-emerald-700,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-emerald-800 {
+  color: #86efac !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .bg-red-50 {
+  background-color: rgba(127, 29, 29, 0.28) !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-red-600,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-red-700 {
+  color: #fca5a5 !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .bg-blue-50 {
+  background-color: rgba(30, 64, 175, 0.27) !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-blue-700,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-blue-900 {
+  color: #bfdbfe !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .bg-amber-50,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .bg-amber-50\/50 {
+  background-color: rgba(120, 53, 15, 0.28) !important;
+}
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-amber-700,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-amber-800,
+:is(html[data-route^='/admin/accounts-payable'], html[data-route^='/admin/financial-accounts']).dark .text-amber-900 {
+  color: #fde68a !important;
+}

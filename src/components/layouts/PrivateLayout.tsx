@@ -49,6 +49,7 @@ import {
     UserCircle,
     Clock,
     BookOpen,
+    CreditCard,
     MessageSquare,
     Truck,
     RadioTower,
@@ -393,6 +394,7 @@ export default function PrivateLayout() {
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
             { path: '/admin/account-plan', icon: FolderTree, label: 'Plano de contas', permission: 'financial.account_plan.view' },
             { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'financial.accounts.view' },
+            { path: '/admin/online-payments', icon: CreditCard, label: 'Pagamentos online', permission: 'payments.online.view' },
         ],
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },

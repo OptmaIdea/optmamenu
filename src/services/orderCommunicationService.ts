@@ -17,7 +17,7 @@ export interface OrderMessageData {
   catalogUrl: string;
   expiresAt?: string | null;
   fulfillmentType?: string | null;
-  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'refunded' | null;
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refund_pending' | 'partially_refunded' | 'refunded' | null;
 }
 
 export interface PreparedOrderMessage {
@@ -31,10 +31,9 @@ const DEFAULT_TEMPLATES: Record<OrderMessageEventCode, string> = {
   order_accepted: [
     'Olá *{customerName}*! Bom ter você conosco 😊',
     '',
+    '{paymentThanksText}',
     'Seu pedido nº *{orderCode}* foi aceito e já estamos cuidando dele.',
-    'A reserva ficará disponível até *{expiresAt}*.',
-    '',
-    'Caso precise de mais tempo, fale conosco para verificarmos a prorrogação.',
+    '{reservationText}',
     '',
     'Acompanhe o andamento:',
     '{trackingUrl}',
@@ -69,7 +68,8 @@ const DEFAULT_TEMPLATES: Record<OrderMessageEventCode, string> = {
   order_cancelled: [
     'Olá *{customerName}*.',
     '',
-    'Não foi possível atender o pedido nº *{orderCode}* neste momento, devido a problemas internos. Pedimos desculpas pelo ocorrido.',
+    'Não foi possível atender o pedido nº *{orderCode}* neste momento. Pedimos desculpas pelo ocorrido.',
+    '{refundText}',
     '',
     'Veja nosso catálogo:',
     '{catalogUrl}',
@@ -105,6 +105,26 @@ function readyDeadlineText(data: OrderMessageData): string {
   return `Retire até às *${formatTime(data.expiresAt)}*.`;
 }
 
+function paymentThanksText(data: OrderMessageData): string {
+  if (data.paymentStatus !== 'paid') return '';
+  return 'Recebemos seu pagamento. Obrigado!';
+}
+
+function reservationText(data: OrderMessageData): string {
+  if (data.paymentStatus === 'paid') {
+    if (data.fulfillmentType === 'delivery') return 'O pedido fica reservado até sair para entrega.';
+    return 'O pedido fica reservado para retirada, sem prazo automático de expiração por pagamento.';
+  }
+
+  if (data.expiresAt) return `A reserva ficará disponível até *${formatTime(data.expiresAt)}*.`;
+  return 'Caso precise de mais tempo, fale conosco para verificarmos a prorrogação.';
+}
+
+function refundText(data: OrderMessageData): string {
+  if (data.paymentStatus !== 'paid') return '';
+  return 'Como o pagamento já estava confirmado, vamos tratar o estorno do valor pelo mesmo canal de recebimento.';
+}
+
 function renderTemplate(template: string, data: OrderMessageData): string {
   const variables: Record<string, string> = {
     '{customerName}': firstName(data.customerName),
@@ -114,6 +134,9 @@ function renderTemplate(template: string, data: OrderMessageData): string {
     '{expiresAt}': formatTime(data.expiresAt),
     '{readyText}': readyText(data.fulfillmentType),
     '{readyDeadlineText}': readyDeadlineText(data),
+    '{paymentThanksText}': paymentThanksText(data),
+    '{reservationText}': reservationText(data),
+    '{refundText}': refundText(data),
   };
 
   return Object.entries(variables).reduce(

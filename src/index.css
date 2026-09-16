@@ -207,3 +207,58 @@ html.dark .glass-card {
 .sticky {
   isolation: isolate;
 }
+
+/* Correção de contraste para painéis legados que ainda usam bg-white sem variante dark. */
+html.dark section.rounded-2xl.border.bg-white,
+html.dark div.rounded-2xl.border.bg-white,
+html.dark div.rounded-lg.bg-white {
+  background-color: rgb(31 41 55);
+  border-color: rgb(55 65 81);
+  color: rgb(229 231 235);
+}
+
+html.dark section.rounded-2xl.border.bg-white .text-slate-900,
+html.dark section.rounded-2xl.border.bg-white .text-slate-800,
+html.dark div.rounded-2xl.border.bg-white .text-slate-900,
+html.dark div.rounded-2xl.border.bg-white .text-slate-800,
+html.dark div.rounded-lg.bg-white .text-slate-900,
+html.dark div.rounded-lg.bg-white .text-slate-800 {
+  color: rgb(255 255 255);
+}
+
+html.dark section.rounded-2xl.border.bg-white .text-slate-700,
+html.dark section.rounded-2xl.border.bg-white .text-slate-600,
+html.dark div.rounded-2xl.border.bg-white .text-slate-700,
+html.dark div.rounded-2xl.border.bg-white .text-slate-600,
+html.dark div.rounded-lg.bg-white .text-slate-700,
+html.dark div.rounded-lg.bg-white .text-slate-600 {
+  color: rgb(209 213 219);
+}
+
+html.dark section.rounded-2xl.border.bg-white .text-slate-500,
+html.dark div.rounded-2xl.border.bg-white .text-slate-500,
+html.dark div.rounded-lg.bg-white .text-slate-500 {
+  color: rgb(156 163 175);
+}
+
+html.dark section.rounded-2xl.border.bg-white .bg-slate-50,
+html.dark section.rounded-2xl.border.bg-white .bg-gray-50,
+html.dark div.rounded-2xl.border.bg-white .bg-slate-50,
+html.dark div.rounded-2xl.border.bg-white .bg-gray-50,
+html.dark div.rounded-lg.bg-white .bg-slate-50,
+html.dark div.rounded-lg.bg-white .bg-gray-50 {
+  background-color: rgb(17 24 39);
+}
+
+html.dark section.rounded-2xl.border.bg-white button.border,
+html.dark div.rounded-2xl.border.bg-white button.border,
+html.dark div.rounded-lg.bg-white button.border {
+  border-color: rgb(75 85 99);
+  color: rgb(229 231 235);
+}
+
+html.dark section.rounded-2xl.border.bg-white tr:hover,
+html.dark div.rounded-2xl.border.bg-white tr:hover,
+html.dark div.rounded-lg.bg-white tr:hover {
+  background-color: rgb(55 65 81 / 0.35);
+}

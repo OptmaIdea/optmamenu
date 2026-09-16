@@ -1,152 +1,309 @@
-import { supabaseCustomer } from '@/lib/supabase';
+import { supabaseCustomer, supabasePublic } from '@/lib/supabase';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
-import { issueCustomerJwt, setCustomerToken, clearCustomerToken } from '@/lib/jwt';
+import { clearCustomerToken, getCustomerToken, setCustomerToken } from '@/lib/jwt';
 import type { Customer } from '@/types';
 
-type VerifyOtpRpcResponse = {
-    isValid: boolean;
-    isNewUser?: boolean;
-    locked?: boolean;
-    customer?: any; // vem do RPC como jsonb; tipamos abaixo
+type CustomerOtpPurpose =
+    | 'login'
+    | 'registration'
+    | 'password_reset'
+    | 'profile_change'
+    | 'phone_change'
+    | 'sensitive_action'
+    | 'account_delete';
+
+type RegistrationPayload = {
+    fullName?: string;
+    nickname?: string;
+    email?: string;
+    birthDate?: string;
+    termsAccepted: boolean;
+    loyaltyOptIn?: boolean;
+    marketingConsent?: boolean;
+    password?: string;
 };
 
+export type PasswordLoginResult = {
+    authenticated: boolean;
+    otpRequired: boolean;
+    reason?: 'new_device' | 'verification_expired' | 'inactive' | string | null;
+    customer?: Customer;
+};
+
+const CUSTOMER_REFRESH_TOKEN_KEY = 'customer_refresh_token';
+const CUSTOMER_EXPIRES_AT_KEY = 'customer_expires_at';
+const CUSTOMER_DEVICE_SECRET_KEY = 'customer_device_secret_v1';
+
+function toCustomer(payload: any): Customer {
+    return {
+        id: String(payload.id),
+        store_id: String(payload.store_id),
+        phone: String(payload.phone ?? ''),
+        full_name: payload.full_name ?? null,
+        nickname: payload.nickname ?? null,
+        cpf: payload.cpf ?? undefined,
+        email: payload.email ?? undefined,
+        birth_date: payload.birth_date ?? undefined,
+        loyalty_points: Number(payload.loyalty_points ?? 0),
+        loyalty_tier: (payload.loyalty_tier ?? 'Bronze') as Customer['loyalty_tier'],
+        is_whatsapp: Boolean(payload.is_whatsapp ?? true),
+        marketing_consent: Boolean(payload.marketing_consent ?? false),
+        loyalty_opt_in: Boolean(payload.loyalty_opt_in ?? false),
+        email_verified: payload.email_verified ?? undefined,
+    };
+}
+
+function persistCustomerSession(session: {
+    access_token: string;
+    refresh_token: string;
+    expires_at?: number;
+}) {
+    setCustomerToken(session.access_token);
+    localStorage.setItem(CUSTOMER_REFRESH_TOKEN_KEY, session.refresh_token);
+    if (session.expires_at) {
+        localStorage.setItem(CUSTOMER_EXPIRES_AT_KEY, String(session.expires_at));
+    }
+}
+
+function clearPersistedCustomerSession() {
+    clearCustomerToken();
+    localStorage.removeItem(CUSTOMER_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(CUSTOMER_EXPIRES_AT_KEY);
+}
+
+function bytesToHex(bytes: Uint8Array) {
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function getOrCreateDeviceSecret() {
+    const existing = localStorage.getItem(CUSTOMER_DEVICE_SECRET_KEY);
+    if (existing && /^[0-9a-f]{64}$/i.test(existing)) return existing.toLowerCase();
+
+    if (!globalThis.crypto?.getRandomValues) {
+        throw new Error('Este navegador não oferece os recursos de segurança necessários para proteger a sessão.');
+    }
+
+    const random = new Uint8Array(32);
+    globalThis.crypto.getRandomValues(random);
+    const secret = bytesToHex(random);
+    localStorage.setItem(CUSTOMER_DEVICE_SECRET_KEY, secret);
+    return secret;
+}
+
+async function getDeviceTokenHash() {
+    const secret = getOrCreateDeviceSecret();
+    if (!globalThis.crypto?.subtle) {
+        throw new Error('Este navegador não oferece os recursos de segurança necessários para proteger a sessão.');
+    }
+
+    const digest = await globalThis.crypto.subtle.digest(
+        'SHA-256',
+        new TextEncoder().encode(secret),
+    );
+    return bytesToHex(new Uint8Array(digest));
+}
+
+async function refreshCustomerSessionIfNeeded() {
+    const token = getCustomerToken();
+    const refreshToken = localStorage.getItem(CUSTOMER_REFRESH_TOKEN_KEY);
+    const expiresAt = Number(localStorage.getItem(CUSTOMER_EXPIRES_AT_KEY) || 0);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    if (token && (!expiresAt || expiresAt > nowSeconds + 60)) return token;
+    if (!refreshToken) return token;
+
+    const { data, error } = await supabasePublic.auth.setSession({
+        access_token: token || '',
+        refresh_token: refreshToken,
+    });
+
+    if (error || !data.session) {
+        clearPersistedCustomerSession();
+        return null;
+    }
+
+    persistCustomerSession(data.session);
+    return data.session.access_token;
+}
+
+async function completeSession(data: any) {
+    if (!data?.tokenHash || !data?.customer) {
+        throw new Error('Não foi possível iniciar a sessão. Tente novamente.');
+    }
+
+    const { data: authData, error: authError } = await supabasePublic.auth.verifyOtp({
+        token_hash: String(data.tokenHash),
+        type: 'magiclink',
+    });
+
+    if (authError || !authData.session) {
+        throw new Error('A identidade foi confirmada, mas não foi possível iniciar a sessão. Tente novamente.');
+    }
+
+    persistCustomerSession(authData.session);
+    const customer = toCustomer(data.customer);
+    useCustomerAuth.getState().login(customer);
+
+    return {
+        customer,
+        passwordConfigured: Boolean(data.passwordConfigured),
+    };
+}
+
 export const AuthService = {
-    async checkStatus(phone: string, storeId: string) {
-        const digits = phone.replace(/\D/g, '');
-
-        const { data, error } = await supabaseCustomer
-            .from('customers')
-            .select('id, store_id, phone, full_name, nickname, email, birth_date, loyalty_points, loyalty_tier, is_whatsapp, marketing_consent, loyalty_opt_in, email_verified')
-            .eq('phone', digits)
-            .eq('store_id', storeId)
-            .maybeSingle();
-
-        if (error) throw error;
-
+    // Mantido sem enumeração pública de telefone. O servidor decide o fluxo de login.
+    async checkStatus(_phone: string, _storeId: string) {
         return {
-            exists: !!data,
-            // se você quiser mesmo saber "tem senha", faça isso via RPC (não via select de hash)
+            exists: false,
             hasPassword: false,
-            customer: data,
+            customer: null,
         };
     },
 
-    async sendOtp(phone: string, storeId: string) {
-        const digits = phone.replace(/\D/g, '');
-
-        const { data, error } = await supabaseCustomer.rpc('send_customer_otp', {
-            p_phone: digits,
-            p_store_id: storeId,
+    async sendOtp(phone: string, storeId: string, purpose: CustomerOtpPurpose = 'login') {
+        const { data, error } = await supabasePublic.functions.invoke('send-customer-otp-sms', {
+            body: { phone, storeId, purpose },
         });
 
-        if (error) throw error;
-        return data;
+        if (data?.ok) return data;
+        if (data?.error === 'rate_limited' || data?.error === 'daily_limit_reached' || data?.error === 'sms_rate_limited') {
+            throw new Error('Muitas solicitações de código. Aguarde alguns minutos e tente novamente.');
+        }
+        if (data?.error === 'sms_gateway_not_configured') {
+            throw new Error('O serviço de SMS ainda não está configurado.');
+        }
+        if (error) throw new Error('Não foi possível enviar o código por SMS.');
+        throw new Error('Não foi possível enviar o código por SMS.');
     },
 
-    async verifyOtp(phone: string, otp: string, storeId: string) {
-        const digits = phone.replace(/\D/g, '');
-
-        const { data, error } = await supabaseCustomer.rpc('verify_customer_otp', {
-            p_phone: digits,
-            p_otp: otp,
-            p_store_id: storeId,
+    async verifyOtp(
+        phone: string,
+        otp: string,
+        storeId: string,
+        purpose: CustomerOtpPurpose = 'login',
+        registration?: RegistrationPayload,
+    ) {
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabasePublic.functions.invoke('customer-auth-session', {
+            body: {
+                action: 'otp',
+                phone,
+                otp,
+                storeId,
+                purpose,
+                registration,
+                deviceTokenHash,
+            },
         });
 
-        if (error) throw error;
-
-        const res = data as VerifyOtpRpcResponse;
-
-        if (!res?.isValid) {
-            if (res?.locked) throw new Error('Muitas tentativas. Tente novamente mais tarde.');
-            throw new Error('Código inválido ou expirado.');
+        if (error || !data?.ok || !data?.tokenHash || !data?.customer) {
+            if (data?.error === 'otp_locked') throw new Error('Muitas tentativas. Solicite um novo código.');
+            if (data?.error === 'terms_required') throw new Error('É necessário aceitar os Termos de Uso e a Política de Privacidade.');
+            if (data?.error === 'password_required') throw new Error('Crie uma senha para concluir o cadastro.');
+            if (data?.error === 'weak_password') throw new Error('A senha deve ter de 8 a 72 caracteres, com letras e números.');
+            if (data?.error === 'customer_already_exists') throw new Error('Já existe uma conta com este telefone. Use a opção Entrar.');
+            if (data?.error === 'customer_not_found') throw new Error('Cliente não encontrado para este número.');
+            throw new Error('Código inválido, expirado ou não foi possível iniciar a sessão.');
         }
 
-        // Se retornou customer, cria token e faz login local
-        if (res.customer?.id && res.customer?.store_id) {
-            const { token } = await issueCustomerJwt({
-                customer_id: String(res.customer.id),
-                store_id: String(res.customer.store_id),
-            });
-
-            setCustomerToken(token);
-
-            // Tipagem: garante que bate com src/types Customer (campos podem ser null)
-            const customer: Customer = {
-                id: String(res.customer.id),
-                store_id: String(res.customer.store_id),
-                phone: String(res.customer.phone ?? digits),
-                full_name: res.customer.full_name ?? null,
-                nickname: res.customer.nickname ?? null,
-                cpf: res.customer.cpf ?? undefined,
-                email: res.customer.email ?? undefined,
-                birth_date: res.customer.birth_date ?? undefined,
-                loyalty_points: Number(res.customer.loyalty_points ?? 0),
-                loyalty_tier: (res.customer.loyalty_tier ?? 'Bronze') as Customer['loyalty_tier'],
-                is_whatsapp: Boolean(res.customer.is_whatsapp ?? true),
-                marketing_consent: Boolean(res.customer.marketing_consent ?? false),
-                loyalty_opt_in: Boolean(res.customer.loyalty_opt_in ?? false),
-                email_verified: res.customer.email_verified ?? undefined,
-            };
-
-            useCustomerAuth.getState().login(customer);
-        }
+        const session = await completeSession(data);
 
         return {
             valid: true,
-            isNewUser: !!res.isNewUser,
-            customer: res.customer ?? null,
+            isNewUser: purpose === 'registration',
+            purpose,
+            customer: session.customer,
+            passwordConfigured: session.passwordConfigured,
         };
     },
 
-    /**
-     * Login com senha via RPC server-side.
-     * O RPC `customer_login_with_password` valida a senha e retorna o customer.
-     */
-    async loginWithPassword(phone: string, password: string, storeId: string) {
-        const cleanPhone = phone.replace(/\D/g, '');
-
-        const { data, error } = await supabaseCustomer.rpc('customer_login_with_password', {
-            p_phone: cleanPhone,
-            p_password: password,
-            p_store_id: storeId,
+    async loginWithPassword(phone: string, password: string, storeId: string): Promise<PasswordLoginResult> {
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabasePublic.functions.invoke('customer-auth-session', {
+            body: {
+                action: 'password_login',
+                phone,
+                password,
+                storeId,
+                deviceTokenHash,
+            },
         });
 
-        if (error) throw error;
-        if (!data?.customer?.id) throw new Error('Credenciais inválidas');
+        if (data?.error === 'locked') {
+            const seconds = Math.max(60, Number(data.retryAfterSeconds || 900));
+            const minutes = Math.ceil(seconds / 60);
+            throw new Error(`Muitas tentativas de senha. Aguarde cerca de ${minutes} minuto(s) e tente novamente.`);
+        }
+        if (data?.error === 'invalid_credentials') {
+            throw new Error('Telefone ou senha incorretos.');
+        }
+        if (error || !data?.ok) {
+            throw new Error('Não foi possível entrar agora. Tente novamente em alguns instantes.');
+        }
 
-        const { token } = await issueCustomerJwt({
-            customer_id: String(data.customer.id),
-            store_id: String(data.customer.store_id),
-        });
+        if (data.otpRequired) {
+            return {
+                authenticated: false,
+                otpRequired: true,
+                reason: data.reason || 'new_device',
+            };
+        }
 
-        setCustomerToken(token);
-
-        const customer: Customer = {
-            id: String(data.customer.id),
-            store_id: String(data.customer.store_id),
-            phone: String(data.customer.phone ?? cleanPhone),
-            full_name: data.customer.full_name ?? null,
-            nickname: data.customer.nickname ?? null,
-            cpf: data.customer.cpf ?? undefined,
-            email: data.customer.email ?? undefined,
-            birth_date: data.customer.birth_date ?? undefined,
-            loyalty_points: Number(data.customer.loyalty_points ?? 0),
-            loyalty_tier: (data.customer.loyalty_tier ?? 'Bronze') as Customer['loyalty_tier'],
-            is_whatsapp: Boolean(data.customer.is_whatsapp ?? true),
-            marketing_consent: Boolean(data.customer.marketing_consent ?? false),
-            loyalty_opt_in: Boolean(data.customer.loyalty_opt_in ?? false),
-            email_verified: data.customer.email_verified ?? undefined,
+        const session = await completeSession(data);
+        return {
+            authenticated: true,
+            otpRequired: false,
+            customer: session.customer,
         };
+    },
 
+    async setPassword(password: string) {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) throw new Error('Sua sessão expirou. Confirme seu telefone novamente.');
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: { action: 'set_password', password, deviceTokenHash },
+        });
+
+        if (data?.error === 'weak_password') {
+            throw new Error('A senha deve ter de 8 a 72 caracteres, com letras e números.');
+        }
+        if (data?.error === 'reauth_required') {
+            throw new Error('Por segurança, confirme seu telefone novamente antes de definir a senha.');
+        }
+        if (error || !data?.ok) throw new Error('Não foi possível salvar a senha agora.');
+        return true;
+    },
+
+    async restoreSession() {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) {
+            useCustomerAuth.getState().logout?.();
+            return null;
+        }
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: { action: 'me', deviceTokenHash },
+        });
+
+        if (error || !data?.ok || !data?.customer) {
+            clearPersistedCustomerSession();
+            await supabasePublic.auth.signOut({ scope: 'local' }).catch(() => undefined);
+            useCustomerAuth.getState().logout?.();
+            return null;
+        }
+
+        const customer = toCustomer(data.customer);
         useCustomerAuth.getState().login(customer);
-        return { customer, isNewUser: false };
+        return {
+            customer,
+            passwordConfigured: Boolean(data.passwordConfigured),
+        };
     },
 
-    /**
-     * Mantido para o build (Catalog.tsx).
-     * Você pode cadastrar sem senha e depois usar OTP para criar senha.
-     */
-    async registerUser(data: {
+    async registerUser(_data: {
         phone: string;
         storeId: string;
         storeName: string;
@@ -157,41 +314,12 @@ export const AuthService = {
         birthDate?: string;
         loyaltyOptIn?: boolean;
     }) {
-        const digits = data.phone.replace(/\D/g, '');
-
-        const insertData = {
-            phone: digits,
-            store_id: data.storeId,
-            nickname: data.nickname,
-            email: data.email || null,
-            birth_date: data.birthDate || null,
-            marketing_consent: data.marketingConsent,
-            loyalty_opt_in: data.loyaltyOptIn ?? false,
-            status: 'active',
-        };
-
-        const { data: newCustomer, error } = await supabaseCustomer
-            .from('customers')
-            .insert(insertData)
-            .select('id, store_id, phone, full_name, nickname, email, birth_date, loyalty_points, loyalty_tier, is_whatsapp, marketing_consent, loyalty_opt_in, email_verified')
-            .maybeSingle();
-
-        if (error) throw error;
-        if (!newCustomer?.id) throw new Error('Falha ao criar cliente');
-
-        // Emite token logo após criar (opcional, mas deixa o fluxo suave)
-        const { token } = await issueCustomerJwt({
-            customer_id: String(newCustomer.id),
-            store_id: String(newCustomer.store_id),
-        });
-        setCustomerToken(token);
-
-        useCustomerAuth.getState().login(newCustomer as unknown as Customer);
-        return newCustomer;
+        throw new Error('Cadastro seguro deve ser concluído pelo código SMS.');
     },
 
-    logoutCustomer() {
-        clearCustomerToken();
+    async logoutCustomer() {
+        clearPersistedCustomerSession();
+        await supabasePublic.auth.signOut().catch(() => undefined);
         useCustomerAuth.getState().logout?.();
     },
 };
