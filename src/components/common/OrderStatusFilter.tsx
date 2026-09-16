@@ -27,12 +27,13 @@ export default function OrderStatusFilter({ value, onChange }: OrderStatusFilter
     let disposed = false;
     let timer: number | null = null;
 
-    void supabase
-      .from('orders')
-      .select('order_code')
-      .eq('id', orderId)
-      .maybeSingle()
-      .then(({ data }) => {
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from('orders')
+          .select('order_code')
+          .eq('id', orderId)
+          .maybeSingle();
         if (disposed) return;
         const orderCode = data?.order_code ? String(data.order_code) : '';
         if (!orderCode) return;
@@ -53,8 +54,10 @@ export default function OrderStatusFilter({ value, onChange }: OrderStatusFilter
           if (attempts < 20) timer = window.setTimeout(focusOrder, 150);
         };
         focusOrder();
-      })
-      .catch(() => undefined);
+      } catch {
+        // O filtro em "Todos os Status" continua permitindo localizar o pedido manualmente.
+      }
+    })();
 
     return () => {
       disposed = true;
