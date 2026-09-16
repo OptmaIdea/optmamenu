@@ -56,6 +56,15 @@ const EMPTY_ADDRESS: CustomerAddress = {
     is_default: false,
 };
 
+function onlyDigits(value: string) {
+    return value.replace(/\D/g, '');
+}
+
+function formatCep(value: string) {
+    const digits = onlyDigits(value).slice(0, 8);
+    return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits;
+}
+
 function normalizeOrder(order: Record<string, unknown>): CustomerOrderSummary {
     return {
         id: String(order.id ?? ''),
@@ -125,6 +134,7 @@ export function CustomerAccountPortal() {
     const [open, setOpen] = useState(false);
     const [tab, setTab] = useState<AccountTab>('profile');
     const [loading, setLoading] = useState(false);
+    const [cepLoading, setCepLoading] = useState(false);
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
 
@@ -233,6 +243,45 @@ export function CustomerAccountPortal() {
         setAddressForm(EMPTY_ADDRESS);
         setEditingAddressId(null);
         setShowAddressForm(false);
+        setCepLoading(false);
+    };
+
+    const lookupAddressCep = async () => {
+        const cep = onlyDigits(addressForm.zip_code);
+        if (cep.length !== 8) {
+            setError('Informe um CEP válido com 8 dígitos.');
+            return;
+        }
+
+        setCepLoading(true);
+        setError('');
+        try {
+            const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            if (!response.ok) throw new Error('cep_lookup_failed');
+            const data = await response.json() as {
+                erro?: boolean;
+                logradouro?: string;
+                bairro?: string;
+                localidade?: string;
+                uf?: string;
+            };
+            if (data.erro) {
+                setError('CEP não encontrado. Confira o número ou preencha o endereço manualmente.');
+                return;
+            }
+            setAddressForm((current) => ({
+                ...current,
+                zip_code: formatCep(cep),
+                street: data.logradouro || current.street,
+                district: data.bairro || current.district,
+                city: data.localidade || current.city,
+                state: (data.uf || current.state).toUpperCase(),
+            }));
+        } catch {
+            setError('Não foi possível consultar o CEP agora. Você ainda pode preencher o endereço manualmente.');
+        } finally {
+            setCepLoading(false);
+        }
     };
 
     const saveAddress = async () => {
@@ -245,8 +294,9 @@ export function CustomerAccountPortal() {
                 await CustomerService.addAddress({ ...addressForm, customer_id: customer.id });
             }
             await loadAddresses();
+            const wasEditing = Boolean(editingAddressId);
             resetAddressForm();
-            setMessage(editingAddressId ? 'Endereço atualizado.' : 'Endereço adicionado.');
+            setMessage(wasEditing ? 'Endereço atualizado.' : 'Endereço adicionado.');
         } catch (addressError) {
             setError(addressError instanceof Error ? addressError.message : 'Não foi possível salvar o endereço.');
         } finally {
@@ -256,7 +306,7 @@ export function CustomerAccountPortal() {
 
     const editAddress = (address: CustomerAddress) => {
         clearFeedback();
-        setAddressForm({ ...address });
+        setAddressForm({ ...address, zip_code: formatCep(address.zip_code) });
         setEditingAddressId(address.id || null);
         setShowAddressForm(true);
     };
@@ -428,8 +478,20 @@ export function CustomerAccountPortal() {
 
                                     {showAddressForm && (
                                         <div className="space-y-3 rounded-3xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/10">
+                                            <div className="flex gap-2">
+                                                <input
+                                                    value={addressForm.zip_code}
+                                                    onChange={(event) => setAddressForm({ ...addressForm, zip_code: formatCep(event.target.value) })}
+                                                    onBlur={() => { if (onlyDigits(addressForm.zip_code).length === 8) void lookupAddressCep(); }}
+                                                    inputMode="numeric"
+                                                    placeholder="CEP"
+                                                    className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                />
+                                                <button type="button" onClick={() => void lookupAddressCep()} disabled={cepLoading} className="rounded-2xl border border-emerald-200 bg-white px-4 text-sm font-black text-emerald-700 disabled:opacity-50 dark:border-emerald-900 dark:bg-slate-900 dark:text-emerald-300">
+                                                    {cepLoading ? 'Buscando…' : 'Buscar'}
+                                                </button>
+                                            </div>
                                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                                <input value={addressForm.zip_code} onChange={(event) => setAddressForm({ ...addressForm, zip_code: event.target.value })} placeholder="CEP" className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                                                 <input value={addressForm.state} onChange={(event) => setAddressForm({ ...addressForm, state: event.target.value.toUpperCase().slice(0, 2) })} placeholder="UF" maxLength={2} className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                                                 <input value={addressForm.street} onChange={(event) => setAddressForm({ ...addressForm, street: event.target.value })} placeholder="Rua / avenida" className="rounded-2xl border border-slate-200 bg-white p-3 sm:col-span-2 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                                                 <input value={addressForm.number} onChange={(event) => setAddressForm({ ...addressForm, number: event.target.value })} placeholder="Número" className="rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
@@ -442,7 +504,7 @@ export function CustomerAccountPortal() {
                                             </label>
                                             <div className="flex gap-2">
                                                 <button type="button" onClick={resetAddressForm} className="flex-1 rounded-2xl border border-slate-200 py-3 font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancelar</button>
-                                                <button type="button" onClick={saveAddress} disabled={loading} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" /> Salvar</button>
+                                                <button type="button" onClick={saveAddress} disabled={loading || cepLoading} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white disabled:opacity-50"><Save className="h-4 w-4" /> Salvar</button>
                                             </div>
                                         </div>
                                     )}
@@ -460,7 +522,7 @@ export function CustomerAccountPortal() {
                                                         {address.is_default && <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black text-white">PADRÃO</span>}
                                                     </div>
                                                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{address.district} · {address.city}/{address.state}</p>
-                                                    <p className="text-xs text-slate-500">CEP {address.zip_code}{address.complement ? ` · ${address.complement}` : ''}</p>
+                                                    <p className="text-xs text-slate-500">CEP {formatCep(address.zip_code)}{address.complement ? ` · ${address.complement}` : ''}</p>
                                                 </div>
                                                 <div className="flex shrink-0 gap-1">
                                                     <button type="button" onClick={() => editAddress(address)} className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300" aria-label="Editar endereço"><Pencil className="h-4 w-4" /></button>
