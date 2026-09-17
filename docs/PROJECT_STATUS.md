@@ -59,3 +59,14 @@ O baseline verificado em 17/09/2026 tinha como HEAD `b312caaada2bee01dfbab64628c
 ## Observação documental
 
 Este arquivo substitui o snapshot antigo de 29/07/2026 como referência executiva de estado. A documentação temática continua distribuída nos documentos oficiais listados em `docs/README.md`; o repositório e o Supabase permanecem a autoridade para o estado técnico efetivamente implantado.
+
+
+---
+
+## Atualização operacional — 17/09/2026 (conta do cliente)
+
+- A área real usada pelo cliente é `CustomerAccountPortal`; o polling anterior havia sido aplicado ao componente legado `OrderHistory`, por isso não aparecia nem atualizava nesta interface.
+- A aba **Pedidos** da conta do cliente agora possui atualização automática a cada 12 segundos enquanto estiver aberta, atualização ao recuperar foco/visibilidade, botão explícito **Atualizar agora**, horário da última sincronização e toast amigável quando o status muda.
+- A aba anteriormente chamada **Pontos e cartões** passa a se chamar **Fidelidade** e inclui adesão/saída auditável via `set_customer_self_consent_safe`, status de participação, saldo/nível e espaço visual próprio para benefícios e comunicações de fidelidade separado dos banners do cardápio.
+- Em 17/09/2026, os clientes de teste Xumbrega e Juan Caballero estavam com `loyalty_opt_in=false` e `loyalty_points=0`, confirmando que a ausência de adesão era um defeito de interface do portal, não participação já ativa.
+- A gestão configurável de banners exclusivos de fidelidade permanece como evolução futura; esta entrega cria a área e separação visual sem inventar campanhas ou dados promocionais inexistentes.

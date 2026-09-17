@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    CreditCard,
     Eye,
     EyeOff,
     Gift,
@@ -11,7 +10,9 @@ import {
     PackageCheck,
     Pencil,
     Plus,
+    RefreshCw,
     Save,
+    Sparkles,
     ShieldCheck,
     Trash2,
     UserRound,
@@ -21,6 +22,7 @@ import { AuthService } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { formatBRL } from '@/utils/pricing';
+import { toast } from 'sonner';
 
 interface CustomerAddress {
     id?: string;
@@ -44,6 +46,8 @@ interface CustomerOrderSummary {
 }
 
 type AccountTab = 'profile' | 'addresses' | 'orders' | 'loyalty' | 'security';
+
+const CUSTOMER_ORDERS_REFRESH_MS = 12000;
 
 const EMPTY_ADDRESS: CustomerAddress = {
     zip_code: '',
@@ -85,6 +89,18 @@ function orderStatusLabel(status?: string | null) {
         case 'completed': return 'Concluído';
         case 'cancelled': return 'Cancelado';
         default: return status || 'Em andamento';
+    }
+}
+
+function friendlyOrderStatusMessage(order: CustomerOrderSummary) {
+    const code = order.order_code || `Pedido ${order.id.slice(0, 8)}`;
+    switch (order.status) {
+        case 'confirmed': return `${code}: seu pedido foi confirmado e está em preparo.`;
+        case 'ready': return `${code}: seu pedido está pronto.`;
+        case 'out_for_delivery': return `${code}: saiu para entrega. Acompanhe por aqui as próximas atualizações.`;
+        case 'completed': return `${code}: pedido concluído. Obrigado pela compra!`;
+        case 'cancelled': return `${code}: o pedido foi cancelado.`;
+        default: return `${code}: status atualizado para ${orderStatusLabel(order.status)}.`;
     }
 }
 
@@ -147,6 +163,11 @@ export function CustomerAccountPortal() {
     const [showAddressForm, setShowAddressForm] = useState(false);
 
     const [orders, setOrders] = useState<CustomerOrderSummary[]>([]);
+    const [ordersRefreshing, setOrdersRefreshing] = useState(false);
+    const [ordersUpdatedAt, setOrdersUpdatedAt] = useState<Date | null>(null);
+    const [loyaltySaving, setLoyaltySaving] = useState(false);
+    const ordersRef = useRef<CustomerOrderSummary[]>([]);
+    const ordersRequestInFlightRef = useRef(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -181,10 +202,44 @@ export function CustomerAccountPortal() {
         })));
     };
 
-    const loadOrders = async () => {
-        const data = await CustomerService.getOrders();
-        setOrders((data as Record<string, unknown>[]).map(normalizeOrder));
-    };
+    const loadOrders = useCallback(async (options?: { notifyStatusChanges?: boolean; showSpinner?: boolean }) => {
+        if (!customer || ordersRequestInFlightRef.current) return;
+        const notifyStatusChanges = options?.notifyStatusChanges ?? false;
+        const showSpinner = options?.showSpinner ?? false;
+        ordersRequestInFlightRef.current = true;
+        if (showSpinner) setOrdersRefreshing(true);
+
+        try {
+            const data = await CustomerService.getOrders();
+            const nextOrders = (data as Record<string, unknown>[]).map(normalizeOrder);
+
+            if (notifyStatusChanges && ordersRef.current.length > 0) {
+                const previousById = new Map(ordersRef.current.map((order) => [order.id, order.status]));
+                nextOrders.forEach((order) => {
+                    const previousStatus = previousById.get(order.id);
+                    if (previousStatus && previousStatus !== order.status) {
+                        toast.info(friendlyOrderStatusMessage(order));
+                    }
+                });
+            }
+
+            ordersRef.current = nextOrders;
+            setOrders(nextOrders);
+            setOrdersUpdatedAt(new Date());
+        } catch (loadError) {
+            if (showSpinner) toast.error('Não foi possível atualizar seus pedidos agora.');
+            throw loadError;
+        } finally {
+            ordersRequestInFlightRef.current = false;
+            if (showSpinner) setOrdersRefreshing(false);
+        }
+    }, [customer?.id]);
+
+    useEffect(() => {
+        ordersRef.current = [];
+        setOrders([]);
+        setOrdersUpdatedAt(null);
+    }, [customer?.id]);
 
     useEffect(() => {
         if (!open || !customer) return;
@@ -204,7 +259,27 @@ export function CustomerAccountPortal() {
         return () => {
             active = false;
         };
-    }, [open, customer?.id]);
+    }, [open, customer?.id, loadOrders]);
+
+    useEffect(() => {
+        if (!open || !customer || tab !== 'orders') return;
+
+        const refreshOrders = () => {
+            if (document.visibilityState !== 'visible') return;
+            void loadOrders({ notifyStatusChanges: true }).catch(() => undefined);
+        };
+
+        refreshOrders();
+        const intervalId = window.setInterval(refreshOrders, CUSTOMER_ORDERS_REFRESH_MS);
+        document.addEventListener('visibilitychange', refreshOrders);
+        window.addEventListener('focus', refreshOrders);
+
+        return () => {
+            window.clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', refreshOrders);
+            window.removeEventListener('focus', refreshOrders);
+        };
+    }, [open, customer?.id, tab, loadOrders]);
 
     if (!customer) return null;
 
@@ -341,6 +416,26 @@ export function CustomerAccountPortal() {
         }
     };
 
+    const setLoyaltyMembership = async (join: boolean) => {
+        clearFeedback();
+        setLoyaltySaving(true);
+        try {
+            await CustomerService.setSelfConsent('loyalty_program', join, { source: 'customer_account_portal' });
+            await AuthService.restoreSession();
+            const feedback = join
+                ? 'Adesão confirmada! A partir de agora, compras elegíveis poderão gerar pontos.'
+                : 'Sua participação no programa de fidelidade foi encerrada.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (loyaltyError) {
+            const feedback = loyaltyError instanceof Error ? loyaltyError.message : 'Não foi possível atualizar sua participação no programa.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setLoyaltySaving(false);
+        }
+    };
+
     const savePassword = async () => {
         clearFeedback();
         if (newPassword.length < 8 || newPassword.length > 72 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
@@ -369,7 +464,7 @@ export function CustomerAccountPortal() {
         { id: 'profile', label: 'Meus dados', icon: UserRound },
         { id: 'addresses', label: 'Endereços', icon: MapPin },
         { id: 'orders', label: 'Pedidos', icon: PackageCheck },
-        { id: 'loyalty', label: 'Pontos e cartões', icon: Gift },
+        { id: 'loyalty', label: 'Fidelidade', icon: Gift },
         { id: 'security', label: 'Segurança', icon: KeyRound },
     ];
 
@@ -537,6 +632,25 @@ export function CustomerAccountPortal() {
 
                             {tab === 'orders' && (
                                 <div className="mx-auto max-w-2xl space-y-3">
+                                    <div className="flex flex-col gap-3 rounded-3xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/20 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <p className="text-sm font-black text-emerald-900 dark:text-emerald-100">Acompanhamento automático ativo</p>
+                                            <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
+                                                Esta lista verifica novos status a cada 12 segundos enquanto Pedidos estiver aberto.
+                                                {ordersUpdatedAt ? ` Última atualização: ${ordersUpdatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.` : ''}
+                                            </p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => void loadOrders({ notifyStatusChanges: true, showSpinner: true }).catch(() => undefined)}
+                                            disabled={ordersRefreshing}
+                                            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                        >
+                                            <RefreshCw className={`h-4 w-4 ${ordersRefreshing ? 'animate-spin' : ''}`} />
+                                            {ordersRefreshing ? 'Atualizando…' : 'Atualizar agora'}
+                                        </button>
+                                    </div>
+
                                     {orders.length === 0 ? (
                                         <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Ainda não há pedidos vinculados a esta conta.</div>
                                     ) : orders.map((order) => (
@@ -555,17 +669,56 @@ export function CustomerAccountPortal() {
                             )}
 
                             {tab === 'loyalty' && (
-                                <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
-                                    <section className="rounded-3xl bg-emerald-600 p-5 text-white shadow-lg">
-                                        <Gift className="h-7 w-7" />
-                                        <p className="mt-5 text-xs font-bold uppercase tracking-widest text-emerald-100">Saldo de pontos</p>
-                                        <p className="mt-1 text-4xl font-black">{customer.loyalty_points || 0}</p>
-                                        <p className="mt-2 text-sm font-semibold text-emerald-100">Nível {customer.loyalty_tier || 'Bronze'}</p>
+                                <div className="mx-auto max-w-2xl space-y-4">
+                                    <section className={`rounded-3xl p-5 shadow-lg ${customer.loyalty_opt_in ? 'bg-emerald-600 text-white' : 'border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-slate-900 dark:border-emerald-900/50 dark:from-emerald-950/30 dark:to-slate-950 dark:text-white'}`}>
+                                        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <Gift className={`h-7 w-7 ${customer.loyalty_opt_in ? 'text-white' : 'text-emerald-600'}`} />
+                                                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${customer.loyalty_opt_in ? 'bg-white/15 text-white' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200'}`}>
+                                                        {customer.loyalty_opt_in ? 'Participação ativa' : 'Adesão disponível'}
+                                                    </span>
+                                                </div>
+                                                <h3 className="mt-4 text-2xl font-black">{customer.loyalty_opt_in ? 'Você faz parte do Clube de Pontos' : 'Participe do nosso Clube de Pontos'}</h3>
+                                                <p className={`mt-2 max-w-xl text-sm leading-6 ${customer.loyalty_opt_in ? 'text-emerald-100' : 'text-slate-600 dark:text-slate-300'}`}>
+                                                    {customer.loyalty_opt_in
+                                                        ? 'Compras elegíveis podem gerar pontos e benefícios conforme as regras vigentes da loja.'
+                                                        : 'A adesão é voluntária. Depois de entrar, suas próximas compras elegíveis poderão acumular pontos e liberar benefícios exclusivos.'}
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void setLoyaltyMembership(!customer.loyalty_opt_in)}
+                                                disabled={loyaltySaving}
+                                                className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition disabled:opacity-50 ${customer.loyalty_opt_in ? 'border border-white/40 bg-white/10 text-white hover:bg-white/20' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
+                                            >
+                                                {loyaltySaving ? 'Salvando…' : customer.loyalty_opt_in ? 'Sair do programa' : 'Quero participar'}
+                                            </button>
+                                        </div>
                                     </section>
+
+                                    <div className="grid gap-4 sm:grid-cols-2">
+                                        <section className="rounded-3xl bg-slate-950 p-5 text-white shadow-lg dark:bg-slate-900">
+                                            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Saldo de pontos</p>
+                                            <p className="mt-2 text-4xl font-black">{customer.loyalty_points || 0}</p>
+                                            <p className="mt-2 text-sm font-semibold text-slate-300">Nível {customer.loyalty_tier || 'Bronze'}</p>
+                                            {!customer.loyalty_opt_in && <p className="mt-3 text-xs leading-5 text-amber-300">Você ainda não está participando. Ative sua adesão acima para pontuar nas próximas compras elegíveis.</p>}
+                                        </section>
+
+                                        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/20">
+                                            <Sparkles className="h-7 w-7 text-amber-600 dark:text-amber-300" />
+                                            <h3 className="mt-4 font-black text-slate-900 dark:text-white">Benefícios e novidades do clube</h3>
+                                            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Este espaço é separado dos banners do cardápio e ficará reservado para campanhas, vantagens e comunicações exclusivas de fidelidade.</p>
+                                        </section>
+                                    </div>
+
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <CreditCard className="h-7 w-7 text-slate-500" />
-                                        <h3 className="mt-5 font-black text-slate-900 dark:text-white">Cartões salvos</h3>
-                                        <p className="mt-2 text-sm leading-6 text-slate-500">Nenhum cartão salvo. Quando a tokenização de pagamentos for habilitada, aparecerão aqui somente dados seguros, como bandeira e últimos 4 dígitos. O OptmaMenu não armazenará número completo nem CVV.</p>
+                                        <h3 className="font-black text-slate-900 dark:text-white">Como funciona</h3>
+                                        <div className="mt-3 grid gap-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-3">
+                                            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><strong className="block text-slate-900 dark:text-white">1. Participe</strong>Confirme sua adesão ao programa.</div>
+                                            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><strong className="block text-slate-900 dark:text-white">2. Compre</strong>Pedidos elegíveis seguem as regras de pontuação da loja.</div>
+                                            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><strong className="block text-slate-900 dark:text-white">3. Acompanhe</strong>Veja saldo, nível e futuras vantagens nesta área.</div>
+                                        </div>
                                     </section>
                                 </div>
                             )}
