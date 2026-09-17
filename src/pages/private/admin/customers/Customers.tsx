@@ -764,7 +764,14 @@ export default function Customers() {
                                                         </div>
 
                                                         <div>
-                                                            <p className="font-black text-gray-900 dark:text-white">{customer.full_name || 'Cliente sem nome'}</p>
+                                                            <button
+                                                      type="button"
+                                                      onClick={() => navigate(`/admin/customers/${customer.id}`)}
+                                                      className="text-left font-black text-gray-900 underline-offset-4 transition hover:text-[#19A999] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#19A999]/40 dark:text-white dark:hover:text-brand-mint"
+                                                      title="Abrir Vida do Cliente"
+                                                  >
+                                                      {customer.full_name || 'Cliente sem nome'}
+                                                  </button>
                                                             <p className="text-xs text-gray-500 dark:text-gray-400">{customer.phone}</p>
                                                             {customer.email && <p className="text-xs text-gray-500 dark:text-gray-400">{customer.email}</p>}
                                                         </div>
