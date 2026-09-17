@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Truck } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
 import OrderStatusFilter from '@/components/common/OrderStatusFilter';
 import DateRangeFilter, { getPeriodDates } from '@/components/common/DateRangeFilter';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
@@ -19,6 +22,8 @@ function getAutomaticExpirationAt(order: Order): string | null {
 }
 
 export default function Orders() {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const focusedOrderId = searchParams.get('orderId')?.trim() || null;
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('current');
@@ -33,7 +38,14 @@ export default function Orders() {
     const [finalizingOrder, setFinalizingOrder] = useState<Order | null>(null);
     const [finalizationLoading, setFinalizationLoading] = useState(false);
 
+    const focusedOrder = useMemo(
+        () => focusedOrderId ? orders.find((order) => order.id === focusedOrderId) || null : null,
+        [focusedOrderId, orders],
+    );
+
     const displayedOrders = useMemo(() => {
+        if (focusedOrderId) return orders.filter((order) => order.id === focusedOrderId);
+
         return orders.filter(o => {
             if (filterStatus === 'current') {
                 if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready' || o.status === 'out_for_delivery')) return false;
@@ -45,13 +57,15 @@ export default function Orders() {
             }
             return true;
         });
-    }, [orders, filterStatus, startDate, endDate]);
+    }, [orders, focusedOrderId, filterStatus, startDate, endDate]);
 
-    const emptyStateMessage = filterStatus === 'current'
-        ? 'Nenhum pedido aguardando atendimento agora. Vendas de balcão concluídas ficam no dashboard, vida do cliente e histórico comercial.'
-        : filterStatus === 'expired_auto'
-            ? 'Nenhum pedido foi cancelado automaticamente por expiração.'
-            : 'Nenhum pedido encontrado para o filtro selecionado.';
+    const emptyStateMessage = focusedOrderId
+        ? 'O pedido selecionado não foi encontrado nesta unidade.'
+        : filterStatus === 'current'
+            ? 'Nenhum pedido aguardando atendimento agora. Vendas de balcão concluídas ficam no dashboard, vida do cliente e histórico comercial.'
+            : filterStatus === 'expired_auto'
+                ? 'Nenhum pedido foi cancelado automaticamente por expiração.'
+                : 'Nenhum pedido encontrado para o filtro selecionado.';
 
     const fetchOrders = useCallback(async () => {
         setLoading(true);
@@ -69,7 +83,7 @@ export default function Orders() {
             }
 
             setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
-            const rpcStatus = (filterStatus === 'all' || filterStatus === 'current') ? 'all' : filterStatus;
+            const rpcStatus = focusedOrderId || filterStatus === 'all' || filterStatus === 'current' ? 'all' : filterStatus;
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
                 p_store_id: store.id,
                 p_status: rpcStatus,
@@ -80,13 +94,27 @@ export default function Orders() {
             setOrders(result.orders || []);
         } catch (error) {
             console.error('Error fetching orders:', error);
+            toast.error('Não foi possível atualizar os pedidos agora.');
         } finally {
             setLoading(false);
         }
-    }, [filterStatus]);
+    }, [filterStatus, focusedOrderId]);
 
     useEffect(() => { fetchOrders(); }, [fetchOrders]);
     useRefreshFrame(fetchOrders);
+
+    useEffect(() => {
+        if (!focusedOrderId || !orders.some((order) => order.id === focusedOrderId)) return;
+        setExpandedOrder(focusedOrderId);
+    }, [focusedOrderId, orders]);
+
+    const clearFocusedOrder = () => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('orderId');
+        setSearchParams(next, { replace: true });
+        setExpandedOrder(null);
+        setFilterStatus('current');
+    };
 
     const handleOrdersChange = useCallback(() => {
         fetchOrders();
@@ -147,20 +175,27 @@ export default function Orders() {
 
     async function extendReservation(order: Order) {
         if (!isReservationTimerApplicable(order)) {
-            alert('Somente pedido de retirada com pagamento posterior tem prazo de reserva para prorrogar.');
+            toast.warning('Somente pedidos de retirada com pagamento posterior possuem prazo de reserva.');
             return;
         }
 
         const extensionMinutes = storeData?.config?.extension_minutes || 10;
-        if (!confirm(`Deseja prorrogar a reserva em ${extensionMinutes} minutos?`)) return;
+        const confirmed = await systemConfirm({
+            title: 'Prorrogar reserva?',
+            description: `O prazo deste pedido será ampliado em ${extensionMinutes} minutos.`,
+            confirmLabel: `Prorrogar +${extensionMinutes} min`,
+            cancelLabel: 'Manter prazo',
+        });
+        if (!confirmed) return;
+
         try {
             const { error } = await supabase.rpc('extend_reservation', { p_order_id: order.id, p_minutes: extensionMinutes });
             if (error) throw error;
-            alert('Reserva prorrogada com sucesso!');
+            toast.success(`Reserva prorrogada em ${extensionMinutes} minutos.`);
             fetchOrders();
         } catch (error) {
             console.error('Extension error:', error);
-            alert('Erro ao prorrogar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
+            toast.error('Erro ao prorrogar: ' + (error instanceof Error ? error.message : 'Erro desconhecido'));
         }
     }
 
@@ -337,9 +372,15 @@ export default function Orders() {
         const publicOrder = getPublicOrderFields(order);
         const token = publicOrder.public_order_token;
         const orderCode = publicOrder.order_code || order.id;
-        if (!token) { alert('Este pedido não possui link público de acompanhamento.'); return false; }
+        if (!token) {
+            toast.error('Este pedido não possui link público de acompanhamento.');
+            return false;
+        }
         const phone = String(order.customer_phone || '').replace(/\D/g, '');
-        if (phone.length < 10) { alert('O cliente não possui um WhatsApp válido cadastrado neste pedido.'); return false; }
+        if (phone.length < 10) {
+            toast.error('O cliente não possui um WhatsApp válido cadastrado neste pedido.');
+            return false;
+        }
         const storeSlug = String((order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata?.slug || '');
         const opened = await OrderCommunicationService.open(eventCode, {
             orderId: order.id,
@@ -352,7 +393,7 @@ export default function Orders() {
             fulfillmentType: publicOrder.fulfillment_type || null,
             paymentStatus: publicOrder.payment_status || null,
         });
-        if (!opened) alert('Não foi possível abrir o WhatsApp para este cliente.');
+        if (!opened) toast.error('Não foi possível abrir o WhatsApp para este cliente.');
         return opened;
     }
 
@@ -370,11 +411,19 @@ export default function Orders() {
                 stock_reservations: timerActive && data.available_until ? [{ expires_at: data.available_until }] : [],
             } as Order;
             setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
-            if (window.confirm('Pedido aceito. Deseja abrir a mensagem para o cliente?')) await openOrderMessage(updatedOrder, 'order_accepted');
+            toast.success('Pedido aceito com sucesso.');
+            const sendMessage = await systemConfirm({
+                title: 'Pedido aceito',
+                description: 'Deseja abrir agora a mensagem de confirmação para o cliente no WhatsApp?',
+                confirmLabel: 'Abrir WhatsApp',
+                cancelLabel: 'Agora não',
+                tone: 'success',
+            });
+            if (sendMessage) await openOrderMessage(updatedOrder, 'order_accepted');
             return true;
         } catch (error) {
             console.error('Erro ao aceitar pedido:', error);
-            alert(getOrderActionErrorMessage(error));
+            toast.error(getOrderActionErrorMessage(error));
             return false;
         }
     }
@@ -388,12 +437,13 @@ export default function Orders() {
             const expiresAt = timerActive ? (data?.expires_at || order.stock_reservations?.[0]?.expires_at || null) : null;
             const updatedOrder = { ...order, status: 'ready' as OrderStatus, available_until: expiresAt, cancellation_grace_until: timerActive ? data?.cancellation_grace_until || null : null, stock_reservations: expiresAt ? [{ expires_at: expiresAt }] : [] } as Order;
             setOrders((current) => current.map((item) => item.id === order.id ? updatedOrder : item));
+            toast.success('Pedido marcado como pronto.');
             await openOrderMessage(updatedOrder, 'order_ready', expiresAt);
             await fetchOrders();
             return true;
         } catch (error) {
             console.error('Erro ao marcar pedido como pronto:', error);
-            alert(getOrderActionErrorMessage(error));
+            toast.error(getOrderActionErrorMessage(error));
             return false;
         }
     }
@@ -406,10 +456,11 @@ export default function Orders() {
             if (error) throw error;
             if (data?.ok === false) throw new Error(data?.error || 'Erro ao finalizar pedido.');
             setFinalizingOrder(null);
+            toast.success('Pedido finalizado e pagamento registrado.');
             await fetchOrders();
         } catch (error) {
             console.error('Erro ao finalizar pedido com pagamento:', error);
-            alert(getOrderActionErrorMessage(error));
+            toast.error(getOrderActionErrorMessage(error));
         } finally {
             setFinalizationLoading(false);
         }
@@ -433,11 +484,14 @@ export default function Orders() {
                 throw new Error(`Status não suportado: ${newStatus}`);
             }
             setOrders((current) => current.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+            if (newStatus === 'cancelled') toast.success('Pedido cancelado.');
+            else if (newStatus === 'out_for_delivery') toast.success('Pedido marcado como saiu para entrega.');
+            else if (newStatus === 'completed') toast.success('Pedido concluído com sucesso.');
             await fetchOrders();
             return true;
         } catch (error) {
             console.error('Error updating status:', error);
-            alert(getOrderActionErrorMessage(error));
+            toast.error(getOrderActionErrorMessage(error));
             return false;
         }
     }
@@ -463,11 +517,18 @@ export default function Orders() {
     async function cancelOrder(order: Order) {
         const publicOrder = getPublicOrderFields(order);
         const isPaid = publicOrder.payment_status === 'paid';
-        const message = isPaid
-            ? 'Este pedido já tem pagamento confirmado. Ao cancelar, registre o estorno do pagamento e avise o cliente sobre a recusa/cancelamento. Continuar?'
-            : 'Cancelar este pedido?';
+        const description = isPaid
+            ? 'Este pedido já tem pagamento confirmado. Ao cancelar, será necessário registrar o estorno e avisar o cliente.'
+            : 'O pedido será cancelado e deixará de seguir o fluxo operacional.';
 
-        if (!window.confirm(message)) return;
+        const confirmed = await systemConfirm({
+            title: 'Cancelar pedido?',
+            description,
+            confirmLabel: isPaid ? 'Cancelar com estorno' : 'Cancelar pedido',
+            cancelLabel: 'Manter pedido',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
 
         const changed = await updateStatus(order.id, 'cancelled');
         if (changed) await openOrderMessage(order, 'order_cancelled');
@@ -490,21 +551,36 @@ export default function Orders() {
     return (
         <PageContainer title="Pedidos" subtitle="Gerencie os pedidos chegando em tempo real." category="Comercial" icon={<ShoppingBag className="text-[#19A999]" size={28} />} flat>
             <div className="flex min-h-0 flex-col lg:h-[calc(100vh-210px)] lg:overflow-hidden">
-                <div className="mb-3 shrink-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-3 font-candara shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-4 sm:p-4 sm:space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
-                        <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700 sm:hidden" aria-expanded={filtersOpen}>
-                            {filtersOpen ? 'Ocultar período' : 'Filtrar período'}
-                            {filtersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
-                        <button type="button" onClick={fetchOrders} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0" title="Atualizar lista de pedidos">
-                            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /><span>Atualizar</span>
+                {focusedOrderId ? (
+                    <div className="mb-3 flex shrink-0 flex-col gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 font-candara shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/20 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Pedido selecionado</p>
+                            <p className="mt-1 font-black text-gray-900 dark:text-white">
+                                {focusedOrder ? (getPublicOrderFields(focusedOrder).order_code || focusedOrder.id) : 'Localizando pedido...'}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">A tela está filtrada somente para o pedido aberto a partir da Vida do Cliente.</p>
+                        </div>
+                        <button type="button" onClick={clearFocusedOrder} className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-sm font-black text-emerald-700 shadow-sm transition hover:bg-emerald-100 dark:border-emerald-900 dark:bg-gray-900 dark:text-emerald-300">
+                            Ver todos os pedidos
                         </button>
                     </div>
-                    <div className={`${filtersOpen ? 'block' : 'hidden'} border-t border-gray-100 pt-3 dark:border-gray-700 sm:block`}>
-                        <DateRangeFilter periodFilter={periodFilter} onPeriodChange={setPeriodFilter} startDate={startDate} onStartDateChange={setStartDate} endDate={endDate} onEndDateChange={setEndDate} />
+                ) : (
+                    <div className="mb-3 shrink-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-3 font-candara shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-4 sm:p-4 sm:space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                            <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700 sm:hidden" aria-expanded={filtersOpen}>
+                                {filtersOpen ? 'Ocultar período' : 'Filtrar período'}
+                                {filtersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                            <button type="button" onClick={fetchOrders} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#19A999] hover:bg-[#14887B] text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0" title="Atualizar lista de pedidos">
+                                <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /><span>Atualizar</span>
+                            </button>
+                        </div>
+                        <div className={`${filtersOpen ? 'block' : 'hidden'} border-t border-gray-100 pt-3 dark:border-gray-700 sm:block`}>
+                            <DateRangeFilter periodFilter={periodFilter} onPeriodChange={setPeriodFilter} startDate={startDate} onStartDateChange={setStartDate} endDate={endDate} onEndDateChange={setEndDate} />
+                        </div>
                     </div>
-                </div>
+                )}
 
                 <div className="min-h-0 custom-scrollbar lg:flex-1 lg:overflow-y-auto lg:pr-1">
                     {displayedOrders.length === 0 && !loading ? (
