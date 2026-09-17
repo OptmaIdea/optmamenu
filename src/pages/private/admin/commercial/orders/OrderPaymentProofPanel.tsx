@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, ExternalLink, FileCheck2, Loader2, MessageCircle, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { FinancialAccountsService, type FinancialAccountBalance, type FinancialPaymentMethod } from '@/services/financialAccountsService';
 import { OrderPaymentProofService, type OrderPaymentProof } from '@/services/orderPaymentProofService';
 
@@ -141,7 +142,13 @@ export default function OrderPaymentProofPanel({
       return;
     }
 
-    const confirmedByUser = window.confirm('Confirmar pagamento PIX conferido fora do sistema? Use esta opção quando o comprovante chegou por WhatsApp, e-mail ou conferência bancária.');
+    const confirmedByUser = await systemConfirm({
+      title: 'Confirmar PIX recebido?',
+      description: 'Use esta opção quando o pagamento já foi conferido por WhatsApp, e-mail ou extrato bancário. A confirmação registrará o recebimento e seguirá a rota financeira configurada.',
+      confirmLabel: 'Confirmar pagamento',
+      cancelLabel: 'Voltar',
+      tone: 'success',
+    });
     if (!confirmedByUser) return;
 
     try {
