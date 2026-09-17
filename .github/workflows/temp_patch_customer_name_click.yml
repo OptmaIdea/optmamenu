@@ -1,0 +1,53 @@
+name: Temporary patch customer name click
+
+on:
+  push:
+    branches:
+      - agent/homologacao-geral-20260820
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/homologacao-geral-20260820
+          fetch-depth: 0
+      - name: Make customer name open lifecycle
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/private/admin/customers/Customers.tsx')
+          s = p.read_text()
+          old = '''                                                            <p className="font-black text-gray-900 dark:text-white">{customer.full_name || 'Cliente sem nome'}</p>'''
+          new = '''                                                            <button
+                                                                type="button"
+                                                                onClick={() => navigate(`/admin/customers/${customer.id}`)}
+                                                                className="text-left font-black text-gray-900 underline-offset-4 transition hover:text-[#19A999] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#19A999]/40 dark:text-white dark:hover:text-brand-mint"
+                                                                title="Abrir Vida do Cliente"
+                                                            >
+                                                                {customer.full_name || 'Cliente sem nome'}
+                                                            </button>'''
+          if new in s:
+              print('Patch already applied')
+          elif old in s:
+              p.write_text(s.replace(old, new, 1))
+              print('Patch applied')
+          else:
+              raise SystemExit('Expected customer-name markup not found')
+          PY
+      - name: Remove temporary workflow and commit
+        run: |
+          rm -f .github/workflows/temp_patch_customer_name_click.yml
+          if git diff --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git config user.name "OptmaMenu Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add src/pages/private/admin/customers/Customers.tsx .github/workflows/temp_patch_customer_name_click.yml
+          git commit -m "ux: abre vida do cliente pelo nome"
+          git push origin HEAD:agent/homologacao-geral-20260820
