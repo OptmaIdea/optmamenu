@@ -11,62 +11,80 @@
 
 O OptmaMenu está em homologação operacional das frentes de **Clientes 360º, área autenticada do cliente, pedidos públicos, checkout, estoque e financeiro**. A prioridade imediata é fechar o fluxo real cliente → pedido → operação → atualização do cliente, sem abrir novas frentes estruturais antes de estabilizar a experiência.
 
-O baseline verificado em 17/09/2026 tinha como HEAD `b312caaada2bee01dfbab64628cdd5384e7fc01a` (`feat: preserva itens no histórico de pedidos do cliente`) e deployment Vercel `dpl_HAWw93pMHeroXESkBV7zaE38hBiu` em estado **READY**.
+O baseline confirmado no início da rodada de 17/09/2026 era o commit `cc9ce689490f7d6eaf6123395e96a27d8eec1483`, com deployment Vercel `dpl_8JVqFcTtHtZroq56eqc8hEQ92eWt` em estado **READY**. No Supabase, a base tinha 173 migrations aplicadas e a última versão registrada era `20260916180940`.
 
 ---
 
 ## Frente ativa — Clientes e pedidos
 
-### Já disponível no código de homologação
+### Fluxos já validados manualmente
 
 - Vida do Cliente integrada ao histórico de pedidos.
-- Deep link de pedido com `orderId`/`customerId`; a tela de Pedidos filtra o foco para o pedido aberto pela Vida do Cliente e apresenta ação explícita para voltar a todos os pedidos.
-- Toasts amigáveis no painel de Pedidos para aceite, pronto, cancelamento, saída para entrega, conclusão e erros operacionais.
-- Área autenticada do cliente com abas de dados, endereços, pedidos, fidelidade, redes sociais e privacidade.
-- Adesão ao programa de fidelidade já disponível na aba **Fidelidade**, condicionada ao cadastro mínimo exigido; após adesão a área usa `LoyaltyPoints`.
-- Histórico do cliente preserva `order_items`, permitindo visualizar os itens comprados anteriormente.
+- Deep link de pedido com `orderId`/`customerId`; ao abrir um pedido pela Vida do Cliente, a tela de Pedidos filtra o foco para o pedido clicado, sem misturar pedidos de outros clientes.
+- O nome do cliente na listagem administrativa abre diretamente a Vida do Cliente; o ícone de visualização permanece como alternativa.
 - Seleção e manutenção de endereços integradas ao checkout.
+- Pedidos realizados por cliente autenticado aparecem em sua própria área.
+- Status alterados no administrativo são refletidos na área do cliente quando ela é recarregada/reaberta.
 
-### Entrega desta rodada — 17/09/2026
+### Correção da conta real do cliente — 17/09/2026
 
-- Histórico de pedidos do cliente passou a atualizar automaticamente a cada 12 segundos enquanto a área estiver visível, além de atualizar imediatamente ao retornar o foco para a janela/aba.
-- Mudanças de status detectadas nessa atualização geram aviso amigável ao cliente.
-- Foram acrescentados os estados visuais **Pronto** e **Saiu para entrega** à área do cliente.
-- Foi incluído botão de atualização manual com feedback visual, mantendo o carregamento inicial separado da atualização silenciosa.
-- A abordagem atual é **quase em tempo real por consulta segura**, sem abrir `orders` diretamente ao cliente pelo Supabase Realtime. A migração para push/Reatime deve preservar isolamento por cliente e RLS antes de substituir esse mecanismo.
+A área efetivamente utilizada pelo cliente é `src/pages/store/components/CustomerAccountPortal.tsx`. O polling anterior havia sido aplicado ao componente legado `OrderHistory`, por isso o cliente não via o botão de atualização e o status não mudava automaticamente enquanto permanecia na aba **Pedidos**.
+
+A correção foi aplicada diretamente ao `CustomerAccountPortal`:
+
+- aba **Pedidos** com atualização automática a cada 12 segundos enquanto estiver aberta;
+- atualização imediata ao recuperar foco ou visibilidade da janela;
+- botão explícito **Atualizar agora**;
+- horário da última sincronização;
+- toast amigável quando um pedido muda de status;
+- mensagens específicas para confirmado, pronto, saiu para entrega, concluído e cancelado;
+- proteção contra requisições concorrentes durante a sincronização.
+
+A estratégia continua sendo **quase em tempo real por consulta segura**. Não foi aberta assinatura indiscriminada de `orders` por Supabase Realtime; uma futura migração para push deve preservar isolamento por cliente e RLS.
 
 ---
 
-## Pontos solicitados ainda em execução
+## Fidelidade na área do cliente
 
-1. Tornar o nome do cliente na listagem administrativa um atalho direto para a Vida do Cliente, mantendo o olhinho como ação alternativa.
-2. Implementar **Comprar novamente** usando catálogo/estoque/preço atuais; o pedido anterior será apenas referência e a nova compra deverá ser recalculada pelo motor autoritativo atual.
-3. Envio de e-mail ao marcar **Saiu para entrega**, com mensagem amigável e previsão/prazo estimado. Antes da implementação definitiva devem ser confirmados o provedor de e-mail e a fonte autoritativa do ETA, evitando mensagem duplicada ou prazo inventado.
-4. Evoluir a área de fidelidade para suportar banners/campanhas próprios, separados dos banners gerais da loja.
+Foi confirmado diretamente no Supabase que os clientes de teste **Xumbrega** e **Juan Caballero** estavam com `loyalty_opt_in=false` e `loyalty_points=0`. Portanto, a ausência de adesão era um defeito de interface do portal, e não participação já ativa.
+
+A aba anteriormente chamada **Pontos e cartões** foi reformulada para **Fidelidade** e agora inclui:
+
+- indicação clara de participação ativa ou adesão disponível;
+- botão **Quero participar** para adesão voluntária;
+- saída do programa pelo mesmo fluxo;
+- persistência auditável via RPC segura `set_customer_self_consent_safe`;
+- atualização da sessão do cliente após aderir ou sair;
+- toast de confirmação/erro;
+- saldo de pontos e nível;
+- explicação de funcionamento do programa;
+- área visual própria de **Benefícios e novidades do clube**, separada dos banners gerais do cardápio.
+
+A gestão administrativa configurável de banners exclusivos de fidelidade ainda é uma evolução futura. A entrega atual cria a separação funcional e visual sem inventar campanhas ou promoções inexistentes.
 
 ---
 
-## Critérios da próxima rodada
+## Pontos ainda pendentes desta frente
 
-- Nenhum link de pedido vindo da Vida do Cliente deve exibir pedidos de outros clientes quando houver `orderId` em foco.
-- Nome do cliente deve abrir a Vida do Cliente sem exigir rolagem horizontal até a coluna de ações.
-- Alterações de status operacional devem aparecer na área do cliente sem recarregar manualmente a página.
-- Recompra deve respeitar indisponibilidade, estoque online, regras atuais de preço e validação autoritativa no backend.
-- Notificação de entrega não pode prometer prazo sem dado configurado/derivado de fonte confiável.
+1. Implementar **Comprar novamente** usando catálogo, estoque e preços atuais. O pedido anterior será apenas referência; a nova compra deverá ser recalculada pelo motor autoritativo vigente.
+2. Envio de e-mail ao marcar **Saiu para entrega**, com mensagem amigável, previsão de disponibilidade e prazo estimado. Antes da implementação definitiva devem ser confirmados o provedor de e-mail e a fonte autoritativa do ETA, evitando prazo inventado ou mensagem duplicada.
+3. Evoluir a área de fidelidade para banners/campanhas próprios configuráveis pelo lojista.
+4. Avaliar push/realtime específico para o cliente final, com segurança equivalente ou superior à consulta atual e isolamento estrito por identidade.
+
+---
+
+## Critérios de homologação imediata
+
+- Com a aba **Pedidos** aberta na conta do cliente, uma mudança de status no admin deve aparecer sem sair e entrar novamente, em até aproximadamente 12 segundos.
+- O botão **Atualizar agora** deve estar visível no topo da aba Pedidos e atualizar a lista imediatamente.
+- Ao detectar alteração de status, o cliente deve receber toast amigável.
+- Na aba **Fidelidade**, um cliente com `loyalty_opt_in=false` deve ver claramente a opção **Quero participar**.
+- Após aderir, a sessão deve refletir participação ativa e as próximas compras elegíveis poderão seguir as regras vigentes de pontuação.
+- Recompra futura deverá respeitar indisponibilidade, estoque online, regras atuais de preço e validação autoritativa no backend.
+- Notificação de entrega não poderá prometer prazo sem dado configurado ou derivado de fonte confiável.
 
 ---
 
 ## Observação documental
 
-Este arquivo substitui o snapshot antigo de 29/07/2026 como referência executiva de estado. A documentação temática continua distribuída nos documentos oficiais listados em `docs/README.md`; o repositório e o Supabase permanecem a autoridade para o estado técnico efetivamente implantado.
-
-
----
-
-## Atualização operacional — 17/09/2026 (conta do cliente)
-
-- A área real usada pelo cliente é `CustomerAccountPortal`; o polling anterior havia sido aplicado ao componente legado `OrderHistory`, por isso não aparecia nem atualizava nesta interface.
-- A aba **Pedidos** da conta do cliente agora possui atualização automática a cada 12 segundos enquanto estiver aberta, atualização ao recuperar foco/visibilidade, botão explícito **Atualizar agora**, horário da última sincronização e toast amigável quando o status muda.
-- A aba anteriormente chamada **Pontos e cartões** passa a se chamar **Fidelidade** e inclui adesão/saída auditável via `set_customer_self_consent_safe`, status de participação, saldo/nível e espaço visual próprio para benefícios e comunicações de fidelidade separado dos banners do cardápio.
-- Em 17/09/2026, os clientes de teste Xumbrega e Juan Caballero estavam com `loyalty_opt_in=false` e `loyalty_points=0`, confirmando que a ausência de adesão era um defeito de interface do portal, não participação já ativa.
-- A gestão configurável de banners exclusivos de fidelidade permanece como evolução futura; esta entrega cria a área e separação visual sem inventar campanhas ou dados promocionais inexistentes.
+Este arquivo substitui snapshots antigos como referência executiva de estado. A documentação temática continua distribuída nos documentos oficiais listados em `docs/README.md`; o repositório, os deployments Vercel e o Supabase permanecem as autoridades para o estado técnico efetivamente implantado.
