@@ -267,7 +267,7 @@ export const CustomerService = {
             return;
         }
         const payload = data as SelfRpcPayload | null;
-        if (!payload?.ok) console.error('Erro ao marcar todas as notificações como lidas:', payload?.error);
+        if (!payload?.ok) console.error('Erro ao marcar todas as notificações como lida:', payload?.error);
     },
 
     // --- Consentimentos do próprio cliente ---
@@ -335,9 +335,10 @@ export const CustomerService = {
                 *,
                 order_items (
                     id,
+                    product_id,
                     quantity,
                     unit_price,
-                    product:products (name)
+                    product:products (id, name)
                 )
             `)
             .order('created_at', { ascending: false });
