@@ -157,18 +157,34 @@ Deno.serve(async (req: Request) => {
   const safeSenderName = storeName.replace(/[<>\r\n"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "Loja";
   const sender = emailFrom.includes("<") ? emailFrom : `${safeSenderName} <${emailFrom}>`;
   const subject = `Confirme seu e-mail para ${storeName}`;
+  const rawLogoUrl = String(store.logo_url || "").trim();
+  const storeLogoUrl = /^https:\/\//i.test(rawLogoUrl) ? rawLogoUrl : "";
+  const brand = storeLogoUrl
+    ? `<img src="${escapeHtml(storeLogoUrl)}" alt="${escapeHtml(storeName)}" style="display:block;max-width:160px;max-height:72px;margin:0 auto 18px;object-fit:contain">`
+    : `<div style="font-size:22px;font-weight:800;text-align:center;margin-bottom:18px;color:#172033">${escapeHtml(storeName)}</div>`;
   const html = `<!doctype html>
-<html><body style="margin:0;background:#f5f7f9;font-family:Arial,sans-serif;color:#172033">
-  <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:18px;padding:32px">
-    <h1 style="font-size:24px;margin:0 0 16px">${escapeHtml(storeName)} precisa confirmar seu e-mail</h1>
-    <p>Olá, ${escapeHtml(fullName)}.</p>
-    <p>Você cadastrou <strong>${escapeHtml(email)}</strong> na sua conta da ${escapeHtml(storeName)}. Confirme que este endereço pertence a você.</p>
-    <p style="margin:28px 0"><a href="${confirmUrl}" style="background:#0a9f76;color:#fff;text-decoration:none;padding:14px 20px;border-radius:12px;font-weight:700">Confirmar meu e-mail</a></p>
-    <p style="font-size:13px;color:#687386">Este link é válido por 30 minutos. Se você não solicitou esta confirmação, ignore esta mensagem.</p>
-    <hr style="border:0;border-top:1px solid #e8ecef;margin:28px 0">
-    <p style="font-size:12px;color:#7a8493">Mensagem enviada em nome de ${escapeHtml(storeName)} com tecnologia <a href="https://optmamenu.com.br/" style="color:#0a9f76">OptmaMenu</a>, da <a href="https://www.optmaidea.com.br/" style="color:#0a9f76">OptmaIdea</a>.</p>
+<html>
+<body style="margin:0;background:#f3f6f8;font-family:Arial,Helvetica,sans-serif;color:#172033">
+  <div style="max-width:620px;margin:32px auto;padding:0 16px">
+    <div style="background:#fff;border-radius:20px;padding:32px;box-shadow:0 8px 30px rgba(23,32,51,.08)">
+      ${brand}
+      <div style="display:inline-block;background:#eef8f4;color:#0a7d61;font-size:12px;font-weight:700;padding:7px 10px;border-radius:999px;margin-bottom:16px">E-MAIL AUTOMÁTICO DA LOJA</div>
+      <h1 style="font-size:24px;line-height:1.25;margin:0 0 16px">${escapeHtml(storeName)} precisa confirmar seu e-mail</h1>
+      <p style="font-size:15px;line-height:1.7;margin:0 0 12px">Olá, ${escapeHtml(fullName)}.</p>
+      <p style="font-size:15px;line-height:1.7;margin:0 0 12px">O endereço <strong>${escapeHtml(email)}</strong> foi informado na sua conta da <strong>${escapeHtml(storeName)}</strong>. Para proteger seu cadastro e habilitar recursos como fidelidade e comunicações autorizadas, confirme que este e-mail pertence a você.</p>
+      <p style="margin:28px 0"><a href="${confirmUrl}" style="display:inline-block;background:#0a9f76;color:#fff;text-decoration:none;padding:14px 22px;border-radius:12px;font-weight:700">Confirmar meu e-mail</a></p>
+      <p style="font-size:13px;line-height:1.6;color:#687386;margin:0 0 18px">Este link é válido por 30 minutos. Se você não solicitou esta confirmação, ignore esta mensagem.</p>
+      <div style="background:#f7f9fb;border-radius:14px;padding:16px;margin-top:22px">
+        <p style="font-size:12px;line-height:1.6;color:#5f6978;margin:0 0 8px"><strong>Sobre seus dados</strong></p>
+        <p style="font-size:12px;line-height:1.6;color:#5f6978;margin:0">Seus dados são tratados no contexto da sua relação com ${escapeHtml(storeName)} para identificação da conta, segurança, pedidos, atendimento e funcionalidades que você escolher utilizar. O OptmaMenu/OptmaIdea atua como plataforma tecnológica de apoio à loja e não usa este e-mail para marketing próprio sem uma autorização específica.</p>
+      </div>
+      <p style="font-size:12px;line-height:1.6;color:#7a8493;margin:20px 0 0">Esta é uma mensagem automática. Não responda a este endereço. Em caso de dúvida, fale diretamente com ${escapeHtml(storeName)}.</p>
+      <hr style="border:0;border-top:1px solid #e8ecef;margin:24px 0 16px">
+      <p style="font-size:11px;line-height:1.6;color:#8a93a1;margin:0;text-align:center">Enviado em nome de ${escapeHtml(storeName)} com tecnologia <a href="https://optmamenu.com.br/" style="color:#0a9f76">OptmaMenu</a>, da <a href="https://www.optmaidea.com.br/" style="color:#0a9f76">OptmaIdea</a>.</p>
+    </div>
   </div>
-</body></html>`;
+</body>
+</html>`;
 
   const providerName = resendApiKey ? "resend" : "brevo";
   const providerResponse = resendApiKey
