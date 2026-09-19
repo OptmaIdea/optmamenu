@@ -62,6 +62,7 @@ interface CustomerOrderSummary {
     status?: string | null;
     total?: number | string | null;
     created_at?: string | null;
+    status_changed_at?: string | null;
     fulfillment_type?: string | null;
     order_items: CustomerOrderItemSummary[];
 }
@@ -142,6 +143,7 @@ function normalizeOrder(order: Record<string, unknown>): CustomerOrderSummary {
         status: order.status ? String(order.status) : null,
         total: typeof order.total === 'number' || typeof order.total === 'string' ? order.total : null,
         created_at: order.created_at ? String(order.created_at) : null,
+        status_changed_at: order.status_changed_at ? String(order.status_changed_at) : null,
         fulfillment_type: order.fulfillment_type ? String(order.fulfillment_type) : null,
         order_items: orderItems,
     };
@@ -157,6 +159,22 @@ function orderStatusLabel(status?: string | null) {
         case 'cancelled': return 'Cancelado';
         default: return status || 'Em andamento';
     }
+}
+
+function orderActivityLabel(status?: string | null) {
+    switch (status) {
+        case 'reserved': return 'Recebido';
+        case 'confirmed': return 'Confirmado';
+        case 'ready': return 'Pronto';
+        case 'out_for_delivery': return 'Saiu para entrega';
+        case 'completed': return 'Concluído';
+        case 'cancelled': return 'Cancelado';
+        default: return 'Atualizado';
+    }
+}
+
+function orderActivityAt(order: CustomerOrderSummary) {
+    return order.status_changed_at || order.created_at || null;
 }
 
 function fulfillmentLabel(value?: string | null) {
@@ -1194,8 +1212,13 @@ export function CustomerAccountPortal() {
                                                 >
                                                     <div>
                                                         <p className="font-black text-slate-900 dark:text-white">{order.order_code || `Pedido ${order.id.slice(0, 8)}`}</p>
-                                                        <p className="mt-1 text-xs text-slate-500">{order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : ''}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            {orderActivityAt(order) ? `${orderActivityLabel(order.status)} em ${new Date(orderActivityAt(order) as string).toLocaleString('pt-BR')}` : ''}
+                                                        </p>
                                                         <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status)}{order.fulfillment_type ? ` · ${fulfillmentLabel(order.fulfillment_type)}` : ''}</p>
+                                                        {order.created_at && orderActivityAt(order) !== order.created_at && (
+                                                            <p className="mt-1 text-[11px] text-slate-400">Pedido criado em {new Date(order.created_at).toLocaleString('pt-BR')}</p>
+                                                        )}
                                                         <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
                                                             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                                             {expanded ? 'Ocultar itens' : 'Ver o que foi comprado'}
