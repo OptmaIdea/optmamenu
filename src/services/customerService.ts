@@ -75,6 +75,8 @@ function selfServiceError(payload: SelfRpcPayload | null | undefined, fallback: 
             return new Error('Confirme seu e-mail com a loja antes de continuar.');
         case 'loyalty_data_responsibility_required':
             return new Error('Confirme a responsabilidade pelas informações fornecidas antes de aderir ao programa.');
+        case 'loyalty_age_restricted':
+            return new Error('O programa de fidelidade desta loja é destinado apenas a clientes com 18 anos ou mais.');
         case 'invalid_address':
             return new Error('Confira CEP, rua, número, bairro, cidade e estado.');
         case 'address_limit_reached':
