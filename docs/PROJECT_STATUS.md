@@ -175,6 +175,8 @@ As tabelas de carrinho, desafios de e-mail e bloqueios de fidelidade permanecem 
 
 O Security Advisor identificou o novo trigger de reserva como executável externamente por padrão; o grant foi corrigido imediatamente e a função ficou restrita ao uso interno/service role.
 
+Os novos relacionamentos de desafios de e-mail e bloqueios de fidelidade também receberam índices de cobertura após revisão do Performance Advisor (`20260919144701_index_customer_loyalty_email_foreign_keys`).
+
 ---
 
 ## Homologação imediata recomendada
