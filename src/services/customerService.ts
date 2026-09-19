@@ -26,6 +26,7 @@ export interface CustomerSelfConsentResult {
     action?: CustomerConsentAction;
     marketing_consent?: boolean;
     loyalty_opt_in?: boolean;
+    unchanged?: boolean;
 }
 
 type SelfRpcPayload = {
@@ -65,6 +66,10 @@ function selfServiceError(payload: SelfRpcPayload | null | undefined, fallback: 
             return new Error('A data de nascimento já confirmada não pode ser alterada por aqui.');
         case 'invalid_cpf':
             return new Error('Informe um CPF com 11 dígitos.');
+        case 'invalid_email':
+            return new Error('Informe um e-mail válido.');
+        case 'invalid_birth_date':
+            return new Error('Informe uma data de nascimento válida.');
         case 'invalid_address':
             return new Error('Confira CEP, rua, número, bairro, cidade e estado.');
         case 'address_limit_reached':
@@ -323,6 +328,51 @@ export const CustomerService = {
         action: CustomerConsentAction,
     ) {
         return this.setSelfConsent(consentType, action === 'granted');
+    },
+
+    // --- Loyalty self-service ---
+    async getSelfLoyaltyTransactions(limit = 100) {
+        const { data, error } = await supabaseCustomer.rpc(
+            'get_customer_self_loyalty_transactions_safe',
+            { p_limit: limit },
+        );
+        if (error) throw new Error('Não foi possível carregar o extrato de pontos.');
+        const payload = data as (SelfRpcPayload & { transactions?: unknown[] }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível carregar o extrato de pontos.');
+        return Array.isArray(payload.transactions) ? payload.transactions : [];
+    },
+
+    // --- Shared cart draft ---
+    async getSelfCartDraft() {
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
+        if (error) throw new Error('Não foi possível recuperar seu carrinho compartilhado.');
+        const payload = data as (SelfRpcPayload & {
+            cart?: Record<string, unknown>;
+            updated_at?: string | null;
+        }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível recuperar seu carrinho compartilhado.');
+        return {
+            cart: payload.cart && typeof payload.cart === 'object' ? payload.cart : {},
+            updatedAt: payload.updated_at ? String(payload.updated_at) : null,
+        };
+    },
+
+    async saveSelfCartDraft(cart: Record<string, unknown>) {
+        const { data, error } = await supabaseCustomer.rpc('save_customer_self_cart_draft_safe', {
+            p_cart: cart,
+        });
+        if (error) throw new Error('Não foi possível sincronizar seu carrinho.');
+        const payload = data as SelfRpcPayload | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível sincronizar seu carrinho.');
+        return payload;
+    },
+
+    async clearSelfCartDraft() {
+        const { data, error } = await supabaseCustomer.rpc('clear_customer_self_cart_draft_safe');
+        if (error) throw new Error('Não foi possível limpar o carrinho compartilhado.');
+        const payload = data as SelfRpcPayload | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível limpar o carrinho compartilhado.');
+        return true;
     },
 
     // --- Order History ---
