@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    ChevronDown,
+    ChevronUp,
     Eye,
     EyeOff,
     Gift,
@@ -12,6 +14,7 @@ import {
     Plus,
     RefreshCw,
     Save,
+    ShoppingCart,
     Sparkles,
     ShieldCheck,
     Trash2,
@@ -20,7 +23,9 @@ import {
 } from 'lucide-react';
 import { AuthService } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
+import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
+import { useCartStore } from '@/store/useCartStore';
 import { formatBRL } from '@/utils/pricing';
 import { toast } from 'sonner';
 
@@ -36,6 +41,17 @@ interface CustomerAddress {
     is_default: boolean;
 }
 
+interface CustomerOrderItemSummary {
+    id: string;
+    product_id?: string | null;
+    quantity: number;
+    unit_price: number;
+    product?: {
+        id?: string | null;
+        name?: string | null;
+    } | null;
+}
+
 interface CustomerOrderSummary {
     id: string;
     order_code?: string | null;
@@ -43,6 +59,17 @@ interface CustomerOrderSummary {
     total?: number | string | null;
     created_at?: string | null;
     fulfillment_type?: string | null;
+    order_items: CustomerOrderItemSummary[];
+}
+
+interface LoyaltyTransactionSummary {
+    id: string;
+    type?: string | null;
+    points: number;
+    description?: string | null;
+    order_id?: string | null;
+    order_code?: string | null;
+    created_at?: string | null;
 }
 
 type AccountTab = 'profile' | 'addresses' | 'orders' | 'loyalty' | 'security';
@@ -70,6 +97,24 @@ function formatCep(value: string) {
 }
 
 function normalizeOrder(order: Record<string, unknown>): CustomerOrderSummary {
+    const rawItems = Array.isArray(order.order_items) ? order.order_items : [];
+    const orderItems = rawItems.map((raw) => {
+        const item = raw as Record<string, unknown>;
+        const rawProduct = item.product && typeof item.product === 'object'
+            ? item.product as Record<string, unknown>
+            : null;
+        return {
+            id: String(item.id ?? ''),
+            product_id: item.product_id ? String(item.product_id) : null,
+            quantity: Number(item.quantity || 0),
+            unit_price: Number(item.unit_price || 0),
+            product: rawProduct ? {
+                id: rawProduct.id ? String(rawProduct.id) : null,
+                name: rawProduct.name ? String(rawProduct.name) : null,
+            } : null,
+        };
+    });
+
     return {
         id: String(order.id ?? ''),
         order_code: order.order_code ? String(order.order_code) : null,
@@ -77,6 +122,7 @@ function normalizeOrder(order: Record<string, unknown>): CustomerOrderSummary {
         total: typeof order.total === 'number' || typeof order.total === 'string' ? order.total : null,
         created_at: order.created_at ? String(order.created_at) : null,
         fulfillment_type: order.fulfillment_type ? String(order.fulfillment_type) : null,
+        order_items: orderItems,
     };
 }
 
@@ -147,6 +193,9 @@ function PasswordField({
 
 export function CustomerAccountPortal() {
     const customer = useCustomerAuth((state) => state.customer);
+    const cartContext = useCartStore((state) => state.context);
+    const addToCart = useCartStore((state) => state.addToCart);
+    const openCart = useCartStore((state) => state.openCart);
     const [open, setOpen] = useState(false);
     const [tab, setTab] = useState<AccountTab>('profile');
     const [loading, setLoading] = useState(false);
@@ -156,6 +205,8 @@ export function CustomerAccountPortal() {
 
     const [fullName, setFullName] = useState(customer?.full_name || '');
     const [email, setEmail] = useState(customer?.email || '');
+    const [cpf, setCpf] = useState(customer?.cpf || '');
+    const [birthDate, setBirthDate] = useState(customer?.birth_date || '');
 
     const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
     const [addressForm, setAddressForm] = useState<CustomerAddress>(EMPTY_ADDRESS);
@@ -166,6 +217,10 @@ export function CustomerAccountPortal() {
     const [ordersRefreshing, setOrdersRefreshing] = useState(false);
     const [ordersUpdatedAt, setOrdersUpdatedAt] = useState<Date | null>(null);
     const [loyaltySaving, setLoyaltySaving] = useState(false);
+    const [loyaltyTransactions, setLoyaltyTransactions] = useState<LoyaltyTransactionSummary[]>([]);
+    const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+    const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+    const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
     const [newPassword, setNewPassword] = useState('');
@@ -176,10 +231,32 @@ export function CustomerAccountPortal() {
         [customer?.full_name, customer?.nickname],
     );
 
+    const loyaltyMissingFields = useMemo(() => {
+        if (!customer) return ['cadastro'];
+        const missing: string[] = [];
+        if (!customer.full_name || customer.full_name.trim().length < 3) missing.push('nome');
+        if (!customer.birth_date) missing.push('data de nascimento');
+
+        if (customer.birth_date) {
+            const birth = new Date(`${customer.birth_date}T12:00:00`);
+            const today = new Date();
+            let age = today.getFullYear() - birth.getFullYear();
+            const monthDiff = today.getMonth() - birth.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
+            if (age >= 18 && onlyDigits(customer.cpf || '').length !== 11) missing.push('CPF');
+        }
+
+        const normalizedEmail = String(customer.email || '').trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) missing.push('e-mail válido');
+        return missing;
+    }, [customer]);
+
     useEffect(() => {
         setFullName(customer?.full_name || '');
         setEmail(customer?.email || '');
-    }, [customer?.email, customer?.full_name]);
+        setCpf(customer?.cpf || '');
+        setBirthDate(customer?.birth_date || '');
+    }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name]);
 
     const clearFeedback = () => {
         setMessage('');
@@ -210,7 +287,19 @@ export function CustomerAccountPortal() {
         if (showSpinner) setOrdersRefreshing(true);
 
         try {
-            const data = await CustomerService.getOrders();
+            let data;
+            try {
+                data = await CustomerService.getOrders();
+            } catch (firstError) {
+                await new Promise((resolve) => window.setTimeout(resolve, 250));
+                try {
+                    data = await CustomerService.getOrders();
+                } catch {
+                    const restored = await AuthService.restoreSession();
+                    if (!restored?.customer) throw firstError;
+                    data = await CustomerService.getOrders();
+                }
+            }
             const nextOrders = (data as Record<string, unknown>[]).map(normalizeOrder);
 
             if (notifyStatusChanges && ordersRef.current.length > 0) {
@@ -232,6 +321,27 @@ export function CustomerAccountPortal() {
         } finally {
             ordersRequestInFlightRef.current = false;
             if (showSpinner) setOrdersRefreshing(false);
+        }
+    }, [customer?.id]);
+
+    const loadLoyaltyTransactions = useCallback(async () => {
+        if (!customer) return;
+        setLoyaltyLoading(true);
+        try {
+            const data = await CustomerService.getSelfLoyaltyTransactions(100);
+            setLoyaltyTransactions((data as Record<string, unknown>[]).map((item) => ({
+                id: String(item.id ?? ''),
+                type: item.type ? String(item.type) : null,
+                points: Number(item.points || 0),
+                description: item.description ? String(item.description) : null,
+                order_id: item.order_id ? String(item.order_id) : null,
+                order_code: item.order_code ? String(item.order_code) : null,
+                created_at: item.created_at ? String(item.created_at) : null,
+            })));
+        } catch (loyaltyError) {
+            console.error('[LOYALTY] Falha ao carregar extrato:', loyaltyError);
+        } finally {
+            setLoyaltyLoading(false);
         }
     }, [customer?.id]);
 
@@ -281,6 +391,22 @@ export function CustomerAccountPortal() {
         };
     }, [open, customer?.id, tab, loadOrders]);
 
+    useEffect(() => {
+        if (!open || !customer || tab !== 'loyalty') return;
+        let active = true;
+
+        void Promise.all([
+            AuthService.restoreSession(),
+            loadLoyaltyTransactions(),
+        ]).catch((loyaltyError) => {
+            if (active) console.error('[LOYALTY] Falha ao atualizar fidelidade:', loyaltyError);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [open, customer?.id, tab, loadLoyaltyTransactions]);
+
     if (!customer) return null;
 
     const logout = async () => {
@@ -304,6 +430,8 @@ export function CustomerAccountPortal() {
             await CustomerService.updateProfile(customer.id, {
                 full_name: fullName.trim(),
                 email: email.trim() || undefined,
+                cpf: cpf.trim() || undefined,
+                birth_date: birthDate || undefined,
             });
             await AuthService.restoreSession();
             setMessage('Dados atualizados com sucesso.');
@@ -420,11 +548,35 @@ export function CustomerAccountPortal() {
         clearFeedback();
         setLoyaltySaving(true);
         try {
-            await CustomerService.setSelfConsent('loyalty_program', join, { source: 'customer_account_portal' });
+            const session = await AuthService.restoreSession();
+            const currentMembership = Boolean(session?.customer?.loyalty_opt_in);
+
+            if (currentMembership === join) {
+                const feedback = join
+                    ? 'Você já participa do programa de fidelidade. Atualizamos sua tela com o estado mais recente.'
+                    : 'Sua participação já estava desativada. Atualizamos sua tela com o estado mais recente.';
+                setMessage(feedback);
+                toast.info(feedback);
+                await loadLoyaltyTransactions();
+                return;
+            }
+
+            const result = await CustomerService.setSelfConsent(
+                'loyalty_program',
+                join,
+                { source: 'customer_account_portal' },
+            );
             await AuthService.restoreSession();
-            const feedback = join
-                ? 'Adesão confirmada! A partir de agora, compras elegíveis poderão gerar pontos.'
-                : 'Sua participação no programa de fidelidade foi encerrada.';
+            await loadLoyaltyTransactions();
+
+            const feedback = result.unchanged
+                ? (join
+                    ? 'Você já participa do programa de fidelidade.'
+                    : 'Sua participação já estava desativada.')
+                : (join
+                    ? 'Adesão confirmada! A partir de agora, compras elegíveis poderão gerar pontos.'
+                    : 'Sua participação no programa de fidelidade foi encerrada.');
+
             setMessage(feedback);
             toast.success(feedback);
         } catch (loyaltyError) {
@@ -433,6 +585,63 @@ export function CustomerAccountPortal() {
             toast.error(feedback);
         } finally {
             setLoyaltySaving(false);
+        }
+    };
+
+    const reorderOrder = async (order: CustomerOrderSummary) => {
+        clearFeedback();
+        setReorderLoadingOrderId(order.id);
+        try {
+            const slug = cartContext?.canonicalSlug || cartContext?.requestedSlug;
+            if (!slug) throw new Error('Não foi possível identificar a loja atual para refazer o pedido.');
+
+            const catalog = await PublicStorefrontService.getCatalogBySlug(slug);
+            if (!catalog.ok || !catalog.catalog_enabled) {
+                throw new Error('O catálogo da loja não está disponível neste momento.');
+            }
+
+            const currentProducts = new Map(
+                (catalog.categories || [])
+                    .flatMap((category) => category.products || [])
+                    .map((product) => [product.id, product] as const),
+            );
+
+            let addedUnits = 0;
+            const unavailable: string[] = [];
+
+            for (const item of order.order_items) {
+                const productId = item.product_id || item.product?.id || '';
+                const currentProduct = productId ? currentProducts.get(productId) : undefined;
+                if (!currentProduct) {
+                    unavailable.push(item.product?.name || 'Produto indisponível');
+                    continue;
+                }
+
+                const before = useCartStore.getState().items.find((cartItem) => cartItem.id === currentProduct.id)?.quantity || 0;
+                addToCart(currentProduct, Math.max(1, item.quantity));
+                const after = useCartStore.getState().items.find((cartItem) => cartItem.id === currentProduct.id)?.quantity || 0;
+                const delta = Math.max(0, after - before);
+
+                if (delta > 0) addedUnits += delta;
+                else unavailable.push(currentProduct.name);
+            }
+
+            if (addedUnits <= 0) {
+                throw new Error('Nenhum item deste pedido está disponível para recompra agora.');
+            }
+
+            openCart();
+            const feedback = unavailable.length > 0
+                ? `Adicionamos ${addedUnits} item(ns) ao carrinho. Alguns itens não estão disponíveis agora: ${unavailable.join(', ')}.`
+                : `Pedido preparado no carrinho com ${addedUnits} item(ns), usando preços e estoque atuais.`;
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (reorderError) {
+            const feedback = reorderError instanceof Error ? reorderError.message : 'Não foi possível preparar a recompra.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setReorderLoadingOrderId(null);
         }
     };
 
@@ -545,6 +754,36 @@ export function CustomerAccountPortal() {
                                     <div>
                                         <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">E-mail</label>
                                         <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" placeholder="voce@exemplo.com" />
+                                        <p className={`mt-1 text-xs ${customer.email_verified ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                            {customer.email_verified
+                                                ? 'E-mail verificado.'
+                                                : 'E-mail ainda não verificado. Alterar o endereço de e-mail remove qualquer verificação anterior.'}
+                                        </p>
+                                    </div>
+                                    <div className="grid gap-4 sm:grid-cols-2">
+                                        <div>
+                                            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">CPF</label>
+                                            <input
+                                                inputMode="numeric"
+                                                value={cpf}
+                                                onChange={(event) => setCpf(onlyDigits(event.target.value).slice(0, 11))}
+                                                disabled={Boolean(customer.cpf)}
+                                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                placeholder="Somente números"
+                                            />
+                                            {customer.cpf && <p className="mt-1 text-xs text-slate-500">Após o primeiro preenchimento, a alteração exige fluxo seguro específico.</p>}
+                                        </div>
+                                        <div>
+                                            <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Data de nascimento</label>
+                                            <input
+                                                type="date"
+                                                value={birthDate}
+                                                onChange={(event) => setBirthDate(event.target.value)}
+                                                disabled={Boolean(customer.birth_date)}
+                                                className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                            />
+                                            {customer.birth_date && <p className="mt-1 text-xs text-slate-500">Após o primeiro preenchimento, a alteração exige fluxo seguro específico.</p>}
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Celular confirmado</label>
@@ -653,18 +892,57 @@ export function CustomerAccountPortal() {
 
                                     {orders.length === 0 ? (
                                         <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Ainda não há pedidos vinculados a esta conta.</div>
-                                    ) : orders.map((order) => (
-                                        <div key={order.id} className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
-                                            <div className="flex items-start justify-between gap-3">
-                                                <div>
-                                                    <p className="font-black text-slate-900 dark:text-white">{order.order_code || `Pedido ${order.id.slice(0, 8)}`}</p>
-                                                    <p className="mt-1 text-xs text-slate-500">{order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : ''}</p>
-                                                    <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status)}{order.fulfillment_type ? ` · ${order.fulfillment_type}` : ''}</p>
-                                                </div>
-                                                <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">R$ {formatBRL(Number(order.total || 0))}</span>
+                                    ) : orders.map((order) => {
+                                        const expanded = expandedOrderId === order.id;
+                                        return (
+                                            <div key={order.id} className="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedOrderId(expanded ? null : order.id)}
+                                                    className="flex w-full items-start justify-between gap-3 p-4 text-left"
+                                                >
+                                                    <div>
+                                                        <p className="font-black text-slate-900 dark:text-white">{order.order_code || `Pedido ${order.id.slice(0, 8)}`}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">{order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : ''}</p>
+                                                        <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status)}{order.fulfillment_type ? ` · ${order.fulfillment_type}` : ''}</p>
+                                                        <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
+                                                            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                            {expanded ? 'Ocultar itens' : 'Ver o que foi comprado'}
+                                                        </p>
+                                                    </div>
+                                                    <span className="shrink-0 text-sm font-black text-emerald-700 dark:text-emerald-400">R$ {formatBRL(Number(order.total || 0))}</span>
+                                                </button>
+
+                                                {expanded && (
+                                                    <div className="border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+                                                        <div className="space-y-2">
+                                                            {order.order_items.length === 0 ? (
+                                                                <p className="text-sm text-slate-500">Os itens deste pedido não estão disponíveis no histórico.</p>
+                                                            ) : order.order_items.map((item) => (
+                                                                <div key={item.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-950">
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-bold text-slate-900 dark:text-white">{item.quantity}x {item.product?.name || 'Produto indisponível'}</p>
+                                                                        <p className="text-xs text-slate-500">Preço no pedido: R$ {formatBRL(item.unit_price)} cada</p>
+                                                                    </div>
+                                                                    <span className="shrink-0 font-black text-slate-700 dark:text-slate-200">R$ {formatBRL(item.unit_price * item.quantity)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void reorderOrder(order)}
+                                                            disabled={reorderLoadingOrderId === order.id || order.order_items.length === 0}
+                                                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                                        >
+                                                            <ShoppingCart className="h-4 w-4" />
+                                                            {reorderLoadingOrderId === order.id ? 'Verificando disponibilidade…' : 'Comprar novamente'}
+                                                        </button>
+                                                        <p className="mt-2 text-center text-xs text-slate-500">A recompra usa catálogo, preço e estoque atuais. Itens indisponíveis não são adicionados.</p>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             )}
 
@@ -711,6 +989,61 @@ export function CustomerAccountPortal() {
                                             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Este espaço é separado dos banners do cardápio e ficará reservado para campanhas, vantagens e comunicações exclusivas de fidelidade.</p>
                                         </section>
                                     </div>
+
+                                    {loyaltyMissingFields.length > 0 && (
+                                        <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/20">
+                                            <h3 className="font-black text-amber-900 dark:text-amber-100">Complete seus dados para a fidelidade</h3>
+                                            <p className="mt-2 text-sm leading-6 text-amber-800 dark:text-amber-200">
+                                                Faltam: {loyaltyMissingFields.join(', ')}. O cadastro pode ser preenchido em Meus dados.
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => setTab('profile')}
+                                                className="mt-3 rounded-2xl bg-amber-600 px-4 py-2 text-sm font-black text-white"
+                                            >
+                                                Completar meus dados
+                                            </button>
+                                        </section>
+                                    )}
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Extrato de pontos</h3>
+                                                <p className="mt-1 text-xs text-slate-500">Ganhos, resgates e ajustes registrados no programa.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void loadLoyaltyTransactions()}
+                                                disabled={loyaltyLoading}
+                                                className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-700 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
+                                            >
+                                                <RefreshCw className={`h-3.5 w-3.5 ${loyaltyLoading ? 'animate-spin' : ''}`} />
+                                                Atualizar
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-4 space-y-2">
+                                            {loyaltyLoading && loyaltyTransactions.length === 0 ? (
+                                                <p className="text-sm text-slate-500">Carregando extrato…</p>
+                                            ) : loyaltyTransactions.length === 0 ? (
+                                                <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">Ainda não há movimentações de pontos.</p>
+                                            ) : loyaltyTransactions.map((transaction) => (
+                                                <div key={transaction.id} className="flex items-start justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-bold text-slate-900 dark:text-white">{transaction.description || 'Movimentação de fidelidade'}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            {transaction.created_at ? new Date(transaction.created_at).toLocaleString('pt-BR') : ''}
+                                                            {transaction.order_code ? ` · ${transaction.order_code}` : ''}
+                                                        </p>
+                                                    </div>
+                                                    <span className={`shrink-0 text-sm font-black ${transaction.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                                        {transaction.points >= 0 ? '+' : ''}{transaction.points} pts
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
 
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
                                         <h3 className="font-black text-slate-900 dark:text-white">Como funciona</h3>
