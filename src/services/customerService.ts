@@ -370,30 +370,23 @@ export const CustomerService = {
     async clearSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('clear_customer_self_cart_draft_safe');
         if (error) throw new Error('Não foi possível limpar o carrinho compartilhado.');
-        const payload = data as SelfRpcPayload | null;
+        const payload = data as (SelfRpcPayload & { updated_at?: string | null }) | null;
         if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível limpar o carrinho compartilhado.');
-        return true;
+        return {
+            ok: true,
+            updatedAt: payload.updated_at ? String(payload.updated_at) : null,
+        };
     },
 
     // --- Order History ---
-    // Sem customerId do chamador na autorização. As policies customer_select_own
-    // resolvem customer/store a partir do JWT e só devolvem os próprios pedidos.
     async getOrders(_customerId?: string) {
-        const { data, error } = await supabaseCustomer
-            .from('orders')
-            .select(`
-                *,
-                order_items (
-                    id,
-                    product_id,
-                    quantity,
-                    unit_price,
-                    product:products (id, name)
-                )
-            `)
-            .order('created_at', { ascending: false });
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_orders_safe', {
+            p_limit: 100,
+        });
 
         if (error) throw new Error('Erro ao buscar pedidos.');
-        return data || [];
+        const payload = data as (SelfRpcPayload & { orders?: unknown[] }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Erro ao buscar pedidos.');
+        return Array.isArray(payload.orders) ? payload.orders : [];
     },
 };
