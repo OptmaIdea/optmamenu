@@ -399,18 +399,42 @@ export const CustomerService = {
 
         if (error) {
             let providerError = '';
+            let providerKeyDetected: boolean | null = null;
+            let senderDetected: boolean | null = null;
             const context = (error as { context?: Response }).context;
             if (context && typeof context.clone === 'function') {
                 try {
-                    const payload = await context.clone().json() as { error?: string };
-                    providerError = String(payload?.error || '');
+                    const errorPayload = await context.clone().json() as {
+                        error?: string;
+                        providerKeyDetected?: boolean;
+                        senderDetected?: boolean;
+                    };
+                    providerError = String(errorPayload?.error || '');
+                    providerKeyDetected = typeof errorPayload?.providerKeyDetected === 'boolean'
+                        ? errorPayload.providerKeyDetected
+                        : null;
+                    senderDetected = typeof errorPayload?.senderDetected === 'boolean'
+                        ? errorPayload.senderDetected
+                        : null;
                 } catch {
                     providerError = '';
                 }
             }
 
+            if (providerError === 'email_provider_not_configured') {
+                if (providerKeyDetected === false && senderDetected === false) {
+                    throw new Error('O Edge Function da loja não encontrou a chave do provedor nem o remetente de e-mail nos Secrets do Supabase.');
+                }
+                if (providerKeyDetected === false) {
+                    throw new Error('O Edge Function da loja não encontrou a chave do provedor de e-mail nos Secrets do Supabase.');
+                }
+                if (senderDetected === false) {
+                    throw new Error('O Edge Function da loja encontrou o provedor, mas não encontrou o remetente de e-mail nos Secrets do Supabase.');
+                }
+            }
+
             const labels: Record<string, string> = {
-                email_provider_not_configured: 'O serviço de verificação de e-mail da loja ainda não está configurado.',
+                email_provider_not_configured: 'O serviço de verificação de e-mail da loja ainda não está configurado no ambiente das Edge Functions.',
                 valid_email_required: 'Cadastre e salve um e-mail válido antes de solicitar a confirmação.',
                 rate_limited: 'Aguarde um pouco antes de solicitar outro e-mail de confirmação.',
                 email_delivery_failed: 'A loja não conseguiu enviar o e-mail de confirmação agora. Tente novamente mais tarde.',
