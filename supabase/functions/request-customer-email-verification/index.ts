@@ -34,6 +34,11 @@ async function sha256Hex(value: string) {
   return Array.from(hash).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function senderEmail(value: string) {
+  const match = value.match(/<([^>]+)>/);
+  return String(match?.[1] || value).trim();
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(origin) });
@@ -42,14 +47,35 @@ Deno.serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-  const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
-  const emailFrom = Deno.env.get("CUSTOMER_EMAIL_FROM") || "";
+  const resendApiKey =
+    Deno.env.get("RESEND_API_KEY")
+    || Deno.env.get("RESEND_KEY")
+    || "";
+  const brevoApiKey =
+    Deno.env.get("BREVO_API_KEY")
+    || Deno.env.get("SENDINBLUE_API_KEY")
+    || "";
+  const emailFrom =
+    Deno.env.get("CUSTOMER_EMAIL_FROM")
+    || Deno.env.get("RESEND_FROM_EMAIL")
+    || Deno.env.get("BREVO_SENDER_EMAIL")
+    || Deno.env.get("EMAIL_FROM")
+    || "";
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return reply({ ok: false, error: "server_configuration_error" }, 503, origin);
   }
-  if (!resendApiKey || !emailFrom) {
-    return reply({ ok: false, error: "email_provider_not_configured" }, 503, origin);
+  if ((!resendApiKey && !brevoApiKey) || !emailFrom) {
+    return reply({
+      ok: false,
+      error: "email_provider_not_configured",
+      providerKeyDetected: Boolean(resendApiKey || brevoApiKey),
+      senderDetected: Boolean(emailFrom),
+      supportedSecrets: {
+        provider: ["RESEND_API_KEY", "BREVO_API_KEY"],
+        sender: ["CUSTOMER_EMAIL_FROM", "RESEND_FROM_EMAIL", "BREVO_SENDER_EMAIL", "EMAIL_FROM"],
+      },
+    }, 503, origin);
   }
 
   const authorization = req.headers.get("authorization") || "";
@@ -120,7 +146,7 @@ Deno.serve(async (req: Request) => {
       email,
       token_hash: tokenHash,
       expires_at: expiresAt,
-      metadata: { source: "customer_account_portal" },
+      metadata: { source: "customer_account_portal", provider: resendApiKey ? "resend" : "brevo" },
     })
     .select("id").single();
 
@@ -144,14 +170,30 @@ Deno.serve(async (req: Request) => {
   </div>
 </body></html>`;
 
-  const providerResponse = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${resendApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ from: sender, to: [email], subject, html }),
-  });
+  const providerName = resendApiKey ? "resend" : "brevo";
+  const providerResponse = resendApiKey
+    ? await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ from: sender, to: [email], subject, html }),
+      })
+    : await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": brevoApiKey,
+          "Content-Type": "application/json",
+          "accept": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: safeSenderName, email: senderEmail(emailFrom) },
+          to: [{ email, name: fullName }],
+          subject,
+          htmlContent: html,
+        }),
+      });
 
   const providerText = await providerResponse.text();
   let providerData: Record<string, unknown> = {};
@@ -159,13 +201,19 @@ Deno.serve(async (req: Request) => {
 
   if (!providerResponse.ok) {
     await service.from("customer_email_verification_challenges")
-      .update({ used_at: new Date().toISOString(), metadata: { delivery_failed: true } })
+      .update({
+        used_at: new Date().toISOString(),
+        metadata: { delivery_failed: true, provider: providerName, status: providerResponse.status },
+      })
       .eq("id", challenge.id);
-    console.error("customer_email_verification_delivery_failed", { status: providerResponse.status });
-    return reply({ ok: false, error: "email_delivery_failed" }, 502, origin);
+    console.error("customer_email_verification_delivery_failed", {
+      provider: providerName,
+      status: providerResponse.status,
+    });
+    return reply({ ok: false, error: "email_delivery_failed", provider: providerName }, 502, origin);
   }
 
-  const messageId = String(providerData.id || "");
+  const messageId = String(providerData.id || providerData.messageId || "");
   await service.from("customer_email_verification_challenges")
     .update({ provider_message_id: messageId || null })
     .eq("id", challenge.id);
