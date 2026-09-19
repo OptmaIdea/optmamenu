@@ -187,17 +187,24 @@ Deno.serve(async (req: Request) => {
 
   if (updateError) return redirectResult("error", storeSlug);
 
-  await service.from("customer_email_verification_challenges")
-    .update({ used_at: now, metadata: { verified: true } }).eq("id", challenge.id);
-
   // Confirmação concluída primeiro; o e-mail abaixo é apenas um aviso transacional
   // best-effort e nunca desfaz a verificação se o provedor estiver indisponível.
-  await sendConfirmedEmail({
+  const notificationResult = await sendConfirmedEmail({
     email: String(customer.email || challenge.email).trim(),
     fullName: String(customer.full_name || customer.nickname || "Cliente").trim(),
     storeName,
     storeLogoUrl: String(store?.logo_url || "").trim(),
   });
+
+  await service.from("customer_email_verification_challenges")
+    .update({
+      used_at: now,
+      metadata: {
+        verified: true,
+        confirmed_notification: notificationResult,
+      },
+    })
+    .eq("id", challenge.id);
 
   return redirectResult("success", storeSlug);
 });
