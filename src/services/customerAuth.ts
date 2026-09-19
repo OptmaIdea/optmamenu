@@ -103,6 +103,21 @@ async function getDeviceTokenHash() {
     return bytesToHex(new Uint8Array(digest));
 }
 
+async function readFunctionErrorPayload(error: unknown) {
+    const context = (error as { context?: Response } | null)?.context;
+    if (!context || typeof context.clone !== 'function') return null;
+    try {
+        return await context.clone().json() as {
+            error?: string;
+            message?: string;
+            smsSent?: boolean;
+            retryAfterSeconds?: number;
+        };
+    } catch {
+        return null;
+    }
+}
+
 async function refreshCustomerSessionIfNeeded() {
     const token = getCustomerToken();
     const refreshToken = localStorage.getItem(CUSTOMER_REFRESH_TOKEN_KEY);
@@ -165,24 +180,33 @@ export const AuthService = {
             body: { phone, storeId, purpose },
         });
 
-        if (data?.ok) return data;
-        if (data?.error === 'rate_limited' || data?.error === 'daily_limit_reached' || data?.error === 'sms_rate_limited') {
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            message?: string;
+            smsSent?: boolean;
+            retryAfterSeconds?: number;
+        } | null;
+
+        if (payload?.ok) return payload;
+        if (payload?.error === 'rate_limited' || payload?.error === 'daily_limit_reached' || payload?.error === 'sms_rate_limited') {
             throw new Error('Muitas solicitações de código. Aguarde alguns minutos e tente novamente.');
         }
-        if (data?.error === 'sms_gateway_not_configured') {
+        if (payload?.error === 'sms_gateway_not_configured') {
             throw new Error('O serviço de SMS ainda não está configurado.');
         }
-        if (data?.error === 'phone_already_registered') {
-            throw new Error('Este telefone já possui uma conta nesta loja. Use a opção Entrar; nenhum SMS foi enviado.');
+        if (payload?.error === 'phone_already_registered') {
+            throw new Error(payload.message || 'Este telefone já possui uma conta nesta loja. Use a opção Entrar; nenhum SMS foi enviado.');
         }
-        if (data?.error === 'customer_not_found') {
-            throw new Error('Não encontramos uma conta com este telefone nesta loja. Use Criar conta; nenhum SMS foi enviado.');
+        if (payload?.error === 'customer_not_found') {
+            throw new Error(payload.message || 'Não encontramos uma conta com este telefone nesta loja. Use Criar conta; nenhum SMS foi enviado.');
         }
-        if (data?.error === 'invalid_phone') {
+        if (payload?.error === 'invalid_phone') {
             throw new Error('Informe um telefone válido. Para números do Brasil, o +55 é opcional.');
         }
         if (error) throw new Error('Não foi possível enviar o código por SMS.');
-        throw new Error('Não foi possível enviar o código por SMS.');
+        throw new Error(payload?.message || 'Não foi possível enviar o código por SMS.');
     },
 
     async verifyOtp(
