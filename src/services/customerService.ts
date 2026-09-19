@@ -451,6 +451,22 @@ export const CustomerService = {
             throw new Error(labels[payload?.error || ''] || 'Não foi possível enviar a confirmação de e-mail pela Vercel.');
         };
 
+        // Vercel é o caminho primário para e-mail transacional nesta instalação.
+        // A Edge Function do Supabase fica como contingência quando o runtime Vercel
+        // não possui a configuração necessária.
+        try {
+            return await tryVercelFallback();
+        } catch (vercelError) {
+            const message = vercelError instanceof Error ? vercelError.message : '';
+            const configurationUnavailable =
+                message.includes('não encontrou chave de provedor')
+                || message.includes('não encontrou a chave do provedor')
+                || message.includes('não encontrou o remetente')
+                || message.includes('não encontrou a configuração do Supabase');
+
+            if (!configurationUnavailable) throw vercelError;
+        }
+
         const { data, error } = await supabaseCustomer.functions.invoke('request-customer-email-verification', {
             body: {},
         });
