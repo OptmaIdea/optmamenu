@@ -289,6 +289,58 @@ Edge Function:
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (quarta rodada)
+
+### Pedidos orientados por evento operacional
+
+A tela administrativa de Pedidos deixou de usar somente `created_at` como referência de ordenação operacional.
+
+Foi adicionada a coluna `orders.status_changed_at`, mantida automaticamente por trigger sempre que o status muda. O RPC `get_admin_orders_safe` passou a ordenar por `status_changed_at desc`, com `created_at` como desempate.
+
+Consequências práticas:
+- um pedido antigo enviado para entrega agora sobe imediatamente na lista;
+- o card mostra o evento atual (por exemplo **Saiu para entrega**) e a data/hora em que esse status foi assumido;
+- a data original de criação continua preservada e visível nos detalhes;
+- filtro de período passa a considerar a última movimentação do pedido;
+- busca textual foi adicionada para código do pedido, cliente, telefone ou nome de item;
+- o universo administrativo de busca foi ampliado de 200 para 500 pedidos.
+
+Migration:
+- `20260919181836_orders_status_activity_sort`.
+
+### Histórico de consumo do cliente
+
+A área **Minha conta** ganhou a subtela **Meu consumo**. Ela consolida produtos de pedidos não cancelados e mostra:
+- produto;
+- quantidade acumulada;
+- número de pedidos;
+- total histórico pago pelo produto;
+- última compra;
+- cada ocorrência com pedido, data/hora, status, quantidade, preço unitário e total da linha.
+
+A avaliação de produto pelo cliente em escala **0 a 5 estrelas** foi registrada como próxima evolução desta subtela. A futura estrutura deverá preservar vínculo entre cliente, produto, pedido/consumo elegível, nota, comentário opcional e moderação da loja, evitando avaliações sem compra quando a regra comercial exigir compra verificada.
+
+### E-mail transacional / Brevo
+
+Os testes reais confirmaram que Vercel enxerga `BREVO_API_KEY`, `CUSTOMER_EMAIL_FROM` e a configuração do Supabase, mas o Brevo está recusando a entrega. O endpoint agora:
+- registra nos logs somente status/código/mensagem sanitizados do provedor;
+- devolve diagnóstico seguro para a UI quando o Brevo rejeitar o envio;
+- não expõe chave/API secret;
+- permite nova tentativa imediata depois de uma falha de entrega, mantendo limite horário amplo contra abuso.
+
+Migration:
+- `20260919181906_email_verification_retry_after_delivery_failure`.
+
+### Login por senha
+
+Falha `invalid_credentials`/senha inválida agora é extraída também de respostas HTTP não-2xx da Edge Function e apresentada como **Senha inválida**, em vez do genérico **Não foi possível entrar agora**.
+
+### Pendência ainda sob homologação
+
+O carrinho compartilhado continua com uma pendência reportada na alteração de quantidade/remoção após criação do carrinho. Criação e limpeza multi-dispositivo foram validadas; edição incremental ainda não deve ser considerada homologada até nova bateria específica.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
