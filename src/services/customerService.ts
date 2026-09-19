@@ -71,6 +71,10 @@ function selfServiceError(payload: SelfRpcPayload | null | undefined, fallback: 
             return new Error('Informe um e-mail válido.');
         case 'invalid_birth_date':
             return new Error('Informe uma data de nascimento válida.');
+        case 'email_verification_required':
+            return new Error('Confirme seu e-mail com a loja antes de continuar.');
+        case 'loyalty_data_responsibility_required':
+            return new Error('Confirme a responsabilidade pelas informações fornecidas antes de aderir ao programa.');
         case 'invalid_address':
             return new Error('Confira CEP, rua, número, bairro, cidade e estado.');
         case 'address_limit_reached':
@@ -367,6 +371,27 @@ export const CustomerService = {
         return payload;
     },
 
+    async joinSelfLoyalty(options: {
+        acceptTerms: boolean;
+        dataResponsibility: boolean;
+        marketingWhatsapp: boolean;
+        marketingEmail: boolean;
+        marketingSms: boolean;
+    }) {
+        const { data, error } = await supabaseCustomer.rpc('join_customer_self_loyalty_safe', {
+            p_accept_terms: options.acceptTerms,
+            p_data_responsibility: options.dataResponsibility,
+            p_marketing_whatsapp: options.marketingWhatsapp,
+            p_marketing_email: options.marketingEmail,
+            p_marketing_sms: options.marketingSms,
+        });
+
+        if (error) throw new Error('Não foi possível concluir sua adesão ao programa.');
+        const payload = data as SelfRpcPayload | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível concluir sua adesão ao programa.');
+        return payload;
+    },
+
     async requestSelfEmailVerification() {
         const { data, error } = await supabaseCustomer.functions.invoke('request-customer-email-verification', {
             body: {},
@@ -424,11 +449,13 @@ export const CustomerService = {
         const payload = data as (SelfRpcPayload & {
             cart?: Record<string, unknown>;
             updated_at?: string | null;
+            revision?: number | string | null;
         }) | null;
         if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível recuperar seu carrinho compartilhado.');
         return {
             cart: payload.cart && typeof payload.cart === 'object' ? payload.cart : {},
             updatedAt: payload.updated_at ? String(payload.updated_at) : null,
+            revision: Number(payload.revision || 0),
         };
     },
 
@@ -445,11 +472,15 @@ export const CustomerService = {
     async clearSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('clear_customer_self_cart_draft_safe');
         if (error) throw new Error('Não foi possível limpar o carrinho compartilhado.');
-        const payload = data as (SelfRpcPayload & { updated_at?: string | null }) | null;
+        const payload = data as (SelfRpcPayload & {
+            updated_at?: string | null;
+            revision?: number | string | null;
+        }) | null;
         if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível limpar o carrinho compartilhado.');
         return {
             ok: true,
             updatedAt: payload.updated_at ? String(payload.updated_at) : null,
+            revision: Number(payload.revision || 0),
         };
     },
 
