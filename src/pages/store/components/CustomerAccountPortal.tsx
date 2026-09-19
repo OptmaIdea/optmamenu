@@ -275,11 +275,23 @@ export function CustomerAccountPortal() {
         [customer?.full_name, customer?.nickname],
     );
 
+    const loyaltyAgeRestricted = useMemo(() => {
+        if (!customer?.birth_date) return false;
+        const birth = new Date(`${customer.birth_date}T12:00:00`);
+        if (Number.isNaN(birth.getTime())) return false;
+        const today = new Date();
+        let age = today.getFullYear() - birth.getFullYear();
+        const monthDiff = today.getMonth() - birth.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
+        return age < 18;
+    }, [customer?.birth_date]);
+
     const loyaltyMissingFields = useMemo(() => {
         if (!customer) return ['cadastro'];
         const missing: string[] = [];
         if (!customer.full_name || customer.full_name.trim().length < 3) missing.push('nome');
         if (!customer.birth_date) missing.push('data de nascimento');
+        if (loyaltyAgeRestricted) missing.push('idade mínima de 18 anos');
         if (onlyDigits(customer.cpf || '').length !== 11) missing.push('CPF');
 
         const normalizedEmail = String(customer.email || '').trim();
@@ -289,7 +301,7 @@ export function CustomerAccountPortal() {
             missing.push('confirmação do e-mail');
         }
         return missing;
-    }, [customer]);
+    }, [customer, loyaltyAgeRestricted]);
 
     useEffect(() => {
         if (profileDirty) return;
@@ -1300,6 +1312,15 @@ export function CustomerAccountPortal() {
                                             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Este espaço é separado dos banners do cardápio e ficará reservado para campanhas, vantagens e comunicações exclusivas de fidelidade.</p>
                                         </section>
                                     </div>
+
+                                    {loyaltyAgeRestricted && (
+                                        <section className="rounded-3xl border border-red-200 bg-red-50 p-5 dark:border-red-900/40 dark:bg-red-950/20">
+                                            <h3 className="font-black text-red-900 dark:text-red-100">Participação disponível a partir dos 18 anos</h3>
+                                            <p className="mt-2 text-sm leading-6 text-red-800 dark:text-red-200">
+                                                Pela data de nascimento informada, este cadastro ainda não atende à idade mínima definida para o programa de fidelidade da loja.
+                                            </p>
+                                        </section>
+                                    )}
 
                                     {loyaltyMissingFields.length > 0 && (
                                         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/20">
