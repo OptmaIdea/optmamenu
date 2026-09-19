@@ -128,6 +128,8 @@ Deno.serve(async (req: Request) => {
 
   const confirmUrl = `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}`;
   const storeName = String(store.name || store.slug || "Loja");
+  const safeSenderName = storeName.replace(/[<>\r\n"]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60) || "Loja";
+  const sender = emailFrom.includes("<") ? emailFrom : `${safeSenderName} <${emailFrom}>`;
   const subject = `Confirme seu e-mail para ${storeName}`;
   const html = `<!doctype html>
 <html><body style="margin:0;background:#f5f7f9;font-family:Arial,sans-serif;color:#172033">
@@ -148,7 +150,7 @@ Deno.serve(async (req: Request) => {
       "Authorization": `Bearer ${resendApiKey}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from: emailFrom, to: [email], subject, html }),
+    body: JSON.stringify({ from: sender, to: [email], subject, html }),
   });
 
   const providerText = await providerResponse.text();
