@@ -341,6 +341,38 @@ O carrinho compartilhado continua com uma pendência reportada na alteração de
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (quinta rodada)
+
+### Pedidos do cliente por última atividade
+
+A área **Minha conta → Pedidos** passou a consumir e exibir `status_changed_at` do backend. O RPC `get_customer_self_orders_safe` agora:
+- retorna `status_changed_at`;
+- ordena por última mudança de status, com `created_at` como desempate;
+- preserva a data original de criação.
+
+Na interface do cliente, o card mostra o evento atual e a data/hora desse evento (ex.: **Saiu para entrega em ...**) e, quando diferente, mantém **Pedido criado em ...** como referência histórica.
+
+Migration:
+- `20260919184000_customer_orders_sort_by_status_activity`.
+
+### Brevo / Preview Vercel
+
+Foi confirmado que os erros 401/502 observados anteriormente vieram do Preview `dpl_2HPE5eNjTnLTDZzE7AE9PaKNvksW`, cuja API do Brevo respondeu `401 unauthorized / Key not found`.
+
+Também foi observado um redeploy posterior em **Production/main** (`dpl_EDowZdG5KnaJ8xCzbrtwMbXYtiaZ`), não no Preview da branch de homologação. Uma nova publicação de Preview foi forçada pela própria branch após a alteração das variáveis.
+
+O runtime agora normaliza a credencial `BREVO_API_KEY` (trim, remoção de aspas acidentais e de prefixo `BREVO_API_KEY=`) antes de enviá-la no header `api-key`.
+
+Preview atual após essa correção:
+- commit `a303e4e648ad2eb08e354a8e553310880ab8e938`;
+- deploy `dpl_4F6eNoqpZyQnT43owRRYsDPDTNGT`;
+- estado validado: READY;
+- GitHub Verify: success.
+
+Se esse Preview ainda retornar `401 Key not found`, a causa restante é a credencial configurada no escopo **Preview** da Vercel não corresponder a uma API key ativa reconhecida pelo Brevo; não é ausência da variável no código.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
