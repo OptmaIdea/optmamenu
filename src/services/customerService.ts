@@ -420,6 +420,9 @@ export const CustomerService = {
                 providerKeyDetected?: boolean;
                 senderDetected?: boolean;
                 runtime?: string;
+                providerStatus?: number;
+                providerCode?: string | null;
+                providerMessage?: string | null;
             } | null = null;
             try {
                 payload = text ? JSON.parse(text) : null;
@@ -439,6 +442,13 @@ export const CustomerService = {
                 if (payload.senderDetected === false) {
                     throw new Error('A confirmação de e-mail encontrou o provedor na Vercel, mas não encontrou o remetente.');
                 }
+            }
+
+            if (payload?.error === 'email_delivery_failed' && payload.providerMessage) {
+                const detail = payload.providerCode
+                    ? `${payload.providerCode}: ${payload.providerMessage}`
+                    : payload.providerMessage;
+                throw new Error(`O serviço de e-mail recusou o envio: ${detail}`);
             }
 
             const labels: Record<string, string> = {
