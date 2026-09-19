@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Truck } from 'lucide-react';
+import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Truck, Search } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
 import OrderStatusFilter from '@/components/common/OrderStatusFilter';
@@ -21,12 +21,29 @@ function getAutomaticExpirationAt(order: Order): string | null {
     return typeof cancelledAt === 'string' && cancelledAt ? cancelledAt : null;
 }
 
+function getOrderActivityAt(order: Order) {
+    return order.status_changed_at || order.updated_at || order.created_at;
+}
+
+function getOrderActivityLabel(order: Order) {
+    switch (order.status) {
+        case 'reserved': return 'Recebido';
+        case 'confirmed': return 'Confirmado';
+        case 'ready': return 'Pronto';
+        case 'out_for_delivery': return 'Saiu para entrega';
+        case 'completed': return 'Concluído';
+        case 'cancelled': return 'Cancelado';
+        default: return 'Atualizado';
+    }
+}
+
 export default function Orders() {
     const [searchParams, setSearchParams] = useSearchParams();
     const focusedOrderId = searchParams.get('orderId')?.trim() || null;
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('current');
+    const [searchText, setSearchText] = useState('');
     const [periodFilter, setPeriodFilter] = useState<string>('all');
     const [filtersOpen, setFiltersOpen] = useState(false);
     const initialDates = getPeriodDates('all');
@@ -46,18 +63,43 @@ export default function Orders() {
     const displayedOrders = useMemo(() => {
         if (focusedOrderId) return orders.filter((order) => order.id === focusedOrderId);
 
-        return orders.filter(o => {
-            if (filterStatus === 'current') {
-                if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready' || o.status === 'out_for_delivery')) return false;
-            }
-            if (startDate || endDate) {
-                const orderDate = o.created_at ? o.created_at.slice(0, 10) : '';
-                if (startDate && orderDate < startDate) return false;
-                if (endDate && orderDate > endDate) return false;
-            }
-            return true;
-        });
-    }, [orders, focusedOrderId, filterStatus, startDate, endDate]);
+        const normalizedSearch = searchText.trim().toLocaleLowerCase('pt-BR');
+        return orders
+            .filter((o) => {
+                if (filterStatus === 'current') {
+                    if (!(o.status === 'reserved' || o.status === 'confirmed' || o.status === 'ready' || o.status === 'out_for_delivery')) return false;
+                }
+
+                const activityAt = getOrderActivityAt(o);
+                if (startDate || endDate) {
+                    const activityDate = activityAt ? activityAt.slice(0, 10) : '';
+                    if (startDate && activityDate < startDate) return false;
+                    if (endDate && activityDate > endDate) return false;
+                }
+
+                if (normalizedSearch) {
+                    const publicOrder = getPublicOrderFields(o);
+                    const itemText = (o.order_items || [])
+                        .map((item) => item.product?.name || '')
+                        .join(' ');
+                    const searchable = [
+                        publicOrder.order_code || '',
+                        o.customer_name || '',
+                        o.customer_phone || '',
+                        itemText,
+                    ].join(' ').toLocaleLowerCase('pt-BR');
+
+                    if (!searchable.includes(normalizedSearch)) return false;
+                }
+
+                return true;
+            })
+            .sort((left, right) => {
+                const rightTime = new Date(getOrderActivityAt(right)).getTime();
+                const leftTime = new Date(getOrderActivityAt(left)).getTime();
+                return rightTime - leftTime;
+            });
+    }, [orders, focusedOrderId, filterStatus, searchText, startDate, endDate]);
 
     const emptyStateMessage = focusedOrderId
         ? 'O pedido selecionado não foi encontrado nesta unidade.'
@@ -568,6 +610,16 @@ export default function Orders() {
                     <div className="mb-3 shrink-0 space-y-3 rounded-2xl border border-gray-100 bg-white p-3 font-candara shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:mb-4 sm:p-4 sm:space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <OrderStatusFilter value={filterStatus} onChange={setFilterStatus} />
+                            <div className="relative min-w-[220px] flex-1 sm:max-w-md">
+                                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                <input
+                                    type="search"
+                                    value={searchText}
+                                    onChange={(event) => setSearchText(event.target.value)}
+                                    placeholder="Buscar pedido, cliente, telefone ou item"
+                                    className="w-full rounded-xl border border-gray-200 bg-white py-2 pl-9 pr-3 text-xs font-semibold text-gray-800 outline-none transition focus:border-[#19A999] focus:ring-2 focus:ring-[#19A999]/15 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
+                                />
+                            </div>
                             <button type="button" onClick={() => setFiltersOpen((open) => !open)} className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700 sm:hidden" aria-expanded={filtersOpen}>
                                 {filtersOpen ? 'Ocultar período' : 'Filtrar período'}
                                 {filtersOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -577,6 +629,7 @@ export default function Orders() {
                             </button>
                         </div>
                         <div className={`${filtersOpen ? 'block' : 'hidden'} border-t border-gray-100 pt-3 dark:border-gray-700 sm:block`}>
+                            <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-gray-400">Período da última movimentação do pedido</p>
                             <DateRangeFilter periodFilter={periodFilter} onPeriodChange={setPeriodFilter} startDate={startDate} onStartDateChange={setStartDate} endDate={endDate} onEndDateChange={setEndDate} />
                         </div>
                     </div>
@@ -613,11 +666,11 @@ export default function Orders() {
                                 }
 
                                 return (
-                                    <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${order.status === 'reserved' ? 'border-l-yellow-400' : order.status === 'confirmed' ? 'border-l-blue-400' : order.status === 'ready' ? 'border-l-emerald-400' : order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'}`}>
+                                    <div key={order.id} className={`bg-white dark:bg-gray-800 rounded-2xl border-l-4 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden ${order.status === 'reserved' ? 'border-l-yellow-400' : order.status === 'confirmed' ? 'border-l-blue-400' : order.status === 'ready' ? 'border-l-emerald-400' : order.status === 'out_for_delivery' ? 'border-l-purple-500' : order.status === 'completed' ? 'border-l-green-400' : 'border-l-red-400'}`}>
                                         <div className="flex cursor-pointer flex-wrap items-center justify-between gap-3 p-3 sm:gap-4 sm:p-5 md:flex-nowrap" onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}>
                                             <div className="flex items-center gap-4 flex-1">
                                                 <div className={`p-3 rounded-full ${statusColors[order.status]} bg-opacity-20`}>
-                                                    {order.status === 'reserved' ? <AlertCircle size={24} /> : order.status === 'confirmed' ? <Clock size={24} /> : order.status === 'ready' ? <CheckCircle size={24} /> : order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
+                                                    {order.status === 'reserved' ? <AlertCircle size={24} /> : order.status === 'confirmed' ? <Clock size={24} /> : order.status === 'ready' ? <CheckCircle size={24} /> : order.status === 'out_for_delivery' ? <Truck size={24} /> : order.status === 'completed' ? <CheckCircle size={24} /> : <XCircle size={24} />}
                                                 </div>
                                                 <div>
                                                     <div className="flex flex-wrap items-center gap-2">
@@ -628,7 +681,15 @@ export default function Orders() {
                                                         {automaticExpirationAt && <span className="inline-flex items-center gap-1 rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-amber-800"><Clock size={11} /> Expirado automaticamente · {formatDate(automaticExpirationAt)}</span>}
                                                         {canUseTimer && timerDisplay && <span className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold border border-current ${getTimerColor(isExpiring ? 0 : 5)}`}><Clock size={12} /> {timerDisplay}</span>}
                                                     </div>
-                                                    <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2 mt-1"><span>{order.customer_name}</span><span>•</span><span>{fulfillmentDetailLabel}</span><span>•</span><span className="flex items-center gap-1"><Clock size={12} /> {formatDate(order.created_at)}</span></div>
+                                                    <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-2 mt-1">
+                                                        <span>{order.customer_name}</span>
+                                                        <span>•</span>
+                                                        <span>{fulfillmentDetailLabel}</span>
+                                                        <span>•</span>
+                                                        <span className="flex items-center gap-1 font-semibold text-gray-600 dark:text-gray-300">
+                                                            <Clock size={12} /> {getOrderActivityLabel(order)} · {formatDate(getOrderActivityAt(order))}
+                                                        </span>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
@@ -645,6 +706,8 @@ export default function Orders() {
                                                         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2">
                                                             <p className="flex justify-between"><span className="text-gray-500">Nome:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_name || 'Não informado'}</span></p>
                                                             <p className="flex justify-between"><span className="text-gray-500">Telefone:</span> <span className="font-medium text-gray-900 dark:text-white">{order.customer_phone || 'Não informado'}</span></p>
+                                                            <p className="flex justify-between gap-3"><span className="text-gray-500">Criado em:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{formatDate(order.created_at)}</span></p>
+                                                            <p className="flex justify-between gap-3"><span className="text-gray-500">Última movimentação:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{getOrderActivityLabel(order)} · {formatDate(getOrderActivityAt(order))}</span></p>
                                                             <p className="flex justify-between gap-3"><span className="text-gray-500">Atendimento:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{fulfillmentDetailLabel}</span></p>
                                                             <p className="flex justify-between gap-3"><span className="text-gray-500">Pagamento:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{paymentLabel}</span></p>
                                                             {paymentChangeText && <p className="flex justify-between gap-3"><span className="text-gray-500">Troco:</span> <span className="text-right font-medium text-gray-900 dark:text-white">{paymentChangeText}</span></p>}
