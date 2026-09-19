@@ -184,8 +184,12 @@ export default async function handler(req: any, res: any) {
         return json(res, 502, { ok: false, error: 'challenge_invalid_payload' });
     }
 
-    const confirmUrl =
-        `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}`;
+    const forwardedProto = String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim() || 'https';
+    const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim();
+    const publicOrigin = forwardedHost ? `${forwardedProto}://${forwardedHost}` : '';
+    const confirmUrl = publicOrigin && storeSlug
+        ? `${publicOrigin}/api/customer-email-confirm?token=${encodeURIComponent(token)}&store=${encodeURIComponent(storeSlug)}`
+        : `${supabaseUrl}/functions/v1/confirm-customer-email?token=${encodeURIComponent(token)}`;
     const safeSenderName = storeName
         .replace(/[<>\r\n"]/g, ' ')
         .replace(/\s+/g, ' ')
