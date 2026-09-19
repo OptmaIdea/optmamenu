@@ -1,7 +1,9 @@
 import { createHash, randomBytes } from 'node:crypto';
 
 function json(res: any, status: number, body: unknown) {
-    res.status(status).setHeader('Cache-Control', 'no-store').json(body);
+    res.status(status);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(body);
 }
 
 function escapeHtml(value: unknown) {
