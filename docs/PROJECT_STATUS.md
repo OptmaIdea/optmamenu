@@ -158,11 +158,13 @@ A comunicação é deliberadamente **store-first**:
 - texto explica que a própria loja precisa confirmar o endereço;
 - OptmaMenu/OptmaIdea aparecem somente no rodapé tecnológico, com links institucionais.
 
-A implementação de envio usa um adapter Resend. Para envio real ainda é necessário disponibilizar no projeto Supabase:
-- `RESEND_API_KEY`;
-- `CUSTOMER_EMAIL_FROM` com domínio/remetente autorizado.
+A implementação de envio aceita **Resend ou Brevo**. O caminho primário continua sendo a Edge Function do Supabase; quando o runtime das Edge Functions não enxerga as credenciais do provedor/remetente, o portal tenta automaticamente um fallback server-side na Vercel (`/api/customer-email-verification`), reutilizando a sessão autenticada do cliente e RPCs customer-scoped.
 
-Sem essas credenciais o backend retorna uma mensagem controlada de provedor ainda não configurado; nenhuma confirmação é simulada.
+Aliases de configuração reconhecidos:
+- provedor: `RESEND_API_KEY`, `RESEND_KEY`, `BREVO_API_KEY` ou `SENDINBLUE_API_KEY`;
+- remetente: `CUSTOMER_EMAIL_FROM`, `RESEND_FROM_EMAIL`, `BREVO_SENDER_EMAIL` ou `EMAIL_FROM`.
+
+Nenhuma confirmação é simulada: o desafio só é considerado enviado quando um provedor real aceita a mensagem.
 
 Migration:
 - `20260919143725_customer_email_verification_challenges`.
@@ -211,7 +213,7 @@ Os novos relacionamentos de desafios de e-mail e bloqueios de fidelidade também
 A validação em desktop/tablet/celular encontrou quatro pontos adicionais e eles foram tratados no baseline técnico:
 
 - **Carrinho novo após limpeza:** o conflito deixou de comparar timestamps JavaScript/Postgres e passou a usar uma revisão inteira monotônica (`customer_cart_drafts.revision`). Isso elimina o caso em que microssegundos do Postgres faziam um carrinho novo parecer stale após um tombstone de limpeza.
-- **Fidelidade:** a adesão agora é atômica pelo RPC `join_customer_self_loyalty_safe`; exige CPF, data de nascimento, e-mail válido **e confirmado**, aceite do regulamento e uma declaração explícita de responsabilidade pela veracidade dos dados. Não há bloqueio por idade calculada; a data continua disponível para regras legítimas do programa, como aniversário.
+- **Fidelidade:** a adesão agora é atômica pelo RPC `join_customer_self_loyalty_safe`; exige CPF, data de nascimento, e-mail válido **e confirmado**, aceite do regulamento e uma declaração explícita de responsabilidade pela veracidade dos dados. Após a homologação real, foi acrescentada **idade mínima de 18 anos**, validada no frontend e protegida também no banco por trigger/RPC.
 - **Saída da fidelidade:** o purge backend remove também o consentimento específico de responsabilidade do programa, além de pontos, transações, vouchers e consentimento de adesão; cadastro e pedidos permanecem independentes.
 - **Telefone/OTP:** para Brasil, `629...`, `55629...` e `+55629...` convergem para a mesma identidade. Número internacional é aceito quando o código do país é informado explicitamente com `+`; sem país informado, o padrão é Brasil. Cadastro com telefone já existente é recusado **antes** da geração/envio de OTP, economizando SMS e orientando o cliente a entrar.
 - **E-mail:** a Edge Function de verificação continua store-first e agora reconhece Resend ou Brevo, além de aliases comuns de segredo/remetente. Se o ambiente das Edge Functions não enxergar as credenciais, a UI informa se falta chave do provedor, remetente ou ambos sem revelar valores sensíveis.
@@ -233,6 +235,30 @@ Edge Functions atualizadas:
 4. Na fidelidade, e-mail não confirmado deve manter **Confirmar participação** indisponível; após a verificação real do e-mail, o cliente deve aceitar regulamento + responsabilidade e então aderir.
 5. Sair do programa e confirmar no backend que transações/vouchers/consentimentos de fidelidade foram removidos e que cadastro/pedidos permaneceram.
 6. Testar **Confirmar meu e-mail com a loja** novamente; se ainda falhar, a mensagem deve indicar precisamente qual classe de Secret não foi vista pela Edge Function.
+
+---
+
+## Ajustes de homologação — 19/09/2026 (terceira rodada)
+
+Os testes posteriores mostraram três diferenças entre o comportamento esperado e o implantado, tratadas nesta rodada:
+
+- **Carrinho persistente não aceitava alteração:** a revisão inteira resolveu a criação pós-limpeza, mas escritas concorrentes do mesmo navegador/outro dispositivo ainda podiam competir. O frontend agora serializa gravações em fila, compara somente a intenção do carrinho (produto + quantidade + contexto de atendimento) e não deixa polling remoto sobrescrever uma edição local pendente. Em caso de `stale`, a alteração local é rebaseada sobre a revisão mais recente em vez de restaurar silenciosamente o snapshot antigo. Atualizações de catálogo/preço não incrementam mais a revisão do carrinho sem mudança real de itens. O backend também preserva tombstone quando o estado salvo estiver vazio.
+- **Telefone já cadastrado:** o preflight já bloqueava o envio no banco, mas a Edge Function respondia HTTP 409 e o cliente Supabase convertia isso em erro genérico. A Edge Function `send-customer-otp-sms` v6 passou a devolver conflito de fluxo como `200 + ok=false`, preservando a mensagem “Este telefone já possui cadastro nesta loja. Use a opção Entrar.” e evitando ruído 409 no console; nenhum SMS é emitido.
+- **Verificação de e-mail:** o runtime das Edge Functions confirmou que não enxerga chave/remetente configurados. Foi criado um fallback server-side na Vercel, que gera o desafio por RPC autenticada, envia por Resend/Brevo usando secrets da Vercel e mantém a confirmação final na Edge Function já existente.
+- **Fidelidade / menor de idade:** cadastro com menos de 18 anos passa a ser impedimento imediato e independente do estado do e-mail. O Seu Madruga de teste (`20/09/2009`) retorna `loyalty_age_restricted` diretamente no backend. A proteção existe tanto no RPC quanto em trigger sobre `customers.loyalty_opt_in`.
+
+Migrations:
+- `20260919163857_customer_cart_serialized_edits`;
+- `20260919163935_loyalty_minimum_age_18_guard`;
+- `20260919164043_customer_email_verification_vercel_fallback`.
+
+### Homologação imediata desta rodada
+
+1. Alterar quantidade/adicionar/remover item no carrinho já existente no mesmo dispositivo e confirmar que o estado novo permanece.
+2. Repetir a alteração em outro dispositivo e confirmar convergência sem retorno ao snapshot anterior.
+3. Tentar cadastrar `+5562982433802`: deve aparecer “telefone já possui cadastro / use Entrar” sem console 409 e sem SMS.
+4. Com data `20/09/2009`, abrir Fidelidade: deve aparecer o bloqueio de idade mínima mesmo com e-mail ainda não confirmado.
+5. Acionar **Confirmar meu e-mail com a loja**: Edge Function tenta primeiro; se faltarem secrets no runtime Supabase, o envio segue automaticamente pelo endpoint Vercel.
 
 ---
 
