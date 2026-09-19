@@ -48,6 +48,7 @@ async function callRpc(
     return { response, payload };
 }
 
+// Runtime secrets are injected by the deployment environment; changing them requires a new deployment.
 export default async function handler(req: any, res: any) {
     if (req.method !== 'POST') {
         return json(res, 405, { ok: false, error: 'method_not_allowed' });
