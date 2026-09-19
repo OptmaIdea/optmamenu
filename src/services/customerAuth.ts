@@ -262,27 +262,44 @@ export const AuthService = {
             },
         });
 
-        if (data?.error === 'locked') {
-            const seconds = Math.max(60, Number(data.retryAfterSeconds || 900));
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            retryAfterSeconds?: number;
+            otpRequired?: boolean;
+            reason?: string;
+            customer?: unknown;
+            tokenHash?: string;
+            refreshToken?: string;
+            expiresAt?: string;
+            passwordConfigured?: boolean;
+        } | null;
+
+        if (payload?.error === 'locked') {
+            const seconds = Math.max(60, Number(payload.retryAfterSeconds || 900));
             const minutes = Math.ceil(seconds / 60);
             throw new Error(`Muitas tentativas de senha. Aguarde cerca de ${minutes} minuto(s) e tente novamente.`);
         }
-        if (data?.error === 'invalid_credentials') {
-            throw new Error('Telefone ou senha incorretos.');
+        if (payload?.error === 'invalid_credentials' || payload?.error === 'invalid_password') {
+            throw new Error('Senha inválida.');
         }
-        if (error || !data?.ok) {
+        if (payload?.error === 'customer_not_found') {
+            throw new Error('Não encontramos uma conta com este telefone nesta loja.');
+        }
+        if (error || !payload?.ok) {
             throw new Error('Não foi possível entrar agora. Tente novamente em alguns instantes.');
         }
 
-        if (data.otpRequired) {
+        if (payload.otpRequired) {
             return {
                 authenticated: false,
                 otpRequired: true,
-                reason: data.reason || 'new_device',
+                reason: payload.reason || 'new_device',
             };
         }
 
-        const session = await completeSession(data);
+        const session = await completeSession(payload);
         return {
             authenticated: true,
             otpRequired: false,
