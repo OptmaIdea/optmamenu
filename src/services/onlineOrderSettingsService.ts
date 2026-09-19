@@ -64,6 +64,11 @@ export interface OnlineOrderSettingsPayload {
     delivery_instructions?: string;
     customer_notes_placeholder?: string;
     internal_notes?: string;
+    online_stock_local_reserve_default?: number;
+    online_stock_limit_default?: number | null;
+    online_stock_low_threshold?: number;
+    online_stock_show_exact?: boolean;
+    online_stock_publish_products_by_default?: boolean;
     [key: string]: unknown;
 }
 
@@ -106,7 +111,12 @@ export const DEFAULT_ONLINE_ORDER_SETTINGS: Required<Pick<OnlineOrderSettingsPay
     'pickup_instructions' |
     'delivery_instructions' |
     'customer_notes_placeholder' |
-    'internal_notes'
+    'internal_notes' |
+    'online_stock_local_reserve_default' |
+    'online_stock_limit_default' |
+    'online_stock_low_threshold' |
+    'online_stock_show_exact' |
+    'online_stock_publish_products_by_default'
 >> = {
     allow_delivery: true,
     allow_pickup: true,
@@ -124,12 +134,29 @@ export const DEFAULT_ONLINE_ORDER_SETTINGS: Required<Pick<OnlineOrderSettingsPay
     delivery_instructions: 'Informe o endereço completo para entrega. A loja confirmará prazo e taxa antes da finalização.',
     customer_notes_placeholder: 'Alguma observação para o pedido?',
     internal_notes: '',
+    online_stock_local_reserve_default: 0,
+    online_stock_limit_default: null,
+    online_stock_low_threshold: 5,
+    online_stock_show_exact: false,
+    online_stock_publish_products_by_default: true,
 };
 
 export function normalizeOnlineOrderSettings(settings?: OnlineOrderSettingsPayload | null): OnlineOrderSettingsPayload {
-    return {
+    const normalized = {
         ...DEFAULT_ONLINE_ORDER_SETTINGS,
         ...(settings || {}),
+    };
+    const rawOnlineLimit: unknown = normalized.online_stock_limit_default;
+
+    return {
+        ...normalized,
+        online_stock_local_reserve_default: Math.max(0, Number(normalized.online_stock_local_reserve_default || 0)),
+        online_stock_limit_default: rawOnlineLimit === null || rawOnlineLimit === undefined || rawOnlineLimit === ''
+            ? null
+            : Math.max(0, Number(rawOnlineLimit)),
+        online_stock_low_threshold: Math.max(0, Number(normalized.online_stock_low_threshold || 0)),
+        online_stock_show_exact: Boolean(normalized.online_stock_show_exact),
+        online_stock_publish_products_by_default: Boolean(normalized.online_stock_publish_products_by_default),
     };
 }
 

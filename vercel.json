@@ -21,7 +21,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|favicon|robots\\.txt|manifest\\.webmanifest|.*\\.[a-zA-Z0-9]+$).*)",
+      "source": "/((?!api/|assets/|favicon|robots\\.txt|manifest\\.webmanifest|.*\\.[a-zA-Z0-9]+$).*)",
       "destination": "/index.html"
     }
   ]

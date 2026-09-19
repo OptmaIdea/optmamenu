@@ -68,6 +68,7 @@ const Reports = lazy(() => import('@/pages/private/admin/dashboard/Reports'));
 const Orders = lazy(() => import('@/pages/private/admin/commercial/orders/Orders'));
 const DirectSalesPage = lazy(() => import('@/pages/private/admin/commercial/directSales/DirectSalesPage'));
 const SalesPage = lazy(() => import('@/pages/private/admin/commercial/sales/SalesPage'));
+const SaleDetailPage = lazy(() => import('@/pages/private/admin/commercial/sales/SaleDetailPage'));
 const Customers = lazy(() => import('@/pages/private/admin/customers/Customers'));
 const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
 const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
@@ -83,6 +84,8 @@ const PdvPage = lazy(() => import('@/pages/private/admin/pdv/PdvPage'));
 const CashbookPage = lazy(() => import('@/pages/private/admin/financial/cashbook/CashbookPage'));
 const AccountPlanPage = lazy(() => import('@/pages/private/admin/financial/accountPlan/AccountPlanPage'));
 const FinancialAccountsSettingsPage = lazy(() => import('@/pages/private/admin/settings/financialAccounts/FinancialAccountsSettingsPage'));
+const OnlinePaymentsPage = lazy(() => import('@/pages/private/admin/financial/onlinePayments/OnlinePaymentsPage'));
+const AccountsPayablePage = lazy(() => import('@/pages/private/admin/financial/accountsPayable/AccountsPayablePage'));
 
 // Products/Inventory/Suppliers/Purchases Section
 const Products = lazy(() => import('@/pages/private/admin/products/Products'));
@@ -100,6 +103,7 @@ const StockMovements = lazy(() => import('@/pages/private/admin/products/invento
 const PurchasesLedger = lazy(() => import('@/pages/private/admin/products/inventory/PurchasesLedger'));
 const PurchaseDocumentsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseDocumentsPage'));
 const PurchaseQuotationsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseQuotationsPage'));
+const PurchaseQuotationBatchPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseQuotationBatchPage'));
 const PurchaseInsightsPage = lazy(() => import('@/pages/private/admin/products/inventory/PurchaseInsightsPage'));
 const Suppliers = lazy(() => import('@/pages/private/admin/products/Suppliers'));
 const SupplierLifecyclePage = lazy(() => import('@/pages/private/admin/products/inventory/SupplierLifecyclePage'));
@@ -174,10 +178,10 @@ export default function AppRoutes() {
 
             <Route path="/admin/orders" element={<RequirePermission permission="orders.view"><Orders /></RequirePermission>} />
             <Route path="/admin/sales" element={<RequirePermission permission="orders.view"><SalesPage /></RequirePermission>} />
+            <Route path="/admin/sales/:saleId" element={<RequirePermission permission="orders.view"><SaleDetailPage /></RequirePermission>} />
             <Route path="/admin/direct-sales" element={<RequirePermission permission="orders.manage"><DirectSalesPage /></RequirePermission>} />
             <Route path="/admin/sales-channels" element={<RequirePermission permission="commercial.sales_channels.view"><SalesChannelsPage /></RequirePermission>} />
             <Route path="/admin/payment-methods" element={<Navigate to="/admin/settings?tab=payment" replace />} />
-            <Route path="/admin/payments" element={<Navigate to="/admin/settings?tab=payment" replace />} />
             <Route path="/admin/delivery" element={<Navigate to="/admin/settings?tab=delivery" replace />} />
             <Route path="/admin/commercial-dashboard" element={<RequirePermission permission="commercial.dashboard.view"><CommercialDashboardPage /></RequirePermission>} />
             <Route path="/admin/commercial-settings" element={<Navigate to="/admin/settings?tab=commercial" replace />} />
@@ -194,6 +198,10 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook" element={<RequirePermission permission="cashbook.view"><CashbookPage /></RequirePermission>} />
             <Route path="/admin/account-plan" element={<RequirePermission permission="financial.account_plan.view"><AccountPlanPage /></RequirePermission>} />
             <Route path="/admin/financial-accounts" element={<RequirePermission permission="financial.accounts.view"><FinancialAccountsSettingsPage /></RequirePermission>} />
+            <Route path="/admin/accounts-payable" element={<RequirePermission permission="accounts_payable.view"><AccountsPayablePage /></RequirePermission>} />
+            <Route path="/admin/payables" element={<Navigate to="/admin/accounts-payable" replace />} />
+            <Route path="/admin/online-payments" element={<RequirePermission permission="payments.online.view"><OnlinePaymentsPage /></RequirePermission>} />
+            <Route path="/admin/payments" element={<Navigate to="/admin/online-payments" replace />} />
 
             <Route path="/admin/products" element={<RequirePermission permission="products.view"><Products /></RequirePermission>} />
             <Route
@@ -227,6 +235,7 @@ export default function AppRoutes() {
             <Route path="/admin/cashbook/purchases" element={<RequirePermission permission="purchases.view"><PurchasesLedger /></RequirePermission>} />
             <Route path="/admin/stock/purchase-documents" element={<RequirePermission permission="purchases.view"><PurchaseDocumentsPage /></RequirePermission>} />
             <Route path="/admin/stock/purchase-insights" element={<RequirePermission permission="purchases.view"><PurchaseInsightsPage /></RequirePermission>} />
+            <Route path="/admin/stock/quotations/batch" element={<RequirePermission permission="quotes.view"><PurchaseQuotationBatchPage /></RequirePermission>} />
             <Route path="/admin/stock/quotations" element={<RequirePermission permission="quotes.view"><PurchaseQuotationsPage /></RequirePermission>} />
             <Route path="/admin/stock/movements" element={<RequirePermission permission="stock.view"><StockMovements /></RequirePermission>} />
             <Route path="/admin/stock-movements" element={<Navigate to="/admin/stock/movements" replace />} />

@@ -39,6 +39,7 @@ export interface CustomerListItem {
     last_order_at: string | null;
     total_orders: number;
     total_spent: number;
+    sensitive_data_visible?: boolean;
 }
 
 export interface Customer360Order {
@@ -85,7 +86,39 @@ export interface Customer360Consent {
     action: string;
     ip_address?: string | null;
     user_agent?: string | null;
+    terms_version?: string | null;
+    privacy_version?: string | null;
+    source?: string | null;
+    revoked_at?: string | null;
     created_at: string;
+}
+
+export type CustomerTimelineCategory =
+    | 'profile'
+    | 'order'
+    | 'loyalty'
+    | 'consent'
+    | 'address'
+    | 'merge'
+    | 'communication'
+    | string;
+
+export interface CustomerTimelineEvent {
+    id: string;
+    category: CustomerTimelineCategory;
+    event_type: string;
+    title: string;
+    description: string | null;
+    occurred_at: string;
+    source: string | null;
+    related_id: string | null;
+    metadata: Record<string, unknown>;
+}
+
+export interface CustomerTimelineResult {
+    events: CustomerTimelineEvent[];
+    sensitiveDataVisible: boolean;
+    identityLinkPolicy: 'confirmed_customer_id_only' | string;
 }
 
 export interface Customer360 {
@@ -98,6 +131,7 @@ export interface Customer360 {
     loyalty_transactions: Customer360LoyaltyTransaction[];
     addresses: Customer360Address[];
     consents: Customer360Consent[];
+    sensitive_data_visible?: boolean;
 }
 
 export interface CreateAdminCustomerInput {
@@ -118,6 +152,40 @@ export interface UpdateAdminCustomerInput extends CreateAdminCustomerInput {
     status: string;
 }
 
+export interface CustomerDuplicateSummary {
+    id: string;
+    full_name: string | null;
+    phone: string;
+    email: string | null;
+    birth_date?: string | null;
+    status: string;
+    source: CustomerSource | string;
+    data_ownership: CustomerDataOwnership;
+    total_orders: number;
+    total_spent: number;
+    has_credentials: boolean;
+    phone_verified: boolean;
+}
+
+export interface CustomerDuplicateCandidate {
+    score: number;
+    match_reasons: Array<'phone' | 'cpf' | 'email' | 'name_birth_date' | string>;
+    suggested_canonical_id: string;
+    customer_a: CustomerDuplicateSummary;
+    customer_b: CustomerDuplicateSummary;
+}
+
+export interface CustomerMergeHistoryItem {
+    id: string;
+    canonical_customer_id: string;
+    duplicate_customer_id: string;
+    actor_user_id: string | null;
+    reason: string;
+    match_basis: string[];
+    moved_counts: Record<string, number>;
+    created_at: string;
+}
+
 export const Customers360Service = {
     async listCustomers(storeId: string, limit = 500): Promise<CustomerListItem[]> {
         const { data, error } = await supabase.rpc('get_admin_customers_safe', {
@@ -126,12 +194,11 @@ export const Customers360Service = {
         });
 
         if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar clientes.');
 
-        if (!data?.ok) {
-            throw new Error(data?.error || 'Erro ao carregar clientes.');
-        }
-
-        return (data.customers || []) as CustomerListItem[];
+        return ((data.customers || []) as CustomerListItem[]).filter(
+            (customer) => !['merged', 'anonymized'].includes(customer.status),
+        );
     },
 
     async getCustomer360(storeId: string, customerId: string): Promise<Customer360> {
@@ -141,10 +208,7 @@ export const Customers360Service = {
         });
 
         if (error) throw error;
-
-        if (!data?.ok) {
-            throw new Error(data?.error || 'Erro ao carregar Vida do Cliente.');
-        }
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar Vida do Cliente.');
 
         return {
             customer: data.customer,
@@ -152,7 +216,25 @@ export const Customers360Service = {
             loyalty_transactions: data.loyalty_transactions || [],
             addresses: data.addresses || [],
             consents: data.consents || [],
+            sensitive_data_visible: Boolean(data.sensitive_data_visible),
         } as Customer360;
+    },
+
+    async getCustomerTimeline(storeId: string, customerId: string, limit = 150): Promise<CustomerTimelineResult> {
+        const { data, error } = await supabase.rpc('get_customer_timeline_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar histórico consolidado do cliente.');
+
+        return {
+            events: (data.events || []) as CustomerTimelineEvent[],
+            sensitiveDataVisible: Boolean(data.sensitive_data_visible),
+            identityLinkPolicy: data.identity_link_policy || 'confirmed_customer_id_only',
+        };
     },
 
     async createAdminCustomer(input: CreateAdminCustomerInput) {
@@ -166,7 +248,7 @@ export const Customers360Service = {
             p_tags: input.tags || [],
             p_internal_notes: input.internalNotes || null,
             p_marketing_consent: input.marketingConsent ?? false,
-            p_loyalty_opt_in: input.loyaltyOptIn ?? true,
+            p_loyalty_opt_in: input.loyaltyOptIn ?? false,
         });
 
         if (error) throw error;
@@ -192,7 +274,7 @@ export const Customers360Service = {
             p_tags: input.tags || [],
             p_internal_notes: input.internalNotes || null,
             p_marketing_consent: input.marketingConsent ?? false,
-            p_loyalty_opt_in: input.loyaltyOptIn ?? true,
+            p_loyalty_opt_in: input.loyaltyOptIn ?? false,
         });
 
         if (error) throw error;
@@ -204,5 +286,60 @@ export const Customers360Service = {
             customer_id?: string;
             protected_data?: boolean;
         };
+    },
+
+    async listDuplicateCandidates(storeId: string, customerId?: string | null, limit = 100) {
+        const { data, error } = await supabase.rpc('get_customer_duplicate_candidates_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId || null,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.message || data?.error || 'Erro ao analisar possíveis duplicidades.');
+
+        return {
+            candidates: (data.candidates || []) as CustomerDuplicateCandidate[],
+            sensitiveDataVisible: Boolean(data.sensitive_data_visible),
+        };
+    },
+
+    async mergeCustomers(input: {
+        storeId: string;
+        canonicalCustomerId: string;
+        duplicateCustomerId: string;
+        reason: string;
+    }) {
+        const { data, error } = await supabase.rpc('merge_customers_safe', {
+            p_store_id: input.storeId,
+            p_canonical_customer_id: input.canonicalCustomerId,
+            p_duplicate_customer_id: input.duplicateCustomerId,
+            p_reason: input.reason,
+        });
+
+        if (error) throw error;
+        return data as {
+            ok: boolean;
+            error?: string;
+            message?: string;
+            merge_id?: string;
+            canonical_customer_id?: string;
+            duplicate_customer_id?: string;
+            match_basis?: string[];
+            moved_counts?: Record<string, number>;
+        };
+    },
+
+    async getMergeHistory(storeId: string, customerId?: string | null, limit = 100) {
+        const { data, error } = await supabase.rpc('get_customer_merge_history_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId || null,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar histórico de fusões.');
+
+        return (data.events || []) as CustomerMergeHistoryItem[];
     },
 };
