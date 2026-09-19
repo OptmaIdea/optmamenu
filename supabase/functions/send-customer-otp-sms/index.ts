@@ -138,6 +138,14 @@ Deno.serve(async (req: Request) => {
     if (error === "invalid_phone" || error === "invalid_purpose" || error === "invalid_request") {
       return reply({ ok: false, error }, 400, origin);
     }
+    if (error === "phone_already_registered" || error === "customer_not_found") {
+      return reply({
+        ok: false,
+        error,
+        message: String(issued?.message || ""),
+        smsSent: false,
+      }, 409, origin);
+    }
     return reply({ ok: false, error: "otp_issue_rejected" }, 409, origin);
   }
 
