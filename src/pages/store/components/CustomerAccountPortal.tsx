@@ -1234,9 +1234,14 @@ export function CustomerAccountPortal() {
                                                         <input type="checkbox" checked={marketingWhatsapp} onChange={(event) => setMarketingWhatsapp(event.target.checked)} />
                                                         <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp
                                                     </label>
-                                                    <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                                        <input type="checkbox" checked={marketingEmail} onChange={(event) => setMarketingEmail(event.target.checked)} />
-                                                        <Mail className="h-4 w-4 text-emerald-600" /> E-mail
+                                                    <label className={`flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold dark:bg-slate-900 ${customer.email_verified ? 'text-slate-700 dark:text-slate-200' : 'cursor-not-allowed text-slate-400'}`}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={marketingEmail}
+                                                            disabled={!customer.email_verified}
+                                                            onChange={(event) => setMarketingEmail(event.target.checked)}
+                                                        />
+                                                        <Mail className="h-4 w-4 text-emerald-600" /> {customer.email_verified ? 'E-mail' : 'E-mail (confirme primeiro)'}
                                                     </label>
                                                     <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                                                         <input type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
