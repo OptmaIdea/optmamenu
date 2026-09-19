@@ -7,6 +7,119 @@ function escapeHtml(value: unknown) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 }
 
+function senderEmail(value: string) {
+  const match = value.match(/<([^>]+)>/);
+  return String(match?.[1] || value).trim();
+}
+
+function normalizeSecret(value: string) {
+  const trimmed = String(value || "").trim();
+  const unwrapped = trimmed.replace(/^["'`]+|["'`]+$/g, "").trim();
+  const withoutAssignment = unwrapped.replace(/^BREVO_API_KEY\s*=\s*/i, "").trim();
+  return withoutAssignment.replace(/\s+/g, "");
+}
+
+async function sendConfirmedEmail(params: {
+  email: string;
+  fullName: string;
+  storeName: string;
+  storeLogoUrl?: string;
+}) {
+  const resendApiKey = Deno.env.get("RESEND_API_KEY") || Deno.env.get("RESEND_KEY") || "";
+  const brevoApiKey = normalizeSecret(
+    Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY") || "",
+  );
+  const emailFrom = String(
+    Deno.env.get("CUSTOMER_EMAIL_FROM")
+      || Deno.env.get("RESEND_FROM_EMAIL")
+      || Deno.env.get("BREVO_SENDER_EMAIL")
+      || Deno.env.get("EMAIL_FROM")
+      || "",
+  ).trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+
+  if ((!resendApiKey && !brevoApiKey) || !emailFrom) {
+    return { sent: false, reason: "provider_not_configured" };
+  }
+
+  const safeSenderName = params.storeName
+    .replace(/[<>\r\n"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 60) || "Loja";
+  const sender = emailFrom.includes("<")
+    ? emailFrom
+    : `${safeSenderName} <${emailFrom}>`;
+  const brand = params.storeLogoUrl && /^https:\/\//i.test(params.storeLogoUrl)
+    ? `<img src="${escapeHtml(params.storeLogoUrl)}" alt="${escapeHtml(params.storeName)}" style="display:block;max-width:160px;max-height:72px;margin:0 auto 18px;object-fit:contain">`
+    : `<div style="font-size:22px;font-weight:800;text-align:center;margin-bottom:18px;color:#172033">${escapeHtml(params.storeName)}</div>`;
+
+  const subject = `E-mail confirmado em ${params.storeName}`;
+  const html = `<!doctype html>
+<html lang="pt-BR">
+<body style="margin:0;background:#f3f6f8;font-family:Arial,Helvetica,sans-serif;color:#172033">
+  <div style="max-width:620px;margin:32px auto;padding:0 16px">
+    <div style="background:#fff;border-radius:20px;padding:32px;box-shadow:0 8px 30px rgba(23,32,51,.08)">
+      ${brand}
+      <div style="display:inline-block;background:#eef8f4;color:#0a7d61;font-size:12px;font-weight:700;padding:7px 10px;border-radius:999px;margin-bottom:16px">CONFIRMAÇÃO DE SEGURANÇA</div>
+      <h1 style="font-size:24px;line-height:1.25;margin:0 0 16px">Seu e-mail foi confirmado</h1>
+      <p style="font-size:15px;line-height:1.7;margin:0 0 12px">Olá, ${escapeHtml(params.fullName)}.</p>
+      <p style="font-size:15px;line-height:1.7;margin:0 0 12px">O endereço <strong>${escapeHtml(params.email)}</strong> foi confirmado com sucesso na sua conta da <strong>${escapeHtml(params.storeName)}</strong>.</p>
+      <p style="font-size:14px;line-height:1.7;color:#5f6978;margin:18px 0 0">Esta mensagem é transacional e registra uma alteração de segurança da sua conta. Ela não representa autorização para marketing.</p>
+      <div style="background:#f7f9fb;border-radius:14px;padding:16px;margin-top:22px">
+        <p style="font-size:12px;line-height:1.6;color:#5f6978;margin:0">Se você não realizou esta confirmação, entre em contato diretamente com ${escapeHtml(params.storeName)}.</p>
+      </div>
+      <hr style="border:0;border-top:1px solid #e8ecef;margin:24px 0 16px">
+      <p style="font-size:11px;line-height:1.6;color:#8a93a1;margin:0;text-align:center">Mensagem enviada em nome de ${escapeHtml(params.storeName)} com tecnologia OptmaMenu, da OptmaIdea.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    const response = resendApiKey
+      ? await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: sender,
+            to: [params.email],
+            subject,
+            html,
+          }),
+        })
+      : await fetch("https://api.brevo.com/v3/smtp/email", {
+          method: "POST",
+          headers: {
+            "api-key": brevoApiKey,
+            "Content-Type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({
+            sender: { name: safeSenderName, email: senderEmail(emailFrom) },
+            to: [{ email: params.email, name: params.fullName }],
+            subject,
+            htmlContent: html,
+          }),
+        });
+
+    if (!response.ok) {
+      console.error("customer_email_confirmed_notification_failed", {
+        provider: resendApiKey ? "resend" : "brevo",
+        status: response.status,
+      });
+      return { sent: false, reason: "delivery_failed" };
+    }
+
+    return { sent: true, provider: resendApiKey ? "resend" : "brevo" };
+  } catch (error) {
+    console.error("customer_email_confirmed_notification_error", error);
+    return { sent: false, reason: "delivery_error" };
+  }
+}
+
 async function sha256Hex(value: string) {
   const data = new TextEncoder().encode(value);
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", data));
@@ -42,14 +155,14 @@ Deno.serve(async (req: Request) => {
     .eq("token_hash", tokenHash).maybeSingle();
 
   if (!challenge) return page("Link inválido", "Este link de confirmação não existe ou já foi substituído.");
-  const { data: store } = await service.from("stores").select("name, slug").eq("id", challenge.store_id).maybeSingle();
+  const { data: store } = await service.from("stores").select("name, slug, logo_url").eq("id", challenge.store_id).maybeSingle();
   const storeName = String(store?.name || store?.slug || "a loja");
 
   if (challenge.used_at) return page("Link já utilizado", "Solicite uma nova confirmação na sua conta.", storeName);
   if (new Date(challenge.expires_at).getTime() <= Date.now()) return page("Link expirado", "Solicite uma nova confirmação na sua conta.", storeName);
 
   const { data: customer } = await service.from("customers")
-    .select("id, email").eq("id", challenge.customer_id).eq("store_id", challenge.store_id).maybeSingle();
+    .select("id, email, full_name, nickname").eq("id", challenge.customer_id).eq("store_id", challenge.store_id).maybeSingle();
 
   if (!customer || String(customer.email || "").trim().toLowerCase() !== String(challenge.email).trim().toLowerCase()) {
     return page("E-mail alterado", "O endereço cadastrado mudou depois que este link foi enviado. Solicite uma nova confirmação.", storeName);
@@ -65,5 +178,19 @@ Deno.serve(async (req: Request) => {
   await service.from("customer_email_verification_challenges")
     .update({ used_at: now, metadata: { verified: true } }).eq("id", challenge.id);
 
-  return page("E-mail confirmado", `Seu e-mail foi confirmado para ${storeName}. Você já pode fechar esta página e voltar à loja.`, storeName, true);
+  // Confirmação concluída primeiro; o e-mail abaixo é apenas um aviso transacional
+  // best-effort e nunca desfaz a verificação se o provedor estiver indisponível.
+  await sendConfirmedEmail({
+    email: String(customer.email || challenge.email).trim(),
+    fullName: String(customer.full_name || customer.nickname || "Cliente").trim(),
+    storeName,
+    storeLogoUrl: String(store?.logo_url || "").trim(),
+  });
+
+  return page(
+    "E-mail confirmado",
+    `Seu e-mail foi confirmado para ${storeName}. Você pode fechar esta página e voltar à loja; a atualização da conta aparecerá ao recarregar ou restaurar a sessão.`,
+    storeName,
+    true,
+  );
 });
