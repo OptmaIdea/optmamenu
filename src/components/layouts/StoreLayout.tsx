@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
+import { toast } from 'sonner';
 import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
+import { AuthService } from '@/services/customerAuth';
 import {
     activateCustomerCart,
     configureCustomerCartRetention,
@@ -29,6 +31,7 @@ function getStoreSlugFromPath(pathname: string): string | null {
 
 export function StoreLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
+    const navigate = useNavigate();
     const items = useCartStore((state) => state.items);
     const context = useCartStore((state) => state.context);
     const customer = useCustomerAuth((state) => state.customer);
@@ -68,6 +71,36 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
     }, [location.pathname, location.search]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const verification = params.get('emailVerification');
+        if (!verification) return;
+
+        if (verification === 'success') {
+            void AuthService.restoreSession()
+                .then(() => {
+                    toast.success('E-mail confirmado com sucesso. Sua conta foi atualizada.');
+                })
+                .catch(() => {
+                    toast.success('E-mail confirmado. Atualize sua conta se os dados ainda não aparecerem.');
+                });
+        } else if (verification === 'invalid') {
+            toast.error('O link de confirmação de e-mail é inválido.');
+        } else {
+            toast.error('Não foi possível concluir a confirmação de e-mail. Solicite um novo link.');
+        }
+
+        params.delete('emailVerification');
+        const nextSearch = params.toString();
+        navigate(
+            {
+                pathname: location.pathname,
+                search: nextSearch ? `?${nextSearch}` : '',
+            },
+            { replace: true },
+        );
+    }, [location.pathname, location.search, navigate]);
 
     useEffect(() => {
         if (!sessionRestored) return;
