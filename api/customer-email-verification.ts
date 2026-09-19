@@ -75,10 +75,32 @@ export default async function handler(req: any, res: any) {
         || '';
 
     if (req.method === 'GET') {
+        let providerReachable: boolean | null = null;
+        let providerStatus: number | null = null;
+
+        if (brevoApiKey) {
+            try {
+                const probe = await fetch('https://api.brevo.com/v3/account', {
+                    method: 'GET',
+                    headers: {
+                        'api-key': brevoApiKey,
+                        accept: 'application/json',
+                    },
+                });
+                providerReachable = probe.ok;
+                providerStatus = probe.status;
+            } catch {
+                providerReachable = false;
+            }
+        }
+
         return json(res, 200, {
             ok: true,
             runtime: 'vercel',
+            provider: brevoApiKey ? 'brevo' : resendApiKey ? 'resend' : null,
             providerConfigured: Boolean(resendApiKey || brevoApiKey),
+            providerReachable,
+            providerStatus,
             senderConfigured: Boolean(emailFrom),
             supabaseConfigured: Boolean(supabaseUrl && anonKey),
         });
