@@ -255,6 +255,7 @@ export function CustomerAccountPortal() {
     const [loyaltyBlockReason, setLoyaltyBlockReason] = useState<string | null>(null);
     const [loyaltyJoinOpen, setLoyaltyJoinOpen] = useState(false);
     const [loyaltyTermsAccepted, setLoyaltyTermsAccepted] = useState(false);
+    const [loyaltyDataResponsibilityAccepted, setLoyaltyDataResponsibilityAccepted] = useState(false);
     const [showLoyaltyTerms, setShowLoyaltyTerms] = useState(false);
     const [showLoyaltyExitConfirm, setShowLoyaltyExitConfirm] = useState(false);
     const [marketingWhatsapp, setMarketingWhatsapp] = useState(false);
@@ -279,18 +280,14 @@ export function CustomerAccountPortal() {
         const missing: string[] = [];
         if (!customer.full_name || customer.full_name.trim().length < 3) missing.push('nome');
         if (!customer.birth_date) missing.push('data de nascimento');
-
-        if (customer.birth_date) {
-            const birth = new Date(`${customer.birth_date}T12:00:00`);
-            const today = new Date();
-            let age = today.getFullYear() - birth.getFullYear();
-            const monthDiff = today.getMonth() - birth.getMonth();
-            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) age -= 1;
-            if (age >= 18 && onlyDigits(customer.cpf || '').length !== 11) missing.push('CPF');
-        }
+        if (onlyDigits(customer.cpf || '').length !== 11) missing.push('CPF');
 
         const normalizedEmail = String(customer.email || '').trim();
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) missing.push('e-mail válido');
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+            missing.push('e-mail válido');
+        } else if (!customer.email_verified) {
+            missing.push('confirmação do e-mail');
+        }
         return missing;
     }, [customer]);
 
@@ -705,11 +702,15 @@ export function CustomerAccountPortal() {
             return;
         }
         if (loyaltyMissingFields.length > 0) {
-            setError(`Complete seu cadastro antes de participar: ${loyaltyMissingFields.join(', ')}.`);
+            setError(`Complete os requisitos antes de participar: ${loyaltyMissingFields.join(', ')}.`);
             return;
         }
         if (!loyaltyTermsAccepted) {
             setError('Leia e aceite o regulamento do programa de fidelidade para continuar.');
+            return;
+        }
+        if (!loyaltyDataResponsibilityAccepted) {
+            setError('Confirme que você é responsável pela veracidade das informações fornecidas.');
             return;
         }
 
@@ -717,19 +718,17 @@ export function CustomerAccountPortal() {
         try {
             const session = await AuthService.restoreSession();
             if (!session?.customer) throw new Error('Sua sessão expirou. Entre novamente.');
-
-            if (!session.customer.loyalty_opt_in) {
-                await CustomerService.setSelfConsent('loyalty_program', true, {
-                    source: 'customer_account_portal',
-                    termsVersion: loyaltyProgram?.updated_at || null,
-                });
+            if (!session.customer.email_verified) {
+                throw new Error('Confirme seu e-mail com a loja antes de participar do programa.');
             }
 
-            const marketingResults = await Promise.allSettled([
-                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_loyalty_join' }),
-                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_loyalty_join' }),
-                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_loyalty_join' }),
-            ]);
+            const result = await CustomerService.joinSelfLoyalty({
+                acceptTerms: true,
+                dataResponsibility: true,
+                marketingWhatsapp,
+                marketingEmail,
+                marketingSms,
+            });
 
             await Promise.all([
                 refreshCustomerSnapshot(),
@@ -740,13 +739,13 @@ export function CustomerAccountPortal() {
 
             setLoyaltyJoinOpen(false);
             setLoyaltyTermsAccepted(false);
+            setLoyaltyDataResponsibilityAccepted(false);
 
-            const marketingFailed = marketingResults.some((result) => result.status === 'rejected');
-            const feedback = marketingFailed
-                ? 'Adesão confirmada. Algumas preferências de comunicação não puderam ser atualizadas agora.'
-                : 'Adesão confirmada! Suas preferências de comunicação também foram registradas.';
+            const feedback = result?.already_member
+                ? 'Sua participação já estava ativa. Preferências e dados do programa foram atualizados.'
+                : 'Adesão confirmada! Seu cadastro atende aos requisitos e suas preferências foram registradas.';
             setMessage(feedback);
-            marketingFailed ? toast.warning(feedback) : toast.success(feedback);
+            toast.success(feedback);
         } catch (loyaltyError) {
             const feedback = loyaltyError instanceof Error ? loyaltyError.message : 'Não foi possível concluir sua adesão ao programa.';
             setError(feedback);
@@ -1174,6 +1173,7 @@ export function CustomerAccountPortal() {
                                                         setLoyaltyJoinOpen(false);
                                                     } else {
                                                         setLoyaltyJoinOpen((current) => !current);
+                                                        setLoyaltyDataResponsibilityAccepted(false);
                                                         setShowLoyaltyExitConfirm(false);
                                                     }
                                                     clearFeedback();
@@ -1221,6 +1221,18 @@ export function CustomerAccountPortal() {
                                                 </span>
                                             </label>
 
+                                            <label className="mt-3 flex items-start gap-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-800 dark:bg-slate-900">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={loyaltyDataResponsibilityAccepted}
+                                                    onChange={(event) => setLoyaltyDataResponsibilityAccepted(event.target.checked)}
+                                                    className="mt-1"
+                                                />
+                                                <span className="text-slate-700 dark:text-slate-200">
+                                                    Declaro que sou responsável pela veracidade e atualização das informações fornecidas à loja e que possuo legitimidade para aderir ao programa e aceitar seu regulamento.
+                                                </span>
+                                            </label>
+
                                             {showLoyaltyTerms && (
                                                 <div className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-emerald-100 bg-white p-4 text-xs leading-5 text-slate-600 dark:border-emerald-900/40 dark:bg-slate-900 dark:text-slate-300">
                                                     {loyaltyProgram?.program_terms || 'A loja ainda não publicou um regulamento para este programa.'}
@@ -1252,7 +1264,7 @@ export function CustomerAccountPortal() {
 
                                             <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                                                 <button type="button" onClick={() => setLoyaltyJoinOpen(false)} className="flex-1 rounded-2xl border border-slate-200 py-3 font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">Agora não</button>
-                                                <button type="button" onClick={() => void joinLoyaltyProgram()} disabled={loyaltySaving || !loyaltyTermsAccepted || loyaltyMissingFields.length > 0} className="flex-1 rounded-2xl bg-emerald-600 py-3 font-black text-white disabled:opacity-50">
+                                                <button type="button" onClick={() => void joinLoyaltyProgram()} disabled={loyaltySaving || !loyaltyTermsAccepted || !loyaltyDataResponsibilityAccepted || loyaltyMissingFields.length > 0} className="flex-1 rounded-2xl bg-emerald-600 py-3 font-black text-white disabled:opacity-50">
                                                     Confirmar participação
                                                 </button>
                                             </div>
@@ -1293,7 +1305,7 @@ export function CustomerAccountPortal() {
                                         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/40 dark:bg-amber-950/20">
                                             <h3 className="font-black text-amber-900 dark:text-amber-100">Complete seus dados para a fidelidade</h3>
                                             <p className="mt-2 text-sm leading-6 text-amber-800 dark:text-amber-200">
-                                                Faltam: {loyaltyMissingFields.join(', ')}. O cadastro pode ser preenchido em Meus dados.
+                                                Faltam: {loyaltyMissingFields.join(', ')}. Os dados podem ser preenchidos em Meus dados; a confirmação do e-mail é feita pela própria loja.
                                             </p>
                                             <button
                                                 type="button"
