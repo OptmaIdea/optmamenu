@@ -706,6 +706,11 @@ export default function Checkout() {
                 : result.whatsapp?.url;
 
             localStorage.removeItem(draftKey);
+            if (isAuthenticated) {
+                await CustomerService.clearSelfCartDraft().catch((cartError) => {
+                    console.warn('[CHECKOUT] Pedido concluído, mas o carrinho remoto não pôde ser limpo:', cartError);
+                });
+            }
             clearCart();
             navigate(storePath, {
                 replace: true,
@@ -763,8 +768,16 @@ export default function Checkout() {
                                 });
                                 if (!confirmed) return;
 
-                                clearCart();
-                                navigate(storePath, { replace: true });
+                                try {
+                                    if (isAuthenticated) {
+                                        await CustomerService.clearSelfCartDraft();
+                                    }
+                                    clearCart();
+                                    navigate(storePath, { replace: true });
+                                } catch (cartError) {
+                                    console.error('[CHECKOUT] Falha ao limpar carrinho compartilhado:', cartError);
+                                    setError('Não foi possível limpar o carrinho em todos os seus dispositivos. Tente novamente em alguns instantes.');
+                                }
                             }}
                             className="flex items-center gap-1.5 px-3 py-2 font-bold text-red-600"
                         >
