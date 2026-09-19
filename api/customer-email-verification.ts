@@ -224,6 +224,8 @@ export default async function handler(req: any, res: any) {
         providerData = {};
     }
 
+    const providerCode = String(providerData?.code || providerData?.error || '').slice(0, 120);
+    const providerMessage = String(providerData?.message || providerData?.detail || '').slice(0, 300);
     const messageId = String(providerData?.id || providerData?.messageId || '');
 
     await callRpc(
@@ -240,10 +242,19 @@ export default async function handler(req: any, res: any) {
     ).catch(() => undefined);
 
     if (!providerResponse.ok) {
+        console.error('[CUSTOMER_EMAIL] Provedor recusou o envio', {
+            provider,
+            status: providerResponse.status,
+            code: providerCode || null,
+            message: providerMessage || null,
+        });
         return json(res, 502, {
             ok: false,
             error: 'email_delivery_failed',
             provider,
+            providerStatus: providerResponse.status,
+            providerCode: providerCode || null,
+            providerMessage: providerMessage || null,
         });
     }
 
