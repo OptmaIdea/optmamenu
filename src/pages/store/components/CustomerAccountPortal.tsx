@@ -1217,9 +1217,15 @@ export function CustomerAccountPortal() {
                                                     className="mt-1"
                                                 />
                                                 <span className="text-slate-700 dark:text-slate-200">
-                                                    Li e aceito o <button type="button" onClick={() => setShowLoyaltyTerms(true)} className="font-black text-emerald-700 underline dark:text-emerald-300">regulamento do programa de fidelidade</button>.
+                                                    Li e aceito o <button type="button" onClick={() => setShowLoyaltyTerms((current) => !current)} className="font-black text-emerald-700 underline dark:text-emerald-300">regulamento do programa de fidelidade</button>.
                                                 </span>
                                             </label>
+
+                                            {showLoyaltyTerms && (
+                                                <div className="mt-3 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl border border-emerald-100 bg-white p-4 text-xs leading-5 text-slate-600 dark:border-emerald-900/40 dark:bg-slate-900 dark:text-slate-300">
+                                                    {loyaltyProgram?.program_terms || 'A loja ainda não publicou um regulamento para este programa.'}
+                                                </div>
+                                            )}
 
                                             <div className="mt-4">
                                                 <p className="text-xs font-black uppercase tracking-widest text-slate-500">Quero receber promoções e novidades por</p>
