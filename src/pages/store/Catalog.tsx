@@ -100,6 +100,8 @@ export default function Catalog() {
     const [isDark, setIsDark] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
     const sharedCartLoadedKeyRef = useRef<string | null>(null);
+    const sharedCartRemoteUpdatedAtRef = useRef(0);
+    const suppressNextSharedCartSaveRef = useRef(false);
 
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
@@ -222,6 +224,7 @@ export default function Catalog() {
     useEffect(() => {
         if (!store?.id || !customer?.id || !isAuthenticated) {
             sharedCartLoadedKeyRef.current = null;
+            sharedCartRemoteUpdatedAtRef.current = 0;
             return;
         }
 
@@ -240,58 +243,48 @@ export default function Catalog() {
                     fulfillmentType?: 'pickup' | 'delivery' | 'table' | null;
                     deliveryMethodCode?: string | null;
                     items?: CartItem[];
+                    cleared?: boolean;
                 };
 
-                if (
-                    remoteCart?.context?.storeId === store.id
-                    && Array.isArray(remoteCart.items)
-                    && remoteCart.items.length > 0
-                ) {
+                const remoteTimestamp = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
+                if (Number.isFinite(remoteTimestamp) && remoteTimestamp > 0) {
+                    sharedCartRemoteUpdatedAtRef.current = remoteTimestamp;
+                    const remoteItems = Array.isArray(remoteCart.items) ? remoteCart.items : [];
                     const current = useCartStore.getState();
-                    const currentItems = current.context?.storeId === store.id ? current.items : [];
-                    const merged = new Map<string, CartItem>();
 
-                    remoteCart.items.forEach((item) => {
-                        if (item?.id) merged.set(item.id, item);
-                    });
-
-                    currentItems.forEach((item) => {
-                        if (!item?.id) return;
-                        const previous = merged.get(item.id);
-                        merged.set(item.id, {
-                            ...(previous || item),
-                            ...item,
-                            quantity: Math.max(Number(previous?.quantity || 0), Number(item.quantity || 0)),
-                        });
-                    });
-
+                    suppressNextSharedCartSaveRef.current = true;
                     useCartStore.setState({
-                        items: Array.from(merged.values()),
+                        items: remoteCart.cleared ? [] : remoteItems,
                         fulfillmentType: current.fulfillmentType || remoteCart.fulfillmentType || 'pickup',
                         deliveryMethodCode: current.deliveryMethodCode || remoteCart.deliveryMethodCode || null,
                     });
 
-                    // Reidrata preço/estoque com o catálogo autoritativo atual.
-                    await refreshCatalog();
+                    if (!remoteCart.cleared && remoteItems.length > 0) {
+                        // Reidrata preço/estoque com o catálogo autoritativo atual.
+                        await refreshCatalog();
+                    }
+                    return;
+                }
+
+                // Primeiro uso do carrinho remoto: publica o estado local autenticado.
+                const current = useCartStore.getState();
+                if (current.context?.storeId === store.id) {
+                    const result = await CustomerService.saveSelfCartDraft({
+                        schemaVersion: current.schemaVersion,
+                        context: current.context,
+                        fulfillmentType: current.fulfillmentType,
+                        deliveryMethodCode: current.deliveryMethodCode,
+                        items: current.items,
+                    });
+                    const savedAt = result?.updated_at ? Date.parse(String(result.updated_at)) : 0;
+                    if (Number.isFinite(savedAt) && savedAt > 0) {
+                        sharedCartRemoteUpdatedAtRef.current = savedAt;
+                    }
                 }
             } catch (error) {
                 console.warn('[CART_SYNC] Não foi possível recuperar o carrinho compartilhado:', error);
             } finally {
-                if (!cancelled) {
-                    sharedCartLoadedKeyRef.current = syncKey;
-                    const current = useCartStore.getState();
-                    if (current.context?.storeId === store.id) {
-                        void CustomerService.saveSelfCartDraft({
-                            schemaVersion: current.schemaVersion,
-                            context: current.context,
-                            fulfillmentType: current.fulfillmentType,
-                            deliveryMethodCode: current.deliveryMethodCode,
-                            items: current.items,
-                        }).catch((error) => {
-                            console.warn('[CART_SYNC] Não foi possível publicar o carrinho inicial:', error);
-                        });
-                    }
-                }
+                if (!cancelled) sharedCartLoadedKeyRef.current = syncKey;
             }
         };
 
@@ -309,6 +302,11 @@ export default function Catalog() {
         if (sharedCartLoadedKeyRef.current !== syncKey) return;
         if (cartContext?.storeId !== store.id) return;
 
+        if (suppressNextSharedCartSaveRef.current) {
+            suppressNextSharedCartSaveRef.current = false;
+            return;
+        }
+
         const timer = window.setTimeout(() => {
             const current = useCartStore.getState();
             if (current.context?.storeId !== store.id) return;
@@ -319,10 +317,15 @@ export default function Catalog() {
                 fulfillmentType: current.fulfillmentType,
                 deliveryMethodCode: current.deliveryMethodCode,
                 items: current.items,
+            }).then((result) => {
+                const savedAt = result?.updated_at ? Date.parse(String(result.updated_at)) : 0;
+                if (Number.isFinite(savedAt) && savedAt > 0) {
+                    sharedCartRemoteUpdatedAtRef.current = savedAt;
+                }
             }).catch((error) => {
                 console.warn('[CART_SYNC] Não foi possível sincronizar o carrinho:', error);
             });
-        }, 800);
+        }, 600);
 
         return () => window.clearTimeout(timer);
     }, [
@@ -334,6 +337,64 @@ export default function Catalog() {
         isAuthenticated,
         store?.id,
     ]);
+
+    useEffect(() => {
+        if (!store?.id || !customer?.id || !isAuthenticated) return;
+
+        let active = true;
+        const syncFromServer = async () => {
+            if (document.visibilityState !== 'visible') return;
+
+            try {
+                const remote = await CustomerService.getSelfCartDraft();
+                if (!active || !remote.updatedAt) return;
+
+                const remoteTimestamp = Date.parse(remote.updatedAt);
+                if (!Number.isFinite(remoteTimestamp) || remoteTimestamp <= sharedCartRemoteUpdatedAtRef.current) {
+                    return;
+                }
+
+                const remoteCart = remote.cart as {
+                    fulfillmentType?: 'pickup' | 'delivery' | 'table' | null;
+                    deliveryMethodCode?: string | null;
+                    items?: CartItem[];
+                    cleared?: boolean;
+                };
+
+                sharedCartRemoteUpdatedAtRef.current = remoteTimestamp;
+                suppressNextSharedCartSaveRef.current = true;
+                useCartStore.setState((current) => ({
+                    items: remoteCart.cleared
+                        ? []
+                        : (Array.isArray(remoteCart.items) ? remoteCart.items : []),
+                    fulfillmentType: current.fulfillmentType || remoteCart.fulfillmentType || 'pickup',
+                    deliveryMethodCode: current.deliveryMethodCode || remoteCart.deliveryMethodCode || null,
+                }));
+
+                if (!remoteCart.cleared && Array.isArray(remoteCart.items) && remoteCart.items.length > 0) {
+                    await refreshCatalog();
+                }
+            } catch (error) {
+                console.warn('[CART_SYNC] Não foi possível atualizar o carrinho de outro dispositivo:', error);
+            }
+        };
+
+        const intervalId = window.setInterval(() => void syncFromServer(), 10000);
+        const onFocus = () => void syncFromServer();
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') void syncFromServer();
+        };
+
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onVisibility);
+
+        return () => {
+            active = false;
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', onFocus);
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
+    }, [customer?.id, isAuthenticated, refreshCatalog, store?.id]);
 
     useEffect(() => {
         if (!store?.id || !storeSlug) return;
