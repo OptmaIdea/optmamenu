@@ -206,6 +206,36 @@ Os novos relacionamentos de desafios de e-mail e bloqueios de fidelidade também
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (segunda rodada)
+
+A validação em desktop/tablet/celular encontrou quatro pontos adicionais e eles foram tratados no baseline técnico:
+
+- **Carrinho novo após limpeza:** o conflito deixou de comparar timestamps JavaScript/Postgres e passou a usar uma revisão inteira monotônica (`customer_cart_drafts.revision`). Isso elimina o caso em que microssegundos do Postgres faziam um carrinho novo parecer stale após um tombstone de limpeza.
+- **Fidelidade:** a adesão agora é atômica pelo RPC `join_customer_self_loyalty_safe`; exige CPF, data de nascimento, e-mail válido **e confirmado**, aceite do regulamento e uma declaração explícita de responsabilidade pela veracidade dos dados. Não há bloqueio por idade calculada; a data continua disponível para regras legítimas do programa, como aniversário.
+- **Saída da fidelidade:** o purge backend remove também o consentimento específico de responsabilidade do programa, além de pontos, transações, vouchers e consentimento de adesão; cadastro e pedidos permanecem independentes.
+- **Telefone/OTP:** para Brasil, `629...`, `55629...` e `+55629...` convergem para a mesma identidade. Número internacional é aceito quando o código do país é informado explicitamente com `+`; sem país informado, o padrão é Brasil. Cadastro com telefone já existente é recusado **antes** da geração/envio de OTP, economizando SMS e orientando o cliente a entrar.
+- **E-mail:** a Edge Function de verificação continua store-first e agora reconhece Resend ou Brevo, além de aliases comuns de segredo/remetente. Se o ambiente das Edge Functions não enxergar as credenciais, a UI informa se falta chave do provedor, remetente ou ambos sem revelar valores sensíveis.
+
+Migrations:
+- `20260919160049_customer_cart_revision_conflict_control`;
+- `20260919160144_loyalty_verified_email_responsibility_join`;
+- `20260919160216_customer_phone_normalization_and_otp_preflight`.
+
+Edge Functions atualizadas:
+- `send-customer-otp-sms` v5;
+- `request-customer-email-verification` v3.
+
+### Homologação imediata desta rodada
+
+1. Criar um carrinho depois de um tombstone/limpeza e confirmar persistência nos outros dispositivos.
+2. Tentar cadastrar novamente o telefone do Seu Madruga usando `+5562982433802`: deve bloquear antes de enviar SMS e orientar **Use Entrar**.
+3. Entrar com `62982433802` e `+5562982433802`: ambos devem resolver a mesma conta.
+4. Na fidelidade, e-mail não confirmado deve manter **Confirmar participação** indisponível; após a verificação real do e-mail, o cliente deve aceitar regulamento + responsabilidade e então aderir.
+5. Sair do programa e confirmar no backend que transações/vouchers/consentimentos de fidelidade foram removidos e que cadastro/pedidos permaneceram.
+6. Testar **Confirmar meu e-mail com a loja** novamente; se ainda falhar, a mensagem deve indicar precisamente qual classe de Secret não foi vista pela Edge Function.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
