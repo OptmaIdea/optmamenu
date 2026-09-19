@@ -1,4 +1,5 @@
 import { supabase, supabaseCustomer } from '@/lib/supabase';
+import { getCustomerToken } from '@/lib/jwt';
 import type { Order } from '@/types';
 
 export type CustomerConsentType =
@@ -395,6 +396,61 @@ export const CustomerService = {
     },
 
     async requestSelfEmailVerification() {
+        const tryVercelFallback = async () => {
+            const token = getCustomerToken();
+            if (!token) throw new Error('Sua sessão expirou. Entre novamente para confirmar o e-mail.');
+
+            const response = await fetch('/api/customer-email-verification', {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: '{}',
+            });
+
+            const text = await response.text();
+            let payload: {
+                ok?: boolean;
+                error?: string;
+                alreadyVerified?: boolean;
+                email?: string;
+                expiresAt?: string;
+                storeName?: string;
+                providerKeyDetected?: boolean;
+                senderDetected?: boolean;
+                runtime?: string;
+            } | null = null;
+            try {
+                payload = text ? JSON.parse(text) : null;
+            } catch {
+                payload = null;
+            }
+
+            if (response.ok && payload?.ok) return payload;
+
+            if (payload?.error === 'email_provider_not_configured') {
+                if (payload.providerKeyDetected === false && payload.senderDetected === false) {
+                    throw new Error('A confirmação de e-mail não encontrou chave de provedor nem remetente no runtime da Vercel.');
+                }
+                if (payload.providerKeyDetected === false) {
+                    throw new Error('A confirmação de e-mail não encontrou a chave do provedor no runtime da Vercel.');
+                }
+                if (payload.senderDetected === false) {
+                    throw new Error('A confirmação de e-mail encontrou o provedor na Vercel, mas não encontrou o remetente.');
+                }
+            }
+
+            const labels: Record<string, string> = {
+                vercel_supabase_not_configured: 'A função de e-mail da Vercel não encontrou a configuração do Supabase.',
+                valid_email_required: 'Cadastre e salve um e-mail válido antes de solicitar a confirmação.',
+                rate_limited: 'Aguarde um pouco antes de solicitar outro e-mail de confirmação.',
+                email_delivery_failed: 'A loja não conseguiu entregar o e-mail de confirmação agora.',
+                access_denied: 'Sua sessão expirou. Entre novamente para confirmar o e-mail.',
+            };
+            throw new Error(labels[payload?.error || ''] || 'Não foi possível enviar a confirmação de e-mail pela Vercel.');
+        };
+
         const { data, error } = await supabaseCustomer.functions.invoke('request-customer-email-verification', {
             body: {},
         });
@@ -424,19 +480,24 @@ export const CustomerService = {
             }
 
             if (providerError === 'email_provider_not_configured') {
+                try {
+                    return await tryVercelFallback();
+                } catch (fallbackError) {
+                    if (fallbackError instanceof Error) throw fallbackError;
+                }
+
                 if (providerKeyDetected === false && senderDetected === false) {
-                    throw new Error('O Edge Function da loja não encontrou a chave do provedor nem o remetente de e-mail nos Secrets do Supabase.');
+                    throw new Error('A Edge Function não encontrou chave do provedor nem remetente de e-mail nos Secrets do Supabase.');
                 }
                 if (providerKeyDetected === false) {
-                    throw new Error('O Edge Function da loja não encontrou a chave do provedor de e-mail nos Secrets do Supabase.');
+                    throw new Error('A Edge Function não encontrou a chave do provedor de e-mail nos Secrets do Supabase.');
                 }
                 if (senderDetected === false) {
-                    throw new Error('O Edge Function da loja encontrou o provedor, mas não encontrou o remetente de e-mail nos Secrets do Supabase.');
+                    throw new Error('A Edge Function encontrou o provedor, mas não encontrou o remetente de e-mail nos Secrets do Supabase.');
                 }
             }
 
             const labels: Record<string, string> = {
-                email_provider_not_configured: 'O serviço de verificação de e-mail da loja ainda não está configurado no ambiente das Edge Functions.',
                 valid_email_required: 'Cadastre e salve um e-mail válido antes de solicitar a confirmação.',
                 rate_limited: 'Aguarde um pouco antes de solicitar outro e-mail de confirmação.',
                 email_delivery_failed: 'A loja não conseguiu enviar o e-mail de confirmação agora. Tente novamente mais tarde.',
@@ -455,8 +516,11 @@ export const CustomerService = {
         } | null;
 
         if (!payload?.ok) {
+            if (payload?.error === 'email_provider_not_configured') {
+                return tryVercelFallback();
+            }
+
             const labels: Record<string, string> = {
-                email_provider_not_configured: 'O serviço de verificação de e-mail da loja ainda não está configurado.',
                 valid_email_required: 'Cadastre e salve um e-mail válido antes de solicitar a confirmação.',
                 rate_limited: 'Aguarde um pouco antes de solicitar outro e-mail de confirmação.',
                 email_delivery_failed: 'A loja não conseguiu enviar o e-mail de confirmação agora. Tente novamente mais tarde.',
