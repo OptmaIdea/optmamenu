@@ -543,7 +543,7 @@ export function CustomerAccountPortal() {
     }, [open, customer?.id, loadOrders]);
 
     useEffect(() => {
-        if (!open || !customer || tab !== 'orders') return;
+        if (!open || !customer || (tab !== 'orders' && tab !== 'consumption')) return;
 
         const refreshOrders = () => {
             if (document.visibilityState !== 'visible') return;
