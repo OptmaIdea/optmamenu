@@ -253,6 +253,7 @@ export function CustomerAccountPortal() {
     const [message, setMessage] = useState('');
     const [error, setError] = useState('');
 
+    const [nickname, setNickname] = useState(customer?.nickname || '');
     const [fullName, setFullName] = useState(customer?.full_name || '');
     const [email, setEmail] = useState(customer?.email || '');
     const [cpf, setCpf] = useState(customer?.cpf || '');
@@ -400,11 +401,12 @@ export function CustomerAccountPortal() {
 
     useEffect(() => {
         if (profileDirty) return;
+        setNickname(customer?.nickname || '');
         setFullName(customer?.full_name || '');
         setEmail(customer?.email || '');
         setCpf(customer?.cpf || '');
         setBirthDate(customer?.birth_date || '');
-    }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name, profileDirty]);
+    }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name, customer?.nickname, profileDirty]);
 
     const clearFeedback = () => {
         setMessage('');
@@ -647,6 +649,7 @@ export function CustomerAccountPortal() {
         setLoading(true);
         try {
             await CustomerService.updateProfile(customer.id, {
+                nickname: nickname.trim() || undefined,
                 full_name: fullName.trim(),
                 email: email.trim() || undefined,
                 cpf: cpf.trim() || undefined,
@@ -1045,6 +1048,11 @@ export function CustomerAccountPortal() {
 
                             {tab === 'profile' && (
                                 <div className="mx-auto max-w-xl space-y-4">
+                                    <div>
+                                        <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Apelido / identificação</label>
+                                        <input value={nickname} onChange={(event) => { setNickname(event.target.value); setProfileDirty(true); }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                                        <p className="mt-1 text-xs text-slate-500">É o nome usado para identificar sua conta na loja. Pode ser diferente do nome completo.</p>
+                                    </div>
                                     <div>
                                         <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Nome completo</label>
                                         <input value={fullName} onChange={(event) => { setFullName(event.target.value); setProfileDirty(true); }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
