@@ -262,6 +262,33 @@ Migrations:
 
 ---
 
+## Configuração simplificada de e-mail transacional — Brevo
+
+O envio de confirmação de e-mail foi padronizado para exigir apenas duas variáveis privadas no runtime Vercel:
+
+- `BREVO_API_KEY` — chave API transacional do Brevo;
+- `CUSTOMER_EMAIL_FROM` — remetente verificado, atualmente recomendado como `naoresponda@auth.optmamenu.com.br`.
+
+Para homologação, as duas variáveis precisam estar disponíveis no ambiente **Preview** da branch `agent/homologacao-geral-20260820`; para produção, também em **Production**. Após inclusão/alteração das variáveis, é necessário novo deployment/redeploy.
+
+O template de confirmação agora é montado dinamicamente por loja:
+- usa `stores.logo_url` quando houver;
+- nome e assunto são da loja;
+- identifica-se como e-mail automático de sistema;
+- informa que o endereço será usado no contexto da relação com a loja para conta, segurança, pedidos, atendimento e funcionalidades escolhidas;
+- informa que OptmaMenu/OptmaIdea atua como plataforma tecnológica e não usa o endereço para marketing próprio sem autorização específica;
+- rodapé opcional aponta para OptmaMenu e OptmaIdea.
+
+A confirmação permanece transacional. Preferências de marketing por e-mail são consentimentos separados.
+
+Migration:
+- `20260919171400_email_verification_include_store_brand`.
+
+Edge Function:
+- `request-customer-email-verification` v4.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
