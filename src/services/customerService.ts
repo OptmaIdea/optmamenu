@@ -1,4 +1,5 @@
 import { supabase, supabaseCustomer } from '@/lib/supabase';
+import type { Order } from '@/types';
 
 export type CustomerConsentType =
     | 'loyalty_program'
@@ -403,7 +404,7 @@ export const CustomerService = {
     },
 
     // --- Order History ---
-    async getOrders(_customerId?: string) {
+    async getOrders(_customerId?: string): Promise<Order[]> {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_orders_safe', {
             p_limit: 100,
         });
@@ -411,6 +412,6 @@ export const CustomerService = {
         if (error) throw new Error('Erro ao buscar pedidos.');
         const payload = data as (SelfRpcPayload & { orders?: unknown[] }) | null;
         if (!payload?.ok) throw selfServiceError(payload, 'Erro ao buscar pedidos.');
-        return Array.isArray(payload.orders) ? payload.orders : [];
+        return (Array.isArray(payload.orders) ? payload.orders : []) as Order[];
     },
 };
