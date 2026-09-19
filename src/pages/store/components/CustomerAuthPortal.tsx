@@ -26,6 +26,24 @@ function cleanPhone(value: string) {
     return value.replace(/\D/g, '');
 }
 
+function normalizePhoneForRequest(value: string) {
+    const raw = value.trim();
+    const digits = cleanPhone(raw);
+    if (!digits) return null;
+
+    // País explícito: preserva E.164 para futuro suporte internacional.
+    // Sem "+" o país padrão continua sendo Brasil.
+    if (raw.startsWith('+') && !digits.startsWith('55')) {
+        return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+    }
+
+    const national = digits.startsWith('55') && (digits.length === 12 || digits.length === 13)
+        ? digits.slice(2)
+        : digits;
+
+    return national.length === 10 || national.length === 11 ? national : null;
+}
+
 function validPassword(value: string) {
     return value.length >= 8
         && value.length <= 72
@@ -181,16 +199,16 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     };
 
     const validatePhone = () => {
-        const digits = cleanPhone(phone);
+        const normalized = normalizePhoneForRequest(phone);
         if (!resolvedStoreId) {
             setError('A loja ainda está sendo carregada. Tente novamente em alguns segundos.');
             return null;
         }
-        if (digits.length < 10 || digits.length > 13) {
-            setError('Informe um telefone válido com DDD.');
+        if (!normalized) {
+            setError('Informe um telefone válido. Para números do Brasil, use DDD + número; o +55 é opcional.');
             return null;
         }
-        return digits;
+        return normalized;
     };
 
     const sendLoginOtp = async (context: OtpContext, customNotice?: string) => {
@@ -282,8 +300,12 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     };
 
     const verifyCode = async () => {
-        const digits = cleanPhone(phone);
+        const digits = normalizePhoneForRequest(phone);
         const cleanOtp = otp.replace(/\D/g, '');
+        if (!digits) {
+            setError('Informe um telefone válido. Para números do Brasil, o +55 é opcional.');
+            return;
+        }
         if (cleanOtp.length !== 6) {
             setError('Digite os 6 números recebidos por SMS.');
             return;
