@@ -261,6 +261,7 @@ export function CustomerAccountPortal() {
     const [marketingEmail, setMarketingEmail] = useState(false);
     const [marketingSms, setMarketingSms] = useState(false);
     const [profileDirty, setProfileDirty] = useState(false);
+    const [emailVerificationSending, setEmailVerificationSending] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
@@ -554,6 +555,40 @@ export function CustomerAccountPortal() {
             setError(profileError instanceof Error ? profileError.message : 'Não foi possível atualizar seus dados.');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const requestEmailVerification = async () => {
+        clearFeedback();
+        if (profileDirty || email.trim().toLowerCase() !== String(customer.email || '').trim().toLowerCase()) {
+            setError('Salve seus dados antes de solicitar a confirmação deste e-mail.');
+            return;
+        }
+        if (!email.trim()) {
+            setError('Cadastre um e-mail válido antes de solicitar a confirmação.');
+            return;
+        }
+
+        setEmailVerificationSending(true);
+        try {
+            const result = await CustomerService.requestSelfEmailVerification();
+            if (result.alreadyVerified) {
+                await refreshCustomerSnapshot();
+                setMessage('Este e-mail já está confirmado.');
+                return;
+            }
+
+            const feedback = `A loja enviou um link de confirmação para ${result.email || email}. O link expira em 30 minutos.`;
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (verificationError) {
+            const feedback = verificationError instanceof Error
+                ? verificationError.message
+                : 'Não foi possível enviar a confirmação de e-mail agora.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setEmailVerificationSending(false);
         }
     };
 
@@ -915,6 +950,17 @@ export function CustomerAccountPortal() {
                                                 ? 'E-mail verificado.'
                                                 : 'E-mail ainda não verificado. Alterar o endereço de e-mail remove qualquer verificação anterior.'}
                                         </p>
+                                        {!customer.email_verified && customer.email && (
+                                            <button
+                                                type="button"
+                                                onClick={() => void requestEmailVerification()}
+                                                disabled={emailVerificationSending || profileDirty}
+                                                className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300"
+                                            >
+                                                <Mail className="h-4 w-4" />
+                                                {emailVerificationSending ? 'Enviando confirmação…' : 'Confirmar meu e-mail com a loja'}
+                                            </button>
+                                        )}
                                     </div>
                                     <div className="grid gap-4 sm:grid-cols-2">
                                         <div>
