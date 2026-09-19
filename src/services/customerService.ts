@@ -373,11 +373,25 @@ export const CustomerService = {
         });
 
         if (error) {
-            const message = String((error as { message?: string }).message || '');
-            if (message.includes('non-2xx') || message.includes('503')) {
-                throw new Error('O serviço de verificação de e-mail da loja ainda não está configurado.');
+            let providerError = '';
+            const context = (error as { context?: Response }).context;
+            if (context && typeof context.clone === 'function') {
+                try {
+                    const payload = await context.clone().json() as { error?: string };
+                    providerError = String(payload?.error || '');
+                } catch {
+                    providerError = '';
+                }
             }
-            throw new Error('Não foi possível enviar a confirmação de e-mail agora.');
+
+            const labels: Record<string, string> = {
+                email_provider_not_configured: 'O serviço de verificação de e-mail da loja ainda não está configurado.',
+                valid_email_required: 'Cadastre e salve um e-mail válido antes de solicitar a confirmação.',
+                rate_limited: 'Aguarde um pouco antes de solicitar outro e-mail de confirmação.',
+                email_delivery_failed: 'A loja não conseguiu enviar o e-mail de confirmação agora. Tente novamente mais tarde.',
+                access_denied: 'Sua sessão expirou. Entre novamente para confirmar o e-mail.',
+            };
+            throw new Error(labels[providerError] || 'Não foi possível enviar a confirmação de e-mail agora.');
         }
 
         const payload = data as {
