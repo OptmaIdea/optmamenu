@@ -20,6 +20,13 @@ function senderEmail(value: string) {
     return String(match?.[1] || value).trim();
 }
 
+function normalizeSecret(value: string) {
+    const trimmed = String(value || '').trim();
+    const unwrapped = trimmed.replace(/^["'`]+|["'`]+$/g, '').trim();
+    const withoutAssignment = unwrapped.replace(/^BREVO_API_KEY\s*=\s*/i, '').trim();
+    return withoutAssignment.replace(/\s+/g, '');
+}
+
 async function callRpc(
     supabaseUrl: string,
     anonKey: string,
@@ -63,16 +70,18 @@ export default async function handler(req: any, res: any) {
         process.env.RESEND_API_KEY
         || process.env.RESEND_KEY
         || '';
-    const brevoApiKey =
+    const brevoApiKey = normalizeSecret(
         process.env.BREVO_API_KEY
         || process.env.SENDINBLUE_API_KEY
-        || '';
-    const emailFrom =
+        || '',
+    );
+    const emailFrom = String(
         process.env.CUSTOMER_EMAIL_FROM
         || process.env.RESEND_FROM_EMAIL
         || process.env.BREVO_SENDER_EMAIL
         || process.env.EMAIL_FROM
-        || '';
+        || '',
+    ).trim().replace(/^["'`]+|["'`]+$/g, '').trim();
 
     if (req.method === 'GET') {
         let providerReachable: boolean | null = null;
