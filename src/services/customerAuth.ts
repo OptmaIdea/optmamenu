@@ -172,6 +172,15 @@ export const AuthService = {
         if (data?.error === 'sms_gateway_not_configured') {
             throw new Error('O serviço de SMS ainda não está configurado.');
         }
+        if (data?.error === 'phone_already_registered') {
+            throw new Error('Este telefone já possui uma conta nesta loja. Use a opção Entrar; nenhum SMS foi enviado.');
+        }
+        if (data?.error === 'customer_not_found') {
+            throw new Error('Não encontramos uma conta com este telefone nesta loja. Use Criar conta; nenhum SMS foi enviado.');
+        }
+        if (data?.error === 'invalid_phone') {
+            throw new Error('Informe um telefone válido. Para números do Brasil, o +55 é opcional.');
+        }
         if (error) throw new Error('Não foi possível enviar o código por SMS.');
         throw new Error('Não foi possível enviar o código por SMS.');
     },
