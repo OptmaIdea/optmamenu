@@ -4,6 +4,7 @@ import {
   BadgeDollarSign,
   CalendarClock,
   CheckCircle2,
+  Ban,
   ClipboardList,
   Coins,
   Edit3,
@@ -27,6 +28,9 @@ import {
   type Customer360Order,
 } from '@/services/customers360Service';
 import { getShortDocumentReference } from '@/utils/documentReference';
+import { supabase } from '@/lib/supabase';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
+import { toast } from 'sonner';
 import CustomerTimelineSection from './CustomerTimelineSection';
 
 function formatCurrency(value: unknown) {
@@ -111,6 +115,10 @@ export default function CustomerLifecyclePage() {
   const [data, setData] = useState<Customer360 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loyaltyMembershipBlocked, setLoyaltyMembershipBlocked] = useState(false);
+  const [loyaltyMembershipReason, setLoyaltyMembershipReason] = useState<string | null>(null);
+  const [loyaltyMembershipLoading, setLoyaltyMembershipLoading] = useState(false);
+  const [loyaltyBanReason, setLoyaltyBanReason] = useState('Descumprimento dos termos do programa de fidelidade');
 
   useEffect(() => {
     if (loadingStore || !storeId || !customerId) return;
@@ -128,6 +136,24 @@ export default function CustomerLifecyclePage() {
       .finally(() => {
         if (active) setLoading(false);
       });
+
+    return () => {
+      active = false;
+    };
+  }, [customerId, loadingStore, storeId]);
+
+  useEffect(() => {
+    if (loadingStore || !storeId || !customerId) return;
+    let active = true;
+
+    void supabase.rpc('get_admin_customer_loyalty_membership_safe', {
+      p_store_id: storeId,
+      p_customer_id: customerId,
+    }).then(({ data: result, error: membershipError }) => {
+      if (!active || membershipError || !result?.ok) return;
+      setLoyaltyMembershipBlocked(Boolean(result.blocked));
+      setLoyaltyMembershipReason(result.reason ? String(result.reason) : null);
+    });
 
     return () => {
       active = false;
@@ -182,6 +208,69 @@ export default function CustomerLifecyclePage() {
   const customer = data.customer;
   const isProtected = customer.data_ownership === 'customer_owned' || customer.editable_by_store === false;
   const canSeeSensitive = Boolean(data.sensitive_data_visible || customer.sensitive_data_visible);
+
+  const updateLoyaltyMembership = async (action: 'remove' | 'ban' | 'unban') => {
+    const descriptions = {
+      remove: 'O saldo, o extrato, os vouchers e os dados operacionais de fidelidade deste cliente serão apagados permanentemente. Ele poderá aderir novamente depois.',
+      ban: 'O saldo, o extrato e os vouchers serão apagados permanentemente e o CPF ficará impedido de ingressar novamente até que a loja retire o bloqueio.',
+      unban: 'O CPF voltará a poder aderir ao programa. Os dados apagados anteriormente não serão restaurados.',
+    };
+
+    const confirmed = await systemConfirm({
+      title: action === 'ban'
+        ? 'Banir cliente da fidelidade?'
+        : action === 'remove'
+          ? 'Remover cliente da fidelidade?'
+          : 'Liberar CPF para fidelidade?',
+      description: descriptions[action],
+      confirmLabel: action === 'ban' ? 'Banir e apagar dados' : action === 'remove' ? 'Remover e apagar dados' : 'Liberar CPF',
+      cancelLabel: 'Cancelar',
+      tone: action === 'unban' ? 'default' : 'danger',
+    });
+    if (!confirmed) return;
+
+    setLoyaltyMembershipLoading(true);
+    try {
+      const { data: result, error: actionError } = await supabase.rpc('admin_set_customer_loyalty_membership_safe', {
+        p_store_id: storeId,
+        p_customer_id: customerId,
+        p_action: action,
+        p_reason: action === 'ban' ? loyaltyBanReason.trim() || null : null,
+      });
+      if (actionError || !result?.ok) {
+        throw new Error(result?.error || actionError?.message || 'Não foi possível atualizar a participação.');
+      }
+
+      const blocked = action === 'ban' ? true : action === 'unban' ? false : loyaltyMembershipBlocked;
+      setLoyaltyMembershipBlocked(blocked);
+      setLoyaltyMembershipReason(action === 'ban' ? loyaltyBanReason.trim() || null : action === 'unban' ? null : loyaltyMembershipReason);
+
+      if (action === 'ban' || action === 'remove') {
+        setData((current) => current ? {
+          ...current,
+          customer: {
+            ...current.customer,
+            loyalty_opt_in: false,
+            loyalty_points: 0,
+            loyalty_tier: 'Bronze',
+          },
+          loyalty_transactions: [],
+        } : current);
+      }
+
+      toast.success(
+        action === 'ban'
+          ? 'Cliente banido do programa e dados de fidelidade apagados.'
+          : action === 'remove'
+            ? 'Cliente removido do programa e dados de fidelidade apagados.'
+            : 'CPF liberado para nova adesão ao programa.',
+      );
+    } catch (membershipError) {
+      toast.error(membershipError instanceof Error ? membershipError.message : 'Não foi possível atualizar a fidelidade.');
+    } finally {
+      setLoyaltyMembershipLoading(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
@@ -320,6 +409,65 @@ export default function CustomerLifecyclePage() {
         </div>
 
         <aside className="space-y-6">
+          <Aside title="Gestão da fidelidade" icon={<ShieldCheck size={18} className="text-emerald-600" />}>
+            <div className="space-y-3">
+              <div className={`rounded-2xl p-3 text-sm font-bold ${loyaltyMembershipBlocked ? 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-200' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-200'}`}>
+                {loyaltyMembershipBlocked
+                  ? `CPF bloqueado para nova adesão${loyaltyMembershipReason ? `: ${loyaltyMembershipReason}` : '.'}`
+                  : customer.loyalty_opt_in
+                    ? `Participação ativa · ${customer.loyalty_points || 0} pts`
+                    : 'Cliente fora do programa; pode aderir novamente.'}
+              </div>
+
+              {canManageCustomers && (
+                <>
+                  {!loyaltyMembershipBlocked && (
+                    <input
+                      value={loyaltyBanReason}
+                      onChange={(event) => setLoyaltyBanReason(event.target.value)}
+                      className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-red-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      placeholder="Motivo do bloqueio"
+                    />
+                  )}
+                  <div className="grid gap-2">
+                    {customer.loyalty_opt_in && !loyaltyMembershipBlocked && (
+                      <button
+                        type="button"
+                        disabled={loyaltyMembershipLoading}
+                        onClick={() => void updateLoyaltyMembership('remove')}
+                        className="rounded-xl border border-amber-200 px-3 py-2 text-sm font-black text-amber-700 transition hover:bg-amber-50 disabled:opacity-50 dark:border-amber-900/50 dark:text-amber-300"
+                      >
+                        Remover da fidelidade
+                      </button>
+                    )}
+                    {!loyaltyMembershipBlocked ? (
+                      <button
+                        type="button"
+                        disabled={loyaltyMembershipLoading}
+                        onClick={() => void updateLoyaltyMembership('ban')}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-red-600 px-3 py-2 text-sm font-black text-white disabled:opacity-50"
+                      >
+                        <Ban size={15} /> Banir CPF da fidelidade
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={loyaltyMembershipLoading}
+                        onClick={() => void updateLoyaltyMembership('unban')}
+                        className="rounded-xl bg-emerald-600 px-3 py-2 text-sm font-black text-white disabled:opacity-50"
+                      >
+                        Liberar CPF para nova adesão
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+                    Remover permite nova adesão. Banir grava um bloqueio por CPF; a loja precisa liberar explicitamente antes de uma nova participação.
+                  </p>
+                </>
+              )}
+            </div>
+          </Aside>
+
           <Aside title="Tags" icon={<Tags size={18} className="text-emerald-600" />}>
             {customer.tags?.length ? (
               <div className="flex flex-wrap gap-2">
