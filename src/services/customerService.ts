@@ -342,6 +342,30 @@ export const CustomerService = {
         return Array.isArray(payload.transactions) ? payload.transactions : [];
     },
 
+    async getSelfLoyaltyProgram() {
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_loyalty_program_safe');
+        if (error) throw new Error('Não foi possível carregar as regras do programa de fidelidade.');
+        const payload = data as (SelfRpcPayload & {
+            membership_blocked?: boolean;
+            block_reason?: string | null;
+            program?: Record<string, unknown> | null;
+        }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível carregar as regras do programa de fidelidade.');
+        return {
+            membershipBlocked: Boolean(payload.membership_blocked),
+            blockReason: payload.block_reason ? String(payload.block_reason) : null,
+            program: payload.program && typeof payload.program === 'object' ? payload.program : null,
+        };
+    },
+
+    async leaveSelfLoyalty() {
+        const { data, error } = await supabaseCustomer.rpc('leave_customer_self_loyalty_safe');
+        if (error) throw new Error('Não foi possível encerrar sua participação no programa.');
+        const payload = data as SelfRpcPayload | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível encerrar sua participação no programa.');
+        return payload;
+    },
+
     // --- Shared cart draft ---
     async getSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
