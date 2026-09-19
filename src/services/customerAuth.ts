@@ -1,4 +1,4 @@
-import { supabaseCustomer, supabasePublic } from '@/lib/supabase';
+import { supabaseCustomer, supabaseCustomerAuth, supabasePublic } from '@/lib/supabase';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { clearCustomerToken, getCustomerToken, setCustomerToken } from '@/lib/jwt';
 import type { Customer } from '@/types';
@@ -112,7 +112,7 @@ async function refreshCustomerSessionIfNeeded() {
     if (token && (!expiresAt || expiresAt > nowSeconds + 60)) return token;
     if (!refreshToken) return token;
 
-    const { data, error } = await supabasePublic.auth.setSession({
+    const { data, error } = await supabaseCustomerAuth.auth.setSession({
         access_token: token || '',
         refresh_token: refreshToken,
     });
@@ -131,7 +131,7 @@ async function completeSession(data: any) {
         throw new Error('Não foi possível iniciar a sessão. Tente novamente.');
     }
 
-    const { data: authData, error: authError } = await supabasePublic.auth.verifyOtp({
+    const { data: authData, error: authError } = await supabaseCustomerAuth.auth.verifyOtp({
         token_hash: String(data.tokenHash),
         type: 'magiclink',
     });
@@ -290,7 +290,7 @@ export const AuthService = {
 
         if (error || !data?.ok || !data?.customer) {
             clearPersistedCustomerSession();
-            await supabasePublic.auth.signOut({ scope: 'local' }).catch(() => undefined);
+            await supabaseCustomerAuth.auth.signOut({ scope: 'local' }).catch(() => undefined);
             useCustomerAuth.getState().logout?.();
             return null;
         }
@@ -319,7 +319,7 @@ export const AuthService = {
 
     async logoutCustomer() {
         clearPersistedCustomerSession();
-        await supabasePublic.auth.signOut().catch(() => undefined);
+        await supabaseCustomerAuth.auth.signOut().catch(() => undefined);
         useCustomerAuth.getState().logout?.();
     },
 };
