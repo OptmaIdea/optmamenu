@@ -129,7 +129,7 @@ export default function Orders() {
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
                 p_store_id: store.id,
                 p_status: rpcStatus,
-                p_limit: 200,
+                p_limit: 500,
             });
             if (error) throw error;
             if (!result?.ok) throw new Error(result?.error || 'Erro ao buscar pedidos.');
