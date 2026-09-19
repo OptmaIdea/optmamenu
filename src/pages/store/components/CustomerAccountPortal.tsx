@@ -6,6 +6,7 @@ import {
     EyeOff,
     FileText,
     Gift,
+    History,
     KeyRound,
     Loader2,
     LogOut,
@@ -92,7 +93,7 @@ interface LoyaltyProgramSummary {
     updated_at?: string;
 }
 
-type AccountTab = 'profile' | 'addresses' | 'orders' | 'loyalty' | 'security';
+type AccountTab = 'profile' | 'addresses' | 'orders' | 'consumption' | 'loyalty' | 'security';
 
 const CUSTOMER_ORDERS_REFRESH_MS = 12000;
 
@@ -264,6 +265,7 @@ export function CustomerAccountPortal() {
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+    const [expandedConsumptionKey, setExpandedConsumptionKey] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
@@ -274,6 +276,81 @@ export function CustomerAccountPortal() {
         () => customer?.nickname || customer?.full_name || 'cliente',
         [customer?.full_name, customer?.nickname],
     );
+
+    const consumptionHistory = useMemo(() => {
+        const grouped = new Map<string, {
+            key: string;
+            productId: string | null;
+            name: string;
+            totalQuantity: number;
+            totalSpent: number;
+            lastOrderedAt: string | null;
+            occurrences: Array<{
+                orderId: string;
+                orderCode: string;
+                status: string | null;
+                createdAt: string | null;
+                quantity: number;
+                unitPrice: number;
+                lineTotal: number;
+            }>;
+        }>();
+
+        orders
+            .filter((order) => order.status !== 'cancelled')
+            .forEach((order) => {
+                order.order_items.forEach((item) => {
+                    const name = item.product?.name || 'Produto indisponível';
+                    const productId = item.product_id || item.product?.id || null;
+                    const key = productId || ('name:' + name.toLocaleLowerCase('pt-BR'));
+                    const lineTotal = Number(item.unit_price || 0) * Number(item.quantity || 0);
+                    const current = grouped.get(key) || {
+                        key,
+                        productId,
+                        name,
+                        totalQuantity: 0,
+                        totalSpent: 0,
+                        lastOrderedAt: null,
+                        occurrences: [],
+                    };
+
+                    current.totalQuantity += Number(item.quantity || 0);
+                    current.totalSpent += lineTotal;
+                    if (!current.lastOrderedAt || (
+                        order.created_at
+                        && new Date(order.created_at).getTime() > new Date(current.lastOrderedAt).getTime()
+                    )) {
+                        current.lastOrderedAt = order.created_at || null;
+                    }
+                    current.occurrences.push({
+                        orderId: order.id,
+                        orderCode: order.order_code || ('Pedido ' + order.id.slice(0, 8)),
+                        status: order.status || null,
+                        createdAt: order.created_at || null,
+                        quantity: Number(item.quantity || 0),
+                        unitPrice: Number(item.unit_price || 0),
+                        lineTotal,
+                    });
+                    grouped.set(key, current);
+                });
+            });
+
+        return Array.from(grouped.values())
+            .map((item) => ({
+                ...item,
+                occurrences: item.occurrences.sort((a, b) => {
+                    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    return bTime - aTime;
+                }),
+            }))
+            .sort((a, b) => {
+                const bTime = b.lastOrderedAt ? new Date(b.lastOrderedAt).getTime() : 0;
+                const aTime = a.lastOrderedAt ? new Date(a.lastOrderedAt).getTime() : 0;
+                return bTime - aTime;
+            });
+    }, [orders]);
+
 
     const loyaltyAgeRestricted = useMemo(() => {
         if (!customer?.birth_date) return false;
@@ -875,6 +952,7 @@ export function CustomerAccountPortal() {
         { id: 'profile', label: 'Meus dados', icon: UserRound },
         { id: 'addresses', label: 'Endereços', icon: MapPin },
         { id: 'orders', label: 'Pedidos', icon: PackageCheck },
+        { id: 'consumption', label: 'Meu consumo', icon: History },
         { id: 'loyalty', label: 'Fidelidade', icon: Gift },
         { id: 'security', label: 'Segurança', icon: KeyRound },
     ];
@@ -1154,6 +1232,80 @@ export function CustomerAccountPortal() {
                                                     </div>
                                                 )}
                                             </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {tab === 'consumption' && (
+                                <div className="mx-auto max-w-2xl space-y-4">
+                                    <section className="rounded-3xl border border-slate-200 bg-slate-50/70 p-5 dark:border-slate-800 dark:bg-slate-900/40">
+                                        <div className="flex items-start gap-3">
+                                            <History className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Meu histórico de consumo</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Veja quais produtos você já pediu nesta loja, quando comprou, quantidade e quanto pagou em cada pedido. Pedidos cancelados não entram neste resumo.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    {consumptionHistory.length === 0 ? (
+                                        <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+                                            Ainda não há produtos para mostrar no seu histórico.
+                                        </div>
+                                    ) : consumptionHistory.map((product) => {
+                                        const expanded = expandedConsumptionKey === product.key;
+                                        return (
+                                            <section key={product.key} className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setExpandedConsumptionKey(expanded ? null : product.key)}
+                                                    className="flex w-full items-start justify-between gap-4 p-4 text-left"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-black text-slate-900 dark:text-white">{product.name}</p>
+                                                        <p className="mt-1 text-xs text-slate-500">
+                                                            {product.totalQuantity} unidade(s) em {product.occurrences.length} pedido(s)
+                                                            {product.lastOrderedAt ? ' · última compra ' + new Date(product.lastOrderedAt).toLocaleDateString('pt-BR') : ''}
+                                                        </p>
+                                                        <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
+                                                            {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                                                            {expanded ? 'Ocultar compras' : 'Ver quando comprei'}
+                                                        </p>
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Total pago</p>
+                                                        <p className="mt-1 font-black text-emerald-700 dark:text-emerald-400">R$ {formatBRL(product.totalSpent)}</p>
+                                                    </div>
+                                                </button>
+
+                                                {expanded && (
+                                                    <div className="space-y-2 border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50">
+                                                        {product.occurrences.map((occurrence) => (
+                                                            <div key={occurrence.orderId + ':' + product.key} className="rounded-2xl bg-white p-3 text-sm dark:bg-slate-950">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div>
+                                                                        <p className="font-black text-slate-900 dark:text-white">{occurrence.orderCode}</p>
+                                                                        <p className="mt-1 text-xs text-slate-500">
+                                                                            {occurrence.createdAt ? new Date(occurrence.createdAt).toLocaleString('pt-BR') : 'Data não disponível'}
+                                                                            {occurrence.status ? ' · ' + orderStatusLabel(occurrence.status) : ''}
+                                                                        </p>
+                                                                    </div>
+                                                                    <span className="shrink-0 font-black text-slate-700 dark:text-slate-200">R$ {formatBRL(occurrence.lineTotal)}</span>
+                                                                </div>
+                                                                <p className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                                                                    {occurrence.quantity} × R$ {formatBRL(occurrence.unitPrice)} cada
+                                                                </p>
+                                                            </div>
+                                                        ))}
+                                                        <p className="pt-1 text-xs text-slate-500">
+                                                            A avaliação de produtos de 0 a 5 estrelas será incorporada a este histórico em uma próxima etapa.
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </section>
                                         );
                                     })}
                                 </div>
