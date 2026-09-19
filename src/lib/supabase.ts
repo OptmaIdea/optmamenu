@@ -81,6 +81,22 @@ export const supabasePublic = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 /**
+ * CUSTOMER AUTH SESSION:
+ * - cliente GoTrue separado do storefront público;
+ * - usado somente para verificar/renovar a sessão do portal do cliente;
+ * - impede que o login do cliente transforme supabasePublic em authenticated,
+ *   preservando as RPCs públicas da loja sempre como anon.
+ */
+export const supabaseCustomerAuth = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+        storageKey: 'sb-customer-auth-isolated',
+    },
+});
+
+/**
  * CUSTOMER:
  * - NÃO usa supabase.auth
  * - Injeta Authorization Bearer <jwt_customer> em REST/RPC/Storage/Functions
