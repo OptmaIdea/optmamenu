@@ -100,7 +100,7 @@ export default function Catalog() {
     const [isDark, setIsDark] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
     const sharedCartLoadedKeyRef = useRef<string | null>(null);
-    const sharedCartRemoteUpdatedAtRef = useRef(0);
+    const sharedCartRemoteRevisionRef = useRef(0);
     const suppressNextSharedCartSaveRef = useRef(false);
 
     const [showLoginModal, setShowLoginModal] = useState(false);
@@ -224,7 +224,7 @@ export default function Catalog() {
     useEffect(() => {
         if (!store?.id || !customer?.id || !isAuthenticated) {
             sharedCartLoadedKeyRef.current = null;
-            sharedCartRemoteUpdatedAtRef.current = 0;
+            sharedCartRemoteRevisionRef.current = 0;
             return;
         }
 
@@ -246,9 +246,9 @@ export default function Catalog() {
                     cleared?: boolean;
                 };
 
-                const remoteTimestamp = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
-                if (Number.isFinite(remoteTimestamp) && remoteTimestamp > 0) {
-                    sharedCartRemoteUpdatedAtRef.current = remoteTimestamp;
+                const remoteRevision = Number(remote.revision || 0);
+                if (remoteRevision > 0 || remote.updatedAt) {
+                    sharedCartRemoteRevisionRef.current = remoteRevision;
                     const remoteItems = Array.isArray(remoteCart.items) ? remoteCart.items : [];
                     const current = useCartStore.getState();
 
@@ -276,9 +276,9 @@ export default function Catalog() {
                         deliveryMethodCode: current.deliveryMethodCode,
                         items: current.items,
                     });
-                    const savedAt = result?.updated_at ? Date.parse(String(result.updated_at)) : 0;
-                    if (Number.isFinite(savedAt) && savedAt > 0) {
-                        sharedCartRemoteUpdatedAtRef.current = savedAt;
+                    const savedRevision = Number(result?.revision || 0);
+                    if (savedRevision > 0) {
+                        sharedCartRemoteRevisionRef.current = savedRevision;
                     }
                 }
             } catch (error) {
@@ -317,8 +317,8 @@ export default function Catalog() {
                 fulfillmentType: current.fulfillmentType,
                 deliveryMethodCode: current.deliveryMethodCode,
                 items: current.items,
-                syncBaseUpdatedAt: sharedCartRemoteUpdatedAtRef.current > 0
-                    ? new Date(sharedCartRemoteUpdatedAtRef.current).toISOString()
+                syncBaseRevision: sharedCartRemoteRevisionRef.current > 0
+                    ? sharedCartRemoteRevisionRef.current
                     : null,
             }).then(async (result) => {
                 if (result?.stale) {
@@ -329,9 +329,9 @@ export default function Catalog() {
                         deliveryMethodCode?: string | null;
                         cleared?: boolean;
                     };
-                    const remoteTimestamp = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
-                    if (Number.isFinite(remoteTimestamp) && remoteTimestamp > 0) {
-                        sharedCartRemoteUpdatedAtRef.current = remoteTimestamp;
+                    const remoteRevision = Number(remote.revision || 0);
+                    if (remoteRevision > 0) {
+                        sharedCartRemoteRevisionRef.current = remoteRevision;
                     }
                     suppressNextSharedCartSaveRef.current = true;
                     useCartStore.setState((state) => ({
@@ -345,9 +345,9 @@ export default function Catalog() {
                     return;
                 }
 
-                const savedAt = result?.updated_at ? Date.parse(String(result.updated_at)) : 0;
-                if (Number.isFinite(savedAt) && savedAt > 0) {
-                    sharedCartRemoteUpdatedAtRef.current = savedAt;
+                const savedRevision = Number(result?.revision || 0);
+                if (savedRevision > 0) {
+                    sharedCartRemoteRevisionRef.current = savedRevision;
                 }
             }).catch((error) => {
                 console.warn('[CART_SYNC] Não foi possível sincronizar o carrinho:', error);
@@ -374,10 +374,10 @@ export default function Catalog() {
 
             try {
                 const remote = await CustomerService.getSelfCartDraft();
-                if (!active || !remote.updatedAt) return;
+                if (!active) return;
 
-                const remoteTimestamp = Date.parse(remote.updatedAt);
-                if (!Number.isFinite(remoteTimestamp) || remoteTimestamp <= sharedCartRemoteUpdatedAtRef.current) {
+                const remoteRevision = Number(remote.revision || 0);
+                if (remoteRevision <= 0 || remoteRevision <= sharedCartRemoteRevisionRef.current) {
                     return;
                 }
 
@@ -388,7 +388,7 @@ export default function Catalog() {
                     cleared?: boolean;
                 };
 
-                sharedCartRemoteUpdatedAtRef.current = remoteTimestamp;
+                sharedCartRemoteRevisionRef.current = remoteRevision;
                 suppressNextSharedCartSaveRef.current = true;
                 useCartStore.setState((current) => ({
                     items: remoteCart.cleared
