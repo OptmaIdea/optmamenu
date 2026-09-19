@@ -26,6 +26,24 @@ type ReservationRow = {
 
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
+function formatReservationDateTime(value?: string | null, fallback = 'Sem prazo') {
+  if (!value || value.toLowerCase() === 'infinity') return fallback;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  return dateTime.format(parsed);
+}
+
+function fulfillmentLabel(value?: string | null) {
+  const labels: Record<string, string> = {
+    delivery: 'Entrega',
+    pickup: 'Retirada',
+    qr_table: 'Mesa/QR',
+    table: 'Mesa/QR',
+    dine_in: 'Consumo no local',
+  };
+  return labels[value || ''] || value || 'Não informado';
+}
+
 function channelLabel(channel?: string | null) {
   const labels: Record<string, string> = {
     public_store: 'Loja pública',
@@ -153,8 +171,16 @@ export default function StockReservationsPage() {
                     <td className="px-4 py-3">{row.customer_name || 'Não informado'}</td>
                     <td className="px-4 py-3">{channelLabel(row.sales_channel)}</td>
                     <td className="px-4 py-3">{row.location_name || 'Não informado'}</td>
-                    <td className="px-4 py-3">{dateTime.format(new Date(row.created_at))}</td>
-                    <td className="px-4 py-3">{row.expires_at ? dateTime.format(new Date(row.expires_at)) : 'Sem prazo'}</td>
+                    <td className="px-4 py-3">{formatReservationDateTime(row.created_at, 'Data indisponível')}</td>
+                    <td className="px-4 py-3">
+                      <div>{formatReservationDateTime(row.expires_at)}</div>
+                      {row.fulfillment_type && (
+                        <div className="mt-0.5 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                          {fulfillmentLabel(row.fulfillment_type)}
+                          {row.expires_at?.toLowerCase() === 'infinity' ? ' · reserva sem expiração' : ''}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       {row.order_id ? (
                         <Link to={`/admin/orders?orderId=${row.order_id}`} className="inline-flex items-center gap-1 font-semibold text-[#1A867A] hover:underline dark:text-teal-300">
