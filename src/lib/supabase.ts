@@ -8,6 +8,9 @@ const supabaseAnonKey =
     import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_8Rmb1cfmYZmHLp8uTBdnBw_0ZzemBzt';
 
 const CUSTOMER_TOKEN_KEY = 'auth_token';
+const CUSTOMER_REFRESH_TOKEN_KEY = 'customer_refresh_token';
+const CUSTOMER_EXPIRES_AT_KEY = 'customer_expires_at';
+let customerRefreshPromise: Promise<string | null> | null = null;
 
 function getCustomerToken(): string | null {
     try {
@@ -96,6 +99,61 @@ export const supabaseCustomerAuth = createClient(supabaseUrl, supabaseAnonKey, {
     },
 });
 
+async function ensureCustomerAccessToken(forceRefresh = false): Promise<string | null> {
+    const token = getCustomerToken();
+    let refreshToken: string | null = null;
+    let expiresAt = 0;
+
+    try {
+        refreshToken = localStorage.getItem(CUSTOMER_REFRESH_TOKEN_KEY);
+        expiresAt = Number(localStorage.getItem(CUSTOMER_EXPIRES_AT_KEY) || 0);
+    } catch {
+        return token;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    if (!forceRefresh && token && (!expiresAt || expiresAt > nowSeconds + 60)) {
+        return token;
+    }
+    if (!refreshToken) return token;
+
+    if (!customerRefreshPromise) {
+        customerRefreshPromise = (async () => {
+            const { data, error } = await supabaseCustomerAuth.auth.setSession({
+                access_token: token || '',
+                refresh_token: refreshToken || '',
+            });
+
+            if (error || !data.session) {
+                try {
+                    localStorage.removeItem(CUSTOMER_TOKEN_KEY);
+                    localStorage.removeItem(CUSTOMER_REFRESH_TOKEN_KEY);
+                    localStorage.removeItem(CUSTOMER_EXPIRES_AT_KEY);
+                } catch {
+                    // Sem storage, a requisição original seguirá e o chamador tratará a sessão expirada.
+                }
+                return null;
+            }
+
+            try {
+                localStorage.setItem(CUSTOMER_TOKEN_KEY, data.session.access_token);
+                localStorage.setItem(CUSTOMER_REFRESH_TOKEN_KEY, data.session.refresh_token);
+                if (data.session.expires_at) {
+                    localStorage.setItem(CUSTOMER_EXPIRES_AT_KEY, String(data.session.expires_at));
+                }
+            } catch {
+                // A sessão ainda pode ser usada nesta requisição mesmo sem persistência local.
+            }
+
+            return data.session.access_token;
+        })().finally(() => {
+            customerRefreshPromise = null;
+        });
+    }
+
+    return customerRefreshPromise;
+}
+
 /**
  * CUSTOMER:
  * - NÃO usa supabase.auth
@@ -112,7 +170,6 @@ export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
     },
     global: {
         fetch: async (url, options: RequestInit = {}) => {
-            const token = getCustomerToken();
             const u = typeof url === 'string' ? url : url.toString();
 
             const shouldAttachCustomerJwt =
@@ -121,16 +178,36 @@ export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
                 u.includes('/storage/v1/') ||
                 u.includes('/functions/v1/');
 
-            const headers = new Headers(options.headers || {});
-            headers.set('apikey', supabaseAnonKey);
+            let token = shouldAttachCustomerJwt
+                ? await ensureCustomerAccessToken(false)
+                : getCustomerToken();
 
-            // Nunca mexe no /auth/v1 (e no customer a gente nem usa auth)
-            if (shouldAttachCustomerJwt) {
-                if (token) headers.set('Authorization', `Bearer ${token}`);
-                else headers.delete('Authorization');
+            const buildHeaders = (accessToken: string | null) => {
+                const headers = new Headers(options.headers || {});
+                headers.set('apikey', supabaseAnonKey);
+
+                // Nunca injeta o JWT do cliente em /auth/v1.
+                if (shouldAttachCustomerJwt) {
+                    if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+                    else headers.delete('Authorization');
+                }
+
+                return headers;
+            };
+
+            let response = await fetch(url, { ...options, headers: buildHeaders(token) });
+
+            // Uma sessão pode vencer entre a renderização e uma consulta REST/RPC.
+            // Tenta renovar uma única vez antes de devolver 401 para a interface.
+            if (response.status === 401 && shouldAttachCustomerJwt) {
+                const refreshedToken = await ensureCustomerAccessToken(true);
+                if (refreshedToken) {
+                    token = refreshedToken;
+                    response = await fetch(url, { ...options, headers: buildHeaders(token) });
+                }
             }
 
-            return fetch(url, { ...options, headers });
+            return response;
         },
     },
 });
