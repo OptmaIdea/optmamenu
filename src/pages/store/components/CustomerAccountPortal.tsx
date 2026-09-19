@@ -4,11 +4,14 @@ import {
     ChevronUp,
     Eye,
     EyeOff,
+    FileText,
     Gift,
     KeyRound,
     Loader2,
     LogOut,
+    Mail,
     MapPin,
+    MessageCircle,
     PackageCheck,
     Pencil,
     Plus,
@@ -70,6 +73,23 @@ interface LoyaltyTransactionSummary {
     order_id?: string | null;
     order_code?: string | null;
     created_at?: string | null;
+}
+
+interface LoyaltyProgramSummary {
+    id?: string;
+    name?: string;
+    is_active?: boolean;
+    points_per_currency?: number | string;
+    min_order_value?: number | string;
+    enable_join_bonus?: boolean;
+    join_bonus_points?: number;
+    enable_birthday_bonus?: boolean;
+    birthday_bonus_points?: number;
+    points_validity_months?: number;
+    min_points_redemption?: number;
+    program_terms?: string;
+    voucher_terms?: string;
+    updated_at?: string;
 }
 
 type AccountTab = 'profile' | 'addresses' | 'orders' | 'loyalty' | 'security';
@@ -135,6 +155,17 @@ function orderStatusLabel(status?: string | null) {
         case 'completed': return 'Concluído';
         case 'cancelled': return 'Cancelado';
         default: return status || 'Em andamento';
+    }
+}
+
+function fulfillmentLabel(value?: string | null) {
+    switch (value) {
+        case 'delivery': return 'Entrega';
+        case 'pickup': return 'Retirada';
+        case 'table':
+        case 'qr_table': return 'Mesa/QR';
+        case 'dine_in': return 'Consumo no local';
+        default: return value || '';
     }
 }
 
@@ -219,6 +250,17 @@ export function CustomerAccountPortal() {
     const [loyaltySaving, setLoyaltySaving] = useState(false);
     const [loyaltyTransactions, setLoyaltyTransactions] = useState<LoyaltyTransactionSummary[]>([]);
     const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+    const [loyaltyProgram, setLoyaltyProgram] = useState<LoyaltyProgramSummary | null>(null);
+    const [loyaltyBlocked, setLoyaltyBlocked] = useState(false);
+    const [loyaltyBlockReason, setLoyaltyBlockReason] = useState<string | null>(null);
+    const [loyaltyJoinOpen, setLoyaltyJoinOpen] = useState(false);
+    const [loyaltyTermsAccepted, setLoyaltyTermsAccepted] = useState(false);
+    const [showLoyaltyTerms, setShowLoyaltyTerms] = useState(false);
+    const [showLoyaltyExitConfirm, setShowLoyaltyExitConfirm] = useState(false);
+    const [marketingWhatsapp, setMarketingWhatsapp] = useState(false);
+    const [marketingEmail, setMarketingEmail] = useState(false);
+    const [marketingSms, setMarketingSms] = useState(false);
+    const [profileDirty, setProfileDirty] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
@@ -252,11 +294,12 @@ export function CustomerAccountPortal() {
     }, [customer]);
 
     useEffect(() => {
+        if (profileDirty) return;
         setFullName(customer?.full_name || '');
         setEmail(customer?.email || '');
         setCpf(customer?.cpf || '');
         setBirthDate(customer?.birth_date || '');
-    }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name]);
+    }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name, profileDirty]);
 
     const clearFeedback = () => {
         setMessage('');
@@ -345,6 +388,47 @@ export function CustomerAccountPortal() {
         }
     }, [customer?.id]);
 
+    const refreshCustomerSnapshot = useCallback(async () => {
+        if (!customer) return;
+        const profile = await CustomerService.getSelfProfile();
+        if (!profile || typeof profile !== 'object') return;
+
+        const next = profile as Record<string, unknown>;
+        useCustomerAuth.setState((state) => {
+            if (!state.customer || state.customer.id !== customer.id) return state;
+            return {
+                ...state,
+                customer: {
+                    ...state.customer,
+                    ...next,
+                    loyalty_points: Number(next.loyalty_points ?? state.customer.loyalty_points ?? 0),
+                    loyalty_opt_in: Boolean(next.loyalty_opt_in ?? state.customer.loyalty_opt_in),
+                    marketing_consent: Boolean(next.marketing_consent ?? state.customer.marketing_consent),
+                },
+            };
+        });
+    }, [customer?.id]);
+
+    const loadLoyaltyProgram = useCallback(async () => {
+        if (!customer) return;
+        const result = await CustomerService.getSelfLoyaltyProgram();
+        setLoyaltyProgram(result.program as LoyaltyProgramSummary | null);
+        setLoyaltyBlocked(result.membershipBlocked);
+        setLoyaltyBlockReason(result.blockReason);
+    }, [customer?.id]);
+
+    const loadMarketingConsents = useCallback(async () => {
+        if (!customer) return;
+        const consents = await CustomerService.getSelfConsents();
+        const latest = new Map<string, string>();
+        consents.forEach((consent) => {
+            if (!latest.has(consent.consent_type)) latest.set(consent.consent_type, consent.action);
+        });
+        setMarketingWhatsapp(latest.get('marketing_whatsapp') === 'granted');
+        setMarketingEmail(latest.get('marketing_email') === 'granted');
+        setMarketingSms(latest.get('marketing_sms') === 'granted');
+    }, [customer?.id]);
+
     useEffect(() => {
         ordersRef.current = [];
         setOrders([]);
@@ -392,12 +476,34 @@ export function CustomerAccountPortal() {
     }, [open, customer?.id, tab, loadOrders]);
 
     useEffect(() => {
+        if (!open || !customer) return;
+
+        const refreshAccount = () => {
+            if (document.visibilityState !== 'visible') return;
+            void refreshCustomerSnapshot().catch(() => undefined);
+        };
+
+        refreshAccount();
+        const intervalId = window.setInterval(refreshAccount, CUSTOMER_ORDERS_REFRESH_MS);
+        window.addEventListener('focus', refreshAccount);
+        document.addEventListener('visibilitychange', refreshAccount);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', refreshAccount);
+            document.removeEventListener('visibilitychange', refreshAccount);
+        };
+    }, [open, customer?.id, refreshCustomerSnapshot]);
+
+    useEffect(() => {
         if (!open || !customer || tab !== 'loyalty') return;
         let active = true;
 
         void Promise.all([
-            AuthService.restoreSession(),
+            refreshCustomerSnapshot(),
             loadLoyaltyTransactions(),
+            loadLoyaltyProgram(),
+            loadMarketingConsents(),
         ]).catch((loyaltyError) => {
             if (active) console.error('[LOYALTY] Falha ao atualizar fidelidade:', loyaltyError);
         });
@@ -405,7 +511,15 @@ export function CustomerAccountPortal() {
         return () => {
             active = false;
         };
-    }, [open, customer?.id, tab, loadLoyaltyTransactions]);
+    }, [
+        open,
+        customer?.id,
+        tab,
+        refreshCustomerSnapshot,
+        loadLoyaltyTransactions,
+        loadLoyaltyProgram,
+        loadMarketingConsents,
+    ]);
 
     if (!customer) return null;
 
@@ -434,6 +548,7 @@ export function CustomerAccountPortal() {
                 birth_date: birthDate || undefined,
             });
             await AuthService.restoreSession();
+            setProfileDirty(false);
             setMessage('Dados atualizados com sucesso.');
         } catch (profileError) {
             setError(profileError instanceof Error ? profileError.message : 'Não foi possível atualizar seus dados.');
@@ -544,43 +659,84 @@ export function CustomerAccountPortal() {
         }
     };
 
-    const setLoyaltyMembership = async (join: boolean) => {
+    const joinLoyaltyProgram = async () => {
         clearFeedback();
+        if (loyaltyBlocked) {
+            const feedback = loyaltyBlockReason
+                ? `Sua participação está bloqueada pela loja: ${loyaltyBlockReason}`
+                : 'Sua participação neste programa está bloqueada. Fale com a loja para mais informações.';
+            setError(feedback);
+            toast.error(feedback);
+            return;
+        }
+        if (loyaltyMissingFields.length > 0) {
+            setError(`Complete seu cadastro antes de participar: ${loyaltyMissingFields.join(', ')}.`);
+            return;
+        }
+        if (!loyaltyTermsAccepted) {
+            setError('Leia e aceite o regulamento do programa de fidelidade para continuar.');
+            return;
+        }
+
         setLoyaltySaving(true);
         try {
             const session = await AuthService.restoreSession();
-            const currentMembership = Boolean(session?.customer?.loyalty_opt_in);
+            if (!session?.customer) throw new Error('Sua sessão expirou. Entre novamente.');
 
-            if (currentMembership === join) {
-                const feedback = join
-                    ? 'Você já participa do programa de fidelidade. Atualizamos sua tela com o estado mais recente.'
-                    : 'Sua participação já estava desativada. Atualizamos sua tela com o estado mais recente.';
-                setMessage(feedback);
-                toast.info(feedback);
-                await loadLoyaltyTransactions();
-                return;
+            if (!session.customer.loyalty_opt_in) {
+                await CustomerService.setSelfConsent('loyalty_program', true, {
+                    source: 'customer_account_portal',
+                    termsVersion: loyaltyProgram?.updated_at || null,
+                });
             }
 
-            const result = await CustomerService.setSelfConsent(
-                'loyalty_program',
-                join,
-                { source: 'customer_account_portal' },
-            );
-            await AuthService.restoreSession();
-            await loadLoyaltyTransactions();
+            const marketingResults = await Promise.allSettled([
+                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_loyalty_join' }),
+                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_loyalty_join' }),
+                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_loyalty_join' }),
+            ]);
 
-            const feedback = result.unchanged
-                ? (join
-                    ? 'Você já participa do programa de fidelidade.'
-                    : 'Sua participação já estava desativada.')
-                : (join
-                    ? 'Adesão confirmada! A partir de agora, compras elegíveis poderão gerar pontos.'
-                    : 'Sua participação no programa de fidelidade foi encerrada.');
+            await Promise.all([
+                refreshCustomerSnapshot(),
+                loadLoyaltyTransactions(),
+                loadLoyaltyProgram(),
+                loadMarketingConsents(),
+            ]);
 
+            setLoyaltyJoinOpen(false);
+            setLoyaltyTermsAccepted(false);
+
+            const marketingFailed = marketingResults.some((result) => result.status === 'rejected');
+            const feedback = marketingFailed
+                ? 'Adesão confirmada. Algumas preferências de comunicação não puderam ser atualizadas agora.'
+                : 'Adesão confirmada! Suas preferências de comunicação também foram registradas.';
+            setMessage(feedback);
+            marketingFailed ? toast.warning(feedback) : toast.success(feedback);
+        } catch (loyaltyError) {
+            const feedback = loyaltyError instanceof Error ? loyaltyError.message : 'Não foi possível concluir sua adesão ao programa.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setLoyaltySaving(false);
+        }
+    };
+
+    const leaveLoyaltyProgram = async () => {
+        clearFeedback();
+        setLoyaltySaving(true);
+        try {
+            await CustomerService.leaveSelfLoyalty();
+            setLoyaltyTransactions([]);
+            await Promise.all([
+                refreshCustomerSnapshot(),
+                loadLoyaltyProgram(),
+            ]);
+            setShowLoyaltyExitConfirm(false);
+            const feedback = 'Sua participação foi encerrada. Saldo, extrato, vouchers e dados operacionais do programa foram removidos e não podem ser restaurados.';
             setMessage(feedback);
             toast.success(feedback);
         } catch (loyaltyError) {
-            const feedback = loyaltyError instanceof Error ? loyaltyError.message : 'Não foi possível atualizar sua participação no programa.';
+            const feedback = loyaltyError instanceof Error ? loyaltyError.message : 'Não foi possível encerrar sua participação.';
             setError(feedback);
             toast.error(feedback);
         } finally {
@@ -749,11 +905,11 @@ export function CustomerAccountPortal() {
                                 <div className="mx-auto max-w-xl space-y-4">
                                     <div>
                                         <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Nome completo</label>
-                                        <input value={fullName} onChange={(event) => setFullName(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
+                                        <input value={fullName} onChange={(event) => { setFullName(event.target.value); setProfileDirty(true); }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" />
                                     </div>
                                     <div>
                                         <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">E-mail</label>
-                                        <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" placeholder="voce@exemplo.com" />
+                                        <input type="email" value={email} onChange={(event) => { setEmail(event.target.value); setProfileDirty(true); }} className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white" placeholder="voce@exemplo.com" />
                                         <p className={`mt-1 text-xs ${customer.email_verified ? 'text-emerald-600' : 'text-amber-600'}`}>
                                             {customer.email_verified
                                                 ? 'E-mail verificado.'
@@ -766,7 +922,7 @@ export function CustomerAccountPortal() {
                                             <input
                                                 inputMode="numeric"
                                                 value={cpf}
-                                                onChange={(event) => setCpf(onlyDigits(event.target.value).slice(0, 11))}
+                                                onChange={(event) => { setCpf(onlyDigits(event.target.value).slice(0, 11)); setProfileDirty(true); }}
                                                 disabled={Boolean(customer.cpf)}
                                                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                                 placeholder="Somente números"
@@ -778,7 +934,7 @@ export function CustomerAccountPortal() {
                                             <input
                                                 type="date"
                                                 value={birthDate}
-                                                onChange={(event) => setBirthDate(event.target.value)}
+                                                onChange={(event) => { setBirthDate(event.target.value); setProfileDirty(true); }}
                                                 disabled={Boolean(customer.birth_date)}
                                                 className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-slate-900 outline-none focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                             />
@@ -904,7 +1060,7 @@ export function CustomerAccountPortal() {
                                                     <div>
                                                         <p className="font-black text-slate-900 dark:text-white">{order.order_code || `Pedido ${order.id.slice(0, 8)}`}</p>
                                                         <p className="mt-1 text-xs text-slate-500">{order.created_at ? new Date(order.created_at).toLocaleString('pt-BR') : ''}</p>
-                                                        <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status)}{order.fulfillment_type ? ` · ${order.fulfillment_type}` : ''}</p>
+                                                        <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status)}{order.fulfillment_type ? ` · ${fulfillmentLabel(order.fulfillment_type)}` : ''}</p>
                                                         <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
                                                             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                                             {expanded ? 'Ocultar itens' : 'Ver o que foi comprado'}
@@ -966,14 +1122,100 @@ export function CustomerAccountPortal() {
                                             </div>
                                             <button
                                                 type="button"
-                                                onClick={() => void setLoyaltyMembership(!customer.loyalty_opt_in)}
-                                                disabled={loyaltySaving}
+                                                onClick={() => {
+                                                    if (customer.loyalty_opt_in) {
+                                                        setShowLoyaltyExitConfirm(true);
+                                                        setLoyaltyJoinOpen(false);
+                                                    } else {
+                                                        setLoyaltyJoinOpen((current) => !current);
+                                                        setShowLoyaltyExitConfirm(false);
+                                                    }
+                                                    clearFeedback();
+                                                }}
+                                                disabled={loyaltySaving || loyaltyBlocked}
                                                 className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-2xl px-5 text-sm font-black transition disabled:opacity-50 ${customer.loyalty_opt_in ? 'border border-white/40 bg-white/10 text-white hover:bg-white/20' : 'bg-emerald-600 text-white hover:bg-emerald-700'}`}
                                             >
-                                                {loyaltySaving ? 'Salvando…' : customer.loyalty_opt_in ? 'Sair do programa' : 'Quero participar'}
+                                                {loyaltySaving
+                                                    ? 'Salvando…'
+                                                    : customer.loyalty_opt_in
+                                                        ? 'Sair do programa'
+                                                        : loyaltyBlocked
+                                                            ? 'Participação bloqueada'
+                                                            : 'Quero participar'}
                                             </button>
                                         </div>
                                     </section>
+
+                                    {loyaltyBlocked && (
+                                        <section className="rounded-3xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/20">
+                                            <h3 className="font-black text-red-800 dark:text-red-200">Participação indisponível</h3>
+                                            <p className="mt-2 text-sm leading-6 text-red-700 dark:text-red-300">
+                                                A loja bloqueou este CPF para o programa de fidelidade.
+                                                {loyaltyBlockReason ? ` Motivo informado: ${loyaltyBlockReason}` : ' Fale com a loja para mais informações.'}
+                                            </p>
+                                        </section>
+                                    )}
+
+                                    {!customer.loyalty_opt_in && loyaltyJoinOpen && !loyaltyBlocked && (
+                                        <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/15">
+                                            <h3 className="font-black text-slate-900 dark:text-white">Entrar no programa</h3>
+                                            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                A participação no programa é separada das permissões de marketing. Escolha abaixo como deseja receber novidades; comunicações essenciais de pedido e segurança continuam independentes destas opções.
+                                            </p>
+
+                                            <label className="mt-4 flex items-start gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-900">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={loyaltyTermsAccepted}
+                                                    onChange={(event) => setLoyaltyTermsAccepted(event.target.checked)}
+                                                    className="mt-1"
+                                                />
+                                                <span className="text-slate-700 dark:text-slate-200">
+                                                    Li e aceito o <button type="button" onClick={() => setShowLoyaltyTerms(true)} className="font-black text-emerald-700 underline dark:text-emerald-300">regulamento do programa de fidelidade</button>.
+                                                </span>
+                                            </label>
+
+                                            <div className="mt-4">
+                                                <p className="text-xs font-black uppercase tracking-widest text-slate-500">Quero receber promoções e novidades por</p>
+                                                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                                                    <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                                        <input type="checkbox" checked={marketingWhatsapp} onChange={(event) => setMarketingWhatsapp(event.target.checked)} />
+                                                        <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp
+                                                    </label>
+                                                    <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                                        <input type="checkbox" checked={marketingEmail} onChange={(event) => setMarketingEmail(event.target.checked)} />
+                                                        <Mail className="h-4 w-4 text-emerald-600" /> E-mail
+                                                    </label>
+                                                    <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                                        <input type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
+                                                        <MessageCircle className="h-4 w-4 text-emerald-600" /> SMS
+                                                    </label>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                                                <button type="button" onClick={() => setLoyaltyJoinOpen(false)} className="flex-1 rounded-2xl border border-slate-200 py-3 font-bold text-slate-600 dark:border-slate-700 dark:text-slate-300">Agora não</button>
+                                                <button type="button" onClick={() => void joinLoyaltyProgram()} disabled={loyaltySaving || !loyaltyTermsAccepted || loyaltyMissingFields.length > 0} className="flex-1 rounded-2xl bg-emerald-600 py-3 font-black text-white disabled:opacity-50">
+                                                    Confirmar participação
+                                                </button>
+                                            </div>
+                                        </section>
+                                    )}
+
+                                    {customer.loyalty_opt_in && showLoyaltyExitConfirm && (
+                                        <section className="rounded-3xl border-2 border-red-300 bg-red-50 p-5 dark:border-red-900 dark:bg-red-950/20">
+                                            <h3 className="font-black text-red-900 dark:text-red-100">Sair do programa apaga seus dados de fidelidade</h3>
+                                            <p className="mt-2 text-sm leading-6 text-red-800 dark:text-red-200">
+                                                Ao confirmar, seu saldo de pontos, extrato de movimentações, vouchers e demais dados operacionais deste programa serão excluídos permanentemente e não poderão ser restaurados. Seu cadastro de cliente e histórico de compras permanecem. Você poderá participar novamente no futuro, salvo se a loja bloquear seu CPF por descumprimento dos termos.
+                                            </p>
+                                            <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                                                <button type="button" onClick={() => setShowLoyaltyExitConfirm(false)} className="flex-1 rounded-2xl border border-red-200 bg-white py-3 font-bold text-red-700 dark:bg-slate-950">Continuar participando</button>
+                                                <button type="button" onClick={() => void leaveLoyaltyProgram()} disabled={loyaltySaving} className="flex-1 rounded-2xl bg-red-600 py-3 font-black text-white disabled:opacity-50">
+                                                    Apagar dados e sair
+                                                </button>
+                                            </div>
+                                        </section>
+                                    )}
 
                                     <div className="grid gap-4 sm:grid-cols-2">
                                         <section className="rounded-3xl bg-slate-950 p-5 text-white shadow-lg dark:bg-slate-900">
@@ -1006,6 +1248,7 @@ export function CustomerAccountPortal() {
                                         </section>
                                     )}
 
+                                    {customer.loyalty_opt_in && (
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
@@ -1043,6 +1286,24 @@ export function CustomerAccountPortal() {
                                                 </div>
                                             ))}
                                         </div>
+                                    </section>
+                                    )}
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Termos e regras do programa</h3>
+                                                <p className="mt-1 text-xs text-slate-500">{loyaltyProgram?.name || 'Programa de fidelidade da loja'}</p>
+                                            </div>
+                                            <button type="button" onClick={() => setShowLoyaltyTerms((current) => !current)} className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                                                <FileText className="h-4 w-4" /> {showLoyaltyTerms ? 'Ocultar' : 'Ver regulamento'}
+                                            </button>
+                                        </div>
+                                        {showLoyaltyTerms && (
+                                            <div className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
+                                                {loyaltyProgram?.program_terms || 'A loja ainda não publicou um regulamento para este programa.'}
+                                            </div>
+                                        )}
                                     </section>
 
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
