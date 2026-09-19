@@ -1,155 +1,209 @@
 # Status do Projeto OptmaMenu
 
-> **Última Atualização:** 19/09/2026  
-> **Branch de homologação ativa:** `agent/homologacao-geral-20260820`  
+> **Última atualização:** 19/09/2026  
+> **Branch de homologação:** `agent/homologacao-geral-20260820`  
 > **Frontend:** React + TypeScript / Vercel  
 > **Backend:** Supabase/Postgres (`lgkkfmqzaorrutuoqeax`)
 
 ---
 
-## Estado executivo atual
+## Estado executivo
 
-O OptmaMenu está em homologação operacional do fluxo **loja pública → cliente autenticado → carrinho → pedido → operação → fidelidade**. Os testes multi-dispositivo de 19/09/2026 confirmaram bom funcionamento da conclusão de pedidos e pontuação, mas também revelaram problemas de fronteira de sessão, persistência do carrinho, expiração de delivery, consistência de fidelidade e detalhamento do histórico. Esta rodada corrige esses pontos sem reabrir a arquitetura histórica.
+A frente ativa continua sendo a homologação ponta a ponta de **cliente autenticado → carrinho compartilhado → pedido → reserva/estoque → fidelidade**. Os testes reais em desktop, tablet e celular de 19/09/2026 fecharam os defeitos mais importantes de sessão, expiração, histórico de pedidos, carrinho multi-dispositivo e fidelidade.
 
-O baseline no início da rodada era `ca965497ea0dcc9b1548cdaae1476cf01650a881`, com Vercel READY. O Supabase tinha como última migration `20260916180940`.
-
----
-
-## Correções estruturais — 19/09/2026
-
-### Loja pública após autenticação
-
-Foi identificado que o mesmo cliente Supabase usado para RPCs públicas também era usado para estabelecer a sessão GoTrue do cliente final. Depois do login, chamadas que deveriam permanecer anônimas podiam passar a carregar sessão autenticada, causando o estado incorreto **“Loja não encontrada”** mesmo com a Gelinhares ativa.
-
-Correção:
-
-- `supabasePublic` permanece estritamente anônimo para storefront/catálogo;
-- criado cliente GoTrue isolado para verificar, renovar e encerrar a sessão do cliente;
-- login do cliente não altera mais a identidade das RPCs públicas da loja.
-
-### Expiração de pedidos
-
-O cron `cancel-expired-orders-every-minute` chamava a sobrecarga sem parâmetros de `cancel_expired_reservations()`, que não restringia a expiração por tipo de atendimento. O pedido delivery `PED-20260919-124837-AD7B` confirmou o defeito: mesmo com o timer suspenso por delivery, a reserva física expirou e o cron cancelou o pedido.
-
-Migration `20260919131552_fix_pickup_only_order_expiration`:
-
-- expiração automática passa a atingir somente `fulfillment_type = pickup`;
-- exige pedido não pago;
-- delivery não é mais cancelado pelo timer de reserva;
-- retirada não paga continua sujeita à expiração configurada.
-
-O pedido delivery já cancelado pelo defeito não foi reativado automaticamente, porque isso poderia restaurar uma venda após liberação do estoque.
-
-### Carrinho autenticado entre dispositivos
-
-A persistência existente era localStorage por dispositivo. Foi adicionada persistência segura no servidor para cliente autenticado:
-
-- tabela `customer_cart_drafts`, isolada por loja + cliente;
-- acesso direto bloqueado para anon/authenticated;
-- RPCs customer-scoped para obter, salvar e limpar o rascunho;
-- ao autenticar/abrir a loja, o carrinho do servidor é recuperado e combinado com o carrinho local do mesmo cliente;
-- o resultado é recalculado contra catálogo, estoque e preços atuais;
-- alterações do carrinho são sincronizadas novamente com o servidor;
-- carrinho local preexistente é publicado ao iniciar a sincronização quando ainda não existe rascunho remoto.
-
-Carrinho anônimo continua local ao dispositivo; a sincronização multi-dispositivo é vinculada à identidade autenticada.
-
-### Pedidos do cliente e recompra
-
-A área real `CustomerAccountPortal` agora:
-
-- continua verificando status automaticamente a cada 12 segundos;
-- possui retry automático e tentativa de restauração de sessão em falha transitória;
-- permite expandir cada pedido e visualizar os itens comprados;
-- oferece **Comprar novamente**;
-- recompra consulta o catálogo atual e usa preço/estoque atuais;
-- itens removidos ou indisponíveis não são adicionados e são informados ao cliente.
-
-### Fidelidade e dados do cliente
-
-A área **Meus dados** passa a expor os campos necessários à fidelidade:
-
-- nome;
-- e-mail;
-- CPF;
-- data de nascimento;
-- telefone confirmado permanece protegido.
-
-Regras aplicadas:
-
-- e-mail recebe validação de formato;
-- alterar e-mail força `email_verified=false`;
-- CPF e data de nascimento permanecem bloqueados para alteração após o primeiro preenchimento, exigindo futuro fluxo seguro específico;
-- adesão à fidelidade exige nome, data de nascimento, CPF para maiores de 18 anos e e-mail sintaticamente válido;
-- adesão/saída tornou-se idempotente: repetir uma ação já efetiva não cria novo consentimento e a UI informa o estado real;
-- ao abrir Fidelidade, a sessão é atualizada para reduzir estado antigo entre dispositivos.
-
-Migration `20260919131826_customer_portal_continuity_loyalty_cart_draft` também adiciona `get_customer_self_loyalty_transactions_safe`.
-
-### Extrato de pontos
-
-A aba Fidelidade agora possui **Extrato de pontos** com:
-
-- ganhos/resgates/ajustes;
-- quantidade de pontos;
-- data/hora;
-- descrição;
-- código do pedido quando houver;
-- atualização manual.
-
-O cliente de teste “Seu Madruga” tinha 27 pontos e transação vinculada ao pedido `PED-20260917-114506-CE8A`, servindo como dado real para homologar o extrato.
-
-### Aviso de preload no console
-
-Foi removido de `index.html` o preload antecipado de `/assets/OptmaMenuLogo.webp`, que não era consumido imediatamente e gerava o aviso do Chrome. A imagem passa a ser carregada somente quando efetivamente utilizada.
+O login que anteriormente podia levar a **Loja não encontrada** foi validado manualmente como resolvido. O warning de preload do logo também deixou de ocorrer.
 
 ---
 
-## E-mail e alterações sensíveis — decisão arquitetural
+## Carrinho autenticado multi-dispositivo
 
-O e-mail do cliente **não deve se tornar a identidade principal do Supabase Auth**. A identidade autoritativa do cliente continua sendo telefone confirmado + sessão/JWT próprio.
+O modelo definitivo desta etapa é **um carrinho por cliente + loja**, independentemente do dispositivo ou de quando o item foi adicionado. Recompras de pedidos anteriores adicionam itens a esse mesmo carrinho; não criam carrinhos paralelos.
 
-Estratégia para a próxima implementação de verificação de e-mail:
+Foram corrigidos dois defeitos de sincronização:
 
-1. ao cadastrar/trocar e-mail, persistir com `email_verified=false`;
-2. gerar desafio/token de uso único no backend, com TTL, rate limit e vínculo a cliente + loja + e-mail;
-3. enviar o link/código por provedor de e-mail dedicado;
-4. endpoint seguro confirma o desafio e marca `email_verified=true`;
-5. alterações sensíveis de fidelidade/identidade devem exigir nova autenticação por telefone/OTP; e-mail verificado pode ser canal complementar, recuperação e notificações, mas não substitui silenciosamente o telefone confirmado.
+1. a limpeza remota agora grava um **tombstone** no servidor em vez de simplesmente excluir o registro;
+2. snapshots antigos precisam informar a versão remota usada como base. Um dispositivo desatualizado não pode mais ressuscitar um carrinho que já foi limpo em outro aparelho.
 
-Nesta rodada foi implementada a base de estado seguro do e-mail; o envio e a confirmação por provedor externo ainda não foram implementados.
+A sincronização:
+- recupera o estado remoto ao entrar na loja;
+- atualiza em foco/visibilidade e consulta periodicamente enquanto a loja está aberta;
+- recalcula produto, preço e estoque pelo catálogo atual;
+- limpa o rascunho remoto após checkout;
+- mantém carrinho anônimo apenas no dispositivo até a autenticação.
 
----
+O rascunho residual do cliente de teste foi explicitamente convertido em tombstone no Supabase após a correção de conflito e permaneceu limpo mesmo com dispositivos antigos ainda abertos.
 
-## Homologação imediata
-
-Validar em tablet, desktop e celular:
-
-- login por SMS e retorno ao catálogo sem **Loja não encontrada**;
-- carrinho autenticado criado em um dispositivo e recuperado no outro;
-- edição do carrinho com atualização posterior em outro dispositivo, respeitando preço/estoque atuais;
-- loyalty join com perfil incompleto deve orientar quais campos faltam;
-- após completar os dados e aderir, outro dispositivo deve refletir participação ativa e não simular uma nova adesão;
-- cancelamento/conclusão deve aparecer sem reload; falhas transitórias de leitura devem ser recuperadas automaticamente;
-- delivery não pago deve permanecer ativo além do timer de reserva;
-- retirada não paga deve continuar expirando conforme a configuração;
-- pedido anterior deve abrir itens e permitir **Comprar novamente**;
-- aba Fidelidade deve exibir o extrato real de pontos;
-- console não deve mais emitir o warning de preload de `OptmaMenuLogo.webp`.
+Migrations relacionadas:
+- `20260919131826_customer_portal_continuity_loyalty_cart_draft`;
+- `20260919142840_customer_cart_history_delivery_reservation_hardening`;
+- `20260919144143_customer_cart_clear_conflict_guard`.
 
 ---
 
-## Evoluções ainda abertas
+## Sessão do cliente e erros 401
 
-- verificação real de e-mail por canal próprio;
-- fluxo forte de alteração de CPF, nascimento, telefone e demais dados sensíveis;
-- gestão administrativa de banners/campanhas exclusivos de fidelidade;
-- notificações de carrinho abandonado, agora possíveis a partir do rascunho autenticado no servidor, com consentimento e regras de marketing;
-- push/realtime customer-scoped poderá substituir ou complementar o polling quando o isolamento de eventos estiver formalmente fechado;
-- comunicação por e-mail/WhatsApp de **Saiu para entrega** com ETA autoritativo.
+`supabasePublic` permanece estritamente anônimo para storefront/catálogo. A sessão GoTrue usada pelo cliente final fica isolada.
+
+O cliente autenticado agora:
+- verifica validade do access token antes de REST/RPC/Functions;
+- renova automaticamente usando o refresh token;
+- serializa renovações concorrentes;
+- em um 401, força uma única renovação e repete a requisição.
+
+O histórico de pedidos também deixou de consultar diretamente `orders + products` pelo navegador. Passou a usar `get_customer_self_orders_safe`, customer-scoped e `SECURITY DEFINER`, reduzindo dependência de joins RLS no portal.
+
+---
+
+## Pedidos, histórico e recompra
+
+Na área do cliente:
+- status continua atualizando aproximadamente a cada 12 segundos;
+- perfil/estado da conta também é atualizado em segundo plano;
+- `delivery` e `pickup` são apresentados como **Entrega** e **Retirada**;
+- pedido pode ser expandido para mostrar itens;
+- nome histórico do produto vem primeiro de `order_items.product_snapshot`, evitando **Produto indisponível** quando o produto atual não é acessível pelo join público;
+- **Comprar novamente** usa catálogo, disponibilidade e preço atuais e adiciona os itens ao carrinho único do cliente.
+
+---
+
+## Reserva e estoque
+
+A regra confirmada é:
+
+- **Retirada + não pago:** reserva expira conforme prazo configurado;
+- **Retirada + pagamento confirmado:** reserva permanece sem expiração até retirada/finalização;
+- **Entrega:** reserva permanece sem expiração; a saída física só deve ocorrer no despacho/`Saiu para entrega`.
+
+O cron de expiração já havia sido restringido a retirada não paga. Nesta rodada também foi criado o trigger `enforce_delivery_stock_reservation_lifetime`, que grava `expires_at = infinity` para reservas de delivery.
+
+O pedido real `PED-20260919-135026-5DB3` foi conferido no Supabase:
+- reserva ativa;
+- produto reservado;
+- `expires_at = infinity`;
+- motivo `delivery_order`;
+- nenhum `stock_movement` ou `inventory_movement` de saída antes do despacho.
+
+A tela administrativa **Reservas de estoque** foi corrigida para tratar `infinity` e datas inválidas sem lançar `RangeError: Invalid time value`. Reservas sem vencimento aparecem como **Sem prazo / reserva sem expiração**.
+
+Migration de endurecimento de permissão do trigger:
+- `20260919144325_harden_delivery_reservation_trigger_grants`.
+
+---
+
+## Fidelidade
+
+### Adesão
+
+A adesão deixou de ser um botão isolado. O fluxo agora separa:
+
+- aceite obrigatório do **regulamento do programa de fidelidade**;
+- WhatsApp promocional opcional;
+- SMS promocional opcional;
+- e-mail promocional opcional e disponível somente com e-mail verificado.
+
+Comunicações essenciais de pedido e segurança são apresentadas como independentes do consentimento de marketing.
+
+O programa exibido ao cliente usa os termos reais configurados pela loja em `fidelity_programs.program_terms`, com substituição das variáveis de loja/data/validade.
+
+### Saída voluntária
+
+Ao solicitar saída, o cliente recebe aviso explícito de irreversibilidade. Ao confirmar:
+- pontos são zerados;
+- extrato de fidelidade é apagado;
+- vouchers são apagados;
+- consentimento operacional do programa é apagado;
+- tier/stamps são zerados;
+- o extrato deixa de ser exibido;
+- dados de cadastro e histórico comercial de compras permanecem;
+- nova adesão futura continua permitida.
+
+### Remoção e banimento pela loja
+
+A Vida do Cliente ganhou gestão administrativa da fidelidade:
+
+- **Remover da fidelidade:** apaga os dados do programa, mas permite adesão futura;
+- **Banir CPF da fidelidade:** apaga os dados do programa e cria bloqueio de reingresso;
+- **Liberar CPF:** remove o bloqueio e volta a permitir nova adesão.
+
+O bloqueio não grava o CPF completo em uma lista pública: usa hash derivado de loja + CPF, mantendo somente os quatro últimos dígitos para contexto administrativo.
+
+Migrations:
+- `20260919143136_loyalty_membership_block_registry`;
+- `20260919143157_loyalty_membership_purge_and_admin_actions`;
+- `20260919143221_loyalty_terms_and_blocked_join_guard`.
+
+---
+
+## Verificação de e-mail
+
+O e-mail continua sendo **atributo verificado do cliente**, não a identidade principal do Supabase Auth. A identidade forte continua sendo telefone confirmado + sessão/JWT do cliente.
+
+Foi criada a infraestrutura:
+
+- tabela `customer_email_verification_challenges`;
+- token aleatório de uso único;
+- armazenamento apenas do hash do token;
+- validade de 30 minutos;
+- rate limit;
+- invalidação de desafios anteriores;
+- confirmação válida apenas se o e-mail atual ainda for exatamente o mesmo;
+- alteração do endereço continua zerando `email_verified`;
+- Edge Function `request-customer-email-verification`;
+- Edge Function pública de confirmação `confirm-customer-email`;
+- botão **Confirmar meu e-mail com a loja** em Meus dados.
+
+A comunicação é deliberadamente **store-first**:
+- remetente visual usa o nome da loja;
+- assunto: **Confirme seu e-mail para {Loja}**;
+- texto explica que a própria loja precisa confirmar o endereço;
+- OptmaMenu/OptmaIdea aparecem somente no rodapé tecnológico, com links institucionais.
+
+A implementação de envio usa um adapter Resend. Para envio real ainda é necessário disponibilizar no projeto Supabase:
+- `RESEND_API_KEY`;
+- `CUSTOMER_EMAIL_FROM` com domínio/remetente autorizado.
+
+Sem essas credenciais o backend retorna uma mensagem controlada de provedor ainda não configurado; nenhuma confirmação é simulada.
+
+Migration:
+- `20260919143725_customer_email_verification_challenges`.
+
+---
+
+## Segurança da rodada
+
+As tabelas de carrinho, desafios de e-mail e bloqueios de fidelidade permanecem com RLS habilitado e sem acesso direto para `anon`/`authenticated`; o acesso funcional é feito por RPCs/Edge Functions específicas.
+
+O Security Advisor identificou o novo trigger de reserva como executável externamente por padrão; o grant foi corrigido imediatamente e a função ficou restrita ao uso interno/service role.
+
+---
+
+## Homologação imediata recomendada
+
+1. Em um dispositivo, adicionar itens ao carrinho autenticado; confirmar que aparecem nos demais.
+2. Limpar em um dispositivo; em até ~10 segundos/foco, confirmar carrinho vazio nos três aparelhos e que ele não reaparece.
+3. Criar novo item depois da limpeza e confirmar que um carrinho novo pode ser iniciado normalmente.
+4. Abrir pedido histórico e confirmar nomes reais dos produtos; usar **Comprar novamente**.
+5. Confirmar pagamento de retirada antecipada e abrir Reservas: tela não deve quebrar; reserva deve mostrar **Sem prazo**.
+6. Conferir delivery ainda reservado e sem baixa física antes de **Saiu para entrega**.
+7. Alterar dados/perfil em um dispositivo e aguardar atualização automática nos demais sem F5.
+8. Em Fidelidade, abrir regulamento, escolher permissões e aderir.
+9. Sair do programa e confirmar saldo/extrato removidos; em seguida testar nova adesão.
+10. No administrativo, testar **Remover**, **Banir CPF** e **Liberar CPF**.
+11. Após configurar o provedor de e-mail, solicitar verificação, abrir link e confirmar `email_verified=true` nos demais dispositivos.
+
+---
+
+## Pendências abertas
+
+- configurar credenciais/remetente do provedor de e-mail e homologar entrega real;
+- gestão visual de campanhas/banners exclusivos de fidelidade;
+- notificações de carrinho abandonado, agora tecnicamente possíveis pelo rascunho autenticado, sempre condicionadas aos consentimentos de marketing;
+- push/realtime customer-scoped poderá futuramente substituir o polling seguro;
+- comunicação de **Saiu para entrega** por e-mail/WhatsApp com ETA autoritativo;
+- fluxo forte para alteração posterior de CPF, nascimento e telefone.
 
 ---
 
 ## Autoridade técnica
 
-Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase e deployments da Vercel são a autoridade para o estado técnico implantado.
+Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
