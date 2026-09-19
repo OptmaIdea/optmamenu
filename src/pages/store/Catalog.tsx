@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import type { Category, Product, StoreConfig } from '@/types';
+import type { CartItem, Category, Product, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { PublicStoreHero } from '@/pages/store/components/PublicStoreHero';
@@ -239,7 +239,7 @@ export default function Catalog() {
                     context?: { storeId?: string } | null;
                     fulfillmentType?: 'pickup' | 'delivery' | 'table' | null;
                     deliveryMethodCode?: string | null;
-                    items?: typeof cartItems;
+                    items?: CartItem[];
                 };
 
                 if (
@@ -249,7 +249,7 @@ export default function Catalog() {
                 ) {
                     const current = useCartStore.getState();
                     const currentItems = current.context?.storeId === store.id ? current.items : [];
-                    const merged = new Map<string, (typeof remoteCart.items)[number]>();
+                    const merged = new Map<string, CartItem>();
 
                     remoteCart.items.forEach((item) => {
                         if (item?.id) merged.set(item.id, item);
