@@ -50,15 +50,6 @@ async function callRpc(
 
 // Runtime secrets are injected by the deployment environment; changing them requires a new deployment.
 export default async function handler(req: any, res: any) {
-    if (req.method !== 'POST') {
-        return json(res, 405, { ok: false, error: 'method_not_allowed' });
-    }
-
-    const authorization = String(req.headers.authorization || '');
-    if (!authorization.toLowerCase().startsWith('bearer ')) {
-        return json(res, 401, { ok: false, error: 'access_denied' });
-    }
-
     const supabaseUrl =
         process.env.SUPABASE_URL
         || process.env.VITE_SUPABASE_URL
@@ -82,6 +73,25 @@ export default async function handler(req: any, res: any) {
         || process.env.BREVO_SENDER_EMAIL
         || process.env.EMAIL_FROM
         || '';
+
+    if (req.method === 'GET') {
+        return json(res, 200, {
+            ok: true,
+            runtime: 'vercel',
+            providerConfigured: Boolean(resendApiKey || brevoApiKey),
+            senderConfigured: Boolean(emailFrom),
+            supabaseConfigured: Boolean(supabaseUrl && anonKey),
+        });
+    }
+
+    if (req.method !== 'POST') {
+        return json(res, 405, { ok: false, error: 'method_not_allowed' });
+    }
+
+    const authorization = String(req.headers.authorization || '');
+    if (!authorization.toLowerCase().startsWith('bearer ')) {
+        return json(res, 401, { ok: false, error: 'access_denied' });
+    }
 
     if (!supabaseUrl || !anonKey) {
         return json(res, 503, {
