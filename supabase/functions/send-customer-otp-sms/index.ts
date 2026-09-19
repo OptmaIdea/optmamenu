@@ -139,12 +139,14 @@ Deno.serve(async (req: Request) => {
       return reply({ ok: false, error }, 400, origin);
     }
     if (error === "phone_already_registered" || error === "customer_not_found") {
+      // Conflito de fluxo, não falha de transporte: 200 evita FunctionsHttpError
+      // e permite ao frontend mostrar a orientação sem ruído 409 no console.
       return reply({
         ok: false,
         error,
         message: String(issued?.message || ""),
         smsSent: false,
-      }, 409, origin);
+      }, 200, origin);
     }
     return reply({ ok: false, error: "otp_issue_rejected" }, 409, origin);
   }
