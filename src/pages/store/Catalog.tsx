@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import type { Category, Product, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
@@ -7,6 +7,7 @@ import { PublicStoreHero } from '@/pages/store/components/PublicStoreHero';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { AuthService } from '@/services/customerAuth';
+import { CustomerService } from '@/services/customerService';
 import CustomerProfile from '@/pages/store/components/CustomerProfile';
 import {
     PublicStorefrontService,
@@ -74,6 +75,9 @@ export default function Catalog() {
 
     const {
         items: cartItems,
+        context: cartContext,
+        fulfillmentType: cartFulfillmentType,
+        deliveryMethodCode: cartDeliveryMethodCode,
         addToCart,
         bindContext,
         setFulfillment,
@@ -95,6 +99,7 @@ export default function Catalog() {
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [isDark, setIsDark] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
+    const sharedCartLoadedKeyRef = useRef<string | null>(null);
 
     const [showLoginModal, setShowLoginModal] = useState(false);
     const [showCompleteProfileModal, setShowCompleteProfileModal] = useState(false);
@@ -213,6 +218,108 @@ export default function Catalog() {
 
         loadStorefront();
     }, [applyCatalog, bindContext, isQrTableMode, setFulfillment, storeSlug, tableCode]);
+
+    useEffect(() => {
+        if (!store?.id || !customer?.id || !isAuthenticated) {
+            sharedCartLoadedKeyRef.current = null;
+            return;
+        }
+
+        const syncKey = `${customer.id}:${store.id}`;
+        if (sharedCartLoadedKeyRef.current === syncKey) return;
+
+        let cancelled = false;
+
+        const restoreSharedCart = async () => {
+            try {
+                const remote = await CustomerService.getSelfCartDraft();
+                if (cancelled) return;
+
+                const remoteCart = remote.cart as {
+                    context?: { storeId?: string } | null;
+                    fulfillmentType?: 'pickup' | 'delivery' | 'table' | null;
+                    deliveryMethodCode?: string | null;
+                    items?: typeof cartItems;
+                };
+
+                if (
+                    remoteCart?.context?.storeId === store.id
+                    && Array.isArray(remoteCart.items)
+                    && remoteCart.items.length > 0
+                ) {
+                    const current = useCartStore.getState();
+                    const currentItems = current.context?.storeId === store.id ? current.items : [];
+                    const merged = new Map<string, (typeof remoteCart.items)[number]>();
+
+                    remoteCart.items.forEach((item) => {
+                        if (item?.id) merged.set(item.id, item);
+                    });
+
+                    currentItems.forEach((item) => {
+                        if (!item?.id) return;
+                        const previous = merged.get(item.id);
+                        merged.set(item.id, {
+                            ...(previous || item),
+                            ...item,
+                            quantity: Math.max(Number(previous?.quantity || 0), Number(item.quantity || 0)),
+                        });
+                    });
+
+                    useCartStore.setState({
+                        items: Array.from(merged.values()),
+                        fulfillmentType: current.fulfillmentType || remoteCart.fulfillmentType || 'pickup',
+                        deliveryMethodCode: current.deliveryMethodCode || remoteCart.deliveryMethodCode || null,
+                    });
+
+                    // Reidrata preço/estoque com o catálogo autoritativo atual.
+                    await refreshCatalog();
+                }
+            } catch (error) {
+                console.warn('[CART_SYNC] Não foi possível recuperar o carrinho compartilhado:', error);
+            } finally {
+                if (!cancelled) sharedCartLoadedKeyRef.current = syncKey;
+            }
+        };
+
+        void restoreSharedCart();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [customer?.id, isAuthenticated, refreshCatalog, store?.id]);
+
+    useEffect(() => {
+        if (!store?.id || !customer?.id || !isAuthenticated) return;
+
+        const syncKey = `${customer.id}:${store.id}`;
+        if (sharedCartLoadedKeyRef.current !== syncKey) return;
+        if (cartContext?.storeId !== store.id) return;
+
+        const timer = window.setTimeout(() => {
+            const current = useCartStore.getState();
+            if (current.context?.storeId !== store.id) return;
+
+            void CustomerService.saveSelfCartDraft({
+                schemaVersion: current.schemaVersion,
+                context: current.context,
+                fulfillmentType: current.fulfillmentType,
+                deliveryMethodCode: current.deliveryMethodCode,
+                items: current.items,
+            }).catch((error) => {
+                console.warn('[CART_SYNC] Não foi possível sincronizar o carrinho:', error);
+            });
+        }, 800);
+
+        return () => window.clearTimeout(timer);
+    }, [
+        cartContext,
+        cartDeliveryMethodCode,
+        cartFulfillmentType,
+        cartItems,
+        customer?.id,
+        isAuthenticated,
+        store?.id,
+    ]);
 
     useEffect(() => {
         if (!store?.id || !storeSlug) return;
