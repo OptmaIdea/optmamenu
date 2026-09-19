@@ -492,6 +492,33 @@ Antes do fechamento definitivo de Clientes, incluir autoatendimento de exclusão
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (oitava rodada)
+
+### Confirmação de e-mail: causa raiz do HTML bruto identificada
+
+O teste real confirmou que a Edge Function do Supabase processava corretamente o token, porém o navegador exibia o HTML como texto. A causa não era encoding nem cabeçalho incorreto: no domínio compartilhado `.supabase.co`, GET de Edge Function com `text/html` é deliberadamente reescrito para `text/plain` pela plataforma quando não há Custom Domain.
+
+Correção arquitetural:
+- `confirm-customer-email` não tenta mais servir HTML;
+- após validar, confirmar e consumir o token, responde com HTTP 303;
+- destino de sucesso/erro: cardápio público canônico em `https://optmamenu.optmaidea.com.br/s/<slug>`;
+- parâmetro `emailVerification` informa `success | invalid | used | expired | error`;
+- `StoreLayout` já possui tratamento para `emailVerification=success` e feedback ao cliente;
+- a função permanece pública apenas para consumir token de confirmação, sem JWT;
+- Edge Function publicada como versão 4.
+
+Commits:
+- `279adba3f8532814f57682086cd46344f2f00e4f` — redireciona confirmação para loja pública;
+- `d1ce3505f27e62776fda6a7c68669718c4cb030a` — registra no challenge o resultado do e-mail transacional pós-confirmação.
+
+### E-mail pós-confirmação
+
+O aviso transacional `E-mail confirmado em <loja>` é disparado pela Edge Function, portanto depende de `BREVO_API_KEY` e `CUSTOMER_EMAIL_FROM` existirem também nos Secrets do runtime Supabase. As variáveis existentes somente na Vercel não ficam disponíveis dentro de Edge Functions do Supabase.
+
+A partir da versão 4, o challenge registra em `metadata.confirmed_notification` somente o estado técnico do aviso (`sent/provider/reason`), sem armazenar a chave do provedor.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
