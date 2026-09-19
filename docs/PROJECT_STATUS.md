@@ -373,6 +373,69 @@ Se esse Preview ainda retornar `401 Key not found`, a causa restante é a creden
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (sexta rodada)
+
+### Confirmação de e-mail: retorno para a própria loja
+
+O link enviado por e-mail deixou de apontar diretamente para a Edge Function de confirmação do Supabase. Novos e-mails passam por `/api/customer-email-confirm` na Vercel:
+- a Vercel confirma o token pela Edge Function do Supabase;
+- em caso de sucesso, redireciona para `/s/{slug}?emailVerification=success`;
+- a loja restaura a sessão do cliente e mostra feedback amigável;
+- isso evita a página de HTML bruto observada na homologação.
+
+### Saída da fidelidade validada no backend
+
+Após a saída voluntária do Seu Madruga, a conferência real no Supabase mostrou:
+- `loyalty_transactions`: 0;
+- `fidelity_vouchers`: 0;
+- consentimentos `loyalty_program` / `loyalty_data_responsibility`: 0;
+- bloqueios ativos: 0;
+- saldo do cliente: 0;
+- `loyalty_opt_in=false`.
+
+Cadastro geral, pedidos e dados não exclusivos da fidelidade permanecem.
+
+### Estorno de pontos em cancelamento pós-conclusão
+
+Foi criado o trigger `on_order_cancelled_reverse_loyalty`. Quando um fluxo autorizado mover um pedido de `completed` para `cancelled`, cada transação positiva `type='order'` ligada ao pedido recebe uma transação `type='reversal'` negativa, com `related_transaction_id`, descrição explícita do pedido e atualização do saldo/nível.
+
+Teste transacional com rollback:
+- crédito temporário: +42;
+- pedido concluído -> cancelado;
+- estorno criado: -42;
+- saldo final: 0;
+- rollback confirmou que nenhum dado de teste permaneceu.
+
+Observação: o cancelamento administrativo normal ainda rejeita pedidos já concluídos; portanto o trigger prepara a integridade para um fluxo específico de pós-venda/estorno, sem alterar silenciosamente estoque/financeiro de uma venda concluída.
+
+Migration:
+- `20260919222000_loyalty_cancel_reversal_and_join_event`.
+
+### Bônus de adesão: inconsistência encontrada e isolada
+
+Existiam duas configurações concorrentes:
+- programa `Gelipontos`: `enable_join_bonus=true`, `join_bonus_points=15`;
+- regra avançada **Bônus de adesão**: 30 pontos, porém cadastrada como `trigger_event='order_completed'`.
+
+A regra avançada estava semanticamente errada e poderia somar o “bônus de adesão” em todo pedido concluído. Ela foi migrada para o novo evento `loyalty_join`, que não participa do cálculo de compras. Um cálculo real de pedido após a correção confirmou que a regra de 30 pontos deixou de entrar na pontuação de `order_completed`.
+
+A concessão de bônus na adesão ainda precisa ser consolidada em uma única fonte na frente específica de Fidelidade. Também ficou registrada a decisão de produto sobre reingresso:
+- para oferecer percentual reduzido em reinscrição é necessário reter algum marcador mínimo de participação anterior;
+- isso conflita com a política atual de apagar integralmente os dados de fidelidade na saída;
+- não será criado marcador oculto sem decisão explícita de retenção/termos.
+
+### Perfil do cliente
+
+O nome informado na criação da conta continua em `nickname`. A tela **Meus dados** passa a exibir explicitamente **Apelido / identificação**, separado de **Nome completo**. Isso preserva o fluxo usado por Crisgeo Louren sem transformar automaticamente apelido em nome civil.
+
+### Fidelidade administrativa — pendência separada
+
+O erro `42501 permission denied for table customers` foi localizado em `ManualPoints.tsx`, que ainda faz `HEAD/GET/UPDATE` diretos em `customers` e leituras diretas em `loyalty_transactions`. Essa tela deve migrar para RPCs seguras store-scoped, assim como os demais módulos atuais.
+
+Por decisão de escopo, a consolidação das configurações de Fidelidade (clientes ativos, regras, bônus de adesão/reentrada, bloqueios por CPF, níveis e benefícios) será tratada em chat próprio após o fechamento desta rodada.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
