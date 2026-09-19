@@ -317,7 +317,34 @@ export default function Catalog() {
                 fulfillmentType: current.fulfillmentType,
                 deliveryMethodCode: current.deliveryMethodCode,
                 items: current.items,
-            }).then((result) => {
+                syncBaseUpdatedAt: sharedCartRemoteUpdatedAtRef.current > 0
+                    ? new Date(sharedCartRemoteUpdatedAtRef.current).toISOString()
+                    : null,
+            }).then(async (result) => {
+                if (result?.stale) {
+                    const remote = await CustomerService.getSelfCartDraft();
+                    const remoteCart = remote.cart as {
+                        items?: CartItem[];
+                        fulfillmentType?: 'pickup' | 'delivery' | 'table' | null;
+                        deliveryMethodCode?: string | null;
+                        cleared?: boolean;
+                    };
+                    const remoteTimestamp = remote.updatedAt ? Date.parse(remote.updatedAt) : 0;
+                    if (Number.isFinite(remoteTimestamp) && remoteTimestamp > 0) {
+                        sharedCartRemoteUpdatedAtRef.current = remoteTimestamp;
+                    }
+                    suppressNextSharedCartSaveRef.current = true;
+                    useCartStore.setState((state) => ({
+                        items: remoteCart.cleared ? [] : (Array.isArray(remoteCart.items) ? remoteCart.items : []),
+                        fulfillmentType: state.fulfillmentType || remoteCart.fulfillmentType || 'pickup',
+                        deliveryMethodCode: state.deliveryMethodCode || remoteCart.deliveryMethodCode || null,
+                    }));
+                    if (!remoteCart.cleared && Array.isArray(remoteCart.items) && remoteCart.items.length > 0) {
+                        await refreshCatalog();
+                    }
+                    return;
+                }
+
                 const savedAt = result?.updated_at ? Date.parse(String(result.updated_at)) : 0;
                 if (Number.isFinite(savedAt) && savedAt > 0) {
                     sharedCartRemoteUpdatedAtRef.current = savedAt;
