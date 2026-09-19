@@ -1300,9 +1300,6 @@ export function CustomerAccountPortal() {
                                                                 </p>
                                                             </div>
                                                         ))}
-                                                        <p className="pt-1 text-xs text-slate-500">
-                                                            A avaliação de produtos de 0 a 5 estrelas será incorporada a este histórico em uma próxima etapa.
-                                                        </p>
                                                     </div>
                                                 )}
                                             </section>
