@@ -367,6 +367,42 @@ export const CustomerService = {
         return payload;
     },
 
+    async requestSelfEmailVerification() {
+        const { data, error } = await supabaseCustomer.functions.invoke('request-customer-email-verification', {
+            body: {},
+        });
+
+        if (error) {
+            const message = String((error as { message?: string }).message || '');
+            if (message.includes('non-2xx') || message.includes('503')) {
+                throw new Error('O serviço de verificação de e-mail da loja ainda não está configurado.');
+            }
+            throw new Error('Não foi possível enviar a confirmação de e-mail agora.');
+        }
+
+        const payload = data as {
+            ok?: boolean;
+            error?: string;
+            alreadyVerified?: boolean;
+            email?: string;
+            expiresAt?: string;
+            storeName?: string;
+        } | null;
+
+        if (!payload?.ok) {
+            const labels: Record<string, string> = {
+                email_provider_not_configured: 'O serviço de verificação de e-mail da loja ainda não está configurado.',
+                valid_email_required: 'Cadastre e salve um e-mail válido antes de solicitar a confirmação.',
+                rate_limited: 'Aguarde um pouco antes de solicitar outro e-mail de confirmação.',
+                email_delivery_failed: 'A loja não conseguiu enviar o e-mail de confirmação agora. Tente novamente mais tarde.',
+                access_denied: 'Sua sessão expirou. Entre novamente para confirmar o e-mail.',
+            };
+            throw new Error(labels[payload?.error || ''] || 'Não foi possível enviar a confirmação de e-mail agora.');
+        }
+
+        return payload;
+    },
+
     // --- Shared cart draft ---
     async getSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
