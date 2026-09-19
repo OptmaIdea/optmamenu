@@ -344,7 +344,7 @@ export function CustomerAccountPortal() {
                     data = await CustomerService.getOrders();
                 }
             }
-            const nextOrders = (data as Record<string, unknown>[]).map(normalizeOrder);
+            const nextOrders = (data as unknown as Record<string, unknown>[]).map(normalizeOrder);
 
             if (notifyStatusChanges && ordersRef.current.length > 0) {
                 const previousById = new Map(ordersRef.current.map((order) => [order.id, order.status]));
