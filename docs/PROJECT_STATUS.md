@@ -436,6 +436,62 @@ Por decisão de escopo, a consolidação das configurações de Fidelidade (clie
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (sétima rodada)
+
+### Confirmação de e-mail em Preview protegido
+
+Foi confirmado em teste real que usar a rota `/api/customer-email-confirm` do Preview da Vercel não é adequado: a proteção do deployment intercepta o link e exibe o login da Vercel antes que a confirmação alcance a aplicação.
+
+Correção aplicada:
+- novos e-mails voltam a apontar diretamente para a Edge Function pública `confirm-customer-email` do Supabase;
+- a Edge Function foi republicada como versão 2;
+- o HTML de confirmação permanece com `Content-Type: text/html`;
+- após confirmar, é enviado um segundo e-mail transacional de segurança informando que o endereço foi verificado;
+- falha no envio desse segundo e-mail não desfaz a confirmação já concluída.
+
+Commits:
+- `70d898cfcfaec5b9ced4292215ede4f5e2361e53` — evita proteção da Vercel na confirmação;
+- `3eff95db36fc97c8dd83914351110be40bca297f` — aviso transacional pós-confirmação.
+
+### Navegação de Fidelidade — decisão
+
+A etapa futura terá apenas um item de menu **Fidelidade**. `Fidelidade avançada` deixa de existir como item irmão.
+
+Base canônica: infraestrutura segura da página avançada, incorporando por abas as funções úteis da área legada:
+- Visão geral;
+- Regras e pontuação;
+- Níveis;
+- Benefícios e prêmios;
+- Clientes participantes;
+- Ajustes / extrato;
+- Bloqueios e reentrada;
+- Termos e privacidade.
+
+A área legada não será mantida como segunda autoridade porque ainda contém acessos diretos a tabelas. Suas funções úteis deverão migrar para RPCs seguras.
+
+### Próximas conversas separadas
+
+Handoff criado:
+`docs/HANDOFF_PROXIMAS_FRENTES_CLIENTES_FIDELIDADE_OPTMAPAY_20260919.md`.
+
+Ele separa:
+1. fechamento de Clientes / Slug;
+2. refinamento moderno, segurança, privacidade, exclusão da conta e análise de JWT;
+3. integração OptmaPay ↔ OptmaMenu;
+4. futura consolidação da Fidelidade.
+
+### OptmaPay
+
+O repositório `OptmaIdea/optmapay` está acessível e foi analisado. O OptmaMenu já possui provider `optma_sandbox`, intents, events, rotas de recebimento e liquidação interna; a integração futura deve evoluir esse provider em vez de criar um sistema paralelo.
+
+Antes de confiar no OptmaPay como provider externo, ficaram registradas pendências de endurecimento em autenticação das APIs, armazenamento/validação de API keys, HMAC de webhooks, dispatcher server-side, SSRF e idempotência.
+
+### Exclusão de conta do cliente
+
+Antes do fechamento definitivo de Clientes, incluir autoatendimento de exclusão com reautenticação forte, invalidação de sessões e purga/anonimização dos dados não sujeitos a retenção. Dados estritamente necessários por obrigação legal/fiscal/contábil devem ser segregados da conta ativa e mantidos apenas conforme base legal e prazo aplicável.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
