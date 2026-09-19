@@ -277,7 +277,21 @@ export default function Catalog() {
             } catch (error) {
                 console.warn('[CART_SYNC] Não foi possível recuperar o carrinho compartilhado:', error);
             } finally {
-                if (!cancelled) sharedCartLoadedKeyRef.current = syncKey;
+                if (!cancelled) {
+                    sharedCartLoadedKeyRef.current = syncKey;
+                    const current = useCartStore.getState();
+                    if (current.context?.storeId === store.id) {
+                        void CustomerService.saveSelfCartDraft({
+                            schemaVersion: current.schemaVersion,
+                            context: current.context,
+                            fulfillmentType: current.fulfillmentType,
+                            deliveryMethodCode: current.deliveryMethodCode,
+                            items: current.items,
+                        }).catch((error) => {
+                            console.warn('[CART_SYNC] Não foi possível publicar o carrinho inicial:', error);
+                        });
+                    }
+                }
             }
         };
 
