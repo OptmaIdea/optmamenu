@@ -244,6 +244,7 @@ describe('customerCartPersistence', () => {
     });
 
     it('sincroniza quantidade e exclusão do carrinho entre dispositivos pelo servidor', async () => {
+        syncCustomerCartCatalog('store-1', [product()]);
         activateCustomerCart('customer-1', 'store-1');
         await settleHydration();
 
