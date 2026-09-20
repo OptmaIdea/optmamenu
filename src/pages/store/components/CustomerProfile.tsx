@@ -6,6 +6,8 @@ import { CustomerService } from '@/services/customerService';
 import { NotificationService } from '@/services/notificationService';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { timezoneUtils } from '@/utils/timezoneUtils';
+import { toast } from 'sonner';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 
 interface Address {
     id?: string;
@@ -150,9 +152,9 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
             if (storeId) {
                 await NotificationService.sendProfileUpdate(customer.id, storeId);
             }
-            alert('Dados atualizados com sucesso!');
+            toast.success('Dados atualizados com sucesso!');
         } catch (err: any) {
-            alert(err.message || 'Erro ao atualizar dados.');
+            toast.error(err.message || 'Erro ao atualizar dados.');
         } finally {
             setLoading(false);
         }
@@ -160,7 +162,10 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
 
     const handleZipLookup = async () => {
         const cep = addressForm.zip_code.replace(/\D/g, '');
-        if (cep.length !== 8) return alert('CEP inválido');
+        if (cep.length !== 8) {
+            toast.error('Informe um CEP válido com 8 dígitos.');
+            return;
+        }
 
         setSearchingCep(true);
         try {
@@ -176,7 +181,7 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                 state: data.uf
             }));
         } catch (_) {
-            alert('CEP não encontrado');
+            toast.error('CEP não encontrado. Confira o número informado.');
         } finally {
             setSearchingCep(false);
         }
@@ -194,7 +199,7 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                 await CustomerService.updateAddress(editingAddressId, payload);
             } else {
                 if (addresses.length >= 3) {
-                    alert('Você já atingiu o limite máximo de 3 endereços.');
+                    toast.warning('Você pode manter no máximo 3 endereços salvos.');
                     setLoading(false);
                     return;
                 }
@@ -209,14 +214,21 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
             setShowAddressForm(false);
             resetAddressForm();
         } catch (_) {
-            alert('Erro ao salvar endereço.');
+            toast.error('Não foi possível salvar o endereço. Tente novamente.');
         } finally {
             setLoading(false);
         }
     };
 
     const handleDeleteAddress = async (id: string) => {
-        if (!confirm('Excluir endereço?')) return;
+        const confirmed = await systemConfirm({
+            title: 'Excluir endereço?',
+            description: 'Este endereço será removido da sua conta. Se ele for o endereço padrão, outro endereço salvo poderá assumir como padrão.',
+            confirmLabel: 'Excluir endereço',
+            cancelLabel: 'Manter endereço',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
         try {
             await CustomerService.deleteAddress(id);
             await fetchAddresses();
@@ -224,7 +236,9 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                 await NotificationService.sendAddressUpdate(customer.id, storeId, 'delete');
             }
             if (onUpdate) onUpdate();
-        } catch (_) { alert('Erro ao excluir'); }
+        } catch (_) {
+            toast.error('Não foi possível excluir o endereço. Tente novamente.');
+        }
     };
 
     const resetAddressForm = () => {
@@ -271,7 +285,7 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                 if (checked) {
                     const bonus = storeConfig?.loyalty_active ? (storeConfig as any).join_bonus_points || 0 : 0;
                     await NotificationService.sendLoyaltyJoin(customer.id, storeId, bonus);
-                    alert('🎉 Parabéns! Você agora faz parte do nosso Clube de Pontos!');
+                    toast.success('Parabéns! Você agora faz parte do nosso Clube de Pontos!');
                 } else {
                     await NotificationService.sendLoyaltyExit(customer.id, storeId);
                 }
@@ -279,7 +293,7 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
 
         } catch (err) {
             console.error(err);
-            alert('Erro ao atualizar preferência de fidelidade.');
+            toast.error('Não foi possível atualizar sua preferência de fidelidade.');
             // Revert logic would go here
         }
     };
@@ -756,10 +770,15 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                                 <div className="border-t border-gray-100 dark:border-gray-700 pt-6">
                                     <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 mb-2">Configurações de Fidelidade</h4>
                                     <button
-                                        onClick={() => {
-                                            if (window.confirm('Tem certeza? Você perderá acesso a benefícios exclusivos e seus pontos poderão ser expirados.')) {
-                                                handleLoyaltyOptIn(false);
-                                            }
+                                        onClick={async () => {
+                                            const confirmed = await systemConfirm({
+                                                title: 'Sair do Clube de Pontos?',
+                                                description: 'Você deixará de participar dos benefícios do programa. Seus pontos seguirão as regras de expiração da loja.',
+                                                confirmLabel: 'Sair do clube',
+                                                cancelLabel: 'Continuar participando',
+                                                tone: 'danger',
+                                            });
+                                            if (confirmed) await handleLoyaltyOptIn(false);
                                         }}
                                         className="text-red-500 text-sm font-bold hover:underline flex items-center gap-2"
                                     >
@@ -790,7 +809,7 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                                 </p>
                                 <button
                                     type="button"
-                                    onClick={() => alert('Em breve: Enviaremos um link para seu e-mail.')}
+                                    onClick={() => toast.info('A alteração de dados sensíveis será habilitada em uma próxima etapa. Nenhum dado foi alterado.')}
                                     className="bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition"
                                 >
                                     Solicitar Alteração por E-mail
@@ -818,19 +837,16 @@ export default function CustomerProfile({ onClose, storeConfig, storeId, initial
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => {
-                                        if (window.confirm('Tem certeza que deseja excluir sua conta? Esta ação não pode ser desfeita.')) {
-                                            if (window.confirm('Confirmação final: Todos os seus pontos e dados serão perdidos. Deseja continuar?')) {
-                                                // Placeholder for CustomerService.deleteAccount and logout/onClose
-                                                alert('Funcionalidade de exclusão de conta em desenvolvimento. Sua conta não foi excluída.');
-                                                // CustomerService.deleteAccount(customer!.id)
-                                                //     .then(() => {
-                                                //         alert('Sua conta foi excluída com sucesso.');
-                                                //         logout();
-                                                //         onClose();
-                                                //     })
-                                                //     .catch(err => alert('Erro ao excluir conta: ' + err.message));
-                                            }
+                                    onClick={async () => {
+                                        const confirmed = await systemConfirm({
+                                            title: 'Excluir minha conta?',
+                                            description: 'A exclusão é uma ação sensível. Nesta versão ela ainda não está habilitada, portanto esta confirmação não removerá nenhum dado.',
+                                            confirmLabel: 'Entendi',
+                                            cancelLabel: 'Cancelar',
+                                            tone: 'danger',
+                                        });
+                                        if (confirmed) {
+                                            toast.info('A exclusão de conta ainda não está habilitada. Nenhum dado foi alterado.');
                                         }
                                     }}
                                     className="bg-red-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-red-700 transition flex items-center gap-2 shadow-lg shadow-red-600/20"

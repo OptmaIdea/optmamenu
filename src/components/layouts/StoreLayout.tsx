@@ -1,6 +1,20 @@
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useLayoutEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingCart } from 'lucide-react';
+import { toast } from 'sonner';
+import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
+import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
+import { PublicStorefrontService } from '@/services/publicStorefrontService';
+import {
+    activateCustomerCart,
+    configureCustomerCartRetention,
+    deactivateCustomerCart,
+    prepareCustomerCartForSessionRestore,
+    syncCustomerCartCatalog,
+} from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
+import { useCustomerAuth } from '@/store/useCustomerAuth';
+import { formatBRL } from '@/utils/pricing';
 
 function getStoreSlugFromPath(pathname: string): string | null {
     const segments = pathname.split('/').filter(Boolean);
@@ -16,54 +30,172 @@ function getStoreSlugFromPath(pathname: string): string | null {
 
 export function StoreLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
-    const { items } = useCartStore();
+    const navigate = useNavigate();
+    const items = useCartStore((state) => state.items);
+    const context = useCartStore((state) => state.context);
+    const customer = useCustomerAuth((state) => state.customer);
+    const isAuthenticated = useCustomerAuth((state) => state.isAuthenticated);
+    const sessionRestored = useCustomerAuth((state) => state.sessionRestored);
     const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
-    const storeSlug = getStoreSlugFromPath(location.pathname);
+    const cartTotal = items.reduce(
+        (acc, item) => acc + Number(item.price || 0) * item.quantity,
+        0,
+    );
+    const storeSlug = context?.canonicalSlug || getStoreSlugFromPath(location.pathname);
     const checkoutPath = storeSlug
         ? `/checkout?store=${encodeURIComponent(storeSlug)}`
         : '/checkout';
+    const isTableContext = context?.type === 'table';
+    const isCheckoutRoute = location.pathname === '/checkout';
+
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        const previousDark = root.classList.contains('dark');
+
+        // A loja pública tem fronteira visual própria. Ela inicia em modo claro para
+        // não herdar inadvertidamente o tema do painel administrativo ou do sistema.
+        root.classList.remove('dark');
+        root.dataset.storefrontTheme = 'light';
+
+        // Se havia um carrinho pertencente a um cliente autenticado, não o exibe
+        // até a sessão ser revalidada pelo backend.
+        prepareCustomerCartForSessionRestore();
+
+        return () => {
+            root.classList.toggle('dark', previousDark);
+            delete root.dataset.storefrontTheme;
+        };
+    }, []);
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [location.pathname, location.search]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const verification =
+            params.get('emailVerificationResult')
+            || params.get('emailVerification');
+        if (!verification) return;
+
+        if (verification === 'success') {
+            toast.success(
+                isAuthenticated
+                    ? 'E-mail confirmado com sucesso. Atualize seus dados para refletir a confirmação.'
+                    : 'E-mail confirmado com sucesso. Você já pode voltar à sua conta.',
+            );
+        } else if (verification === 'used') {
+            toast.info('Este link de confirmação já foi utilizado.');
+        } else if (verification === 'expired') {
+            toast.error('Este link de confirmação expirou. Solicite um novo e-mail.');
+        } else if (verification === 'invalid') {
+            toast.error('O link de confirmação de e-mail é inválido.');
+        } else {
+            toast.error('Não foi possível concluir a confirmação de e-mail. Solicite um novo link.');
+        }
+
+        params.delete('emailVerificationResult');
+        params.delete('emailVerification');
+        const nextSearch = params.toString();
+        navigate(
+            {
+                pathname: location.pathname,
+                search: nextSearch ? `?${nextSearch}` : '',
+            },
+            { replace: true },
+        );
+    }, [isAuthenticated, location.pathname, location.search, navigate]);
+
+    useEffect(() => {
+        if (!sessionRestored) return;
+
+        if (isAuthenticated && customer) {
+            activateCustomerCart(customer.id, customer.store_id);
+            return;
+        }
+
+        deactivateCustomerCart();
+    }, [customer, isAuthenticated, sessionRestored]);
+
+    useEffect(() => {
+        if (!storeSlug || !context?.storeId) return;
+
+        let active = true;
+
+        void Promise.all([
+            PublicStorefrontService.getStorefrontBySlug(storeSlug),
+            PublicStorefrontService.getCatalogBySlug(storeSlug),
+        ])
+            .then(([storefront, catalog]) => {
+                if (!active) return;
+
+                configureCustomerCartRetention(
+                    context.storeId,
+                    storefront.store?.visual_config?.customer_cart_retention_hours,
+                );
+
+                const products = (catalog.categories || []).flatMap((category) =>
+                    (category.products || []).map((product) => ({
+                        ...product,
+                        category_id: product.category_id || category.id,
+                    })),
+                );
+                syncCustomerCartCatalog(context.storeId, products);
+            })
+            .catch((error) => {
+                console.error('Não foi possível aplicar a política do carrinho público:', error);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [context?.storeId, storeSlug]);
 
     return (
-        <div className="min-h-screen">
-            {/* StoreLayout now only provides the floating actions (WhatsApp, Cart)
-                The specific store header and content width are handled by the page components */}
-
-            {/* Main Content Area */}
+        <div className={`min-h-screen ${isCheckoutRoute ? '' : 'pb-24 sm:pb-0'}`}>
             <main className="transition-all duration-300">
                 {children}
             </main>
 
-            {/* Floating Action Buttons */}
-            <div className="fixed bottom-6 right-4 z-40 flex flex-col gap-4 items-end">
-                {/* WhatsApp Button */}
-                <a
-                    href="https://wa.me/5532999999999"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bg-green-500 text-white p-3 rounded-full shadow-lg hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center w-12 h-12"
-                    aria-label="Fale Conosco no WhatsApp"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" />
-                    </svg>
-                </a>
+            {sessionRestored && isAuthenticated && customer ? (
+                <CustomerAccountPortal />
+            ) : (
+                <CustomerAuthPortal
+                    storeSlug={storeSlug}
+                    storeId={context?.storeId || null}
+                />
+            )}
 
-                {/* Cart FAB */}
-                <Link
-                    to={checkoutPath}
-                    className="bg-orange-500 text-white p-4 rounded-full shadow-2xl hover:bg-orange-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center relative"
-                    aria-label="Abrir Carrinho"
-                >
-                    <ShoppingCart size={28} />
-                    {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
-                            {cartCount}
+            {!isCheckoutRoute && cartCount > 0 && (
+                <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[26rem] sm:px-0 sm:pb-0">
+                    <Link
+                        to={checkoutPath}
+                        className="flex min-h-16 items-center gap-3 rounded-2xl bg-emerald-600 px-4 py-3 text-white shadow-2xl transition hover:bg-emerald-700 active:scale-[0.99]"
+                        aria-label={isTableContext ? 'Ver comanda' : 'Ver carrinho'}
+                    >
+                        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
+                            <ShoppingCart size={23} aria-hidden="true" />
+                            <span className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full border-2 border-emerald-600 bg-white px-1 text-xs font-black text-emerald-700">
+                                {cartCount}
+                            </span>
                         </span>
-                    )}
-                </Link>
-            </div>
 
-            {/* Desktop Footer */}
+                        <span className="min-w-0 flex-1">
+                            <span className="block text-xs font-semibold text-emerald-50">
+                                {cartCount} {cartCount === 1 ? 'item' : 'itens'}
+                            </span>
+                            <span className="block truncate text-lg font-black">
+                                R$ {formatBRL(cartTotal)}
+                            </span>
+                        </span>
+
+                        <span className="shrink-0 text-sm font-bold">
+                            {isTableContext ? 'Ver comanda' : 'Ver carrinho'}
+                        </span>
+                    </Link>
+                </div>
+            )}
+
             <footer className="hidden sm:block mt-12 text-center text-gray-400 text-sm pb-8">
                 <p>© {new Date().getFullYear()} <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="hover:underline">OptmaIdea</a>. Todos os direitos reservados.</p>
             </footer>

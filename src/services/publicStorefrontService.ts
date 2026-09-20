@@ -1,5 +1,5 @@
-import { supabaseCustomer } from '@/lib/supabase';
-import type { Category, Product, StoreConfig } from '@/types';
+import { supabasePublic } from '@/lib/supabase';
+import type { Category, Product, PublicAvailability, StoreConfig } from '@/types';
 
 export interface PublicStorefrontStore {
     id: string;
@@ -113,6 +113,65 @@ export interface PublicCatalogResponse {
     categories: PublicCatalogCategory[];
 }
 
+type Rgb = { r: number; g: number; b: number };
+
+function parseHexColor(value: unknown): Rgb | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().replace(/^#/, '');
+    const expanded = normalized.length === 3
+        ? normalized.split('').map((char) => `${char}${char}`).join('')
+        : normalized;
+
+    if (!/^[0-9a-f]{6}$/i.test(expanded)) return null;
+
+    return {
+        r: Number.parseInt(expanded.slice(0, 2), 16),
+        g: Number.parseInt(expanded.slice(2, 4), 16),
+        b: Number.parseInt(expanded.slice(4, 6), 16),
+    };
+}
+
+function relativeLuminance(color: Rgb) {
+    const normalize = (channel: number) => {
+        const value = channel / 255;
+        return value <= 0.03928
+            ? value / 12.92
+            : ((value + 0.055) / 1.055) ** 2.4;
+    };
+
+    return 0.2126 * normalize(color.r)
+        + 0.7152 * normalize(color.g)
+        + 0.0722 * normalize(color.b);
+}
+
+function contrastRatio(background: Rgb, foreground: Rgb) {
+    const backgroundLuminance = relativeLuminance(background);
+    const foregroundLuminance = relativeLuminance(foreground);
+    const lighter = Math.max(backgroundLuminance, foregroundLuminance);
+    const darker = Math.min(backgroundLuminance, foregroundLuminance);
+    return (lighter + 0.05) / (darker + 0.05);
+}
+
+export function ensureReadableStorefrontTextColor(background: unknown, preferred: unknown) {
+    const backgroundRgb = parseHexColor(background);
+    const preferredRgb = parseHexColor(preferred);
+    const preferredValue = typeof preferred === 'string' && preferred.trim()
+        ? preferred.trim()
+        : '#ffffff';
+
+    if (!backgroundRgb) return preferredValue;
+    if (preferredRgb && contrastRatio(backgroundRgb, preferredRgb) >= 4.5) {
+        return preferredValue;
+    }
+
+    const light = { r: 255, g: 255, b: 255 };
+    const dark = { r: 17, g: 24, b: 39 };
+
+    return contrastRatio(backgroundRgb, light) >= contrastRatio(backgroundRgb, dark)
+        ? '#ffffff'
+        : '#111827';
+}
+
 function normalizePriceRules(value: unknown) {
     if (Array.isArray(value)) {
         return value
@@ -157,23 +216,84 @@ function normalizeImages(value: unknown): string[] {
     return [];
 }
 
+function normalizePublicAvailability(value: unknown): PublicAvailability | undefined {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+
+    const raw = value as Record<string, unknown>;
+    const status = raw.status;
+    const displayMode = raw.displayMode ?? raw.display_mode;
+
+    if (
+        status !== 'available'
+        && status !== 'low_stock'
+        && status !== 'unavailable'
+        && status !== 'unknown'
+    ) {
+        return undefined;
+    }
+
+    if (
+        displayMode !== 'exact'
+        && displayMode !== 'low_stock_only'
+        && displayMode !== 'status_only'
+        && displayMode !== 'hidden'
+    ) {
+        return undefined;
+    }
+
+    const rawAvailableOnline = raw.availableOnline ?? raw.available_online;
+    const availableOnline = Number(rawAvailableOnline);
+
+    return {
+        status,
+        displayMode,
+        availableOnline: Number.isFinite(availableOnline)
+            ? Math.max(0, availableOnline)
+            : undefined,
+        message: typeof raw.message === 'string' && raw.message.trim()
+            ? raw.message.trim()
+            : undefined,
+    };
+}
+
+function wait(milliseconds: number) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
+
 export const PublicStorefrontService = {
     async getStorefrontBySlug(slug: string): Promise<PublicStorefrontResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
-            'get_public_storefront_by_slug',
-            { p_slug: slug }
-        );
+        const normalizedSlug = slug.trim();
+        let lastError: unknown = null;
+        let lastPayload: PublicStorefrontResponse | null = null;
 
-        if (error) {
-            console.error('get_public_storefront_by_slug error:', error);
-            throw error;
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+            const { data, error } = await supabasePublic.rpc(
+                'get_public_storefront_by_slug',
+                { p_slug: normalizedSlug }
+            );
+
+            if (!error) {
+                const payload = data as PublicStorefrontResponse;
+                lastPayload = payload;
+                if (payload?.ok && payload.store) return payload;
+                if (attempt === 2) return payload;
+            } else {
+                lastError = error;
+                if (attempt === 2) {
+                    console.error('get_public_storefront_by_slug error:', error);
+                    throw error;
+                }
+            }
+
+            await wait(150 * (attempt + 1));
         }
 
-        return data as PublicStorefrontResponse;
+        if (lastError) throw lastError;
+        return lastPayload || { ok: false, error: 'storefront_unavailable' };
     },
 
     async getCatalogBySlug(slug: string): Promise<PublicCatalogResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_catalog_by_slug',
             { p_slug: slug }
         );
@@ -198,6 +318,11 @@ export const PublicStorefrontService = {
                 },
                 products: (category.products || []).map((product) => {
                     const images = normalizeImages(product.images);
+                    const rawProduct = product as Product & {
+                        availability?: unknown;
+                        public_availability?: unknown;
+                    };
+
                     return {
                         ...product,
                         category_id: product.category_id || category.id,
@@ -213,6 +338,9 @@ export const PublicStorefrontService = {
                         featured: product.featured ?? false,
                         sales_count: product.sales_count ?? 0,
                         stock_quantity: product.stock_quantity ?? 0,
+                        public_availability: normalizePublicAvailability(
+                            rawProduct.public_availability ?? rawProduct.availability,
+                        ),
                         rating_avg: product.rating_avg ?? 5,
                         review_count: product.review_count ?? 0,
                         active: product.active ?? true,
@@ -223,7 +351,7 @@ export const PublicStorefrontService = {
     },
 
     async getPublicSalesChannelsBySlug(slug: string): Promise<PublicSalesChannelsResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_sales_channels_by_slug',
             { p_slug: slug }
         );
@@ -237,7 +365,7 @@ export const PublicStorefrontService = {
     },
 
     async getPublicPaymentMethodsBySlug(slug: string): Promise<PublicPaymentMethodsResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_payment_methods_by_slug',
             { p_slug: slug }
         );
@@ -251,7 +379,7 @@ export const PublicStorefrontService = {
     },
 
     async getPublicDeliveryMethodsBySlug(slug: string): Promise<PublicDeliveryMethodsResponse> {
-        const { data, error } = await supabaseCustomer.rpc(
+        const { data, error } = await supabasePublic.rpc(
             'get_public_delivery_methods_by_slug',
             { p_slug: slug }
         );
@@ -265,6 +393,13 @@ export const PublicStorefrontService = {
     },
 
     toCatalogStore(store: PublicStorefrontStore) {
+        const visualConfig = store.visual_config || {};
+        const primaryColor = visualConfig.visual_color_primary || '#19A999';
+        const readableTextColor = ensureReadableStorefrontTextColor(
+            primaryColor,
+            visualConfig.visual_color_text || '#ffffff',
+        );
+
         return {
             id: store.id,
             name: store.name,
@@ -283,7 +418,8 @@ export const PublicStorefrontService = {
                 whatsapp_business: store.whatsapp?.digits || store.phone_number || '',
             },
             config: {
-                ...(store.visual_config || {}),
+                ...visualConfig,
+                visual_color_text: readableTextColor,
                 timer_duration_minutes: store.reservation_time_minutes || 10,
             } as StoreConfig,
         };
