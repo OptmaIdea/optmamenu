@@ -45,12 +45,13 @@ async function sendConfirmedEmail(params: {
       || Deno.env.get("EMAIL_FROM")
       || "",
   );
-  const emailFrom = senderEmail(emailFromRaw);
+  const configuredEmailFrom = senderEmail(emailFromRaw);
+  const emailFrom = configuredEmailFrom || "naoresponda@auth.optmamenu.com.br";
 
-  if ((!resendApiKey && !brevoApiKey) || !emailFrom) {
+  if (!resendApiKey && !brevoApiKey) {
     return {
       sent: false,
-      reason: !emailFrom ? "invalid_sender_configuration" : "provider_not_configured",
+      reason: "provider_not_configured",
     };
   }
 
