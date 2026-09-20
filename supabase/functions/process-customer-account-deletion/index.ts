@@ -17,24 +17,40 @@ function json(body: unknown, status = 200, origin: string | null = null) {
   });
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors(origin) });
   if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405, origin);
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
   const bearer = req.headers.get("authorization") || "";
   const token = bearer.replace(/^Bearer\s+/i, "").trim();
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return json({ ok: false, error: "server_configuration_error" }, 503, origin);
   }
   if (!token) {
     return json({ ok: false, error: "access_denied" }, 401, origin);
   }
 
+  let body: Record<string, unknown> = {};
+  try {
+    body = await req.json();
+  } catch {
+    body = {};
+  }
+
   const service = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: bearer } },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
@@ -44,21 +60,54 @@ Deno.serve(async (req: Request) => {
     return json({ ok: false, error: "access_denied" }, 401, origin);
   }
 
-  const { data: identity, error: identityError } = await service
-    .from("customer_auth_identities")
-    .select("customer_id,store_id")
-    .eq("auth_user_id", authUserId)
-    .maybeSingle();
+  const adminRetry = String(body.mode || "") === "admin_retry";
+  let targetCustomerId = "";
+  let targetStoreId = "";
+  let requestSource = "customer_portal";
+  let requiresLogout = true;
 
-  if (identityError || !identity?.customer_id || !identity?.store_id) {
-    return json({ ok: false, error: "customer_identity_not_found" }, 404, origin);
+  if (adminRetry) {
+    targetCustomerId = String(body.customerId || "").trim();
+    targetStoreId = String(body.storeId || "").trim();
+
+    if (!isUuid(targetCustomerId) || !isUuid(targetStoreId)) {
+      return json({ ok: false, error: "invalid_request" }, 400, origin);
+    }
+
+    const [{ data: isOwner, error: ownerError }, { data: canManage, error: permissionError }] = await Promise.all([
+      userClient.rpc("app_is_store_owner", { p_store_id: targetStoreId }),
+      userClient.rpc("user_has_store_permission", {
+        p_store_id: targetStoreId,
+        p_permission_code: "customers.manage",
+      }),
+    ]);
+
+    if (ownerError || permissionError || (!isOwner && !canManage)) {
+      return json({ ok: false, error: "access_denied" }, 403, origin);
+    }
+
+    requestSource = "admin_retry";
+    requiresLogout = false;
+  } else {
+    const { data: identity, error: identityError } = await service
+      .from("customer_auth_identities")
+      .select("customer_id,store_id")
+      .eq("auth_user_id", authUserId)
+      .maybeSingle();
+
+    if (identityError || !identity?.customer_id || !identity?.store_id) {
+      return json({ ok: false, error: "customer_identity_not_found" }, 404, origin);
+    }
+
+    targetCustomerId = String(identity.customer_id);
+    targetStoreId = String(identity.store_id);
   }
 
   const { data: requestRow, error: requestError } = await service
     .from("customer_account_deletion_audit")
     .select("id,status,requested_at")
-    .eq("store_id", identity.store_id)
-    .eq("customer_id_snapshot", identity.customer_id)
+    .eq("store_id", targetStoreId)
+    .eq("customer_id_snapshot", targetCustomerId)
     .in("status", ["pending", "processing"])
     .order("requested_at", { ascending: false })
     .limit(1)
@@ -66,8 +115,9 @@ Deno.serve(async (req: Request) => {
 
   if (requestError) {
     console.error("customer_delete_request_lookup_failed", {
-      customerId: identity.customer_id,
+      customerId: targetCustomerId,
       code: requestError.code,
+      adminRetry,
     });
     return json({ ok: false, error: "request_lookup_failed" }, 500, origin);
   }
@@ -79,16 +129,17 @@ Deno.serve(async (req: Request) => {
   const { data: deletionData, error: deletionError } = await service.rpc(
     "delete_customer_account_service_safe",
     {
-      p_customer_id: identity.customer_id,
-      p_store_id: identity.store_id,
-      p_source: "customer_portal",
+      p_customer_id: targetCustomerId,
+      p_store_id: targetStoreId,
+      p_source: requestSource,
     },
   );
 
   if (deletionError) {
     console.error("customer_account_delete_failed", {
-      customerId: identity.customer_id,
+      customerId: targetCustomerId,
       code: deletionError.code,
+      adminRetry,
     });
     return json({ ok: false, error: "deletion_failed" }, 500, origin);
   }
@@ -147,6 +198,7 @@ Deno.serve(async (req: Request) => {
         metadata: {
           ...(auditRow?.metadata || {}),
           auth_revocation_finished_at: new Date().toISOString(),
+          ...(adminRetry ? { admin_retry_at: new Date().toISOString(), admin_actor_user_id: authUserId } : {}),
         },
       })
       .eq("id", deletion.audit_id);
@@ -157,7 +209,7 @@ Deno.serve(async (req: Request) => {
     status: "executed",
     auditId: deletion.audit_id || requestRow.id,
     executedAt: deletion.executed_at || new Date().toISOString(),
-    requiresLogout: true,
+    requiresLogout,
     authUsersRevoked: revoked,
     authUserRevokeFailures: revokeFailures.length,
   }, 200, origin);
