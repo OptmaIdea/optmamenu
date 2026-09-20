@@ -416,6 +416,24 @@ export function CustomerAccountPortal() {
         setBirthDate(customer?.birth_date || '');
     }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name, customer?.nickname, profileDirty]);
 
+    useEffect(() => {
+        if (!open || tab !== 'security' || !customer?.id) return;
+
+        let active = true;
+        void CustomerService.getSelfAccountDeletionRequest()
+            .then((request) => {
+                if (!active) return;
+                setDeletionRequestStatus(request?.status || null);
+            })
+            .catch(() => {
+                // O status não deve impedir o restante da área de segurança.
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [customer?.id, open, tab]);
+
     const clearFeedback = () => {
         setMessage('');
         setError('');

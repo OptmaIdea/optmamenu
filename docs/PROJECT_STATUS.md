@@ -13,6 +13,56 @@ A frente ativa continua sendo a homologação ponta a ponta de **cliente autenti
 
 O login que anteriormente podia levar a **Loja não encontrada** foi validado manualmente como resolvido. O warning de preload do logo também deixou de ocorrer.
 
+## Fechamento de Clientes e Portal da Loja Pública — 19/09/2026
+
+A frente foi retomada sem reabrir a análise histórica, com baseline conferido diretamente em GitHub, Vercel e Supabase.
+
+### Carrinho autenticado compartilhado
+
+O serviço do frontend passou a usar efetivamente os RPCs de rascunho do servidor durante a sessão autenticada:
+
+- hidrata pelo `get_customer_self_cart_draft_safe`;
+- grava mudanças com `save_customer_self_cart_draft_safe` e `syncBaseRevision`;
+- serializa salvamentos locais e trata resposta `stale`;
+- consulta o estado remoto periodicamente enquanto a sessão está ativa;
+- propaga alteração de quantidade e limpeza/exclusão de itens entre dispositivos;
+- mantém o tombstone remoto para impedir ressurreição por dispositivo atrasado;
+- sanitiza o rascunho remoto contra catálogo e estoque atuais;
+- força a última sincronização antes do logout.
+
+Cobertura adicionada em `customerCartPersistence.test.ts`, incluindo quantidade remota, exclusão remota e tombstone. O primeiro teste revelou um estado de catálogo residual; o teste foi corrigido e a falha TypeScript subsequente no logout foi removida. O workflow Verify passou integralmente no commit `6979229b705d17b48383f4debc7bfac0a66b7178`.
+
+### Direitos do titular
+
+Foi criada uma base específica para direitos de privacidade do cliente, sem abrir RPC destrutivo ao navegador:
+
+- `customer_account_deletion_audit`: trilha mínima de solicitação/execução, com RLS e sem acesso direto de `anon`/`authenticated`;
+- `export_customer_self_data_safe()`: exportação autenticada de cadastro, endereços, contatos, consentimentos, pedidos/itens, notificações, carrinho e metadados de segurança sem hashes/tokens;
+- o Portal ganhou **Exportar meus dados**, gerando JSON local no navegador;
+- `request_customer_self_account_deletion_safe(password, otp)`: registra a solicitação apenas após senha atual + OTP exclusivo `account_delete`;
+- `get_customer_self_account_deletion_request_safe()`: permite ao titular acompanhar a existência do pedido;
+- `send-customer-otp-sms` v9 exige sessão cliente válida, identidade não revogada e dispositivo confiável para OTP de exclusão; login/cadastro continuam com o comportamento público anterior;
+- o Portal apresenta a área de exclusão separada da troca de senha e informa que registros legalmente necessários podem ser preservados isoladamente.
+
+A função de execução `delete_customer_account_service_safe` existe somente para `service_role`: bloqueia pedidos ainda ativos, anonimiza/desvincula pedidos e lançamentos comerciais e remove registros pessoais sujeitos a cascade. Ela **não é executável por `anon` nem por `authenticated`**. A publicação de um executor administrativo/Edge para a etapa destrutiva continua pendente antes de considerar a exclusão automática encerrada.
+
+Migrations aplicadas nesta rodada:
+
+- `20260919214504_customer_account_export_and_deletion`;
+- `20260919214824_customer_account_deletion_request_state`;
+- `20260919215432_customer_self_deletion_request_strong_reauth`;
+- `20260919215446_customer_self_deletion_request_status`.
+
+### Confirmação de e-mail
+
+O fluxo principal permanece correto: a Edge Function confirma o token e responde com HTTP 303 para a slug, sem servir HTML diretamente. O runtime observado avançou para `confirm-customer-email` v7. O último desafio real auditado foi consumido e o envio inicial foi aceito pelo provedor; o aviso transacional pós-confirmação daquele teste registrou `delivery_failed`. A v7 agora grava também status/código/mensagem sanitizada do provedor em `metadata.confirmed_notification` para o próximo teste real, sem transformar a falha desse segundo e-mail em falha da confirmação principal.
+
+### Limites desta rodada
+
+Fidelidade e OptmaPay não foram avançados por esta frente. Permanecem fora do escopo deste fechamento.
+
+---
+
 ---
 
 ## Carrinho autenticado multi-dispositivo
