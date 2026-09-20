@@ -611,6 +611,43 @@ A hipótese de separar autenticação de owners/admin/managers sensíveis de ope
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (décima rodada)
+
+### Segundo e-mail pós-confirmação: causa exata encontrada
+
+No challenge mais recente de Crisgeo, a confirmação principal foi concluída e o primeiro e-mail foi aceito pelo Brevo. O segundo e-mail transacional falhou com resposta real do provedor:
+
+- provider: `brevo`
+- HTTP: `400`
+- code: `invalid_parameter`
+- message: `valid sender email required`
+
+A falha não estava ligada ao redirecionamento, ao login ou à confirmação do token.
+
+A Edge Function foi corrigida para normalizar o remetente vindo dos Secrets do Supabase, inclusive tolerando:
+- aspas acidentais;
+- prefixos como `CUSTOMER_EMAIL_FROM=`;
+- formato `Nome <email@dominio>`;
+- espaços/quebras de linha.
+
+Versão publicada:
+- `confirm-customer-email` v8 ACTIVE.
+
+Commit:
+- `390aaee30cab8716c1d9df130bd0afcff21b1fa3` — normaliza remetente do aviso pós-confirmação.
+
+### Estado success / used e erro 401
+
+O comportamento do token está correto:
+- primeiro clique: `emailVerificationResult=success`;
+- clique posterior no mesmo link: `emailVerificationResult=used`.
+
+O `401 permission denied for function customer_login_with_password` observado depois ocorreu ao tentar autenticar no domínio `optmamenu.com.br`, que ainda está em uma versão antiga de produção e usa o RPC legado direto. Esse RPC permanece intencionalmente sem EXECUTE público.
+
+A correção da homologação NÃO reabre essa permissão. O fluxo atual de cliente usa a Edge Function `customer-auth-session` e a sessão sintética controlada. A divergência será eliminada quando a versão homologada substituir a versão antiga de produção; não promover a branch apenas para mascarar este teste.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
