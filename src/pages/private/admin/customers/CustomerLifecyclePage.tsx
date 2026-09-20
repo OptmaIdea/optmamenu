@@ -26,6 +26,7 @@ import {
   type Customer360,
   type Customer360Consent,
   type Customer360Order,
+  type CustomerDeletionAuditItem,
 } from '@/services/customers360Service';
 import { getShortDocumentReference } from '@/utils/documentReference';
 import { supabase } from '@/lib/supabase';
@@ -115,6 +116,7 @@ export default function CustomerLifecyclePage() {
   const [data, setData] = useState<Customer360 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deletedAudit, setDeletedAudit] = useState<CustomerDeletionAuditItem | null>(null);
   const [loyaltyMembershipBlocked, setLoyaltyMembershipBlocked] = useState(false);
   const [loyaltyMembershipReason, setLoyaltyMembershipReason] = useState<string | null>(null);
   const [loyaltyMembershipLoading, setLoyaltyMembershipLoading] = useState(false);
@@ -125,17 +127,38 @@ export default function CustomerLifecyclePage() {
     let active = true;
     setLoading(true);
     setError(null);
+    setDeletedAudit(null);
+    setData(null);
 
-    Customers360Service.getCustomer360(storeId, customerId)
-      .then((result) => {
+    void (async () => {
+      try {
+        const result = await Customers360Service.getCustomer360(storeId, customerId);
         if (active) setData(result);
-      })
-      .catch((err: unknown) => {
-        if (active) setError(err instanceof Error ? err.message : 'Erro ao carregar Vida do Cliente.');
-      })
-      .finally(() => {
+      } catch (err: unknown) {
+        try {
+          const deletions = await Customers360Service.getDeletionHistory(storeId, customerId, 1);
+          if (!active) return;
+          if (deletions.length > 0) {
+            setDeletedAudit(deletions[0]);
+            setError(null);
+            return;
+          }
+        } catch (historyError) {
+          console.error('Erro ao verificar histórico de exclusão do cliente:', historyError);
+        }
+
+        if (active) {
+          const rawMessage = err instanceof Error ? err.message : '';
+          setError(
+            rawMessage === 'customer_not_found'
+              ? 'Cliente não encontrado ou cadastro não está mais ativo.'
+              : rawMessage || 'Erro ao carregar Vida do Cliente.',
+          );
+        }
+      } finally {
         if (active) setLoading(false);
-      });
+      }
+    })();
 
     return () => {
       active = false;
@@ -189,6 +212,69 @@ export default function CustomerLifecyclePage() {
           <div className="flex items-center gap-3 text-gray-600 dark:text-gray-300">
             <Loader2 className="animate-spin" size={20} />
             Carregando Vida do Cliente...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (deletedAudit && storeId && customerId) {
+    const executed = deletedAudit.status === 'executed';
+    return (
+      <div className="mx-auto max-w-4xl space-y-5 p-4 sm:p-6">
+        <button
+          type="button"
+          onClick={() => navigate('/admin/customers')}
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+        >
+          <ArrowLeft size={16} />
+          Voltar para clientes
+        </button>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-gray-900">
+          <div className="flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+              <ShieldCheck size={24} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Registro preservado de privacidade
+              </p>
+              <h1 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">
+                {executed ? 'Conta excluída a pedido do titular' : 'Exclusão de conta registrada'}
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                {executed
+                  ? 'O cadastro ativo e as credenciais foram removidos. Esta página antiga não representa mais um cliente ativo; permanece apenas a trilha mínima de auditoria permitida.'
+                  : 'Existe uma solicitação de exclusão para este cadastro. Consulte o histórico administrativo para acompanhar o processamento.'}
+              </p>
+
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950">
+                  <p className="text-xs font-bold uppercase text-gray-500">Solicitada em</p>
+                  <p className="mt-1 font-black text-gray-900 dark:text-white">{formatDateTime(deletedAudit.requested_at)}</p>
+                </div>
+                <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950">
+                  <p className="text-xs font-bold uppercase text-gray-500">{executed ? 'Concluída em' : 'Status'}</p>
+                  <p className="mt-1 font-black text-gray-900 dark:text-white">
+                    {executed ? formatDateTime(deletedAudit.executed_at) : deletedAudit.status}
+                  </p>
+                </div>
+              </div>
+
+              <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                Referência técnica: {customerId.slice(0, 8)}… · nenhum dado pessoal apagado é reexibido nesta tela.
+              </p>
+
+              <button
+                type="button"
+                onClick={() => navigate('/admin/customers?tab=history')}
+                className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl bg-[#19A999] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#178f82]"
+              >
+                <ClipboardList size={17} />
+                Ver histórico de clientes
+              </button>
+            </div>
           </div>
         </div>
       </div>
