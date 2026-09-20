@@ -293,7 +293,7 @@ export const AuthService = {
             throw new Error(`Muitas tentativas de senha. Aguarde cerca de ${minutes} minuto(s) e tente novamente.`);
         }
         if (payload?.error === 'invalid_credentials' || payload?.error === 'invalid_password') {
-            throw new Error('Senha inválida.');
+            throw new Error('Telefone ou senha inválidos. Se esta conta foi excluída, faça um novo cadastro.');
         }
         if (payload?.error === 'customer_not_found') {
             throw new Error('Não encontramos uma conta com este telefone nesta loja.');
