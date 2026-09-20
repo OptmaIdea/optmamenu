@@ -81,6 +81,8 @@ Deno.serve(async (req: Request) => {
   const phone = String(body.phone || "").trim();
   const storeId = String(body.storeId || "").trim();
   const purpose = String(body.purpose || "login").trim().toLowerCase();
+  const deviceTokenHash = String(body.deviceTokenHash || "").trim().toLowerCase();
+  const deviceTokenHash = String(body.deviceTokenHash || "").trim().toLowerCase();
 
   if (!phone || !/^[0-9a-f-]{36}$/i.test(storeId) || !ALLOWED_PURPOSES.has(purpose)) {
     return reply({ ok: false, error: "invalid_request" }, 400, origin);
@@ -89,6 +91,75 @@ Deno.serve(async (req: Request) => {
   const service = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  // A exclusão de conta é uma ação autenticada. O endpoint de SMS continua
+  // público para login/cadastro, mas não aceita disparar OTP de exclusão apenas
+  // com conhecimento do telefone.
+  if (purpose === "account_delete") {
+    const bearer = req.headers.get("authorization") || "";
+    const accessToken = bearer.replace(/^Bearer\s+/i, "").trim();
+    if (!accessToken || !/^[0-9a-f]{64}$/i.test(deviceTokenHash)) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: userData, error: userError } = await service.auth.getUser(accessToken);
+    const authUserId = userData?.user?.id;
+    if (userError || !authUserId) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: identity } = await service
+      .from("customer_auth_identities")
+      .select("customer_id,store_id")
+      .eq("auth_user_id", authUserId)
+      .eq("store_id", storeId)
+      .is("revoked_at", null)
+      .maybeSingle();
+
+    if (!identity) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: customer } = await service
+      .from("customers")
+      .select("phone,phone_e164,status,merged_into_customer_id")
+      .eq("id", identity.customer_id)
+      .eq("store_id", storeId)
+      .maybeSingle();
+
+    const requestedDigitsRaw = phone.replace(/\D/g, "");
+    const requestedDigits = requestedDigitsRaw.startsWith("55")
+      ? requestedDigitsRaw
+      : `55${requestedDigitsRaw}`;
+    const customerDigits = String(customer?.phone_e164 || customer?.phone || "").replace(/\D/g, "");
+
+    if (
+      !customer
+      || customer.status !== "active"
+      || customer.merged_into_customer_id
+      || !requestedDigits
+      || requestedDigits !== customerDigits
+    ) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: deviceState, error: deviceError } = await service.rpc(
+      "customer_touch_trusted_device_service_safe",
+      {
+        p_customer_id: identity.customer_id,
+        p_store_id: storeId,
+        p_device_token_hash: deviceTokenHash,
+      },
+    );
+
+    if (deviceError || !deviceState?.ok) {
+      return reply(
+        { ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" },
+        401,
+        origin,
+      );
+    }
+  }
 
   let senderLabel = "OptmaMenu";
   try {
