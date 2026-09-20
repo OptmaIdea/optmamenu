@@ -659,7 +659,7 @@ export default function Customers() {
                     }`}
                 >
                     <History size={15} />
-                    Histórico de fusões
+                    Histórico
                 </button>
             </div>
 
@@ -1020,16 +1020,16 @@ export default function Customers() {
             )}
 
             {activeView === 'history' && (
-                <div className="space-y-4">
+                <div className="space-y-6">
                     <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                             <div>
                                 <div className="flex items-center gap-2">
                                     <History size={20} className="text-[#19A999]" />
-                                    <h2 className="text-lg font-black text-gray-900 dark:text-white">Histórico de fusões</h2>
+                                    <h2 className="text-lg font-black text-gray-900 dark:text-white">Histórico de clientes</h2>
                                 </div>
                                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                    Registro permanente de qual cadastro foi mantido, qual foi absorvido, motivo informado e vínculos movimentados.
+                                    Acompanhe exclusões de conta solicitadas pelo titular e fusões administrativas, mantendo a rastreabilidade sem reexpor dados pessoais apagados.
                                 </p>
                             </div>
 
@@ -1051,73 +1051,155 @@ export default function Customers() {
                         </div>
                     )}
 
-                    {historyLoading && mergeHistory.length === 0 ? (
+                    {historyLoading && mergeHistory.length === 0 && deletionHistory.length === 0 ? (
                         <div className="rounded-3xl border border-gray-100 bg-white p-10 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
                             <Loader2 className="mx-auto animate-spin text-[#19A999]" size={24} />
                             <p className="mt-3 text-sm font-bold text-gray-600 dark:text-gray-300">Carregando histórico...</p>
                         </div>
-                    ) : mergeHistory.length === 0 ? (
-                        <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                            <History className="mx-auto text-gray-400" size={30} />
-                            <p className="mt-3 text-lg font-black text-gray-900 dark:text-white">Nenhuma fusão registrada</p>
-                            <p className="mx-auto mt-1 max-w-xl text-sm text-gray-500 dark:text-gray-400">
-                                Quando uma fusão for concluída, o evento aparecerá aqui com o motivo e a contagem dos vínculos transferidos.
-                            </p>
-                        </div>
                     ) : (
-                        <div className="space-y-3">
-                            {mergeHistory.map((event) => (
-                                <div key={event.id} className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                                        <div className="min-w-0 flex-1">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
-                                                    Fusão concluída
-                                                </span>
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(event.created_at)}</span>
-                                            </div>
-
-                                            <p className="mt-3 text-sm font-black text-gray-900 dark:text-white">{event.reason}</p>
-
-                                            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => navigate(`/admin/customers/${event.canonical_customer_id}`)}
-                                                    className="rounded-lg border border-gray-200 px-2.5 py-1 font-bold transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-                                                >
-                                                    Principal: {event.canonical_customer_id.slice(0, 8)}…
-                                                </button>
-                                                <ArrowRight size={14} className="text-gray-400" />
-                                                <span className="rounded-lg bg-gray-100 px-2.5 py-1 font-bold dark:bg-gray-800">
-                                                    Absorvido: {event.duplicate_customer_id.slice(0, 8)}…
-                                                </span>
-                                            </div>
-
-                                            {event.match_basis?.length > 0 && (
-                                                <div className="mt-3 flex flex-wrap gap-2">
-                                                    {event.match_basis.map((reason) => (
-                                                        <span key={reason} className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                                                            {getMatchReasonLabel(reason)}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-
-                                            {event.moved_counts && Object.keys(event.moved_counts).length > 0 && (
-                                                <div className="mt-4 grid grid-cols-1 gap-2 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-800">
-                                                    {Object.entries(event.moved_counts).map(([key, value]) => (
-                                                        <div key={key} className="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
-                                                            <p className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{getMovedCountLabel(key)}</p>
-                                                            <p className="mt-1 font-black text-gray-900 dark:text-white">{Number(value || 0)}</p>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                        <>
+                            <section className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <Trash2 size={18} className="text-slate-500" />
+                                    <h3 className="font-black text-gray-900 dark:text-white">Solicitações e exclusões de conta</h3>
                                 </div>
-                            ))}
-                        </div>
+
+                                {deletionHistory.length === 0 ? (
+                                    <div className="rounded-3xl border border-gray-100 bg-white p-7 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                        <p className="font-black text-gray-900 dark:text-white">Nenhuma solicitação de exclusão registrada</p>
+                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                            Pedidos feitos pelo portal do cliente aparecerão aqui após a reautenticação forte.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {deletionHistory.map((event) => {
+                                            const summary = event.execution_summary || {};
+                                            return (
+                                                <div key={event.id} className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex flex-wrap items-center gap-2">
+                                                                <span className={`rounded-full px-3 py-1 text-xs font-black ${getDeletionStatusClass(event.status)}`}>
+                                                                    {getDeletionStatusLabel(event.status)}
+                                                                </span>
+                                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    Solicitada em {formatDateTime(event.requested_at)}
+                                                                </span>
+                                                                {event.executed_at && (
+                                                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                        · concluída em {formatDateTime(event.executed_at)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
+                                                            <p className="mt-3 text-sm font-bold text-gray-900 dark:text-white">
+                                                                Referência técnica do cadastro: {event.customer_id_snapshot.slice(0, 8)}…
+                                                            </p>
+                                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                                Origem: {event.request_source === 'customer_portal' ? 'Portal do cliente' : event.request_source || 'Não informada'}
+                                                                {event.reauth_method ? ` · confirmação: ${event.reauth_method === 'password+otp' ? 'senha + SMS' : event.reauth_method}` : ''}
+                                                            </p>
+
+                                                            {event.status === 'executed' && (
+                                                                <div className="mt-4 grid grid-cols-2 gap-2 border-t border-gray-100 pt-4 sm:grid-cols-4 dark:border-gray-800">
+                                                                    <div className="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
+                                                                        <p className="text-[10px] font-bold uppercase text-gray-500">Cadastros apagados</p>
+                                                                        <p className="mt-1 font-black text-gray-900 dark:text-white">{getDeletionCount(summary, 'customer_records_deleted')}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
+                                                                        <p className="text-[10px] font-bold uppercase text-gray-500">Acessos revogados</p>
+                                                                        <p className="mt-1 font-black text-gray-900 dark:text-white">{getDeletionCount(summary, 'auth_users_revoked')}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
+                                                                        <p className="text-[10px] font-bold uppercase text-gray-500">Pedidos anonimizados</p>
+                                                                        <p className="mt-1 font-black text-gray-900 dark:text-white">{getDeletionCount(summary, 'orders_retained_anonymized')}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
+                                                                        <p className="text-[10px] font-bold uppercase text-gray-500">Lançamentos desvinculados</p>
+                                                                        <p className="mt-1 font-black text-gray-900 dark:text-white">{getDeletionCount(summary, 'cashbook_entries_retained_detached')}</p>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </section>
+
+                            <section className="space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <GitMerge size={18} className="text-[#19A999]" />
+                                    <h3 className="font-black text-gray-900 dark:text-white">Histórico de fusões</h3>
+                                </div>
+
+                                {mergeHistory.length === 0 ? (
+                                    <div className="rounded-3xl border border-gray-100 bg-white p-7 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                        <p className="font-black text-gray-900 dark:text-white">Nenhuma fusão registrada</p>
+                                        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                                            Quando uma fusão for concluída, o evento aparecerá aqui com o motivo e os vínculos transferidos.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {mergeHistory.map((event) => (
+                                            <div key={event.id} className="rounded-3xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                                                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-100">
+                                                                Fusão concluída
+                                                            </span>
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400">{formatDateTime(event.created_at)}</span>
+                                                        </div>
+
+                                                        <p className="mt-3 text-sm font-black text-gray-900 dark:text-white">{event.reason}</p>
+
+                                                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => navigate(`/admin/customers/${event.canonical_customer_id}`)}
+                                                                className="rounded-lg border border-gray-200 px-2.5 py-1 font-bold transition hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
+                                                            >
+                                                                Principal: {event.canonical_customer_id.slice(0, 8)}…
+                                                            </button>
+                                                            <ArrowRight size={14} className="text-gray-400" />
+                                                            <span className="rounded-lg bg-gray-100 px-2.5 py-1 font-bold dark:bg-gray-800">
+                                                                Absorvido: {event.duplicate_customer_id.slice(0, 8)}…
+                                                            </span>
+                                                        </div>
+
+                                                        {event.match_basis?.length > 0 && (
+                                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                                {event.match_basis.map((reason) => (
+                                                                    <span key={reason} className="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                                                        {getMatchReasonLabel(reason)}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {event.moved_counts && Object.keys(event.moved_counts).length > 0 && (
+                                                            <div className="mt-4 grid grid-cols-1 gap-2 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-800">
+                                                                {Object.entries(event.moved_counts).map(([key, value]) => (
+                                                                    <div key={key} className="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950">
+                                                                        <p className="text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400">{getMovedCountLabel(key)}</p>
+                                                                        <p className="mt-1 font-black text-gray-900 dark:text-white">{Number(value || 0)}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </section>
+                        </>
                     )}
                 </div>
             )}
