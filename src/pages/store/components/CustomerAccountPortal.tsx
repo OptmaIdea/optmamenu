@@ -298,6 +298,11 @@ export function CustomerAccountPortal() {
     const [deletionOtpSent, setDeletionOtpSent] = useState(false);
     const [deletionSubmitting, setDeletionSubmitting] = useState(false);
     const [deletionRequestStatus, setDeletionRequestStatus] = useState<string | null>(null);
+    const [phoneChangeOpen, setPhoneChangeOpen] = useState(false);
+    const [newPhone, setNewPhone] = useState('');
+    const [phoneChangeOtp, setPhoneChangeOtp] = useState('');
+    const [phoneChangeOtpSent, setPhoneChangeOtpSent] = useState(false);
+    const [phoneChangeSubmitting, setPhoneChangeSubmitting] = useState(false);
 
     const displayName = useMemo(
         () => customer?.nickname || customer?.full_name || 'cliente',
@@ -696,6 +701,76 @@ export function CustomerAccountPortal() {
             toast.error(feedback);
         } finally {
             setExportingData(false);
+        }
+    };
+
+    const requestPhoneChangeOtp = async () => {
+        clearFeedback();
+        if (!newPhone.trim()) {
+            setError('Informe o novo telefone.');
+            return;
+        }
+
+        setPhoneChangeSubmitting(true);
+        try {
+            await AuthService.sendOtp(newPhone.trim(), customer.store_id, 'phone_change');
+            setPhoneChangeOtpSent(true);
+            const feedback = 'Enviamos um código por SMS para o novo telefone. Ele expira em 5 minutos.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (otpError) {
+            const feedback = otpError instanceof Error
+                ? otpError.message
+                : 'Não foi possível enviar o código para o novo telefone.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setPhoneChangeSubmitting(false);
+        }
+    };
+
+    const confirmPhoneChange = async () => {
+        clearFeedback();
+        if (!newPhone.trim()) {
+            setError('Informe o novo telefone.');
+            return;
+        }
+        if (onlyDigits(phoneChangeOtp).length !== 6) {
+            setError('Informe o código de 6 dígitos recebido no novo telefone.');
+            return;
+        }
+
+        setPhoneChangeSubmitting(true);
+        try {
+            const result = await CustomerService.changeSelfPhone(
+                newPhone.trim(),
+                onlyDigits(phoneChangeOtp),
+            );
+
+            if (result.unchanged) {
+                setPhoneChangeOpen(false);
+                setNewPhone('');
+                setPhoneChangeOtp('');
+                setPhoneChangeOtpSent(false);
+                const feedback = 'Este telefone já é o telefone confirmado da sua conta.';
+                setMessage(feedback);
+                toast.success(feedback);
+                return;
+            }
+
+            await flushCustomerCartServerSync().catch(() => undefined);
+            const feedback = 'Telefone alterado e confirmado. Por segurança, entre novamente usando o novo número.';
+            toast.success(feedback);
+            await AuthService.logoutCustomer();
+            setOpen(false);
+        } catch (phoneError) {
+            const feedback = phoneError instanceof Error
+                ? phoneError.message
+                : 'Não foi possível alterar o telefone agora.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setPhoneChangeSubmitting(false);
         }
     };
 
@@ -1223,10 +1298,89 @@ export function CustomerAccountPortal() {
                                             {customer.birth_date && <p className="mt-1 text-xs text-slate-500">Após o primeiro preenchimento, a alteração exige fluxo seguro específico.</p>}
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Celular confirmado</label>
-                                        <div className="rounded-2xl border border-slate-200 bg-slate-100 p-3 font-semibold text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">{customer.phone}</div>
-                                        <p className="mt-1 text-xs text-slate-500">A troca de telefone exige nova confirmação por SMS.</p>
+                                    <div className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <label className="mb-1 block text-sm font-bold text-slate-700 dark:text-slate-200">Celular confirmado</label>
+                                                <div className="font-semibold text-slate-700 dark:text-slate-200">{customer.phone}</div>
+                                                <p className="mt-1 text-xs leading-5 text-slate-500">A troca exige confirmação por SMS no novo número. Depois da alteração, os dispositivos confiáveis são revogados e você entra novamente.</p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setPhoneChangeOpen((current) => !current);
+                                                    setNewPhone('');
+                                                    setPhoneChangeOtp('');
+                                                    setPhoneChangeOtpSent(false);
+                                                    clearFeedback();
+                                                }}
+                                                disabled={phoneChangeSubmitting}
+                                                className="shrink-0 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700 transition hover:bg-emerald-50 disabled:opacity-50 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-950/20"
+                                                aria-expanded={phoneChangeOpen}
+                                            >
+                                                {phoneChangeOpen ? 'Cancelar' : 'Alterar telefone'}
+                                            </button>
+                                        </div>
+
+                                        {phoneChangeOpen && (
+                                            <div className="mt-4 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                    Novo telefone
+                                                    <input
+                                                        type="tel"
+                                                        inputMode="tel"
+                                                        autoComplete="tel"
+                                                        value={newPhone}
+                                                        onChange={(event) => {
+                                                            setNewPhone(event.target.value);
+                                                            if (phoneChangeOtpSent) {
+                                                                setPhoneChangeOtpSent(false);
+                                                                setPhoneChangeOtp('');
+                                                            }
+                                                        }}
+                                                        placeholder="DDD + número; +55 é opcional"
+                                                        className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                    />
+                                                </label>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void requestPhoneChangeOtp()}
+                                                    disabled={phoneChangeSubmitting || !newPhone.trim()}
+                                                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                                                >
+                                                    {phoneChangeSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+                                                    {phoneChangeOtpSent ? 'Reenviar código SMS' : 'Enviar código ao novo telefone'}
+                                                </button>
+
+                                                {phoneChangeOtpSent && (
+                                                    <>
+                                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                            Código SMS
+                                                            <input
+                                                                type="text"
+                                                                inputMode="numeric"
+                                                                autoComplete="one-time-code"
+                                                                value={phoneChangeOtp}
+                                                                onChange={(event) => setPhoneChangeOtp(onlyDigits(event.target.value).slice(0, 6))}
+                                                                maxLength={6}
+                                                                placeholder="000000"
+                                                                className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-center text-base tracking-[0.3em] text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                            />
+                                                        </label>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void confirmPhoneChange()}
+                                                            disabled={phoneChangeSubmitting || onlyDigits(phoneChangeOtp).length !== 6}
+                                                            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                                        >
+                                                            {phoneChangeSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <KeyRound className="h-4 w-4" aria-hidden="true" />}
+                                                            Confirmar novo telefone
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     <button type="button" onClick={saveProfile} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
                                         <Save className="h-4 w-4" /> Salvar dados
