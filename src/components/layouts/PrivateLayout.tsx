@@ -382,7 +382,6 @@ export default function PrivateLayout() {
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
-            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
