@@ -160,6 +160,49 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  if (purpose === "phone_change") {
+    const bearer = req.headers.get("authorization") || "";
+    const accessToken = bearer.replace(/^Bearer\s+/i, "").trim();
+    if (!accessToken || !/^[0-9a-f]{64}$/i.test(deviceTokenHash)) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: userData, error: userError } = await service.auth.getUser(accessToken);
+    const authUserId = userData?.user?.id;
+    if (userError || !authUserId) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: identity } = await service
+      .from("customer_auth_identities")
+      .select("customer_id,store_id")
+      .eq("auth_user_id", authUserId)
+      .eq("store_id", storeId)
+      .is("revoked_at", null)
+      .maybeSingle();
+
+    if (!identity) {
+      return reply({ ok: false, error: "access_denied" }, 401, origin);
+    }
+
+    const { data: deviceState, error: deviceError } = await service.rpc(
+      "customer_touch_trusted_device_service_safe",
+      {
+        p_customer_id: identity.customer_id,
+        p_store_id: storeId,
+        p_device_token_hash: deviceTokenHash,
+      },
+    );
+
+    if (deviceError || !deviceState?.ok) {
+      return reply(
+        { ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" },
+        401,
+        origin,
+      );
+    }
+  }
+
   let senderLabel = "OptmaMenu";
   try {
     const { data: storeData, error: storeError } = await service
