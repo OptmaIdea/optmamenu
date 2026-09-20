@@ -831,3 +831,40 @@ O arquivo versionado reproduz o estado implantado da RPC `change_customer_self_p
 
 A reconciliação é apenas de versionamento/reprodutibilidade do schema: o Supabase já possuía a migration aplicada e a função ativa antes deste commit.
 
+
+
+---
+
+## Fechamento Clientes/Slug — exclusão auditável e troca segura de telefone — 20/09/2026
+
+### Exclusão de conta no administrativo
+
+A exclusão solicitada pelo titular continua sendo processada automaticamente após senha + OTP SMS quando não existem pedidos em andamento. Não existe aprovação manual prévia do lojista: o pedido do titular é uma solicitação de privacidade e o bloqueio operacional ocorre apenas quando há vínculos que impedem a execução imediata.
+
+Para dar rastreabilidade e tratamento das exceções:
+- migration `20260920004310_customer_admin_deletion_history_safe` aplicada e versionada;
+- nova RPC `get_customer_account_deletion_history_safe(uuid,uuid,integer)`;
+- `anon` não possui EXECUTE; `authenticated` e `service_role` possuem EXECUTE, com autorização interna por owner/`customers.view`/`customers.manage`;
+- `/admin/customers?tab=history` agora reúne **Solicitações e exclusões de conta** e **Histórico de fusões**;
+- o histórico administrativo expõe somente referência técnica, status, datas e resumo sanitizado da execução; não reexibe PII apagada nem a evidência legal retida;
+- solicitações `pending`/`processing` podem ser reprocessadas por usuário com `customers.manage`;
+- `process-customer-account-deletion` v2 ACTIVE aceita o modo administrativo `admin_retry`, valida owner/`customers.manage` com o JWT do colaborador e só então usa o executor service-role;
+- se ainda houver pedidos em andamento, a exclusão permanece bloqueada e o administrador recebe mensagem específica.
+
+O cadastro de teste `359dbb02-7adb-4ec5-8c1d-6ad4509dc397` foi confirmado como removido, enquanto a auditoria `729ebfd2-341b-484f-bc34-63ed18a8c2a2` permanece com status `executed`. A URL antiga da Vida do Cliente agora mostra um estado amigável **Conta excluída a pedido do titular** e direciona para o histórico, em vez de exibir `customer_not_found`.
+
+Após uma exclusão concluída, tentativa de login continua retornando HTTP 401 por desenho porque a identidade sintética foi revogada. A mensagem do frontend foi alterada para a forma não enumerável e mais explicativa: telefone ou senha inválidos, com orientação para novo cadastro quando a conta tiver sido excluída.
+
+### Troca de telefone do próprio cliente
+
+A migration `20260919220128_customer_self_phone_change_strong_otp` permanece como autoridade do banco e o fluxo de interface foi concluído:
+- o portal mostra **Alterar telefone** junto ao celular confirmado;
+- o cliente informa o novo número e recebe OTP com propósito `phone_change`;
+- o envio do OTP de troca exige sessão autenticada e dispositivo confiável;
+- a proteção `phone_change` já estava ativa na Edge Function `send-customer-otp-sms` v11 e foi reconciliada no GitHub;
+- a confirmação chama `change_customer_self_phone_safe`;
+- número inválido, número já usado, OTP inválido/expirado e bloqueio por tentativas recebem mensagens amigáveis;
+- após troca efetiva, todos os dispositivos confiáveis são revogados pelo banco e o portal encerra a sessão, exigindo novo login com o número novo;
+- o carrinho autenticado é sincronizado antes do logout de segurança.
+
+Nenhuma alteração desta rodada avançou regras de Fidelidade ou OptmaPay.
