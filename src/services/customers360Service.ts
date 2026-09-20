@@ -366,4 +366,52 @@ export const Customers360Service = {
 
         return (data.events || []) as CustomerDeletionAuditItem[];
     },
+
+    async processDeletionRequest(storeId: string, customerId: string) {
+        const { data, error } = await supabase.functions.invoke('process-customer-account-deletion', {
+            body: {
+                mode: 'admin_retry',
+                storeId,
+                customerId,
+            },
+        });
+
+        let payload = data as {
+            ok?: boolean;
+            error?: string;
+            activeOrderCount?: number;
+            status?: string;
+            auditId?: string;
+            executedAt?: string;
+        } | null;
+
+        const context = (error as { context?: Response } | null)?.context;
+        if (error && context && typeof context.clone === 'function') {
+            try {
+                payload = await context.clone().json() as typeof payload;
+            } catch {
+                // Mantém payload original para a mensagem genérica abaixo.
+            }
+        }
+
+        if (!payload?.ok) {
+            if (payload?.error === 'active_orders_exist') {
+                const count = Number(payload.activeOrderCount || 0);
+                throw new Error(
+                    count > 0
+                        ? `A exclusão continua bloqueada por ${count} pedido(s) em andamento. Conclua ou cancele esses pedidos antes de reprocessar.`
+                        : 'A exclusão continua bloqueada por pedidos em andamento.',
+                );
+            }
+            if (payload?.error === 'deletion_request_not_found') {
+                throw new Error('Não há solicitação pendente para este cadastro.');
+            }
+            if (payload?.error === 'access_denied') {
+                throw new Error('Você não tem permissão para processar exclusões de clientes.');
+            }
+            throw new Error('Não foi possível processar a exclusão da conta agora.');
+        }
+
+        return payload;
+    },
 };
