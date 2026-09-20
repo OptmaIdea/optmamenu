@@ -1,3 +1,4 @@
+import { supabaseCustomer } from '@/lib/supabase';
 import { useCartStore } from '@/store/useCartStore';
 import type { CartItem, Product } from '@/types';
 
@@ -9,6 +10,8 @@ const CART_RETENTION_CONFIG_PREFIX = 'optma-cart-retention-hours-v1';
 export const DEFAULT_CUSTOMER_CART_RETENTION_HOURS = 6;
 const MIN_CART_RETENTION_HOURS = 1;
 const MAX_CART_RETENTION_HOURS = 24;
+const SERVER_SYNC_DEBOUNCE_MS = 220;
+const SERVER_SYNC_POLL_MS = 5000;
 
 type CustomerCartOwner = {
     customerId: string;
@@ -26,13 +29,33 @@ type CustomerCartSnapshot = {
     updatedAt: string;
 };
 
+type ServerCartResult = {
+    ok?: boolean;
+    error?: string;
+    stale?: boolean;
+    cart?: Record<string, unknown>;
+    updated_at?: string | null;
+    revision?: number | string | null;
+};
+
 let activeOwner: CustomerCartOwner | null = null;
 let suppressPersistence = false;
+let activeServerRevision = 0;
+let activeGeneration = 0;
+let localMutationVersion = 0;
+let syncedMutationVersion = 0;
+let serverSaveTimer: number | null = null;
+let serverPollTimer: number | null = null;
+let serverSyncChain: Promise<void> = Promise.resolve();
 const retentionHoursByStore = new Map<string, number>();
 const catalogProductsByStore = new Map<string, Product[]>();
 
 function storageAvailable() {
     return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+}
+
+function isSameOwner(left: CustomerCartOwner | null, right: CustomerCartOwner) {
+    return Boolean(left && left.customerId === right.customerId && left.storeId === right.storeId);
 }
 
 function customerCartKey(customerId: string, storeId: string) {
@@ -139,6 +162,20 @@ function readSnapshot(owner: CustomerCartOwner): CustomerCartSnapshot | null {
     }
 }
 
+function snapshotFromState(owner: CustomerCartOwner): CustomerCartSnapshot {
+    const state = useCartStore.getState();
+    return {
+        version: 1,
+        customerId: owner.customerId,
+        storeId: owner.storeId,
+        context: state.context,
+        fulfillmentType: state.fulfillmentType,
+        deliveryMethodCode: state.deliveryMethodCode,
+        items: state.items,
+        updatedAt: new Date().toISOString(),
+    };
+}
+
 function writeSnapshot(owner: CustomerCartOwner) {
     if (!storageAvailable()) return;
 
@@ -150,21 +187,10 @@ function writeSnapshot(owner: CustomerCartOwner) {
         return;
     }
 
-    const snapshot: CustomerCartSnapshot = {
-        version: 1,
-        customerId: owner.customerId,
-        storeId: owner.storeId,
-        context: state.context,
-        fulfillmentType: state.fulfillmentType,
-        deliveryMethodCode: state.deliveryMethodCode,
-        items: state.items,
-        updatedAt: new Date().toISOString(),
-    };
-
     try {
         window.localStorage.setItem(
             customerCartKey(owner.customerId, owner.storeId),
-            JSON.stringify(snapshot),
+            JSON.stringify(snapshotFromState(owner)),
         );
     } catch {
         // Sem erro de UI: o carrinho segue funcional em memória.
@@ -205,8 +231,6 @@ function enforceAnonymousCartRetention(storeId: string) {
         const key = anonymousCartActivityKey(storeId);
         const updatedAt = window.localStorage.getItem(key);
 
-        // Carrinhos criados antes desta política recebem o prazo a partir da primeira
-        // visita após a atualização, evitando apagar silenciosamente um carrinho válido.
         if (!updatedAt) {
             writeAnonymousActivity(storeId, true);
             return;
@@ -247,8 +271,183 @@ function sanitizeItemsAgainstCatalog(items: CartItem[], products: Product[]) {
     });
 }
 
-// Mantém a cópia individual atualizada durante toda a sessão autenticada e registra
-// a última alteração do carrinho anônimo para aplicar a mesma política de validade.
+function serverCartPayload() {
+    const state = useCartStore.getState();
+    return {
+        schemaVersion: 2,
+        context: state.context,
+        fulfillmentType: state.fulfillmentType,
+        deliveryMethodCode: state.deliveryMethodCode,
+        items: state.items,
+        clientUpdatedAt: new Date().toISOString(),
+        syncBaseRevision: activeServerRevision,
+    };
+}
+
+function normalizeRevision(value: unknown) {
+    const revision = Number(value || 0);
+    return Number.isFinite(revision) && revision >= 0 ? Math.floor(revision) : 0;
+}
+
+function applyServerCart(
+    owner: CustomerCartOwner,
+    generation: number,
+    cart: Record<string, unknown> | null | undefined,
+    revision: number,
+) {
+    if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
+
+    activeServerRevision = revision;
+    const rawItems = Array.isArray(cart?.items) ? cart.items as CartItem[] : [];
+    const catalog = catalogProductsByStore.get(owner.storeId);
+    const items = catalog ? sanitizeItemsAgainstCatalog(rawItems, catalog) : rawItems;
+    const cleared = cart?.cleared === true || items.length === 0;
+
+    suppressPersistence = true;
+    try {
+        if (cleared) {
+            useCartStore.getState().clearCart();
+            removeSnapshot(owner);
+            return;
+        }
+
+        const current = useCartStore.getState();
+        const serverContext = cart?.context && typeof cart.context === 'object'
+            ? cart.context as ReturnType<typeof useCartStore.getState>['context']
+            : current.context;
+
+        useCartStore.setState({
+            context: serverContext?.storeId === owner.storeId ? serverContext : current.context,
+            fulfillmentType: (cart?.fulfillmentType as ReturnType<typeof useCartStore.getState>['fulfillmentType']) || current.fulfillmentType,
+            deliveryMethodCode: (cart?.deliveryMethodCode as string | null | undefined) ?? current.deliveryMethodCode,
+            items,
+            isCartOpen: false,
+        });
+        writeSnapshot(owner);
+    } finally {
+        suppressPersistence = false;
+    }
+}
+
+async function fetchServerCart(owner: CustomerCartOwner, generation: number) {
+    const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
+    if (error) throw error;
+
+    const result = data as ServerCartResult | null;
+    if (!result?.ok) throw new Error(result?.error || 'cart_sync_failed');
+    if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return result;
+
+    const revision = normalizeRevision(result.revision);
+    if (revision > activeServerRevision) {
+        applyServerCart(owner, generation, result.cart, revision);
+        syncedMutationVersion = localMutationVersion;
+    }
+
+    return result;
+}
+
+async function persistServerCart(
+    owner: CustomerCartOwner,
+    generation: number,
+    mutationVersion: number,
+) {
+    if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
+
+    const { data, error } = await supabaseCustomer.rpc('save_customer_self_cart_draft_safe', {
+        p_cart: serverCartPayload(),
+    });
+    if (error) throw error;
+
+    const result = data as ServerCartResult | null;
+    if (!result?.ok) throw new Error(result?.error || 'cart_sync_failed');
+
+    if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
+
+    const revision = normalizeRevision(result.revision);
+    if (result.stale) {
+        applyServerCart(owner, generation, result.cart, revision);
+        syncedMutationVersion = localMutationVersion;
+        return;
+    }
+
+    activeServerRevision = revision;
+    syncedMutationVersion = Math.max(syncedMutationVersion, mutationVersion);
+
+    if (syncedMutationVersion < localMutationVersion) {
+        queueServerSave(owner, generation, 0);
+    }
+}
+
+function enqueueServerSave(owner: CustomerCartOwner, generation: number, mutationVersion: number) {
+    serverSyncChain = serverSyncChain
+        .catch(() => undefined)
+        .then(async () => {
+            try {
+                await persistServerCart(owner, generation, mutationVersion);
+            } catch (error) {
+                console.warn('[CUSTOMER_CART] Falha ao sincronizar carrinho no servidor:', error);
+            }
+        });
+    return serverSyncChain;
+}
+
+function queueServerSave(
+    owner: CustomerCartOwner,
+    generation: number,
+    delay = SERVER_SYNC_DEBOUNCE_MS,
+) {
+    if (typeof window === 'undefined') return;
+    if (serverSaveTimer !== null) window.clearTimeout(serverSaveTimer);
+
+    const mutationVersion = localMutationVersion;
+    serverSaveTimer = window.setTimeout(() => {
+        serverSaveTimer = null;
+        void enqueueServerSave(owner, generation, mutationVersion);
+    }, delay);
+}
+
+async function hydrateCustomerCart(
+    owner: CustomerCartOwner,
+    generation: number,
+    localSnapshot: CustomerCartSnapshot | null,
+) {
+    try {
+        const result = await fetchServerCart(owner, generation);
+        if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
+
+        if (normalizeRevision(result?.revision) > 0) return;
+
+        if (localSnapshot?.items.length) {
+            localMutationVersion += 1;
+            await enqueueServerSave(owner, generation, localMutationVersion);
+        }
+    } catch (error) {
+        console.warn('[CUSTOMER_CART] Não foi possível restaurar o carrinho do servidor:', error);
+    }
+}
+
+function startServerPoll(owner: CustomerCartOwner, generation: number) {
+    if (typeof window === 'undefined') return;
+    if (serverPollTimer !== null) window.clearInterval(serverPollTimer);
+
+    serverPollTimer = window.setInterval(() => {
+        if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
+        if (serverSaveTimer !== null || syncedMutationVersion < localMutationVersion) return;
+
+        void fetchServerCart(owner, generation).catch((error) => {
+            console.warn('[CUSTOMER_CART] Falha ao atualizar carrinho entre dispositivos:', error);
+        });
+    }, SERVER_SYNC_POLL_MS);
+}
+
+function stopServerSyncTimers() {
+    if (typeof window === 'undefined') return;
+    if (serverSaveTimer !== null) window.clearTimeout(serverSaveTimer);
+    if (serverPollTimer !== null) window.clearInterval(serverPollTimer);
+    serverSaveTimer = null;
+    serverPollTimer = null;
+}
+
 useCartStore.subscribe((state, previousState) => {
     if (suppressPersistence) return;
 
@@ -262,6 +461,8 @@ useCartStore.subscribe((state, previousState) => {
             || state.deliveryMethodCode !== previousState.deliveryMethodCode
         ) {
             writeSnapshot(activeOwner);
+            localMutationVersion += 1;
+            queueServerSave(activeOwner, activeGeneration);
         }
         return;
     }
@@ -307,27 +508,27 @@ export function prepareCustomerCartForSessionRestore() {
         return;
     }
 
-    // Nunca exibe o carrinho de uma sessão autenticada anterior antes de revalidar
-    // a identidade. O snapshot individual permanece preservado para a restauração.
     activeOwner = null;
+    stopServerSyncTimers();
     clearCartWithoutPersistence();
     writeOwnerMarker(null);
 }
 
 export function activateCustomerCart(customerId: string, storeId: string) {
     const owner = { customerId, storeId };
+    if (isSameOwner(activeOwner, owner)) return;
 
-    if (
-        activeOwner
-        && (activeOwner.customerId !== customerId || activeOwner.storeId !== storeId)
-    ) {
-        writeSnapshot(activeOwner);
-    }
+    if (activeOwner) writeSnapshot(activeOwner);
+
+    stopServerSyncTimers();
+    activeGeneration += 1;
+    const generation = activeGeneration;
+    activeServerRevision = 0;
+    localMutationVersion = 0;
+    syncedMutationVersion = 0;
 
     const snapshot = readSnapshot(owner);
 
-    // Regra de identidade: itens montados como anônimo nunca substituem um carrinho
-    // pertencente ao cliente. Ao autenticar, o carrinho anônimo é descartado.
     activeOwner = null;
     clearCartWithoutPersistence();
     writeAnonymousActivity(storeId, false);
@@ -335,27 +536,54 @@ export function activateCustomerCart(customerId: string, storeId: string) {
     activeOwner = owner;
     writeOwnerMarker(owner);
 
-    if (!snapshot) return;
+    if (snapshot) {
+        const catalogProducts = catalogProductsByStore.get(storeId);
+        const restoredItems = catalogProducts
+            ? sanitizeItemsAgainstCatalog(snapshot.items, catalogProducts)
+            : snapshot.items;
 
-    const catalogProducts = catalogProductsByStore.get(storeId);
-    const restoredItems = catalogProducts
-        ? sanitizeItemsAgainstCatalog(snapshot.items, catalogProducts)
-        : snapshot.items;
-
-    if (restoredItems.length === 0) {
-        removeSnapshot(owner);
-        return;
+        suppressPersistence = true;
+        try {
+            if (restoredItems.length === 0) {
+                removeSnapshot(owner);
+            } else {
+                useCartStore.setState((current) => ({
+                    context: current.context?.storeId === storeId ? current.context : snapshot.context,
+                    fulfillmentType: snapshot.fulfillmentType,
+                    deliveryMethodCode: snapshot.deliveryMethodCode,
+                    items: restoredItems,
+                    isCartOpen: false,
+                }));
+            }
+        } finally {
+            suppressPersistence = false;
+        }
     }
 
-    useCartStore.setState((current) => ({
-        context: current.context?.storeId === storeId
-            ? current.context
-            : snapshot.context,
-        fulfillmentType: snapshot.fulfillmentType,
-        deliveryMethodCode: snapshot.deliveryMethodCode,
-        items: restoredItems,
-        isCartOpen: false,
-    }));
+    void hydrateCustomerCart(owner, generation, snapshot);
+    startServerPoll(owner, generation);
+}
+
+export async function refreshCustomerCartFromServer() {
+    if (!activeOwner) return;
+    await fetchServerCart(activeOwner, activeGeneration);
+}
+
+export async function flushCustomerCartServerSync() {
+    if (!activeOwner) return;
+    const owner = activeOwner;
+    const generation = activeGeneration;
+
+    if (serverSaveTimer !== null && typeof window !== 'undefined') {
+        window.clearTimeout(serverSaveTimer);
+        serverSaveTimer = null;
+    }
+
+    if (syncedMutationVersion < localMutationVersion) {
+        await enqueueServerSave(owner, generation, localMutationVersion);
+    } else {
+        await serverSyncChain.catch(() => undefined);
+    }
 }
 
 export function deactivateCustomerCart(customerId?: string, storeId?: string) {
@@ -367,14 +595,20 @@ export function deactivateCustomerCart(customerId?: string, storeId?: string) {
 
     if (ownerToDeactivate) {
         writeSnapshot(ownerToDeactivate);
+
+        if (serverSaveTimer !== null && typeof window !== 'undefined') {
+            window.clearTimeout(serverSaveTimer);
+            serverSaveTimer = null;
+            const payload = serverCartPayload();
+            void supabaseCustomer.rpc('save_customer_self_cart_draft_safe', { p_cart: payload })
+                .catch(() => undefined);
+        }
     }
 
     activeOwner = null;
+    activeGeneration += 1;
+    stopServerSyncTimers();
     writeOwnerMarker(null);
 
-    // Só uma sessão autenticada que estava realmente ativa deve limpar o carrinho
-    // visível. A inicialização de um visitante anônimo não pode apagar seu carrinho.
-    if (ownerToDeactivate) {
-        clearCartWithoutPersistence();
-    }
+    if (ownerToDeactivate) clearCartWithoutPersistence();
 }

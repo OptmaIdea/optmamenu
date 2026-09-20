@@ -1,9 +1,83 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const mockedCartServer = vi.hoisted(() => {
+    const state: {
+        revision: number;
+        cart: Record<string, unknown>;
+        updatedAt: string | null;
+    } = {
+        revision: 0,
+        cart: {},
+        updatedAt: null,
+    };
+
+    const rpc = vi.fn(async (name: string, args?: { p_cart?: Record<string, unknown> }) => {
+        if (name === 'get_customer_self_cart_draft_safe') {
+            return {
+                data: {
+                    ok: true,
+                    cart: state.cart,
+                    revision: state.revision,
+                    updated_at: state.updatedAt,
+                },
+                error: null,
+            };
+        }
+
+        if (name === 'save_customer_self_cart_draft_safe') {
+            const incoming = { ...(args?.p_cart || {}) };
+            const baseRevision = Number(incoming.syncBaseRevision || 0);
+
+            if (state.revision > 0 && baseRevision !== state.revision) {
+                return {
+                    data: {
+                        ok: true,
+                        stale: true,
+                        cart: state.cart,
+                        revision: state.revision,
+                        updated_at: state.updatedAt,
+                    },
+                    error: null,
+                };
+            }
+
+            delete incoming.syncBaseRevision;
+            state.revision += 1;
+            state.updatedAt = new Date().toISOString();
+            state.cart = Array.isArray(incoming.items) && incoming.items.length === 0
+                ? { ...incoming, cleared: true, clearedAt: state.updatedAt }
+                : incoming;
+
+            return {
+                data: {
+                    ok: true,
+                    stale: false,
+                    revision: state.revision,
+                    updated_at: state.updatedAt,
+                },
+                error: null,
+            };
+        }
+
+        return { data: { ok: false, error: 'unexpected_rpc' }, error: null };
+    });
+
+    return { state, rpc };
+});
+
+vi.mock('@/lib/supabase', () => ({
+    supabaseCustomer: {
+        rpc: mockedCartServer.rpc,
+    },
+}));
+
 import {
     activateCustomerCart,
     configureCustomerCartRetention,
     deactivateCustomerCart,
+    flushCustomerCartServerSync,
     prepareCustomerCartForSessionRestore,
+    refreshCustomerCartFromServer,
     syncCustomerCartCatalog,
 } from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
@@ -34,10 +108,20 @@ function product(id = 'prod-1', overrides: Partial<Product> = {}): Product {
     };
 }
 
+async function settleHydration() {
+    await Promise.resolve();
+    await Promise.resolve();
+}
+
 describe('customerCartPersistence', () => {
     beforeEach(() => {
         deactivateCustomerCart();
         localStorage.clear();
+        mockedCartServer.state.revision = 0;
+        mockedCartServer.state.cart = {};
+        mockedCartServer.state.updatedAt = null;
+        mockedCartServer.rpc.mockClear();
+
         useCartStore.setState({
             context,
             fulfillmentType: 'pickup',
@@ -47,6 +131,10 @@ describe('customerCartPersistence', () => {
             isCartOpen: false,
         });
         configureCustomerCartRetention('store-1', 6);
+    });
+
+    afterEach(() => {
+        deactivateCustomerCart();
     });
 
     it('oculta o carrinho no logout e restaura para o mesmo cliente no próximo login', () => {
@@ -153,5 +241,49 @@ describe('customerCartPersistence', () => {
         expect(items).toHaveLength(1);
         expect(items[0].id).toBe('available');
         expect(items[0].quantity).toBe(2);
+    });
+
+    it('sincroniza quantidade e exclusão do carrinho entre dispositivos pelo servidor', async () => {
+        activateCustomerCart('customer-1', 'store-1');
+        await settleHydration();
+
+        useCartStore.getState().addToCart(product(), 2);
+        await flushCustomerCartServerSync();
+
+        expect(mockedCartServer.state.revision).toBe(1);
+        expect((mockedCartServer.state.cart.items as Array<{ quantity: number }>)[0].quantity).toBe(2);
+
+        mockedCartServer.state.cart = {
+            ...mockedCartServer.state.cart,
+            items: [{
+                ...(mockedCartServer.state.cart.items as Array<Record<string, unknown>>)[0],
+                quantity: 5,
+            }],
+        };
+        mockedCartServer.state.revision += 1;
+
+        await refreshCustomerCartFromServer();
+        expect(useCartStore.getState().items[0].quantity).toBe(5);
+
+        mockedCartServer.state.cart = {
+            schemaVersion: 2,
+            context,
+            fulfillmentType: 'pickup',
+            deliveryMethodCode: 'pickup',
+            items: [],
+            cleared: true,
+        };
+        mockedCartServer.state.revision += 1;
+
+        await refreshCustomerCartFromServer();
+        expect(useCartStore.getState().items).toEqual([]);
+
+        useCartStore.getState().addToCart(product(), 1);
+        await flushCustomerCartServerSync();
+        useCartStore.getState().removeFromCart('prod-1');
+        await flushCustomerCartServerSync();
+
+        expect(mockedCartServer.state.cart.cleared).toBe(true);
+        expect(mockedCartServer.state.cart.items).toEqual([]);
     });
 });
