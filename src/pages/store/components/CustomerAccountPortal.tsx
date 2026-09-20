@@ -732,21 +732,28 @@ export function CustomerAccountPortal() {
 
         setDeletionSubmitting(true);
         try {
-            const result = await CustomerService.requestSelfAccountDeletion(
+            const request = await CustomerService.requestSelfAccountDeletion(
                 deletionPassword,
                 onlyDigits(deletionOtp),
             );
-            setDeletionRequestStatus(result.status || 'pending');
+            setDeletionRequestStatus(request.status || 'pending');
+
+            const processed = await CustomerService.processSelfAccountDeletion();
+            setDeletionRequestStatus(processed.status || 'executed');
             setDeletionPassword('');
             setDeletionOtp('');
             setDeletionOtpSent(false);
-            const feedback = 'Solicitação de exclusão registrada com reautenticação forte. Sua conta permanece ativa até a conclusão do processamento.';
-            setMessage(feedback);
+
+            const feedback = 'Sua conta foi excluída. Registros que precisem permanecer por obrigação legal foram desvinculados da sua identidade.';
             toast.success(feedback);
+            setMessage(feedback);
+
+            await AuthService.logoutCustomer();
+            setOpen(false);
         } catch (deletionError) {
             const feedback = deletionError instanceof Error
                 ? deletionError.message
-                : 'Não foi possível registrar a solicitação de exclusão.';
+                : 'Não foi possível concluir a exclusão da conta.';
             setError(feedback);
             toast.error(feedback);
         } finally {
