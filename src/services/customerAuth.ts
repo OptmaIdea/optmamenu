@@ -176,14 +176,20 @@ export const AuthService = {
     },
 
     async sendOtp(phone: string, storeId: string, purpose: CustomerOtpPurpose = 'login') {
-        const isAccountDeletion = purpose === 'account_delete';
-        if (isAccountDeletion) {
+        const requiresAuthenticatedDevice = purpose === 'account_delete' || purpose === 'phone_change';
+        if (requiresAuthenticatedDevice) {
             const token = await refreshCustomerSessionIfNeeded();
-            if (!token) throw new Error('Sua sessão expirou. Entre novamente antes de excluir a conta.');
+            if (!token) {
+                throw new Error(
+                    purpose === 'account_delete'
+                        ? 'Sua sessão expirou. Entre novamente antes de excluir a conta.'
+                        : 'Sua sessão expirou. Entre novamente antes de alterar o telefone.',
+                );
+            }
         }
 
-        const deviceTokenHash = isAccountDeletion ? await getDeviceTokenHash() : undefined;
-        const functionClient = isAccountDeletion ? supabaseCustomer : supabasePublic;
+        const deviceTokenHash = requiresAuthenticatedDevice ? await getDeviceTokenHash() : undefined;
+        const functionClient = requiresAuthenticatedDevice ? supabaseCustomer : supabasePublic;
         const { data, error } = await functionClient.functions.invoke('send-customer-otp-sms', {
             body: { phone, storeId, purpose, deviceTokenHash },
         });
