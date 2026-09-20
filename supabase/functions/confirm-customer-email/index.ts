@@ -189,6 +189,53 @@ function redirectResult(
 Deno.serve(async (req: Request) => {
   if (req.method !== "GET") return redirectResult("invalid");
   const url = new URL(req.url);
+
+  if (url.searchParams.get("health") === "optma-email-20260919") {
+    const brevoApiKey = normalizeSecret(
+      Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY") || "",
+    );
+    const emailFrom = String(
+      Deno.env.get("CUSTOMER_EMAIL_FROM")
+        || Deno.env.get("BREVO_SENDER_EMAIL")
+        || Deno.env.get("EMAIL_FROM")
+        || "",
+    ).trim();
+
+    let providerStatus: number | null = null;
+    let providerReachable: boolean | null = null;
+
+    if (brevoApiKey) {
+      try {
+        const probe = await fetch("https://api.brevo.com/v3/account", {
+          method: "GET",
+          headers: {
+            "api-key": brevoApiKey,
+            accept: "application/json",
+          },
+        });
+        providerStatus = probe.status;
+        providerReachable = probe.ok;
+      } catch {
+        providerReachable = false;
+      }
+    }
+
+    return new Response(JSON.stringify({
+      ok: true,
+      provider: brevoApiKey ? "brevo" : null,
+      providerConfigured: Boolean(brevoApiKey),
+      senderConfigured: Boolean(emailFrom),
+      providerReachable,
+      providerStatus,
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
   const token = String(url.searchParams.get("token") || "").trim();
   if (!token || token.length < 20) return redirectResult("invalid");
 
