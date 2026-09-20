@@ -73,8 +73,7 @@ const Customers = lazy(() => import('@/pages/private/admin/customers/Customers')
 const CustomerFormPage = lazy(() => import('@/pages/private/admin/customers/CustomerFormPage'));
 const CustomerEditPage = lazy(() => import('@/pages/private/admin/customers/CustomerEditPage'));
 const CustomerLifecyclePage = lazy(() => import('@/pages/private/admin/customers/CustomerLifecyclePage'));
-const LoyaltyConfig = lazy(() => import('@/pages/private/admin/commercial/loyalty/LoyaltyConfig'));
-const LoyaltyAdvancedPage = lazy(() => import('@/pages/private/admin/loyalty/LoyaltyAdvancedPage'));
+const LoyaltyPage = lazy(() => import('@/pages/private/admin/loyalty/LoyaltyPage'));
 const CommercialDashboardPage = lazy(() => import('@/pages/private/admin/commercial/dashboard/CommercialDashboardPage'));
 const AdminMessages = lazy(() => import('@/pages/private/admin/commercial/messages/Messages'));
 const SalesChannelsPage = lazy(() => import('@/pages/private/admin/commercial/salesChannels/SalesChannelsPage'));
@@ -186,8 +185,8 @@ export default function AppRoutes() {
             <Route path="/admin/commercial-dashboard" element={<RequirePermission permission="commercial.dashboard.view"><CommercialDashboardPage /></RequirePermission>} />
             <Route path="/admin/commercial-settings" element={<Navigate to="/admin/settings?tab=commercial" replace />} />
             <Route path="/admin/customers" element={<RequirePermission permission="customers.view"><Customers /></RequirePermission>} />
-            <Route path="/admin/loyalty" element={<RequirePermission permission="loyalty.view"><LoyaltyConfig /></RequirePermission>} />
-            <Route path="/admin/loyalty/advanced" element={<RequirePermission permission="loyalty.view"><LoyaltyAdvancedPage /></RequirePermission>} />
+            <Route path="/admin/loyalty" element={<RequirePermission permission="loyalty.view"><LoyaltyPage /></RequirePermission>} />
+            <Route path="/admin/loyalty/advanced" element={<Navigate to="/admin/loyalty" replace />} />
             <Route path="/admin/messages-admin" element={<RequirePermission permission="messages.view"><AdminMessages /></RequirePermission>} />
             <Route path="/admin/marketing" element={<RequirePermission permission="marketing.view"><MarketingCenterPage /></RequirePermission>} />
 
