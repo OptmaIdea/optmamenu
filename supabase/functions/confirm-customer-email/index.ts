@@ -8,8 +8,17 @@ function escapeHtml(value: unknown) {
 }
 
 function senderEmail(value: string) {
-  const match = value.match(/<([^>]+)>/);
-  return String(match?.[1] || value).trim();
+  let normalized = String(value || "").trim();
+  normalized = normalized.replace(/^["'`]+|["'`]+$/g, "").trim();
+  normalized = normalized
+    .replace(/^(CUSTOMER_EMAIL_FROM|RESEND_FROM_EMAIL|BREVO_SENDER_EMAIL|EMAIL_FROM)\s*=\s*/i, "")
+    .trim();
+
+  const angleMatch = normalized.match(/<\s*([^<>\s]+@[^<>\s]+)\s*>/);
+  if (angleMatch?.[1]) return angleMatch[1].trim();
+
+  const plainMatch = normalized.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return plainMatch?.[0]?.trim() || "";
 }
 
 function normalizeSecret(value: string) {
@@ -29,16 +38,20 @@ async function sendConfirmedEmail(params: {
   const brevoApiKey = normalizeSecret(
     Deno.env.get("BREVO_API_KEY") || Deno.env.get("SENDINBLUE_API_KEY") || "",
   );
-  const emailFrom = String(
+  const emailFromRaw = String(
     Deno.env.get("CUSTOMER_EMAIL_FROM")
       || Deno.env.get("RESEND_FROM_EMAIL")
       || Deno.env.get("BREVO_SENDER_EMAIL")
       || Deno.env.get("EMAIL_FROM")
       || "",
-  ).trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+  );
+  const emailFrom = senderEmail(emailFromRaw);
 
   if ((!resendApiKey && !brevoApiKey) || !emailFrom) {
-    return { sent: false, reason: "provider_not_configured" };
+    return {
+      sent: false,
+      reason: !emailFrom ? "invalid_sender_configuration" : "provider_not_configured",
+    };
   }
 
   const safeSenderName = params.storeName
@@ -46,9 +59,7 @@ async function sendConfirmedEmail(params: {
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 60) || "Loja";
-  const sender = emailFrom.includes("<")
-    ? emailFrom
-    : `${safeSenderName} <${emailFrom}>`;
+  const sender = `${safeSenderName} <${emailFrom}>`;
   const brand = params.storeLogoUrl && /^https:\/\//i.test(params.storeLogoUrl)
     ? `<img src="${escapeHtml(params.storeLogoUrl)}" alt="${escapeHtml(params.storeName)}" style="display:block;max-width:160px;max-height:72px;margin:0 auto 18px;object-fit:contain">`
     : `<div style="font-size:22px;font-weight:800;text-align:center;margin-bottom:18px;color:#172033">${escapeHtml(params.storeName)}</div>`;
@@ -98,7 +109,7 @@ async function sendConfirmedEmail(params: {
             accept: "application/json",
           },
           body: JSON.stringify({
-            sender: { name: safeSenderName, email: senderEmail(emailFrom) },
+            sender: { name: safeSenderName, email: emailFrom },
             to: [{ email: params.email, name: params.fullName }],
             subject,
             htmlContent: html,
