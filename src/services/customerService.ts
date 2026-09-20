@@ -621,6 +621,47 @@ export const CustomerService = {
         };
     },
 
+    async processSelfAccountDeletion() {
+        const { data, error } = await supabaseCustomer.functions.invoke('process-customer-account-deletion', {
+            body: {},
+        });
+
+        if (error) {
+            const status = Number((error as { context?: { status?: number } })?.context?.status || 0);
+            if (status === 401) throw new Error('Sua sessão expirou. Entre novamente para concluir a exclusão.');
+            throw new Error('Não foi possível concluir a exclusão da conta agora.');
+        }
+
+        const payload = data as {
+            ok?: boolean;
+            error?: string;
+            status?: string;
+            activeOrderCount?: number;
+            auditId?: string;
+            executedAt?: string;
+            requiresLogout?: boolean;
+        } | null;
+
+        if (!payload?.ok) {
+            if (payload?.error === 'active_orders_exist') {
+                const count = Number(payload.activeOrderCount || 0);
+                throw new Error(
+                    count > 0
+                        ? `Sua conta possui ${count} pedido(s) ainda em andamento. Conclua ou cancele esses pedidos antes da exclusão definitiva.`
+                        : 'Há pedidos em andamento vinculados à conta.',
+                );
+            }
+            throw new Error('Não foi possível concluir a exclusão da conta agora.');
+        }
+
+        return {
+            status: payload.status || 'executed',
+            auditId: payload.auditId || null,
+            executedAt: payload.executedAt || null,
+            requiresLogout: Boolean(payload.requiresLogout),
+        };
+    },
+
     // --- Shared cart draft ---
     async getSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
