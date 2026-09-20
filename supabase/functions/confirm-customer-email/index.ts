@@ -106,14 +106,49 @@ async function sendConfirmedEmail(params: {
         });
 
     if (!response.ok) {
+      const provider = resendApiKey ? "resend" : "brevo";
+      let providerCode: string | null = null;
+      let providerMessage: string | null = null;
+
+      try {
+        const raw = await response.text();
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            providerCode = typeof parsed?.code === "string" ? parsed.code : null;
+            providerMessage = typeof parsed?.message === "string"
+              ? parsed.message.slice(0, 240)
+              : raw.slice(0, 240);
+          } catch {
+            providerMessage = raw.slice(0, 240);
+          }
+        }
+      } catch {
+        // Diagnóstico é best-effort; nunca interfere na confirmação.
+      }
+
       console.error("customer_email_confirmed_notification_failed", {
-        provider: resendApiKey ? "resend" : "brevo",
+        provider,
         status: response.status,
+        code: providerCode,
+        message: providerMessage,
       });
-      return { sent: false, reason: "delivery_failed" };
+
+      return {
+        sent: false,
+        reason: "delivery_failed",
+        provider,
+        providerStatus: response.status,
+        providerCode,
+        providerMessage,
+      };
     }
 
-    return { sent: true, provider: resendApiKey ? "resend" : "brevo" };
+    return {
+      sent: true,
+      provider: resendApiKey ? "resend" : "brevo",
+      providerStatus: response.status,
+    };
   } catch (error) {
     console.error("customer_email_confirmed_notification_error", error);
     return { sent: false, reason: "delivery_error" };
@@ -136,7 +171,10 @@ function redirectResult(
     ? `${PUBLIC_APP_ORIGIN}/s/${encodeURIComponent(storeSlug)}`
     : PUBLIC_APP_ORIGIN;
   const target = new URL(base);
-  target.searchParams.set("emailVerification", result);
+  // Não use o parâmetro legado "emailVerification": versões antigas da loja
+  // tentavam restaurar/login de sessão ao recebê-lo. O resultado novo é apenas
+  // informativo e nunca deve autenticar o cliente automaticamente.
+  target.searchParams.set("emailVerificationResult", result);
 
   return new Response(null, {
     status: 303,
