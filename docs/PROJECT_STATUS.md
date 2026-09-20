@@ -519,6 +519,48 @@ A partir da versão 4, o challenge registra em `metadata.confirmed_notification`
 
 ---
 
+## Ajustes de homologação — 19/09/2026 (nona rodada)
+
+### Retorno da confirmação de e-mail sem reautenticação automática
+
+O teste com Crisgeo confirmou:
+- o token foi consumido e `email_verified=true` foi persistido;
+- o redirecionamento caiu no domínio canônico `optmamenu.com.br`;
+- esse domínio ainda está publicado a partir de uma versão antiga de produção e tentou usar o RPC legado `customer_login_with_password`, hoje corretamente sem EXECUTE para cliente/anon, produzindo `401 permission denied`.
+
+Correção aplicada:
+- a Edge Function passou a usar o parâmetro neutro `emailVerificationResult`, em vez do legado `emailVerification`;
+- o parâmetro novo jamais deve iniciar login ou restaurar sessão automaticamente;
+- a branch atual reconhece `emailVerificationResult` apenas para feedback amigável;
+- não foi reaberto EXECUTE do RPC legado `customer_login_with_password`, preservando o hardening;
+- confirmação de e-mail não autentica o cliente — apenas confirma o endereço;
+- Edge Function `confirm-customer-email` publicada como versão 7.
+
+### Aviso transacional pós-confirmação
+
+A última confirmação real de Crisgeo registrou:
+- confirmação principal: sucesso;
+- envio inicial de confirmação: Brevo aceitou e gerou `provider_message_id`;
+- aviso `E-mail confirmado`: `confirmed_notification.sent=false`;
+- motivo registrado: `delivery_failed`.
+
+Portanto, a ausência do segundo e-mail NÃO foi causada pelo redirecionamento/login do navegador. O runtime Supabase encontrou provider/remetente, chamou o provedor e recebeu rejeição HTTP.
+
+A função agora registra, em nova tentativa, somente diagnóstico sanitizado:
+- `provider`;
+- `providerStatus`;
+- `providerCode`;
+- `providerMessage`;
+- sem chave/secret.
+
+Isso permitirá fechar a causa do próximo teste sem depender do console do navegador.
+
+### Autenticação de colaboradores
+
+A hipótese de separar autenticação de owners/admin/managers sensíveis de operadores comuns por JWT próprio foi apenas registrada como evolução futura. Não faz parte do fechamento atual de Clientes/Slug e pode ser retomada em versão posterior, inclusive após operação com loja parceira.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
