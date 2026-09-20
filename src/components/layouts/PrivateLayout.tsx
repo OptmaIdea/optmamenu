@@ -56,7 +56,6 @@ import {
     Activity,
     ArrowRightLeft,
     WalletCards,
-    Sparkles,
     FileStack,
     Megaphone,
     Store as StoreIcon,
