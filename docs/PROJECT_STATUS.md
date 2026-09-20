@@ -733,3 +733,25 @@ As três migrations estão aplicadas no projeto Supabase `lgkkfmqzaorrutuoqeax` 
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
+
+
+---
+
+## Validação final da frente Fidelidade — 19/09/2026
+
+Fechamento técnico da frente específica de Fidelidade, sem reabrir Clientes ou OptmaPay.
+
+Validações executadas no estado implantado:
+
+- GitHub/Vercel/Supabase reconferidos;
+- área administrativa canônica mantida somente em `/admin/loyalty`;
+- `/admin/loyalty/advanced` permanece apenas como compatibilidade/redirecionamento, sem segunda autoridade;
+- componentes administrativos legados de pontos deixaram de consultar `customers` e `loyalty_transactions` diretamente;
+- RPCs administrativas verificadas como `SECURITY DEFINER`, store-scoped e com `auth.uid()` + `loyalty.view`/`loyalty.manage` conforme leitura/escrita;
+- tabelas centrais de fidelidade verificadas com RLS habilitado; programas, níveis, regras, prêmios, vouchers, benefícios e transações permanecem com RLS forçado;
+- migrations `20260919215305_loyalty_reentry_audit_core`, `20260919215626_loyalty_admin_unified_safe_rpcs` e `20260919215652_loyalty_refunds_rls_hardening` confirmadas no Supabase;
+- triggers `on_order_completed_loyalty`, `on_order_cancelled_reverse_loyalty` e `trg_sale_adjustments_sync_loyalty` confirmados no banco;
+- configuração do programa Gelipontos conferida: bônus inicial 15 pontos, reentrada em 30%, carência 30 dias, máximo de 1 reentrada bonificada e retenção de auditoria de 60 meses;
+- Security Advisor revisado após a consolidação. As tabelas de auditoria da fidelidade aparecem como “RLS sem policy” por desenho, pois são acessadas apenas pelas RPCs `SECURITY DEFINER`; nenhuma nova exposição anônima específica da frente de Fidelidade foi introduzida.
+
+A frente está pronta para homologação funcional do lojista nas oito abas e para testes reais de adesão/reentrada/cancelamento, sem reintroduzir acesso direto às tabelas administrativas.
