@@ -82,7 +82,6 @@ Deno.serve(async (req: Request) => {
   const storeId = String(body.storeId || "").trim();
   const purpose = String(body.purpose || "login").trim().toLowerCase();
   const deviceTokenHash = String(body.deviceTokenHash || "").trim().toLowerCase();
-  const deviceTokenHash = String(body.deviceTokenHash || "").trim().toLowerCase();
 
   if (!phone || !/^[0-9a-f-]{36}$/i.test(storeId) || !ALLOWED_PURPOSES.has(purpose)) {
     return reply({ ok: false, error: "invalid_request" }, 400, origin);
