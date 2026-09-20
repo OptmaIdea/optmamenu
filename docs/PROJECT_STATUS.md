@@ -755,3 +755,21 @@ Validações executadas no estado implantado:
 - Security Advisor revisado após a consolidação. As tabelas de auditoria da fidelidade aparecem como “RLS sem policy” por desenho, pois são acessadas apenas pelas RPCs `SECURITY DEFINER`; nenhuma nova exposição anônima específica da frente de Fidelidade foi introduzida.
 
 A frente está pronta para homologação funcional do lojista nas oito abas e para testes reais de adesão/reentrada/cancelamento, sem reintroduzir acesso direto às tabelas administrativas.
+
+---
+
+## Reconciliação Clientes/Slug — 20/09/2026
+
+A migration `20260919220128_customer_self_phone_change_strong_otp` já constava como aplicada no Supabase, mas o arquivo SQL correspondente não estava versionado na branch de homologação. A divergência foi reconciliada sem reaplicar a migration no banco.
+
+O arquivo versionado reproduz o estado implantado da RPC `change_customer_self_phone_safe(text,text)`:
+- execução restrita a sessão autenticada de cliente;
+- OTP de uso único vinculado ao propósito `phone_change` e ao novo número;
+- bloqueio quando o novo telefone já pertence a outro cliente ativo da mesma loja;
+- limite e consumo atômico das tentativas do OTP;
+- atualização do telefone passando pelos triggers existentes de normalização e sincronização de contatos;
+- revogação dos dispositivos confiáveis após a troca, exigindo novo login;
+- `EXECUTE` negado para `public`/`anon` e permitido para `authenticated`/`service_role`.
+
+A reconciliação é apenas de versionamento/reprodutibilidade do schema: o Supabase já possuía a migration aplicada e a função ativa antes deste commit.
+
