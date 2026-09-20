@@ -186,6 +186,17 @@ export interface CustomerMergeHistoryItem {
     created_at: string;
 }
 
+export interface CustomerDeletionAuditItem {
+    id: string;
+    customer_id_snapshot: string;
+    status: 'pending' | 'processing' | 'executed' | 'failed' | string;
+    request_source: string | null;
+    reauth_method: string | null;
+    requested_at: string;
+    executed_at: string | null;
+    execution_summary: Record<string, unknown>;
+}
+
 export const Customers360Service = {
     async listCustomers(storeId: string, limit = 500): Promise<CustomerListItem[]> {
         const { data, error } = await supabase.rpc('get_admin_customers_safe', {
@@ -341,5 +352,18 @@ export const Customers360Service = {
         if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar histórico de fusões.');
 
         return (data.events || []) as CustomerMergeHistoryItem[];
+    },
+
+    async getDeletionHistory(storeId: string, customerId?: string | null, limit = 100) {
+        const { data, error } = await supabase.rpc('get_customer_account_deletion_history_safe', {
+            p_store_id: storeId,
+            p_customer_id: customerId || null,
+            p_limit: limit,
+        });
+
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.error || 'Erro ao carregar histórico de exclusões.');
+
+        return (data.events || []) as CustomerDeletionAuditItem[];
     },
 };
