@@ -176,8 +176,16 @@ export const AuthService = {
     },
 
     async sendOtp(phone: string, storeId: string, purpose: CustomerOtpPurpose = 'login') {
-        const { data, error } = await supabasePublic.functions.invoke('send-customer-otp-sms', {
-            body: { phone, storeId, purpose },
+        const isAccountDeletion = purpose === 'account_delete';
+        if (isAccountDeletion) {
+            const token = await refreshCustomerSessionIfNeeded();
+            if (!token) throw new Error('Sua sessão expirou. Entre novamente antes de excluir a conta.');
+        }
+
+        const deviceTokenHash = isAccountDeletion ? await getDeviceTokenHash() : undefined;
+        const functionClient = isAccountDeletion ? supabaseCustomer : supabasePublic;
+        const { data, error } = await functionClient.functions.invoke('send-customer-otp-sms', {
+            body: { phone, storeId, purpose, deviceTokenHash },
         });
 
         const errorPayload = error ? await readFunctionErrorPayload(error) : null;
@@ -204,6 +212,9 @@ export const AuthService = {
         }
         if (payload?.error === 'invalid_phone') {
             throw new Error('Informe um telefone válido. Para números do Brasil, o +55 é opcional.');
+        }
+        if (payload?.error === 'access_denied' || payload?.error === 'reauth_required') {
+            throw new Error('Por segurança, entre novamente e confirme este dispositivo antes de continuar.');
         }
         if (error) throw new Error('Não foi possível enviar o código por SMS.');
         throw new Error(payload?.message || 'Não foi possível enviar o código por SMS.');

@@ -28,6 +28,7 @@ import {
 import { AuthService } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
+import { flushCustomerCartServerSync } from '@/services/customerCartPersistence';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL } from '@/utils/pricing';
@@ -290,6 +291,7 @@ export function CustomerAccountPortal() {
     const ordersRequestInFlightRef = useRef(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [exportingData, setExportingData] = useState(false);
 
     const displayName = useMemo(
         () => customer?.nickname || customer?.full_name || 'cliente',
@@ -633,10 +635,43 @@ export function CustomerAccountPortal() {
     const logout = async () => {
         setLoading(true);
         try {
+            await flushCustomerCartServerSync().catch(() => undefined);
             await AuthService.logoutCustomer();
             setOpen(false);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const downloadSelfData = async () => {
+        clearFeedback();
+        setExportingData(true);
+        try {
+            const exported = await CustomerService.exportSelfData();
+            const blob = new Blob(
+                [JSON.stringify(exported, null, 2)],
+                { type: 'application/json;charset=utf-8' },
+            );
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `optmamenu-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.setTimeout(() => URL.revokeObjectURL(url), 0);
+            const feedback = 'Seus dados foram exportados em um arquivo JSON.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (exportError) {
+            const feedback = exportError instanceof Error
+                ? exportError.message
+                : 'Não foi possível exportar seus dados agora.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setExportingData(false);
         }
     };
 
@@ -1592,6 +1627,26 @@ export function CustomerAccountPortal() {
                                     <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
                                         Sua conta da loja é protegida pelo telefone confirmado por SMS e pela senha criada por você. Dependendo da política de segurança, uma alteração sensível pode pedir nova confirmação por SMS.
                                     </div>
+                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex items-start gap-3">
+                                            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="font-black text-slate-900 dark:text-white">Cópia dos meus dados</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Baixe uma cópia estruturada dos dados vinculados à sua conta nesta loja, incluindo cadastro, endereços, consentimentos, pedidos e histórico de segurança sem segredos de autenticação.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={downloadSelfData}
+                                                    disabled={exportingData || loading}
+                                                    className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                                                >
+                                                    {exportingData ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
+                                                    {exportingData ? 'Preparando arquivo…' : 'Exportar meus dados'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </section>
                                     <PasswordField label="Nova senha" value={newPassword} onChange={setNewPassword} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" />
                                     <PasswordField label="Repita a nova senha" value={confirmPassword} onChange={setConfirmPassword} placeholder="Repita a nova senha" autoComplete="new-password" />
                                     <button type="button" onClick={savePassword} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">

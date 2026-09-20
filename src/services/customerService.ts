@@ -558,6 +558,16 @@ export const CustomerService = {
         return payload;
     },
 
+    // --- Direitos do titular ---
+    async exportSelfData() {
+        const { data, error } = await supabaseCustomer.rpc('export_customer_self_data_safe');
+        if (error) throw new Error('Não foi possível exportar seus dados agora.');
+
+        const payload = data as (SelfRpcPayload & { export?: Record<string, unknown> }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível exportar seus dados agora.');
+        return payload.export && typeof payload.export === 'object' ? payload.export : {};
+    },
+
     // --- Shared cart draft ---
     async getSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
