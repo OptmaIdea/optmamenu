@@ -25,6 +25,7 @@ import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import PageContainer from '@/components/common/PageContainer';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import {
     Customers360Service,
     type CustomerDeletionAuditItem,
@@ -287,6 +288,7 @@ export default function Customers() {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyLoaded, setHistoryLoaded] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
+    const [deletionProcessingId, setDeletionProcessingId] = useState<string | null>(null);
 
     const [selectedCandidate, setSelectedCandidate] = useState<CustomerDuplicateCandidate | null>(null);
     const [canonicalCustomerId, setCanonicalCustomerId] = useState<string>('');
@@ -573,6 +575,33 @@ export default function Customers() {
             setMergeError(message);
         } finally {
             setMerging(false);
+        }
+    };
+
+    const handleDeletionRetry = async (event: CustomerDeletionAuditItem) => {
+        if (!storeId || !canManageCustomers || deletionProcessingId) return;
+
+        const confirmed = await systemConfirm({
+            title: 'Processar exclusão pendente?',
+            description: 'A exclusão é definitiva para os dados pessoais que não precisam ser retidos. O processamento só continuará se não houver pedidos em andamento vinculados ao cliente.',
+            confirmLabel: 'Processar exclusão',
+            cancelLabel: 'Cancelar',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
+
+        setDeletionProcessingId(event.id);
+        try {
+            await Customers360Service.processDeletionRequest(storeId, event.customer_id_snapshot);
+            toast.success('Exclusão processada e credenciais revogadas.');
+            await Promise.all([loadHistory(), loadCustomers()]);
+        } catch (processingError) {
+            const message = processingError instanceof Error
+                ? processingError.message
+                : 'Não foi possível processar a exclusão.';
+            toast.error(message);
+        } finally {
+            setDeletionProcessingId(null);
         }
     };
 
@@ -1100,6 +1129,20 @@ export default function Customers() {
                                                                 Origem: {event.request_source === 'customer_portal' ? 'Portal do cliente' : event.request_source || 'Não informada'}
                                                                 {event.reauth_method ? ` · confirmação: ${event.reauth_method === 'password+otp' ? 'senha + SMS' : event.reauth_method}` : ''}
                                                             </p>
+
+                                                            {canManageCustomers && ['pending', 'processing'].includes(event.status) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void handleDeletionRetry(event)}
+                                                                    disabled={Boolean(deletionProcessingId)}
+                                                                    className="mt-4 inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-red-200 px-3 py-2 text-xs font-black text-red-700 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/20"
+                                                                >
+                                                                    {deletionProcessingId === event.id
+                                                                        ? <Loader2 size={15} className="animate-spin" />
+                                                                        : <Trash2 size={15} />}
+                                                                    {deletionProcessingId === event.id ? 'Processando…' : 'Processar agora'}
+                                                                </button>
+                                                            )}
 
                                                             {event.status === 'executed' && (
                                                                 <div className="mt-4 grid grid-cols-2 gap-2 border-t border-gray-100 pt-4 sm:grid-cols-4 dark:border-gray-800">
