@@ -14,6 +14,7 @@ import {
     Search,
     ShieldCheck,
     Smartphone,
+    Trash2,
     UserRound,
     Users,
     X,
@@ -26,6 +27,7 @@ import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import PageContainer from '@/components/common/PageContainer';
 import {
     Customers360Service,
+    type CustomerDeletionAuditItem,
     type CustomerDuplicateCandidate,
     type CustomerDuplicateSummary,
     type CustomerListItem,
@@ -105,6 +107,36 @@ function getMatchReasonLabel(reason: string) {
         default:
             return reason;
     }
+}
+
+function getDeletionStatusLabel(status?: string | null) {
+    switch (status) {
+        case 'pending':
+            return 'Exclusão solicitada';
+        case 'processing':
+            return 'Exclusão em processamento';
+        case 'executed':
+            return 'Conta excluída';
+        case 'failed':
+            return 'Falha no processamento';
+        default:
+            return status || 'Status não informado';
+    }
+}
+
+function getDeletionStatusClass(status?: string | null) {
+    if (status === 'executed') {
+        return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200';
+    }
+    if (status === 'failed') {
+        return 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200';
+    }
+    return 'bg-amber-100 text-amber-900 dark:bg-amber-950/40 dark:text-amber-100';
+}
+
+function getDeletionCount(summary: Record<string, unknown> | undefined, key: string) {
+    const value = Number(summary?.[key] || 0);
+    return Number.isFinite(value) ? value : 0;
 }
 
 function getMovedCountLabel(key: string) {
@@ -251,6 +283,7 @@ export default function Customers() {
     const [duplicatesError, setDuplicatesError] = useState<string | null>(null);
 
     const [mergeHistory, setMergeHistory] = useState<CustomerMergeHistoryItem[]>([]);
+    const [deletionHistory, setDeletionHistory] = useState<CustomerDeletionAuditItem[]>([]);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [historyLoaded, setHistoryLoaded] = useState(false);
     const [historyError, setHistoryError] = useState<string | null>(null);
@@ -319,12 +352,16 @@ export default function Customers() {
             setHistoryLoading(true);
             setHistoryError(null);
 
-            const data = await Customers360Service.getMergeHistory(storeId, null, 200);
-            setMergeHistory(data);
+            const [mergeEvents, deletionEvents] = await Promise.all([
+                Customers360Service.getMergeHistory(storeId, null, 200),
+                Customers360Service.getDeletionHistory(storeId, null, 200),
+            ]);
+            setMergeHistory(mergeEvents);
+            setDeletionHistory(deletionEvents);
             setHistoryLoaded(true);
         } catch (err: unknown) {
-            console.error('Erro ao carregar histórico de fusões:', err);
-            const message = err instanceof Error ? err.message : 'Erro ao carregar histórico de fusões.';
+            console.error('Erro ao carregar histórico de clientes:', err);
+            const message = err instanceof Error ? err.message : 'Erro ao carregar histórico de clientes.';
             setHistoryError(message);
         } finally {
             setHistoryLoading(false);
