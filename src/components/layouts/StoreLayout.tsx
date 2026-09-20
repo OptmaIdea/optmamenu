@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
-import { AuthService } from '@/services/customerAuth';
 import {
     activateCustomerCart,
     configureCustomerCartRetention,
@@ -74,23 +73,28 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         const params = new URLSearchParams(location.search);
-        const verification = params.get('emailVerification');
+        const verification =
+            params.get('emailVerificationResult')
+            || params.get('emailVerification');
         if (!verification) return;
 
         if (verification === 'success') {
-            void AuthService.restoreSession()
-                .then(() => {
-                    toast.success('E-mail confirmado com sucesso. Sua conta foi atualizada.');
-                })
-                .catch(() => {
-                    toast.success('E-mail confirmado. Atualize sua conta se os dados ainda não aparecerem.');
-                });
+            toast.success(
+                isAuthenticated
+                    ? 'E-mail confirmado com sucesso. Atualize seus dados para refletir a confirmação.'
+                    : 'E-mail confirmado com sucesso. Você já pode voltar à sua conta.',
+            );
+        } else if (verification === 'used') {
+            toast.info('Este link de confirmação já foi utilizado.');
+        } else if (verification === 'expired') {
+            toast.error('Este link de confirmação expirou. Solicite um novo e-mail.');
         } else if (verification === 'invalid') {
             toast.error('O link de confirmação de e-mail é inválido.');
         } else {
             toast.error('Não foi possível concluir a confirmação de e-mail. Solicite um novo link.');
         }
 
+        params.delete('emailVerificationResult');
         params.delete('emailVerification');
         const nextSearch = params.toString();
         navigate(
@@ -100,7 +104,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
             },
             { replace: true },
         );
-    }, [location.pathname, location.search, navigate]);
+    }, [isAuthenticated, location.pathname, location.search, navigate]);
 
     useEffect(() => {
         if (!sessionRestored) return;
