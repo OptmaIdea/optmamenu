@@ -730,6 +730,64 @@ As três migrations estão aplicadas no projeto Supabase `lgkkfmqzaorrutuoqeax` 
 
 ---
 
+## Ajustes de homologação — 20/09/2026 (fechamento da exclusão de conta)
+
+### E-mail pós-confirmação
+
+O segundo e-mail transacional de confirmação passou a ser recebido com sucesso após a Edge Function adotar o remetente verificado `naoresponda@auth.optmamenu.com.br` como fallback seguro quando o Secret do Supabase estiver mal formatado.
+
+Edge Function:
+- `confirm-customer-email` v9 ACTIVE.
+
+Commit:
+- `214894776f142344ef9e4548a6a7b05fa9455909`.
+
+### Exportação e exclusão do titular
+
+Validações reais concluídas:
+- exportação dos dados do titular: sucesso;
+- solicitação de exclusão: senha correta + OTP SMS exigidos e validados;
+- foi identificado que a primeira implementação registrava a solicitação como `pending`, mas não havia processador automático;
+- o executor `delete_customer_account_service_safe` também tentava inserir uma segunda linha `processing`, conflitando com o índice único da solicitação pendente.
+
+Correções:
+- migration `20260920002129_customer_account_deletion_processor_reuses_request`;
+- o executor agora reutiliza a própria solicitação `pending` e a move para `processing -> executed`;
+- Edge Function `process-customer-account-deletion` v1 ACTIVE;
+- o portal chama o processador após a reautenticação forte e encerra a sessão em caso de sucesso;
+- pedidos em andamento bloqueiam a exclusão definitiva com mensagem específica;
+- o usuário sintético do Supabase Auth é revogado ao final.
+
+Teste real com Crisgeo:
+- solicitação: `729ebfd2-341b-484f-bc34-63ed18a8c2a2`;
+- status final: `executed`;
+- customer removido: sim;
+- credenciais, endereços, carrinho, consentimentos, trusted devices e challenges: 0 registros remanescentes;
+- usuário sintético em `auth.users`: removido;
+- telefone voltou a ficar disponível para novo cadastro;
+- pedidos diretamente vinculados ao customer: 0;
+- trilha mínima de auditoria preservada sem PII direta;
+- evidência legal retida: aceite de Termos de Uso e Política de Privacidade;
+- neste cliente de teste não havia pedidos nem lançamentos financeiros a anonimizar/reter.
+
+Commits:
+- `a536aacbd0c1b87682a8ffd01db6699f908cb400` — reutiliza solicitação pendente;
+- `31265fc880c5d6078b00566091d75b3fa22b5699` — Edge Function de processamento;
+- `0b2182036670266363af180aa6e41c928e890b49` — service frontend;
+- `3251a7c5dd1b3d1c69396f10e9df63abd844e8c1` — UX e logout após exclusão.
+
+Todos os GitHub Actions desses commits concluíram com `success`.
+
+### Reconciliação de migration da troca de telefone
+
+A migration aplicada no Supabase `20260919220128_customer_self_phone_change_strong_otp`, que inicialmente não aparecia versionada no Git, foi reconciliada pela frente de Clientes antes deste fechamento.
+
+Commits:
+- `70931f69890446468fb57d5512d02e3af3c96077`;
+- `ce1c6145e323e393bb706796196a43db0f702a5f`.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
