@@ -600,8 +600,13 @@ export function deactivateCustomerCart(customerId?: string, storeId?: string) {
             window.clearTimeout(serverSaveTimer);
             serverSaveTimer = null;
             const payload = serverCartPayload();
-            void supabaseCustomer.rpc('save_customer_self_cart_draft_safe', { p_cart: payload })
-                .catch(() => undefined);
+            void (async () => {
+                try {
+                    await supabaseCustomer.rpc('save_customer_self_cart_draft_safe', { p_cart: payload });
+                } catch {
+                    // O logout não deve falhar por uma última tentativa de sincronização.
+                }
+            })();
         }
     }
 
