@@ -648,6 +648,88 @@ A correção da homologação NÃO reabre essa permissão. O fluxo atual de clie
 
 ---
 
+## Fidelidade unificada — 19/09/2026
+
+A frente administrativa de Fidelidade passou a ter uma única autoridade de interface em `/admin/loyalty`. O item irmão **Fidelidade avançada** foi removido do menu e a rota legada `/admin/loyalty/advanced` redireciona para a área canônica.
+
+A nova área reúne oito abas:
+- Visão geral;
+- Regras e pontuação;
+- Níveis;
+- Benefícios e prêmios;
+- Clientes participantes;
+- Ajustes / extrato;
+- Bloqueios e reentrada;
+- Termos e privacidade.
+
+### Segurança administrativa
+
+A interface canônica não acessa diretamente `customers` nem `loyalty_transactions`. O componente legado `ManualPoints.tsx` também foi retirado desse padrão inseguro, e o componente de fidelidade do portal do cliente deixou de ler `loyalty_transactions` ou alterar `customers` diretamente.
+
+Leitura administrativa usa RPCs store-scoped com `auth.uid()` e `loyalty.view`/`loyalty.manage`; escrita exige `loyalty.manage` ou owner. Entre os RPCs canônicos estão:
+- `get_loyalty_advanced_settings_safe`;
+- `get_loyalty_customers_safe`;
+- `get_admin_loyalty_transactions_safe`;
+- `get_loyalty_blocks_and_reentry_safe`;
+- `update_loyalty_program_safe`;
+- `upsert_loyalty_tier_safe` / `delete_loyalty_tier_safe`;
+- `update_loyalty_category_rule_safe`;
+- `adjust_customer_loyalty_points_safe`;
+- `admin_set_customer_loyalty_membership_safe`;
+- `upsert_loyalty_point_rule_safe`;
+- `upsert_customer_benefit_rule_safe`;
+- `upsert_loyalty_reward_safe` / `delete_loyalty_reward_safe`.
+
+Tabelas centrais da fidelidade estão com RLS habilitado e forçado. Escritas diretas de `anon`/`authenticated` em programas, níveis, prêmios, vouchers, regras, transações e benefícios foram revogadas; mutações administrativas passam pelas RPCs.
+
+### Adesão, saída, bloqueio e reentrada
+
+A adesão do cliente continua voluntária e exige regulamento, responsabilidade pelos dados, CPF quando aplicável ao fluxo, data de nascimento, idade mínima de 18 anos e e-mail confirmado. O portal usa `join_customer_self_loyalty_safe`; o extrato próprio usa `get_customer_self_loyalty_transactions_safe`.
+
+A saída voluntária ou remoção administrativa executa o purge dos dados exclusivos da fidelidade. Bloqueio por CPF e desbloqueio administrativo permanecem auditáveis.
+
+Foi implementada política configurável de reentrada:
+- primeira adesão: bônus integral configurado em `join_bonus_points`;
+- reentrada: `none`, `percentage` ou `fixed`;
+- percentual inicial: **30%**;
+- carência configurável em dias;
+- limite configurável de reentradas bonificadas;
+- auditoria da regra aplicada e do bônus concedido;
+- explicação ao cliente da regra efetivamente aplicada.
+
+Para impedir abuso do ciclo entrar → ganhar bônus → sair → entrar, o purge preserva apenas o marcador mínimo de auditoria/antifraude em `loyalty_participation_audit` e `loyalty_membership_audit_events`. Esses registros armazenam hash de CPF por loja, últimos quatro dígitos para contexto, datas/contadores de participação e bônus e a regra aplicada. A finalidade declarada é prevenção de abuso, segurança e auditoria do programa; a retenção é configurável por `loyalty_audit_retention_months` (padrão atual: 60 meses).
+
+No Gelipontos da Gelinhares, o estado implantado está em:
+- bônus normal de primeira adesão: **15 pontos**;
+- reentrada: **30% do bônus original**;
+- carência: **30 dias**;
+- máximo: **1 reentrada bonificada**;
+- retenção da auditoria: **60 meses**.
+
+### Pontuação, cancelamentos e devoluções
+
+O pedido só pontua quando chega a `completed`. O extrato é imutável: cancelamentos posteriores e devoluções não apagam lançamentos anteriores.
+
+A rotina `sync_order_loyalty_refund_reversal_internal`:
+- faz estorno integral quando um pedido concluído é posteriormente cancelado;
+- calcula estorno proporcional em devolução parcial;
+- cria lançamento `reversal` negativo vinculado à transação original;
+- cria lançamento corretivo `adjustment` se um recálculo devolver pontos;
+- recalcula saldo e nível sem permitir saldo negativo;
+- gera notificação ao cliente.
+
+O trigger `trg_sale_adjustments_sync_loyalty` acompanha devoluções/estornos concluídos e `on_order_cancelled_reverse_loyalty` cobre `completed → cancelled`.
+
+### Migrations desta consolidação
+
+- `20260919215305_loyalty_reentry_audit_core.sql`;
+- `20260919215626_loyalty_admin_unified_safe_rpcs.sql`;
+- `20260919215652_loyalty_refunds_rls_hardening.sql`.
+
+As três migrations estão aplicadas no projeto Supabase `lgkkfmqzaorrutuoqeax` e versionadas no GitHub.
+
+---
+
 ## Autoridade técnica
 
 Este arquivo é o resumo executivo canônico. Repositório, migrations efetivamente aplicadas no Supabase, Edge Functions publicadas e deployments Vercel são a autoridade do estado técnico implantado.
