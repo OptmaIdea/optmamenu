@@ -13,7 +13,6 @@ import {
     Settings2,
     ShieldCheck,
     Star,
-    UserCheck,
     Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -361,7 +360,7 @@ export default function LoyaltyPage() {
                 discountPercent: benefitForm.discountPercent === '' ? null : number(benefitForm.discountPercent),
                 discountAmount: benefitForm.discountAmount === '' ? null : number(benefitForm.discountAmount),
                 bonusPoints: benefitForm.bonusPoints === '' ? null : Math.trunc(number(benefitForm.bonusPoints)),
-                freeDelivery: benefitForm.freeDelivery,
+                freeDelivery: benefitForm.benefitType === 'free_delivery' || benefitForm.freeDelivery,
                 minimumOrderValue: 0,
                 active: benefitForm.active,
                 conditions: {},
@@ -515,20 +514,22 @@ export default function LoyaltyPage() {
             {activeTab === 'overview' && (
                 <div className="space-y-6">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                        {[
-                            ['Participantes', settings.overview.participants, Users],
-                            ['Pontos em circulação', settings.overview.points_in_circulation, Star],
-                            ['Movimentações · 30 dias', settings.overview.transactions_30d, History],
-                            ['Bloqueios ativos', settings.overview.active_blocks, Ban],
-                        ].map(([label, value, Icon]) => (
-                            <div key={String(label)} className={cardClass}>
-                                <div className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500">
-                                    <Icon size={16} />
-                                    {String(label)}
-                                </div>
-                                <div className="mt-2 text-3xl font-black text-gray-900 dark:text-white">{formatPoints(value)}</div>
-                            </div>
-                        ))}
+                        <div className={cardClass}>
+                            <div className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500"><Users size={16} />Participantes</div>
+                            <div className="mt-2 text-3xl font-black text-gray-900 dark:text-white">{formatPoints(settings.overview.participants)}</div>
+                        </div>
+                        <div className={cardClass}>
+                            <div className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500"><Star size={16} />Pontos em circulação</div>
+                            <div className="mt-2 text-3xl font-black text-gray-900 dark:text-white">{formatPoints(settings.overview.points_in_circulation)}</div>
+                        </div>
+                        <div className={cardClass}>
+                            <div className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500"><History size={16} />Movimentações · 30 dias</div>
+                            <div className="mt-2 text-3xl font-black text-gray-900 dark:text-white">{formatPoints(settings.overview.transactions_30d)}</div>
+                        </div>
+                        <div className={cardClass}>
+                            <div className="flex items-center gap-2 text-xs font-bold uppercase text-gray-500"><Ban size={16} />Bloqueios ativos</div>
+                            <div className="mt-2 text-3xl font-black text-gray-900 dark:text-white">{formatPoints(settings.overview.active_blocks)}</div>
+                        </div>
                     </div>
 
                     <div className={cardClass}>
