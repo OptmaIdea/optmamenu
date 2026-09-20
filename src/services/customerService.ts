@@ -184,6 +184,41 @@ export const CustomerService = {
         return payload.customer ?? null;
     },
 
+    async changeSelfPhone(newPhone: string, otp: string) {
+        const { data, error } = await supabaseCustomer.rpc('change_customer_self_phone_safe', {
+            p_new_phone: newPhone,
+            p_otp: otp,
+        });
+
+        if (error) throw new Error('Não foi possível alterar o telefone agora.');
+
+        const payload = data as (SelfRpcPayload & {
+            phone?: string;
+            phone_e164?: string;
+            unchanged?: boolean;
+            requires_relogin?: boolean;
+        }) | null;
+
+        if (!payload?.ok) {
+            const labels: Record<string, string> = {
+                access_denied: 'Sua sessão expirou. Entre novamente antes de alterar o telefone.',
+                invalid_phone: 'Informe um telefone válido. Para números do Brasil, o +55 é opcional.',
+                invalid_request: 'Confira o novo telefone e o código SMS de 6 dígitos.',
+                customer_not_found: 'Não foi possível localizar sua conta ativa.',
+                phone_already_registered: 'Este telefone já está vinculado a outra conta nesta loja.',
+                invalid_or_expired_otp: 'Código SMS inválido ou expirado. Solicite um novo código.',
+                otp_locked: 'Muitas tentativas de código. Solicite um novo SMS.',
+            };
+            throw new Error(labels[payload?.error || ''] || payload?.message || 'Não foi possível alterar o telefone agora.');
+        }
+
+        return {
+            phone: String(payload.phone_e164 || payload.phone || newPhone),
+            unchanged: Boolean(payload.unchanged),
+            requiresRelogin: Boolean(payload.requires_relogin),
+        };
+    },
+
     // --- Address Management ---
     async getAddresses(_customerId?: string): Promise<SelfAddress[]> {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_addresses_safe');
