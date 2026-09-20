@@ -568,6 +568,59 @@ export const CustomerService = {
         return payload.export && typeof payload.export === 'object' ? payload.export : {};
     },
 
+    async getSelfAccountDeletionRequest() {
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_account_deletion_request_safe');
+        if (error) throw new Error('Não foi possível consultar sua solicitação de exclusão.');
+
+        const payload = data as (SelfRpcPayload & {
+            request?: {
+                id?: string;
+                status?: string;
+                requested_at?: string | null;
+                executed_at?: string | null;
+            } | null;
+        }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível consultar sua solicitação de exclusão.');
+        return payload.request ?? null;
+    },
+
+    async requestSelfAccountDeletion(password: string, otp: string) {
+        const { data, error } = await supabaseCustomer.rpc('request_customer_self_account_deletion_safe', {
+            p_password: password,
+            p_otp: otp,
+        });
+        if (error) throw new Error('Não foi possível registrar sua solicitação de exclusão.');
+
+        const payload = data as (SelfRpcPayload & {
+            request_id?: string;
+            status?: string;
+            requested_at?: string;
+            retry_after_seconds?: number;
+        }) | null;
+
+        if (!payload?.ok) {
+            const labels: Record<string, string> = {
+                invalid_password: 'Senha atual inválida.',
+                invalid_or_expired_otp: 'Código SMS inválido ou expirado. Solicite um novo código.',
+                otp_locked: 'Muitas tentativas de código. Solicite um novo SMS.',
+                password_not_configured: 'Defina uma senha antes de solicitar a exclusão da conta.',
+                strong_reauth_required: 'Confirme sua senha e o código SMS para solicitar a exclusão.',
+                access_denied: 'Sua sessão expirou. Entre novamente antes de solicitar a exclusão.',
+                customer_not_found: 'Não foi possível localizar sua conta ativa.',
+            };
+            if (payload?.error === 'locked') {
+                throw new Error('Muitas tentativas de senha. Aguarde alguns minutos e tente novamente.');
+            }
+            throw new Error(labels[payload?.error || ''] || payload?.message || 'Não foi possível registrar sua solicitação de exclusão.');
+        }
+
+        return {
+            requestId: payload.request_id ? String(payload.request_id) : null,
+            status: payload.status ? String(payload.status) : 'pending',
+            requestedAt: payload.requested_at ? String(payload.requested_at) : null,
+        };
+    },
+
     // --- Shared cart draft ---
     async getSelfCartDraft() {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_cart_draft_safe');
