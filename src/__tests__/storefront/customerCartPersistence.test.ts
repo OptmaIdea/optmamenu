@@ -169,28 +169,43 @@ describe('customerCartPersistence', () => {
         expect(useCartStore.getState().items).toHaveLength(1);
     });
 
-    it('descarta o carrinho anônimo no login e restaura o carrinho persistido do cliente', () => {
+    it('mescla o carrinho anônimo ao carrinho persistido do cliente no login', async () => {
+        syncCustomerCartCatalog('store-1', [product('saved-product'), product('guest-product')]);
+
         activateCustomerCart('customer-1', 'store-1');
+        await settleHydration();
         useCartStore.getState().addToCart(product('saved-product'), 2);
+        await flushCustomerCartServerSync();
         deactivateCustomerCart('customer-1', 'store-1');
 
         useCartStore.getState().addToCart(product('guest-product'), 4);
         expect(useCartStore.getState().items[0].id).toBe('guest-product');
 
         activateCustomerCart('customer-1', 'store-1');
+        await settleHydration();
+        await flushCustomerCartServerSync();
 
         const items = useCartStore.getState().items;
-        expect(items).toHaveLength(1);
-        expect(items[0].id).toBe('saved-product');
-        expect(items[0].quantity).toBe(2);
+        expect(items).toHaveLength(2);
+        expect(items.find((item) => item.id === 'saved-product')?.quantity).toBe(2);
+        expect(items.find((item) => item.id === 'guest-product')?.quantity).toBe(4);
     });
 
-    it('não promove o carrinho anônimo quando o cliente ainda não possui carrinho salvo', () => {
+    it('promove o carrinho anônimo para a conta quando o cliente ainda não possui carrinho salvo', async () => {
+        syncCustomerCartCatalog('store-1', [product('guest-product')]);
         useCartStore.getState().addToCart(product('guest-product'), 3);
 
         activateCustomerCart('customer-new', 'store-1');
+        await settleHydration();
+        await flushCustomerCartServerSync();
 
-        expect(useCartStore.getState().items).toEqual([]);
+        expect(useCartStore.getState().items).toHaveLength(1);
+        expect(useCartStore.getState().items[0].id).toBe('guest-product');
+        expect(useCartStore.getState().items[0].quantity).toBe(3);
+        expect((mockedCartServer.state.cart.items as Array<{ id: string; quantity: number }>)[0]).toMatchObject({
+            id: 'guest-product',
+            quantity: 3,
+        });
     });
 
     it('expira o carrinho individual depois do prazo configurado', () => {
