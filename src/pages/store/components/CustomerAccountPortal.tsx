@@ -18,6 +18,7 @@ import {
     Plus,
     RefreshCw,
     Save,
+    Search,
     ShoppingCart,
     Sparkles,
     ShieldCheck,
@@ -288,6 +289,11 @@ export function CustomerAccountPortal() {
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [expandedConsumptionKey, setExpandedConsumptionKey] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
+    const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
+    const [orderFulfillmentFilter, setOrderFulfillmentFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
+    const [orderSearch, setOrderSearch] = useState('');
+    const [consumptionFulfillmentFilter, setConsumptionFulfillmentFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
+    const [consumptionSearch, setConsumptionSearch] = useState('');
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
     const [newPassword, setNewPassword] = useState('');
@@ -322,6 +328,7 @@ export function CustomerAccountPortal() {
                 orderId: string;
                 orderCode: string;
                 status: string | null;
+                fulfillmentType: string | null;
                 createdAt: string | null;
                 quantity: number;
                 unitPrice: number;
@@ -330,7 +337,11 @@ export function CustomerAccountPortal() {
         }>();
 
         orders
-            .filter((order) => order.status !== 'cancelled')
+            .filter((order) => order.status === 'completed')
+            .filter((order) => (
+                consumptionFulfillmentFilter === 'all'
+                || order.fulfillment_type === consumptionFulfillmentFilter
+            ))
             .forEach((order) => {
                 order.order_items.forEach((item) => {
                     const name = item.product?.name || 'Produto indisponível';
@@ -359,6 +370,7 @@ export function CustomerAccountPortal() {
                         orderId: order.id,
                         orderCode: order.order_code || ('Pedido ' + order.id.slice(0, 8)),
                         status: order.status || null,
+                        fulfillmentType: order.fulfillment_type || null,
                         createdAt: order.created_at || null,
                         quantity: Number(item.quantity || 0),
                         unitPrice: Number(item.unit_price || 0),
@@ -381,8 +393,38 @@ export function CustomerAccountPortal() {
                 const bTime = b.lastOrderedAt ? new Date(b.lastOrderedAt).getTime() : 0;
                 const aTime = a.lastOrderedAt ? new Date(a.lastOrderedAt).getTime() : 0;
                 return bTime - aTime;
-            });
-    }, [orders]);
+            })
+            .filter((item) => (
+                !consumptionSearch.trim()
+                || item.name.toLocaleLowerCase('pt-BR').includes(consumptionSearch.trim().toLocaleLowerCase('pt-BR'))
+            ));
+    }, [orders, consumptionFulfillmentFilter, consumptionSearch]);
+
+    const filteredOrders = useMemo(() => {
+        const search = orderSearch.trim().toLocaleLowerCase('pt-BR');
+
+        return orders.filter((order) => {
+            const statusMatches = orderStatusFilter === 'all'
+                || (orderStatusFilter === 'active' && !['completed', 'cancelled'].includes(order.status || ''))
+                || order.status === orderStatusFilter;
+            if (!statusMatches) return false;
+
+            if (
+                orderFulfillmentFilter !== 'all'
+                && order.fulfillment_type !== orderFulfillmentFilter
+            ) return false;
+
+            if (!search) return true;
+            const searchable = [
+                order.order_code,
+                orderStatusLabel(order.status),
+                fulfillmentLabel(order.fulfillment_type),
+                ...order.order_items.map((item) => item.product?.name || ''),
+            ].join(' ').toLocaleLowerCase('pt-BR');
+
+            return searchable.includes(search);
+        });
+    }, [orders, orderFulfillmentFilter, orderSearch, orderStatusFilter]);
 
 
     const loyaltyAgeRestricted = useMemo(() => {
@@ -1522,9 +1564,44 @@ export function CustomerAccountPortal() {
                                         </button>
                                     </div>
 
+                                    <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-[1fr_auto_auto]">
+                                        <label className="relative">
+                                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                value={orderSearch}
+                                                onChange={(event) => setOrderSearch(event.target.value)}
+                                                placeholder="Buscar pedido ou item"
+                                                className="min-h-10 w-full rounded-2xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                            />
+                                        </label>
+                                        <select
+                                            value={orderStatusFilter}
+                                            onChange={(event) => setOrderStatusFilter(event.target.value as typeof orderStatusFilter)}
+                                            className="min-h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                            aria-label="Filtrar pedidos por status"
+                                        >
+                                            <option value="all">Todos os status</option>
+                                            <option value="active">Em andamento</option>
+                                            <option value="completed">Concluídos</option>
+                                            <option value="cancelled">Cancelados</option>
+                                        </select>
+                                        <select
+                                            value={orderFulfillmentFilter}
+                                            onChange={(event) => setOrderFulfillmentFilter(event.target.value as typeof orderFulfillmentFilter)}
+                                            className="min-h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                            aria-label="Filtrar pedidos por forma de recebimento"
+                                        >
+                                            <option value="all">Retirada e entrega</option>
+                                            <option value="pickup">Retirada</option>
+                                            <option value="delivery">Entrega</option>
+                                        </select>
+                                    </div>
+
                                     {orders.length === 0 ? (
                                         <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Ainda não há pedidos vinculados a esta conta.</div>
-                                    ) : orders.map((order) => {
+                                    ) : filteredOrders.length === 0 ? (
+                                        <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Nenhum pedido corresponde aos filtros escolhidos.</div>
+                                    ) : filteredOrders.map((order) => {
                                         const expanded = expandedOrderId === order.id;
                                         return (
                                             <div key={order.id} className="overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800">
@@ -1591,15 +1668,37 @@ export function CustomerAccountPortal() {
                                             <div>
                                                 <h3 className="font-black text-slate-900 dark:text-white">Meu histórico de consumo</h3>
                                                 <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Veja quais produtos você já pediu nesta loja, quando comprou, quantidade e quanto pagou em cada pedido. Pedidos cancelados não entram neste resumo.
+                                                    Aqui entram somente produtos de pedidos concluídos. Você pode filtrar por retirada, entrega ou buscar um item específico.
                                                 </p>
                                             </div>
                                         </div>
                                     </section>
 
+                                    <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-[1fr_auto]">
+                                        <label className="relative">
+                                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                            <input
+                                                value={consumptionSearch}
+                                                onChange={(event) => setConsumptionSearch(event.target.value)}
+                                                placeholder="Buscar produto"
+                                                className="min-h-10 w-full rounded-2xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                            />
+                                        </label>
+                                        <select
+                                            value={consumptionFulfillmentFilter}
+                                            onChange={(event) => setConsumptionFulfillmentFilter(event.target.value as typeof consumptionFulfillmentFilter)}
+                                            className="min-h-10 rounded-2xl border border-slate-200 bg-slate-50 px-3 text-sm font-bold text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                            aria-label="Filtrar consumo por forma de recebimento"
+                                        >
+                                            <option value="all">Retirada e entrega</option>
+                                            <option value="pickup">Retirada</option>
+                                            <option value="delivery">Entrega</option>
+                                        </select>
+                                    </div>
+
                                     {consumptionHistory.length === 0 ? (
                                         <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
-                                            Ainda não há produtos para mostrar no seu histórico.
+                                            Ainda não há produtos concluídos para mostrar com estes filtros.
                                         </div>
                                     ) : consumptionHistory.map((product) => {
                                         const expanded = expandedConsumptionKey === product.key;
