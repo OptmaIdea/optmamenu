@@ -19,8 +19,9 @@ import PageContainer from '@/components/common/PageContainer';
 import { getActiveStoreId } from '@/utils/activeStore';
 import {
   OnlinePaymentsService,
-  type AsaasSandboxPixCharge,
-  type AsaasSandboxStatus,
+  type OptmaPayCredentialStatus,
+  type OptmaPaySandboxPixIntent,
+  type OptmaPaySandboxStatus,
   type OnlinePaymentProvider,
   type OnlinePaymentSettlementAccount,
   type OnlinePaymentsWorkspace,
@@ -97,13 +98,6 @@ function capabilityLabel(capability: string) {
   return labels[capability] || capability.replaceAll('_', ' ');
 }
 
-function sandboxBalanceLabel(value: unknown) {
-  if (!value || typeof value !== 'object') return 'Indisponível';
-  const row = value as Record<string, unknown>;
-  const amount = Number(row.balance ?? row.value);
-  return Number.isFinite(amount) ? money.format(amount) : 'Indisponível';
-}
-
 function paymentMethodLabel(method: string) {
   const labels: Record<string, string> = {
     pix: 'PIX',
@@ -119,15 +113,17 @@ export default function OnlinePaymentsPage() {
   const storeId = getActiveStoreId();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [workspace, setWorkspace] = useState<OnlinePaymentsWorkspace | null>(null);
-  const [asaasStatus, setAsaasStatus] = useState<AsaasSandboxStatus | null>(null);
+  const [optmaStatus, setOptmaStatus] = useState<OptmaPaySandboxStatus | null>(null);
+  const [optmaCredential, setOptmaCredential] = useState<OptmaPayCredentialStatus | null>(null);
   const [settlementAccounts, setSettlementAccounts] = useState<OnlinePaymentSettlementAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
-  const [sandboxAmount, setSandboxAmount] = useState('42,00');
-  const [asaasAmount, setAsaasAmount] = useState('1,00');
-  const [asaasPixCharge, setAsaasPixCharge] = useState<AsaasSandboxPixCharge | null>(null);
-  const [sandboxMethod, setSandboxMethod] = useState('pix');
-  const [sandboxScenario, setSandboxScenario] = useState<'pending' | 'approved' | 'declined' | 'expired'>('pending');
+  const [optmaAccountId, setOptmaAccountId] = useState('');
+  const [optmaApiKey, setOptmaApiKey] = useState('');
+  const [optmaWebhookSecret, setOptmaWebhookSecret] = useState('');
+  const [optmaSettlementAccountId, setOptmaSettlementAccountId] = useState('');
+  const [optmaAmount, setOptmaAmount] = useState('1,00');
+  const [optmaPixIntent, setOptmaPixIntent] = useState<OptmaPaySandboxPixIntent | null>(null);
 
   const load = useCallback(async () => {
     if (!storeId) return;
@@ -135,16 +131,26 @@ export default function OnlinePaymentsPage() {
     try {
       const data = await OnlinePaymentsService.getWorkspace(storeId);
       setWorkspace(data);
-      try {
-        const [status, accounts] = await Promise.all([
-          OnlinePaymentsService.getAsaasSandboxStatus(storeId),
-          OnlinePaymentsService.listSettlementAccounts(storeId),
-        ]);
-        setAsaasStatus(status);
-        setSettlementAccounts(accounts);
-      } catch {
-        setAsaasStatus(null);
-        setSettlementAccounts([]);
+
+      const [accountsResult, statusResult] = await Promise.allSettled([
+        OnlinePaymentsService.listSettlementAccounts(storeId),
+        OnlinePaymentsService.getOptmaPaySandboxStatus(storeId),
+      ]);
+
+      setSettlementAccounts(accountsResult.status === 'fulfilled' ? accountsResult.value : []);
+      setOptmaStatus(statusResult.status === 'fulfilled' ? statusResult.value : null);
+
+      if (data.permissions.credentials) {
+        try {
+          const credential = await OnlinePaymentsService.getOptmaPayCredentialStatus(storeId);
+          setOptmaCredential(credential);
+          setOptmaAccountId(credential.accountId || '');
+          setOptmaSettlementAccountId(credential.settlementFinancialAccountId || '');
+        } catch {
+          setOptmaCredential(null);
+        }
+      } else {
+        setOptmaCredential(null);
       }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Não foi possível carregar pagamentos online.');
@@ -157,10 +163,13 @@ export default function OnlinePaymentsPage() {
 
   const optmaProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'optma_sandbox' && item.environment === 'sandbox') || null, [workspace]);
   const asaasProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'asaas' && item.environment === 'sandbox') || null, [workspace]);
-  const asaasSettlementAccount = useMemo(() => {
-    const accountId = asaasProvider?.public_config?.settlement_financial_account_id;
-    return typeof accountId === 'string' ? settlementAccounts.find((account) => account.id === accountId) || null : null;
-  }, [asaasProvider, settlementAccounts]);
+  const optmaSettlementAccount = useMemo(() => {
+    const accountId = optmaCredential?.settlementFinancialAccountId
+      || (typeof optmaProvider?.public_config?.settlement_financial_account_id === 'string'
+        ? optmaProvider.public_config.settlement_financial_account_id
+        : '');
+    return accountId ? settlementAccounts.find((account) => account.id === accountId) || null : null;
+  }, [optmaCredential?.settlementFinancialAccountId, optmaProvider, settlementAccounts]);
   const activeTabLabel = tabs.find((tab) => tab.id === activeTab)?.label || 'Visão geral';
 
   const summaryCards = useMemo<SummaryCard[]>(() => [
@@ -191,103 +200,89 @@ export default function OnlinePaymentsPage() {
     }
   }
 
-  async function saveSettlementAccount(provider: OnlinePaymentProvider, accountId: string) {
-    if (!storeId || !workspace?.permissions.manage) return;
-    setWorking(true);
-    try {
-      await OnlinePaymentsService.saveProvider({
-        storeId,
-        providerCode: provider.provider_code,
-        environment: provider.environment,
-        enabled: provider.enabled,
-        isDefault: provider.is_default,
-        publicConfig: {
-          ...provider.public_config,
-          settlement_financial_account_id: accountId || null,
-        },
-      });
-      toast.success(accountId ? 'Conta de liquidação atualizada.' : 'Conta de liquidação removida.');
-      await load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível atualizar a conta de liquidação.');
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function createSandboxIntent() {
-    if (!storeId) return;
-    const amount = Number(sandboxAmount.replace('.', '').replace(',', '.'));
-    if (!(amount > 0)) {
-      toast.warning('Informe um valor válido.');
+  async function saveOptmaCredentials() {
+    if (!storeId || !workspace?.permissions.credentials) return;
+    if (!optmaAccountId.trim()) {
+      toast.warning('Informe o Account ID da conta recebedora no OptmaPay.');
       return;
     }
+    if (!optmaSettlementAccountId) {
+      toast.warning('Selecione a conta financeira que receberá a liquidação.');
+      return;
+    }
+
     setWorking(true);
     try {
-      await OnlinePaymentsService.createOptmaSandboxIntent({ storeId, amount, methodCode: sandboxMethod, scenario: sandboxScenario });
-      toast.success('Transação fictícia criada.');
+      const status = await OnlinePaymentsService.saveOptmaPayCredentials({
+        storeId,
+        accountId: optmaAccountId.trim(),
+        apiKey: optmaApiKey.trim() || undefined,
+        webhookSecret: optmaWebhookSecret.trim() || undefined,
+        settlementFinancialAccountId: optmaSettlementAccountId,
+      });
+      setOptmaCredential(status);
+      setOptmaApiKey('');
+      setOptmaWebhookSecret('');
+      toast.success('Credenciais salvas com segurança no Supabase Vault.');
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível criar a simulação.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível salvar as credenciais.');
     } finally {
       setWorking(false);
     }
   }
 
-  async function simulate(intentId: string, action: 'approve' | 'decline' | 'expire' | 'cancel' | 'refund') {
+  async function testOptmaConnection() {
     if (!storeId) return;
     setWorking(true);
     try {
-      await OnlinePaymentsService.simulateOptmaSandbox(storeId, intentId, action);
-      toast.success('Evento de pagamento simulado.');
+      const status = await OnlinePaymentsService.getOptmaPaySandboxStatus(storeId);
+      setOptmaStatus(status);
+      if (status.credentialStatus === 'ready') {
+        toast.success(`Conexão OptmaPay validada${status.account?.name ? `: ${status.account.name}` : '.'}`);
+      } else {
+        toast.warning(status.error || 'A conexão ainda não está pronta.');
+      }
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível simular o evento.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível testar a conexão OptmaPay.');
     } finally {
       setWorking(false);
     }
   }
 
-  async function createAsaasPixCharge() {
+  async function createOptmaPixIntent() {
     if (!storeId) return;
-    const amount = Number(asaasAmount.replace('.', '').replace(',', '.'));
+    const amount = Number(optmaAmount.replace('.', '').replace(',', '.'));
     if (!(amount > 0)) {
       toast.warning('Informe um valor válido para o PIX de teste.');
       return;
     }
+
     setWorking(true);
     try {
-      const charge = await OnlinePaymentsService.createAsaasSandboxPix({
+      const result = await OnlinePaymentsService.createOptmaPaySandboxPix({
         storeId,
         amount,
-        description: 'PIX fictício de homologação OptmaMenu',
+        description: 'PIX Sandbox de homologação OptmaMenu',
       });
-      setAsaasPixCharge(charge);
-      toast.success('PIX de teste gerado. Você já pode realizar o pagamento Sandbox.');
+      setOptmaPixIntent(result);
+      toast.success('Instrução PIX OptmaPay criada. Pague-a no banco Sandbox para testar o webhook.');
       await load();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar o PIX de teste.');
+      toast.error(error instanceof Error ? error.message : 'Não foi possível criar o PIX OptmaPay.');
     } finally {
       setWorking(false);
     }
   }
 
-  async function payAsaasPixCharge() {
-    if (!storeId || !asaasPixCharge?.qr?.payload || !asaasPixCharge.intent?.amount) return;
-    setWorking(true);
+  async function copyText(value?: string | null) {
+    if (!value) return;
     try {
-      await OnlinePaymentsService.payAsaasSandboxPix({
-        storeId,
-        payload: asaasPixCharge.qr.payload,
-        amount: Number(asaasPixCharge.intent.amount),
-      });
-      toast.success('Pagamento Sandbox solicitado. Atualizando os eventos...');
-      await new Promise((resolve) => window.setTimeout(resolve, 1800));
-      await load();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Não foi possível pagar o PIX de teste.');
-    } finally {
-      setWorking(false);
+      await navigator.clipboard.writeText(value);
+      toast.success('Código copiado.');
+    } catch {
+      toast.error('Não foi possível copiar automaticamente.');
     }
   }
 
@@ -349,7 +344,7 @@ export default function OnlinePaymentsPage() {
               <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
                 <h2 className="text-lg font-black text-gray-900 dark:text-white">Configuração da loja online</h2>
                 <div className="mt-3 rounded-xl border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-100">
-                  <p className="font-black">QR Code PIX gera recebimento em: {asaasSettlementAccount?.name || 'conta ainda não definida'}</p>
+                  <p className="font-black">QR Code PIX gera recebimento em: {optmaSettlementAccount?.name || 'conta ainda não definida'}</p>
                   <p className="mt-1 text-xs font-semibold opacity-80">As demais formas usam as Rotas de recebimento. Configure o destino por delivery, retirada, pagamento antecipado ou pagamento no recebimento.</p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button type="button" onClick={() => setActiveTab('providers')} className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-black text-white">Alterar provedor</button>
@@ -377,45 +372,135 @@ export default function OnlinePaymentsPage() {
                 <div key={provider.id} className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 sm:p-6">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex gap-3">
-                      {provider.provider_code === 'asaas' ? <Landmark className="text-blue-600" /> : <FlaskConical className="text-violet-600" />}
-                      <div><h2 className="text-lg font-black text-gray-900 dark:text-white">{provider.display_name}</h2><p className="text-sm text-gray-500 dark:text-gray-400">{provider.environment === 'sandbox' ? 'Ambiente de testes' : 'Produção'}</p></div>
-                    </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${provider.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>{provider.enabled ? 'ATIVO' : 'INATIVO'}</span>
-                  </div>
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-xs uppercase text-gray-500">Credencial</p><p className="mt-1 font-bold text-gray-900 dark:text-white">{credentialLabel(provider.credential_status)}</p></div>
-                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950"><p className="text-xs uppercase text-gray-500">Padrão</p><p className="mt-1 font-bold text-gray-900 dark:text-white">{provider.is_default ? 'Sim' : 'Não'}</p></div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    {Object.entries(provider.capabilities || {}).filter(([, value]) => value).map(([key]) => <span key={key} className="rounded-full bg-teal-50 px-2.5 py-1 font-semibold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">{capabilityLabel(key)}</span>)}
-                  </div>
-                  {provider.provider_code === 'asaas' && (
-                    <div className="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-100">
-                      <p className="font-bold">Conexão Sandbox</p>
-                      <p className="mt-1">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão validada no servidor' : 'aguardando configuração'}</p>
-                      <p>Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão validada no servidor' : 'aguardando configuração'}</p>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-gray-950/40"><span className="block text-xs font-semibold uppercase opacity-70">Saldo recebedor</span>{sandboxBalanceLabel(asaasStatus?.merchantBalance)}</div>
-                        <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-gray-950/40"><span className="block text-xs font-semibold uppercase opacity-70">Saldo comprador</span>{sandboxBalanceLabel(asaasStatus?.buyerBalance)}</div>
+                      {provider.provider_code === 'optma_sandbox'
+                        ? <Landmark className="text-violet-600" />
+                        : <FlaskConical className="text-amber-600" />}
+                      <div>
+                        <h2 className="text-lg font-black text-gray-900 dark:text-white">{provider.display_name}</h2>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {provider.provider_code === 'optma_sandbox' ? 'Banco Sandbox externo · dinheiro real: não' : 'Integração legada em retirada'}
+                        </p>
                       </div>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-bold ${provider.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}>
+                      {provider.enabled ? 'ATIVO' : 'INATIVO'}
+                    </span>
+                  </div>
+
+                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950">
+                      <p className="text-xs uppercase text-gray-500">Credencial</p>
+                      <p className="mt-1 font-bold text-gray-900 dark:text-white">{credentialLabel(provider.credential_status)}</p>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-950">
+                      <p className="text-xs uppercase text-gray-500">Padrão</p>
+                      <p className="mt-1 font-bold text-gray-900 dark:text-white">{provider.is_default ? 'Sim' : 'Não'}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs">
+                    {Object.entries(provider.capabilities || {})
+                      .filter(([, value]) => value)
+                      .map(([key]) => (
+                        <span key={key} className="rounded-full bg-teal-50 px-2.5 py-1 font-semibold text-teal-700 dark:bg-teal-950/40 dark:text-teal-300">
+                          {capabilityLabel(key)}
+                        </span>
+                      ))}
+                  </div>
+
+                  {provider.provider_code === 'optma_sandbox' ? (
+                    <div className="mt-5 space-y-4 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
+                      <div>
+                        <p className="font-black">Conexão OptmaPay Sandbox</p>
+                        <p className="mt-1 text-xs opacity-80">
+                          Status: {optmaStatus?.credentialStatus === 'ready' ? 'conexão validada' : optmaStatus?.error || 'aguardando credenciais válidas'}.
+                        </p>
+                        {optmaStatus?.account?.name && (
+                          <p className="mt-1 text-xs font-semibold">Conta: {optmaStatus.account.name}</p>
+                        )}
+                      </div>
+
+                      {workspace.permissions.credentials && (
+                        <div className="space-y-3 rounded-xl bg-white/80 p-4 dark:bg-gray-950/40">
+                          <div className="rounded-lg border border-violet-200 bg-violet-100/70 p-3 text-xs dark:border-violet-800 dark:bg-violet-950/50">
+                            <p className="font-black">Webhook a cadastrar no OptmaPay</p>
+                            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                              <code className="min-w-0 flex-1 break-all rounded bg-white px-2 py-2 text-[11px] text-gray-800 dark:bg-gray-950 dark:text-gray-100">
+                                {optmaCredential?.webhookUrl || 'Carregando endpoint...'}
+                              </code>
+                              <button type="button" disabled={!optmaCredential?.webhookUrl} onClick={() => void copyText(optmaCredential?.webhookUrl)} className="rounded-lg border border-violet-300 px-3 py-2 text-xs font-black disabled:opacity-50 dark:border-violet-700">
+                                Copiar
+                              </button>
+                            </div>
+                          </div>
+
+                          <label className="block">
+                            <span className="text-xs font-black uppercase tracking-wide">Account ID OptmaPay</span>
+                            <input value={optmaAccountId} onChange={(event) => setOptmaAccountId(event.target.value)} placeholder="UUID da conta recebedora" autoComplete="off" className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white" />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-xs font-black uppercase tracking-wide">API key Sandbox</span>
+                            <input type="password" value={optmaApiKey} onChange={(event) => setOptmaApiKey(event.target.value)} placeholder={optmaCredential?.apiKeyConfigured ? 'Já configurada — deixe vazio para preservar' : 'sk_test_optmapay_...'} autoComplete="new-password" className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white" />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-xs font-black uppercase tracking-wide">Webhook secret</span>
+                            <input type="password" value={optmaWebhookSecret} onChange={(event) => setOptmaWebhookSecret(event.target.value)} placeholder={optmaCredential?.webhookSecretConfigured ? 'Já configurado — deixe vazio para preservar' : 'whsec_optmapay_...'} autoComplete="new-password" className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white" />
+                          </label>
+
+                          <label className="block">
+                            <span className="text-xs font-black uppercase tracking-wide">Conta financeira de liquidação</span>
+                            <select value={optmaSettlementAccountId} onChange={(event) => setOptmaSettlementAccountId(event.target.value)} className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 font-semibold text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white">
+                              <option value="">Selecione uma conta</option>
+                              {settlementAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
+                            </select>
+                          </label>
+
+                          <p className="text-xs opacity-80">
+                            Os segredos são enviados somente à Edge Function autenticada e persistidos criptografados no Supabase Vault. Eles não são devolvidos a esta tela.
+                          </p>
+
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" disabled={working} onClick={() => void saveOptmaCredentials()} className="rounded-lg bg-violet-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
+                              Salvar credenciais no Vault
+                            </button>
+                            <button type="button" disabled={working || !optmaCredential?.apiKeyConfigured} onClick={() => void testOptmaConnection()} className="rounded-lg border border-violet-300 px-4 py-2 text-xs font-black disabled:opacity-50 dark:border-violet-700">
+                              Testar conexão
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {workspace.permissions.manage && (
-                        <label className="mt-4 block">
-                          <span className="block text-xs font-bold uppercase tracking-wide">Conta de liquidação do PIX</span>
-                          <select value={typeof provider.public_config?.settlement_financial_account_id === 'string' ? provider.public_config.settlement_financial_account_id : ''} disabled={working} onChange={(event) => void saveSettlementAccount(provider, event.target.value)} className="mt-1 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 font-semibold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-800 dark:bg-gray-950 dark:text-white">
-                            <option value="">Selecione uma conta</option>
-                            {settlementAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
-                          </select>
-                          <span className="mt-1 block text-xs opacity-80">Essa escolha é a rota autoritativa dos recebimentos Asaas.</span>
-                        </label>
+                        <button disabled={working} onClick={() => void toggleProvider(provider)} className="rounded-xl border border-violet-300 px-4 py-2 text-sm font-bold disabled:opacity-50 dark:border-violet-700">
+                          {provider.enabled ? 'Desativar OptmaPay' : 'Ativar OptmaPay'}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                      <p className="font-black">Asaas é somente legado</p>
+                      <p className="mt-1 text-xs opacity-80">Não são criadas novas credenciais, cobranças ou testes Asaas. A integração será removida depois da homologação do OptmaPay.</p>
+                      {workspace.permissions.manage && provider.enabled && (
+                        <button disabled={working} onClick={() => void toggleProvider(provider)} className="mt-3 rounded-lg border border-amber-300 px-3 py-2 text-xs font-black disabled:opacity-50 dark:border-amber-700">
+                          Desativar legado
+                        </button>
                       )}
                     </div>
                   )}
-                  {workspace.permissions.manage && <button disabled={working || (provider.provider_code === 'asaas' && !asaasStatus?.merchantConfigured && !provider.enabled)} onClick={() => void toggleProvider(provider)} className="mt-5 rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-200">{provider.enabled ? 'Desativar' : 'Ativar'}</button>}
                 </div>
               ))}
+
               {workspace.permissions.credentials && (
                 <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 dark:border-gray-700 dark:bg-gray-900/60 lg:col-span-2">
-                  <div className="flex gap-3"><KeyRound className="text-[#19A999]" /><div><h3 className="font-black text-gray-900 dark:text-white">Credenciais ficam fora do banco e do navegador</h3><p className="mt-1 text-sm text-gray-600 dark:text-gray-400">A tela mostra somente se o segredo está configurado. Chaves reais ou Sandbox nunca são retornadas ao frontend.</p></div></div>
+                  <div className="flex gap-3">
+                    <KeyRound className="text-[#19A999]" />
+                    <div>
+                      <h3 className="font-black text-gray-900 dark:text-white">Credenciais protegidas no Vault</h3>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">API key e segredo HMAC são gravados no Supabase Vault e nunca são retornados ao navegador depois do salvamento.</p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -460,17 +545,99 @@ export default function OnlinePaymentsPage() {
           {activeTab === 'sandbox' && (
             <div className="space-y-5">
               <div className="rounded-2xl border border-violet-200 bg-violet-50 p-6 dark:border-violet-900 dark:bg-violet-950/30">
-                <div className="flex items-start gap-3"><FlaskConical className="text-violet-600" /><div><h2 className="font-black text-violet-950 dark:text-violet-100">OptmaPay Sandbox descartável</h2><p className="mt-1 text-sm text-violet-800 dark:text-violet-200">Gere cenários determinísticos sem banco, adquirente ou dados reais. Estes registros servem apenas para homologação da máquina de estados.</p></div></div>
-                <div className="mt-5 grid gap-3 md:grid-cols-4"><input value={sandboxAmount} onChange={(e) => setSandboxAmount(e.target.value)} placeholder="42,00" className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950" /><select value={sandboxMethod} onChange={(e) => setSandboxMethod(e.target.value)} className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950"><option value="pix">PIX</option><option value="credit_card">Cartão</option><option value="payment_link">Link</option></select><select value={sandboxScenario} onChange={(e) => setSandboxScenario(e.target.value as typeof sandboxScenario)} className="rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950"><option value="pending">Pendente</option><option value="approved">Aprovado</option><option value="declined">Recusado</option><option value="expired">Expirado</option></select><button disabled={working || !workspace.permissions.manage} onClick={() => void createSandboxIntent()} className="rounded-xl bg-violet-600 px-4 py-2 font-bold text-white disabled:opacity-50">Gerar cenário</button></div>
+                <div className="flex items-start gap-3">
+                  <Landmark className="text-violet-600" />
+                  <div>
+                    <h2 className="font-black text-violet-950 dark:text-violet-100">OptmaPay Sandbox integrado</h2>
+                    <p className="mt-1 text-sm text-violet-800 dark:text-violet-200">
+                      Este laboratório usa o banco fictício externo, HMAC real de webhook e a mesma infraestrutura de intents/eventos do OptmaMenu. Nenhum dinheiro real é movimentado.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40">
+                    <p className="text-xs font-bold uppercase opacity-60">Conexão</p>
+                    <p className="mt-1 font-black">{optmaStatus?.credentialStatus === 'ready' ? 'Pronta' : 'Pendente'}</p>
+                  </div>
+                  <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40">
+                    <p className="text-xs font-bold uppercase opacity-60">Ambiente</p>
+                    <p className="mt-1 font-black">Sandbox</p>
+                  </div>
+                  <div className="rounded-xl bg-white/80 p-3 dark:bg-gray-950/40">
+                    <p className="text-xs font-bold uppercase opacity-60">Dinheiro real</p>
+                    <p className="mt-1 font-black">Não</p>
+                  </div>
+                </div>
+
+                {optmaStatus?.error && (
+                  <div className="mt-4 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                    {optmaStatus.error}
+                  </div>
+                )}
+
+                <div className="mt-5 rounded-xl border border-violet-200 bg-white/80 p-4 dark:border-violet-800 dark:bg-gray-950/40">
+                  <h3 className="font-black text-violet-950 dark:text-violet-100">Golden PIX</h3>
+                  <p className="mt-1 text-sm text-violet-800 dark:text-violet-200">
+                    Gere uma instrução e pague no OptmaPay. O evento <code>pix.paid</code> deverá retornar assinado ao OptmaMenu.
+                  </p>
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                    <input value={optmaAmount} onChange={(event) => setOptmaAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-full rounded-xl border border-violet-200 bg-white px-3 py-2 dark:border-violet-800 dark:bg-gray-950 sm:w-36" />
+                    <button disabled={working || !workspace.permissions.manage || optmaStatus?.credentialStatus !== 'ready' || !optmaProvider?.enabled} onClick={() => void createOptmaPixIntent()} className="rounded-xl bg-violet-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                      Gerar PIX OptmaPay
+                    </button>
+                    <button disabled={working} onClick={() => void testOptmaConnection()} className="rounded-xl border border-violet-300 px-4 py-2 font-bold text-violet-800 disabled:opacity-50 dark:border-violet-700 dark:text-violet-100">
+                      Testar conexão
+                    </button>
+                  </div>
+
+                  {optmaPixIntent?.intent?.pix_payload && (
+                    <div className="mt-4 space-y-3 rounded-xl border border-violet-200 p-3 dark:border-violet-800">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-bold uppercase opacity-60">Referência</p>
+                          <p className="break-all font-mono text-xs">{optmaPixIntent.intent.external_reference}</p>
+                        </div>
+                        <strong>{money.format(Number(optmaPixIntent.intent.amount))}</strong>
+                      </div>
+                      <textarea readOnly value={optmaPixIntent.intent.pix_payload} rows={4} className="w-full resize-none rounded-lg border border-violet-200 bg-white p-3 font-mono text-xs text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white" />
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={() => void copyText(optmaPixIntent.intent?.pix_payload)} className="rounded-lg bg-violet-600 px-3 py-2 text-xs font-black text-white">
+                          Copiar código PIX
+                        </button>
+                        <a href="https://optmapay.optmaidea.com.br" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-violet-300 px-3 py-2 text-xs font-black text-violet-800 dark:border-violet-700 dark:text-violet-100">
+                          Abrir OptmaPay <ExternalLink size={13} />
+                        </a>
+                      </div>
+                      <p className="text-xs opacity-70">Expira em {dateTime.format(new Date(optmaPixIntent.intent.expires_at))}. Depois do pagamento, atualize esta tela para conferir evento e transação.</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {workspace.transactions.filter((item) => item.provider_code === 'optma_sandbox').slice(0, 12).map((item) => (
-                <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-black text-gray-900 dark:text-white">{item.external_payment_id}</p><p className="text-sm text-gray-500">{paymentMethodLabel(item.method_code)} · {money.format(Number(item.amount))}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span></div>{workspace.permissions.manage && <div className="mt-4 flex flex-wrap gap-2">{item.status === 'pending' && <><Action label="Aprovar" onClick={() => void simulate(item.id, 'approve')} /><Action label="Recusar" onClick={() => void simulate(item.id, 'decline')} /><Action label="Expirar" onClick={() => void simulate(item.id, 'expire')} /></>}{item.status === 'paid' && <Action label="Estornar" onClick={() => void simulate(item.id, 'refund')} />}</div>}</div>
-              ))}
-
-              <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6 dark:border-blue-900 dark:bg-blue-950/30">
-                <div className="flex gap-3"><Landmark className="text-blue-600" /><div><h2 className="font-black text-blue-950 dark:text-blue-100">Asaas Sandbox</h2><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Conta recebedora: {asaasStatus?.merchantConfigured ? 'conexão pronta' : 'aguardando configuração'} · Conta compradora: {asaasStatus?.buyerConfigured ? 'conexão pronta' : 'aguardando configuração'}.</p></div></div>
-                <div className="mt-5 rounded-xl border border-blue-200 bg-white/80 p-4 dark:border-blue-800 dark:bg-gray-950/40"><h3 className="font-black text-blue-950 dark:text-blue-100">Testar PIX integrado</h3><p className="mt-1 text-sm text-blue-800 dark:text-blue-200">Gere uma cobrança fictícia e pague-a pela conta compradora do Asaas Sandbox.</p><div className="mt-4 grid gap-3 sm:flex sm:flex-wrap"><input value={asaasAmount} onChange={(event) => setAsaasAmount(event.target.value)} inputMode="decimal" placeholder="1,00" className="w-full rounded-xl border border-blue-200 bg-white px-3 py-2 dark:border-blue-800 dark:bg-gray-950 sm:w-32" /><button disabled={working || !workspace.permissions.manage || !asaasStatus?.merchantConfigured} onClick={() => void createAsaasPixCharge()} className="rounded-xl bg-blue-600 px-4 py-2 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">Gerar PIX de teste</button>{asaasPixCharge?.qr?.payload && <button disabled={working || !asaasStatus?.buyerConfigured} onClick={() => void payAsaasPixCharge()} className="rounded-xl border border-blue-300 px-4 py-2 font-bold text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-blue-700 dark:text-blue-200">Pagar com conta compradora</button>}</div>{asaasPixCharge?.qr?.encodedImage && <div className="mt-4 flex items-center gap-4 rounded-xl border border-dashed border-blue-200 p-3 dark:border-blue-800"><img src={`data:image/png;base64,${asaasPixCharge.qr.encodedImage}`} alt="QR Code PIX de teste" className="h-24 w-24 rounded-lg bg-white p-1" /><p className="text-sm text-blue-800 dark:text-blue-200">Cobrança criada. Clique em “Pagar com conta compradora” para concluir este teste fictício.</p></div>}</div>
+              <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                <h3 className="font-black text-gray-900 dark:text-white">Eventos recentes do OptmaPay</h3>
+                <div className="mt-3 space-y-2">
+                  {workspace.events.filter((event) => event.provider_code === 'optma_sandbox').slice(0, 8).map((event) => (
+                    <div key={event.id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-gray-50 p-3 text-sm dark:bg-gray-950">
+                      <div>
+                        <p className="font-black">{event.event_type}</p>
+                        <p className="text-xs text-gray-500">{dateTime.format(new Date(event.received_at))}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <span className={`rounded-full px-2 py-1 text-xs font-bold ${event.signature_valid === false ? statusTone('failed') : statusTone('paid')}`}>
+                          {event.signature_valid === false ? 'Assinatura inválida' : 'Assinatura válida'}
+                        </span>
+                        <span className={`rounded-full px-2 py-1 text-xs font-bold ${event.processed ? statusTone('paid') : statusTone('pending')}`}>
+                          {event.processed ? 'Processado' : 'Pendente'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {workspace.events.filter((event) => event.provider_code === 'optma_sandbox').length === 0 && (
+                    <p className="text-sm text-gray-500">Nenhum webhook OptmaPay recebido ainda.</p>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -482,8 +649,4 @@ export default function OnlinePaymentsPage() {
 
 function Empty({ text }: { text: string }) {
   return <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400">{text}</div>;
-}
-
-function Action({ label, onClick }: { label: string; onClick: () => void }) {
-  return <button type="button" onClick={onClick} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-bold text-gray-700 hover:border-[#19A999] hover:text-[#19A999] dark:border-gray-700 dark:text-gray-200">{label}</button>;
 }
