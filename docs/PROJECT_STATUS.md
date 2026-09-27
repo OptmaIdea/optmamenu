@@ -868,3 +868,87 @@ A migration `20260919220128_customer_self_phone_change_strong_otp` permanece com
 - o carrinho autenticado é sincronizado antes do logout de segurança.
 
 Nenhuma alteração desta rodada avançou regras de Fidelidade ou OptmaPay.
+
+
+---
+
+## Homologação Clientes/Slug — 27/09/2026
+
+### Testes reais aprovados
+
+Foram validados em homologação:
+- abertura da URL antiga de cliente excluído com estado amigável, sem `customer_not_found`;
+- exclusão registrada corretamente no histórico administrativo;
+- tentativa de login com número excluído retorna mensagem neutra/orientativa, sem enumeração de dados;
+- tentativa de cadastro com telefone já ativo é bloqueada antes do SMS, sem expor identidade;
+- telefone anteriormente excluído pode ser cadastrado novamente;
+- link público de acompanhamento do pedido permanece funcional;
+- atualização de status do pedido no portal do cliente ocorre praticamente em tempo real;
+- alteração para **Pronto para retirada** também refletiu praticamente em tempo real;
+- cancelamento administrativo refletiu automaticamente no portal do cliente;
+- confirmação de e-mail e e-mail transacional de confirmação funcionaram no teste real.
+
+Os testes de troca de telefone e cenários de OTP/SMS permanecem **pendentes de homologação manual**, por indisponibilidade física do aparelho usado nos testes. Não há falha técnica conhecida registrada nesses fluxos.
+
+### Carrinho antes do login
+
+O teste revelou que itens adicionados anonimamente antes do login eram descartados quando a sessão autenticada era ativada.
+
+Correção:
+- o carrinho anônimo da mesma loja é preservado;
+- ao autenticar, ele é mesclado ao carrinho persistido do cliente;
+- itens iguais somam quantidades, sempre reconciliados com catálogo/estoque atuais;
+- cliente sem carrinho anterior passa a adotar o carrinho anônimo como seu rascunho autenticado;
+- testes automatizados foram atualizados para cobrir os dois cenários.
+
+Commits:
+- `4cef75a7778e1c207f533836dd7ada2db52d78ff`;
+- `cdd301ef5cadb4b3f0efbfa0f2e055cb699bdf71`.
+
+### Pedidos e Meu consumo
+
+O portal do cliente passou a oferecer:
+- filtros de pedidos por **Em andamento**, **Concluídos**, **Cancelados** e **Expirados**;
+- filtro por **Retirada** ou **Entrega**;
+- busca por código do pedido ou nome do item;
+- em **Meu consumo**, somente pedidos efetivamente `completed` entram no resumo;
+- filtro de consumo por retirada/entrega;
+- busca por produto.
+
+Commit principal:
+- `629f7ef308a2d23f57829f2bbf4ee823c18ac7e0`.
+
+### Expiração de retirada não paga
+
+O caso real testado em 27/09 mostrou que o pedido tinha:
+- fim da reserva em **19:53:19**;
+- carência operacional até **19:58:19**;
+- cancelamento manual realizado às **19:55:37**, antes do momento em que o cron poderia cancelar automaticamente.
+
+O cron `cancel-expired-orders-every-minute` foi conferido ativo e executando com sucesso a cada minuto. Portanto, a tela mostrava **Expirado** durante a carência, o que induzia a entender que o cancelamento automático já deveria ter ocorrido.
+
+Correções:
+- no administrativo, após acabar a reserva e durante a carência, a tela mostra **Prazo encerrado · cancela em Xm Ys**;
+- após a carência e antes da próxima execução do cron, mostra **Expiração em processamento**;
+- cancelamento automático continua usando `status=cancelled` com razão técnica `reservation_expired`, sem criar um novo estado físico no enum;
+- para o cliente, a RPC de pedidos agora devolve um `status_reason` sanitizado, permitindo apresentar **Expirado** separadamente de **Cancelado**;
+- pedido pronto de retirada, não pago, também informa o horário limite de retirada no portal;
+- quando a expiração automática chegar em tempo real, o toast orienta que o pedido não está mais disponível e que um novo pedido pode ser feito.
+
+Migration aplicada e versionada:
+- `20260927201354_customer_order_expiration_context.sql`.
+
+Commits:
+- `6b7437d488ed56d9bc9084e9f11f3635d814c605`;
+- `0288967770bbee7c02b18d63882a374e9a2da162`;
+- `debf5f0939799dbb16dc4170c8ee639ba941ca72`.
+
+### Pendências funcionais desta frente
+
+Ainda precisam de desenho/implementação específica:
+- alteração de modalidade **Retirada ↔ Delivery**, com reroteamento atômico de estoque, recálculo de frete/mínimo/pagamento e ajuste financeiro quando já houver pagamento;
+- cancelamento solicitado pelo próprio cliente, separando cancelamento pré-conclusão de devolução/estorno pós-conclusão;
+- envio externo automático da comunicação de expiração por canal; o template assistido `order_expired` já existe, mas o portal em tempo real é a comunicação automática atualmente disponível;
+- homologação manual dos fluxos dependentes de OTP/SMS.
+
+A sugestão de mensagens de boas-vindas e movimentações do programa de fidelidade foi mantida fora desta frente para ser tratada na frente específica de Fidelidade.
