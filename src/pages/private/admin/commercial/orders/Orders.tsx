@@ -662,7 +662,21 @@ export default function Orders() {
                                         const sec = Math.floor((diff % 60000) / 1000);
                                         timerDisplay = `${min}m ${sec}s`;
                                         if (min < 3) isExpiring = true;
-                                    } else if (Number.isFinite(diff)) { timerDisplay = 'Expirado'; isExpiring = true; }
+                                    } else if (Number.isFinite(diff)) {
+                                        const graceAt = publicOrder.cancellation_grace_until
+                                            ? new Date(publicOrder.cancellation_grace_until).getTime()
+                                            : expiresAt;
+                                        const graceDiff = graceAt - now.getTime();
+
+                                        if (Number.isFinite(graceDiff) && graceDiff > 0) {
+                                            const min = Math.floor(graceDiff / 60000);
+                                            const sec = Math.floor((graceDiff % 60000) / 1000);
+                                            timerDisplay = `Prazo encerrado · cancela em ${min}m ${sec}s`;
+                                        } else {
+                                            timerDisplay = 'Expiração em processamento';
+                                        }
+                                        isExpiring = true;
+                                    }
                                 }
 
                                 return (
