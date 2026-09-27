@@ -1,5 +1,9 @@
 # Pagamentos online — Sandbox próprio + Asaas Sandbox
 
+> [!IMPORTANT]
+> **LEGADO — NÃO USAR EM NOVO DESENVOLVIMENTO (27/09/2026).**
+> O Asaas deixou de ser provedor-alvo do OptmaMenu. Este documento permanece somente como histórico técnico até a retirada controlada do adapter legado. A frente ativa usa **OptmaPay Sandbox** para desenvolvimento/homologação e prepara **InfinitePay** como primeira referência de provedor real. Não adicionar novas dependências, credenciais ou funcionalidades Asaas.
+
 Data: 2026-08-25
 Branch: `agent/homologacao-geral-20260820`
 

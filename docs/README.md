@@ -32,3 +32,11 @@ A documentação do OptmaMenu é organizada em 10 documentos autoritativos na ra
 2. **Vou adicionar uma nova permissão?** Siga o checklist em [`docs/SECURITY_AND_PERMISSIONS.md`](./SECURITY_AND_PERMISSIONS.md).
 3. **Vou consultar/criar uma RPC ou Tabela?** Consulte [`docs/DATABASE_REFERENCE.md`](./DATABASE_REFERENCE.md) e verifique os arquivos em `supabase/migrations/`.
 4. **Vou trabalhar na Loja Pública / Checkout?** Leia [`docs/PUBLIC_STORE_PHASE_10.md`](./PUBLIC_STORE_PHASE_10.md).
+
+
+---
+
+## Guias de integração financeira
+
+- [Guia rápido — InfinitePay no OptmaMenu](./GUIA_RAPIDO_INFINITEPAY_OPTMAMENU_20260927.md) — referência para futura ativação real sem acoplamento ao domínio de pedidos.
+- [Pacote 02A — Fundação do adapter Pix OptmaPay](./PACOTE_02A_OPTMAPAY_ADAPTER_PIX_20260927.md) — arquitetura, segurança, deploy e checklist E2E da integração sandbox.
