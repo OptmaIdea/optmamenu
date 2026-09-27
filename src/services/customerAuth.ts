@@ -370,6 +370,10 @@ export const AuthService = {
         };
     },
 
+    async getRealtimeAccessToken() {
+        return refreshCustomerSessionIfNeeded();
+    },
+
     async registerUser(_data: {
         phone: string;
         storeId: string;
