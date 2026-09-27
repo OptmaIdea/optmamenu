@@ -63,9 +63,13 @@ interface CustomerOrderSummary {
     id: string;
     order_code?: string | null;
     status?: string | null;
+    status_reason?: string | null;
+    payment_status?: string | null;
     total?: number | string | null;
     created_at?: string | null;
     status_changed_at?: string | null;
+    available_until?: string | null;
+    cancellation_grace_until?: string | null;
     fulfillment_type?: string | null;
     order_items: CustomerOrderItemSummary[];
 }
@@ -144,15 +148,20 @@ function normalizeOrder(order: Record<string, unknown>): CustomerOrderSummary {
         id: String(order.id ?? ''),
         order_code: order.order_code ? String(order.order_code) : null,
         status: order.status ? String(order.status) : null,
+        status_reason: order.status_reason ? String(order.status_reason) : null,
+        payment_status: order.payment_status ? String(order.payment_status) : null,
         total: typeof order.total === 'number' || typeof order.total === 'string' ? order.total : null,
         created_at: order.created_at ? String(order.created_at) : null,
         status_changed_at: order.status_changed_at ? String(order.status_changed_at) : null,
+        available_until: order.available_until ? String(order.available_until) : null,
+        cancellation_grace_until: order.cancellation_grace_until ? String(order.cancellation_grace_until) : null,
         fulfillment_type: order.fulfillment_type ? String(order.fulfillment_type) : null,
         order_items: orderItems,
     };
 }
 
-function orderStatusLabel(status?: string | null) {
+function orderStatusLabel(status?: string | null, statusReason?: string | null) {
+    if (status === 'cancelled' && statusReason === 'expired') return 'Expirado';
     switch (status) {
         case 'reserved': return 'Reservado';
         case 'confirmed': return 'Confirmado';
@@ -164,7 +173,8 @@ function orderStatusLabel(status?: string | null) {
     }
 }
 
-function orderActivityLabel(status?: string | null) {
+function orderActivityLabel(status?: string | null, statusReason?: string | null) {
+    if (status === 'cancelled' && statusReason === 'expired') return 'Expirou';
     switch (status) {
         case 'reserved': return 'Recebido';
         case 'confirmed': return 'Confirmado';
@@ -180,6 +190,19 @@ function orderActivityAt(order: CustomerOrderSummary) {
     return order.status_changed_at || order.created_at || null;
 }
 
+function orderPickupDeadlineLabel(order: CustomerOrderSummary) {
+    if (
+        order.status !== 'ready'
+        || order.fulfillment_type !== 'pickup'
+        || order.payment_status === 'paid'
+        || !order.available_until
+    ) return null;
+
+    const deadline = new Date(order.available_until);
+    if (Number.isNaN(deadline.getTime())) return null;
+    return `Retire até ${deadline.toLocaleString('pt-BR')}`;
+}
+
 function fulfillmentLabel(value?: string | null) {
     switch (value) {
         case 'delivery': return 'Entrega';
@@ -193,13 +216,16 @@ function fulfillmentLabel(value?: string | null) {
 
 function friendlyOrderStatusMessage(order: CustomerOrderSummary) {
     const code = order.order_code || `Pedido ${order.id.slice(0, 8)}`;
+    if (order.status === 'cancelled' && order.status_reason === 'expired') {
+        return `${code}: o prazo de retirada terminou e o pedido não está mais disponível. Você pode fazer um novo pedido.`;
+    }
     switch (order.status) {
         case 'confirmed': return `${code}: seu pedido foi confirmado e está em preparo.`;
         case 'ready': return `${code}: seu pedido está pronto.`;
         case 'out_for_delivery': return `${code}: saiu para entrega. Acompanhe por aqui as próximas atualizações.`;
         case 'completed': return `${code}: pedido concluído. Obrigado pela compra!`;
         case 'cancelled': return `${code}: o pedido foi cancelado.`;
-        default: return `${code}: status atualizado para ${orderStatusLabel(order.status)}.`;
+        default: return `${code}: status atualizado para ${orderStatusLabel(order.status, order.status_reason)}.`;
     }
 }
 
@@ -289,7 +315,7 @@ export function CustomerAccountPortal() {
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [expandedConsumptionKey, setExpandedConsumptionKey] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
-    const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled'>('all');
+    const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled' | 'expired'>('all');
     const [orderFulfillmentFilter, setOrderFulfillmentFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
     const [orderSearch, setOrderSearch] = useState('');
     const [consumptionFulfillmentFilter, setConsumptionFulfillmentFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
@@ -406,6 +432,8 @@ export function CustomerAccountPortal() {
         return orders.filter((order) => {
             const statusMatches = orderStatusFilter === 'all'
                 || (orderStatusFilter === 'active' && !['completed', 'cancelled'].includes(order.status || ''))
+                || (orderStatusFilter === 'expired' && order.status === 'cancelled' && order.status_reason === 'expired')
+                || (orderStatusFilter === 'cancelled' && order.status === 'cancelled' && order.status_reason !== 'expired')
                 || order.status === orderStatusFilter;
             if (!statusMatches) return false;
 
@@ -417,7 +445,7 @@ export function CustomerAccountPortal() {
             if (!search) return true;
             const searchable = [
                 order.order_code,
-                orderStatusLabel(order.status),
+                orderStatusLabel(order.status, order.status_reason),
                 fulfillmentLabel(order.fulfillment_type),
                 ...order.order_items.map((item) => item.product?.name || ''),
             ].join(' ').toLocaleLowerCase('pt-BR');
@@ -1584,6 +1612,7 @@ export function CustomerAccountPortal() {
                                             <option value="active">Em andamento</option>
                                             <option value="completed">Concluídos</option>
                                             <option value="cancelled">Cancelados</option>
+                                            <option value="expired">Expirados</option>
                                         </select>
                                         <select
                                             value={orderFulfillmentFilter}
@@ -1613,9 +1642,12 @@ export function CustomerAccountPortal() {
                                                     <div>
                                                         <p className="font-black text-slate-900 dark:text-white">{order.order_code || `Pedido ${order.id.slice(0, 8)}`}</p>
                                                         <p className="mt-1 text-xs text-slate-500">
-                                                            {orderActivityAt(order) ? `${orderActivityLabel(order.status)} em ${new Date(orderActivityAt(order) as string).toLocaleString('pt-BR')}` : ''}
+                                                            {orderActivityAt(order) ? `${orderActivityLabel(order.status, order.status_reason)} em ${new Date(orderActivityAt(order) as string).toLocaleString('pt-BR')}` : ''}
                                                         </p>
-                                                        <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status)}{order.fulfillment_type ? ` · ${fulfillmentLabel(order.fulfillment_type)}` : ''}</p>
+                                                        <p className="mt-1 text-xs font-bold text-slate-500">{orderStatusLabel(order.status, order.status_reason)}{order.fulfillment_type ? ` · ${fulfillmentLabel(order.fulfillment_type)}` : ''}</p>
+                                                        {orderPickupDeadlineLabel(order) && (
+                                                            <p className="mt-1 text-xs font-black text-amber-700 dark:text-amber-300">{orderPickupDeadlineLabel(order)}</p>
+                                                        )}
                                                         {order.created_at && orderActivityAt(order) !== order.created_at && (
                                                             <p className="mt-1 text-[11px] text-slate-400">Pedido criado em {new Date(order.created_at).toLocaleString('pt-BR')}</p>
                                                         )}
