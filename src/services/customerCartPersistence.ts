@@ -29,6 +29,11 @@ type CustomerCartSnapshot = {
     updatedAt: string;
 };
 
+type AnonymousCartSnapshot = Pick<
+    CustomerCartSnapshot,
+    'context' | 'fulfillmentType' | 'deliveryMethodCode' | 'items'
+>;
+
 type ServerCartResult = {
     ok?: boolean;
     error?: string;
@@ -271,6 +276,42 @@ function sanitizeItemsAgainstCatalog(items: CartItem[], products: Product[]) {
     });
 }
 
+function mergeCartItems(
+    baseItems: CartItem[],
+    incomingItems: CartItem[],
+    products?: Product[],
+) {
+    const merged = new Map<string, CartItem>();
+
+    for (const item of [...baseItems, ...incomingItems]) {
+        const current = merged.get(item.id);
+        if (!current) {
+            merged.set(item.id, { ...item });
+            continue;
+        }
+
+        merged.set(item.id, {
+            ...current,
+            quantity: Number(current.quantity || 0) + Number(item.quantity || 0),
+        });
+    }
+
+    const items = Array.from(merged.values());
+    return products ? sanitizeItemsAgainstCatalog(items, products) : items;
+}
+
+function captureAnonymousCart(storeId: string): AnonymousCartSnapshot | null {
+    const state = useCartStore.getState();
+    if (activeOwner || state.context?.storeId !== storeId || state.items.length === 0) return null;
+
+    return {
+        context: state.context,
+        fulfillmentType: state.fulfillmentType,
+        deliveryMethodCode: state.deliveryMethodCode,
+        items: state.items.map((item) => ({ ...item })),
+    };
+}
+
 function serverCartPayload() {
     const state = useCartStore.getState();
     return {
@@ -410,10 +451,41 @@ async function hydrateCustomerCart(
     owner: CustomerCartOwner,
     generation: number,
     localSnapshot: CustomerCartSnapshot | null,
+    anonymousSnapshot: AnonymousCartSnapshot | null,
 ) {
     try {
         const result = await fetchServerCart(owner, generation);
         if (generation !== activeGeneration || !isSameOwner(activeOwner, owner)) return;
+
+        if (anonymousSnapshot?.items.length) {
+            const current = useCartStore.getState();
+            const catalog = catalogProductsByStore.get(owner.storeId);
+            const mergedItems = mergeCartItems(current.items, anonymousSnapshot.items, catalog);
+
+            suppressPersistence = true;
+            try {
+                useCartStore.setState({
+                    context: current.context?.storeId === owner.storeId
+                        ? current.context
+                        : anonymousSnapshot.context,
+                    fulfillmentType: current.items.length > 0
+                        ? current.fulfillmentType
+                        : anonymousSnapshot.fulfillmentType,
+                    deliveryMethodCode: current.items.length > 0
+                        ? current.deliveryMethodCode
+                        : anonymousSnapshot.deliveryMethodCode,
+                    items: mergedItems,
+                    isCartOpen: false,
+                });
+                writeSnapshot(owner);
+            } finally {
+                suppressPersistence = false;
+            }
+
+            localMutationVersion += 1;
+            await enqueueServerSave(owner, generation, localMutationVersion);
+            return;
+        }
 
         if (normalizeRevision(result?.revision) > 0) return;
 
@@ -518,6 +590,8 @@ export function activateCustomerCart(customerId: string, storeId: string) {
     const owner = { customerId, storeId };
     if (isSameOwner(activeOwner, owner)) return;
 
+    const anonymousSnapshot = captureAnonymousCart(storeId);
+
     if (activeOwner) writeSnapshot(activeOwner);
 
     stopServerSyncTimers();
@@ -560,7 +634,7 @@ export function activateCustomerCart(customerId: string, storeId: string) {
         }
     }
 
-    void hydrateCustomerCart(owner, generation, snapshot);
+    void hydrateCustomerCart(owner, generation, snapshot, anonymousSnapshot);
     startServerPoll(owner, generation);
 }
 
