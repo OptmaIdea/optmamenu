@@ -29,6 +29,7 @@ import { AuthService } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { flushCustomerCartServerSync } from '@/services/customerCartPersistence';
+import { supabaseCustomer } from '@/lib/supabase';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL } from '@/utils/pricing';
@@ -592,6 +593,45 @@ export function CustomerAccountPortal() {
             active = false;
         };
     }, [open, customer?.id, loadOrders]);
+
+    useEffect(() => {
+        if (!open || !customer || (tab !== 'orders' && tab !== 'consumption')) return;
+
+        let active = true;
+        let channel: ReturnType<typeof supabaseCustomer.channel> | null = null;
+
+        void (async () => {
+            const token = await AuthService.getRealtimeAccessToken();
+            if (!active || !token) return;
+
+            await supabaseCustomer.realtime.setAuth(token);
+            if (!active) return;
+
+            channel = supabaseCustomer
+                .channel(`customer-orders-${customer.store_id}-${customer.id}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'orders',
+                        filter: `customer_id=eq.${customer.id}`,
+                    },
+                    () => {
+                        if (!active || document.visibilityState !== 'visible') return;
+                        void loadOrders({ notifyStatusChanges: true }).catch(() => undefined);
+                    },
+                )
+                .subscribe();
+        })().catch(() => {
+            // O polling abaixo permanece como fallback caso o canal não conecte.
+        });
+
+        return () => {
+            active = false;
+            if (channel) void supabaseCustomer.removeChannel(channel);
+        };
+    }, [open, customer?.id, customer?.store_id, tab, loadOrders]);
 
     useEffect(() => {
         if (!open || !customer || (tab !== 'orders' && tab !== 'consumption')) return;
@@ -1467,7 +1507,7 @@ export function CustomerAccountPortal() {
                                         <div>
                                             <p className="text-sm font-black text-emerald-900 dark:text-emerald-100">Acompanhamento automático ativo</p>
                                             <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
-                                                Esta lista verifica novos status a cada 12 segundos enquanto Pedidos estiver aberto.
+                                                Esta lista recebe novos status em tempo real quando disponível e mantém uma verificação de segurança a cada 12 segundos enquanto Pedidos estiver aberto.
                                                 {ordersUpdatedAt ? ` Última atualização: ${ordersUpdatedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.` : ''}
                                             </p>
                                         </div>
