@@ -23,7 +23,7 @@ function cleanBaseUrl(value: string) {
 
 function secretFromRef(secretRef: string | null | undefined, fallbackName: string) {
   const name = String(secretRef || fallbackName).trim();
-  if (!/^[A-Z][A-Z0-9_]{2,127}$/.test(name)) return { name, value: "" };
+  if (!/^OPTMAPAY_[A-Z0-9_]{3,119}$/.test(name)) return { name, value: "" };
   return { name, value: Deno.env.get(name) || "" };
 }
 

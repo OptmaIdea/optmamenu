@@ -18,29 +18,27 @@ function hexToBytes(hex: string) {
   return bytes;
 }
 
-export function constantTimeEqualHex(left: string, right: string) {
-  const leftBytes = hexToBytes(left);
-  const rightBytes = hexToBytes(right);
-  if (!leftBytes || !rightBytes || leftBytes.length !== rightBytes.length) return false;
-
-  let diff = 0;
-  for (let index = 0; index < leftBytes.length; index += 1) {
-    diff |= leftBytes[index] ^ rightBytes[index];
-  }
-  return diff === 0;
+async function importHmacKey(secret: string, usages: KeyUsage[]) {
+  return crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    usages,
+  );
 }
 
 export async function hmacSha256Hex(secret: string, input: string) {
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(input));
+  const key = await importHmacKey(secret, ['sign']);
+  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(input));
   return bytesToHex(new Uint8Array(signature));
+}
+
+async function verifyHmacSha256Hex(secret: string, input: string, providedHex: string) {
+  const signature = hexToBytes(providedHex);
+  if (!signature) return false;
+  const key = await importHmacKey(secret, ['verify']);
+  return crypto.subtle.verify('HMAC', key, signature, new TextEncoder().encode(input));
 }
 
 export async function signOptmaPayWebhook(
@@ -78,14 +76,13 @@ export async function verifyOptmaPayWebhook(input: {
     return { ok: false, reason: 'invalid_signature_format' };
   }
 
-  const expected = await hmacSha256Hex(
+  const valid = await verifyHmacSha256Hex(
     input.secret,
     `${timestamp}.${input.eventId}.${input.rawBody}`,
+    provided,
   );
 
-  return constantTimeEqualHex(provided, expected)
-    ? { ok: true }
-    : { ok: false, reason: 'invalid_signature' };
+  return valid ? { ok: true } : { ok: false, reason: 'invalid_signature' };
 }
 
 export function buildOptmaMenuPixReference(storeId: string, intentId: string) {
