@@ -103,6 +103,54 @@ export type OnlinePaymentSettlementAccount = {
   active: boolean;
 };
 
+
+export type OptmaPaySandboxStatus = {
+  ok: boolean;
+  environment: 'sandbox';
+  realMoney: false;
+  baseUrl: string;
+  configured: boolean;
+  credentialStatus: 'not_configured' | 'configured' | 'invalid' | 'ready';
+  account?: {
+    id?: string;
+    name?: string;
+    type?: string;
+    pixKey?: string;
+  } | null;
+  error?: string | null;
+};
+
+export type OptmaPayCredentialStatus = {
+  ok: boolean;
+  accountId?: string | null;
+  settlementFinancialAccountId?: string | null;
+  apiKeyConfigured: boolean;
+  webhookSecretConfigured: boolean;
+  credentialStatus: 'not_configured' | 'configured' | 'invalid' | 'ready';
+  webhookUrl: string;
+  storage?: string | null;
+  error?: string;
+};
+
+export type OptmaPaySandboxPixIntent = {
+  ok: boolean;
+  environment: 'sandbox';
+  realMoney: false;
+  error?: string;
+  intent?: {
+    id: string;
+    store_id: string;
+    order_id?: string | null;
+    method_code: string;
+    amount: number;
+    status: string;
+    external_reference: string;
+    pix_payload: string;
+    expires_at: string;
+    created_at: string;
+  };
+};
+
 export type AsaasSandboxStatus = {
   ok: boolean;
   environment: 'sandbox';
@@ -132,9 +180,13 @@ export type AsaasSandboxPixCharge = {
   };
 };
 
-function asaasSandboxError(data: unknown, fallback: string) {
+function providerCallError(data: unknown, fallback: string) {
   const row = (data || {}) as { ok?: boolean; error?: string };
   if (!row.ok) throw new Error(row.error || fallback);
+}
+
+function asaasSandboxError(data: unknown, fallback: string) {
+  providerCallError(data, fallback);
 }
 
 function normalizeWorkspace(data: unknown): OnlinePaymentsWorkspace {
@@ -223,6 +275,66 @@ export const OnlinePaymentsService = {
     const result = data as { ok?: boolean; error?: string; items?: unknown } | null;
     if (!result?.ok) throw new Error(result?.error || 'Não foi possível carregar as contas financeiras.');
     return Array.isArray(result.items) ? result.items as OnlinePaymentSettlementAccount[] : [];
+  },
+
+  async getOptmaPaySandboxStatus(storeId: string): Promise<OptmaPaySandboxStatus> {
+    const { data, error } = await supabase.functions.invoke('optmapay-sandbox-adapter', {
+      body: { action: 'status', storeId },
+    });
+    if (error) throw error;
+    providerCallError(data, 'Não foi possível validar a conexão com o OptmaPay.');
+    return data as OptmaPaySandboxStatus;
+  },
+
+  async getOptmaPayCredentialStatus(storeId: string): Promise<OptmaPayCredentialStatus> {
+    const { data, error } = await supabase.functions.invoke('optmapay-credentials', {
+      body: { action: 'status', storeId },
+    });
+    if (error) throw error;
+    providerCallError(data, 'Não foi possível consultar as credenciais do OptmaPay.');
+    return data as OptmaPayCredentialStatus;
+  },
+
+  async saveOptmaPayCredentials(input: {
+    storeId: string;
+    accountId: string;
+    apiKey?: string;
+    webhookSecret?: string;
+    settlementFinancialAccountId?: string | null;
+  }): Promise<OptmaPayCredentialStatus> {
+    const { data, error } = await supabase.functions.invoke('optmapay-credentials', {
+      body: {
+        action: 'save',
+        storeId: input.storeId,
+        accountId: input.accountId,
+        apiKey: input.apiKey || null,
+        webhookSecret: input.webhookSecret || null,
+        settlementFinancialAccountId: input.settlementFinancialAccountId || null,
+      },
+    });
+    if (error) throw error;
+    providerCallError(data, 'Não foi possível salvar as credenciais do OptmaPay.');
+    return data as OptmaPayCredentialStatus;
+  },
+
+  async createOptmaPaySandboxPix(input: {
+    storeId: string;
+    amount: number;
+    orderId?: string | null;
+    description?: string;
+  }): Promise<OptmaPaySandboxPixIntent> {
+    const { data, error } = await supabase.functions.invoke('optmapay-sandbox-adapter', {
+      body: {
+        action: 'createPixIntent',
+        storeId: input.storeId,
+        amount: input.amount,
+        orderId: input.orderId || null,
+        description: input.description || 'PIX Sandbox OptmaMenu',
+      },
+    });
+    if (error) throw error;
+    providerCallError(data, 'Não foi possível criar o PIX no OptmaPay Sandbox.');
+    return data as OptmaPaySandboxPixIntent;
   },
 
   async getAsaasSandboxStatus(storeId: string): Promise<AsaasSandboxStatus> {
