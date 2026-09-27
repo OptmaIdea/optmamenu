@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { buildOptmaMenuPixReference } from "../_shared/optmapayWebhook.ts";
+import { resolveOptmaPaySecret } from "../_shared/optmapaySecrets.ts";
 
 const DEFAULT_OPTMAPAY_BASE = "https://optmapay.optmaidea.com.br";
 const jsonHeaders = { "Content-Type": "application/json", "Cache-Control": "no-store" };
@@ -19,12 +20,6 @@ function reply(body: unknown, status = 200, origin: string | null = null) {
 
 function cleanBaseUrl(value: string) {
   return value.replace(/\/+$/, "");
-}
-
-function secretFromRef(secretRef: string | null | undefined, fallbackName: string) {
-  const name = String(secretRef || fallbackName).trim();
-  if (!/^OPTMAPAY_[A-Z0-9_]{3,119}$/.test(name)) return { name, value: "" };
-  return { name, value: Deno.env.get(name) || "" };
 }
 
 async function optmaPayFetch(
@@ -110,7 +105,11 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("OPTMAPAY_SANDBOX_ACCOUNT_ID") ||
       "",
     ).trim();
-    const apiSecret = secretFromRef(provider.secret_ref, "OPTMAPAY_SANDBOX_API_KEY");
+    const apiSecret = await resolveOptmaPaySecret(
+      service,
+      provider.secret_ref,
+      "OPTMAPAY_SANDBOX_API_KEY",
+    );
 
     async function loadAccount() {
       if (!accountId) throw new Error("OPTMAPAY_ACCOUNT_NOT_CONFIGURED");
@@ -146,6 +145,7 @@ Deno.serve(async (req: Request) => {
           checked_at: new Date().toISOString(),
           adapter: "optmapay_external",
           api_key_secret_ref: apiSecret.name,
+          credential_storage: apiSecret.source,
           account_configured: Boolean(accountId),
         },
       });

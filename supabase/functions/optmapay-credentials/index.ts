@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { resolveOptmaPaySecret } from "../_shared/optmapaySecrets.ts";
 
 const jsonHeaders = { "Content-Type": "application/json", "Cache-Control": "no-store" };
 
@@ -16,10 +17,6 @@ function reply(body: unknown, status = 200, origin: string | null = null) {
     status,
     headers: { ...jsonHeaders, ...cors(origin) },
   });
-}
-
-function maskRefConfigured(value: unknown) {
-  return typeof value === "string" && value.startsWith("OPTMAPAY_");
 }
 
 Deno.serve(async (req: Request) => {
@@ -57,28 +54,41 @@ Deno.serve(async (req: Request) => {
       return reply({ ok: false, error: "credentials_permission_required" }, 403, origin);
     }
 
-    const provider = Array.isArray(workspace.providers)
-      ? workspace.providers.find((item: any) =>
-          item?.provider_code === "optma_sandbox" && item?.environment === "sandbox")
-      : null;
+    const { data: provider, error: providerError } = await service
+      .from("store_online_payment_providers")
+      .select("id,credential_status,secret_ref,public_config,metadata")
+      .eq("store_id", storeId)
+      .eq("provider_code", "optma_sandbox")
+      .eq("environment", "sandbox")
+      .maybeSingle();
+
+    if (providerError) {
+      return reply({ ok: false, error: "provider_lookup_failed" }, 500, origin);
+    }
 
     const webhookUrl = `${supabaseUrl.replace(/\/+$/, "")}/functions/v1/optmapay-sandbox-webhook`;
 
     if (action === "status") {
-      const apiRef = provider?.metadata?.credential_storage === "supabase_vault"
-        ? provider?.public_config?.api_key_secret_ref || provider?.secret_ref
-        : provider?.secret_ref;
-      const webhookRef = provider?.metadata?.webhook_secret_ref;
+      const apiSecret = await resolveOptmaPaySecret(
+        service,
+        provider?.secret_ref,
+        "OPTMAPAY_SANDBOX_API_KEY",
+      );
+      const webhookSecret = await resolveOptmaPaySecret(
+        service,
+        provider?.metadata?.webhook_secret_ref,
+        "OPTMAPAY_SANDBOX_WEBHOOK_SECRET",
+      );
 
       return reply({
         ok: true,
         accountId: provider?.public_config?.optmapay_account_id || null,
         settlementFinancialAccountId: provider?.public_config?.settlement_financial_account_id || null,
-        apiKeyConfigured: maskRefConfigured(apiRef),
-        webhookSecretConfigured: maskRefConfigured(webhookRef),
+        apiKeyConfigured: Boolean(apiSecret.value),
+        webhookSecretConfigured: Boolean(webhookSecret.value),
         credentialStatus: provider?.credential_status || "not_configured",
         webhookUrl,
-        storage: provider?.metadata?.credential_storage || null,
+        storage: provider?.metadata?.credential_storage || (apiSecret.source === "supabase_vault" ? "supabase_vault" : apiSecret.source),
       }, 200, origin);
     }
 

@@ -4,6 +4,7 @@ import {
   parseOptmaMenuPixReference,
   verifyOptmaPayWebhook,
 } from "../_shared/optmapayWebhook.ts";
+import { resolveOptmaPaySecret } from "../_shared/optmapaySecrets.ts";
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -105,17 +106,21 @@ Deno.serve(async (req: Request) => {
       provider.metadata?.webhook_secret_ref ||
       "OPTMAPAY_SANDBOX_WEBHOOK_SECRET",
     ).trim();
-    if (!/^[A-Z][A-Z0-9_]{2,127}$/.test(webhookSecretRef)) {
+    if (!/^OPTMAPAY_[A-Z0-9_]{3,119}$/.test(webhookSecretRef)) {
       return json({ ok: false, error: "invalid_webhook_secret_ref" }, 500);
     }
 
-    const webhookSecret = Deno.env.get(webhookSecretRef) || "";
-    if (!webhookSecret) {
+    const webhookSecret = await resolveOptmaPaySecret(
+      service,
+      webhookSecretRef,
+      "OPTMAPAY_SANDBOX_WEBHOOK_SECRET",
+    );
+    if (!webhookSecret.value) {
       return json({ ok: false, error: "webhook_secret_not_configured" }, 500);
     }
 
     const verification = await verifyOptmaPayWebhook({
-      secret: webhookSecret,
+      secret: webhookSecret.value,
       signatureHeader: signature,
       timestampHeader: timestamp,
       eventId,
