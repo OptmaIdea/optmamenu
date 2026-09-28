@@ -186,6 +186,8 @@ Deno.serve(async (req: Request) => {
       const description = String(body?.description || "Pagamento OptmaMenu").slice(0, 120);
       const payload = new URL("OPTMAPAY://PIX/v1");
       payload.searchParams.set("to", pixKey);
+      payload.searchParams.set("name", String(account?.name || "OptmaMenu"));
+      payload.searchParams.set("accId", String(account?.id || accountId));
       payload.searchParams.set("amount", roundedAmount.toFixed(2));
       payload.searchParams.set("ref", externalReference);
       payload.searchParams.set("desc", description);
