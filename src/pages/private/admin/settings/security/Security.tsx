@@ -5027,7 +5027,7 @@ export default function Security() {
                                         Configuração de Sessão e Inatividade
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                                        Gerencie as diretrizes de tempo limite de sessão e desconexão automática do painel administrativo por inatividade.
+                                        Gerencie o tempo limite de sessão por inatividade. A política vale para todo o painel administrativo e a atividade em qualquer guia aberta mantém a mesma sessão ativa.
                                     </p>
 
                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700 space-y-6">
@@ -5044,7 +5044,7 @@ export default function Security() {
                                                     Encerrar sessão por inatividade
                                                 </span>
                                                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    Ao marcar esta opção, o sistema irá desconectar usuários ociosos de forma automática.
+                                                    Ao marcar esta opção, o sistema desconecta automaticamente a sessão quando não houver atividade em nenhuma guia do OptmaMenu pelo tempo configurado.
                                                 </p>
                                             </div>
                                         </label>
