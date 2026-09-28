@@ -224,6 +224,8 @@ Deno.serve(async (req: Request) => {
 
     const payload = new URL("OPTMAPAY://PIX/v1");
     payload.searchParams.set("to", merchant.pixKey);
+    payload.searchParams.set("name", merchant.name);
+    payload.searchParams.set("accId", merchant.id);
     payload.searchParams.set("amount", Number(order.total).toFixed(2));
     payload.searchParams.set("ref", externalReference);
     payload.searchParams.set("desc", `Pedido ${order.order_code}`);
