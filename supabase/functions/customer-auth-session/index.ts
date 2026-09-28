@@ -326,6 +326,26 @@ Deno.serve(async (req: Request) => {
       return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
     }
 
+    const currentPassword = String(input.currentPassword || "");
+    if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 400, origin);
+
+    const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_password: currentPassword,
+    });
+    if (verifyError) return json({ ok: false, error: "password_verification_failed" }, 500, origin);
+    if (!verified?.ok) {
+      if (verified?.error === "locked") {
+        return json({
+          ok: false,
+          error: "locked",
+          retryAfterSeconds: Number(verified.retry_after_seconds || 900),
+        }, 423, origin);
+      }
+      return json({ ok: false, error: "invalid_current_password" }, 401, origin);
+    }
+
     const { data: rotation, error: rotationError } = await service.rpc(
       "customer_revoke_other_trusted_devices_service_safe",
       {
