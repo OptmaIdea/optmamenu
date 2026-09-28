@@ -705,6 +705,20 @@ export default function Checkout() {
                 ? buildWhatsappUrl(result.whatsapp.digits, message)
                 : result.whatsapp?.url;
 
+            const usesIntegratedOptmaPayPix = paymentTiming === 'pay_now'
+                && selectedPayNowMethod?.base_code === 'pix'
+                && selectedPayNowMethod.confirmation_mode === 'api';
+
+            let paymentInitiationError = false;
+            if (usesIntegratedOptmaPayPix) {
+                try {
+                    await PublicOrderService.createOptmaPayPayment(result.order.public_order_token);
+                } catch (paymentError) {
+                    paymentInitiationError = true;
+                    console.error('[CHECKOUT] Pedido criado, mas o PIX OptmaPay não pôde ser preparado:', paymentError);
+                }
+            }
+
             localStorage.removeItem(draftKey);
             if (isAuthenticated) {
                 await CustomerService.clearSelfCartDraft().catch((cartError) => {
@@ -712,6 +726,17 @@ export default function Checkout() {
                 });
             }
             clearCart();
+
+            if (usesIntegratedOptmaPayPix) {
+                navigate(`/p/${encodeURIComponent(result.order.public_order_token)}`, {
+                    replace: true,
+                    state: {
+                        paymentInitiationError,
+                    },
+                });
+                return;
+            }
+
             navigate(storePath, {
                 replace: true,
                 state: {
