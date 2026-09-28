@@ -452,6 +452,12 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
         return 'Verificação automática de presença da sessão.';
     }
 
+    if (['Criar Produto', 'Editar Produto', 'Excluir Produto', 'Inativar Produto', 'Reativar Produto'].includes(log.action || '')) {
+        const productName = getStringDetail(details, 'name') || 'Produto';
+        const productId = getStringDetail(details, 'product_id');
+        return productId ? `${productName} · ref. ${productId.slice(0, 8)}…` : productName;
+    }
+
     if (log.action === 'session_store_selected') {
         const storeName = getStringDetail(details, 'store_name') || 'loja selecionada';
         const role = formatSecurityRole(getStringDetail(details, 'role'));
