@@ -186,6 +186,33 @@ export interface PublicOrderTrackingResponse {
     };
 }
 
+
+export interface PublicOptmaPayIntent {
+    id: string;
+    status: string;
+    amount: number;
+    externalReference?: string | null;
+    pixPayload?: string | null;
+    expiresAt?: string | null;
+    paidAt?: string | null;
+}
+
+export interface PublicOptmaPayPaymentState {
+    ok: boolean;
+    error?: string;
+    eligible: boolean;
+    orderCode?: string | null;
+    orderStatus?: string | null;
+    paymentStatus?: string | null;
+    paymentMethodCode?: string | null;
+    providerReady?: boolean;
+    environment?: 'sandbox';
+    realMoney?: false;
+    reused?: boolean;
+    alreadyPaid?: boolean;
+    intent?: PublicOptmaPayIntent | null;
+}
+
 export type PublicPaymentProofStatus = 'submitted' | 'confirmed' | 'rejected' | 'superseded' | 'expired';
 
 export interface PublicPaymentProofSummary {
@@ -283,6 +310,45 @@ export const PublicOrderService = {
                 requires_method_choice: Boolean(data.pay_on_fulfillment?.requires_method_choice),
                 methods: Array.isArray(data.pay_on_fulfillment?.methods) ? data.pay_on_fulfillment.methods : [],
             },
+        };
+    },
+
+    async getOptmaPayPaymentState(token: string): Promise<PublicOptmaPayPaymentState> {
+        const normalizedToken = decodeURIComponent(token).trim();
+        const { data, error } = await supabasePublic.functions.invoke('optmapay-public-checkout', {
+            body: { action: 'status', publicOrderToken: normalizedToken },
+        });
+        if (error) throw error;
+        return {
+            ...(data as PublicOptmaPayPaymentState),
+            eligible: Boolean(data?.eligible),
+            intent: data?.intent
+                ? {
+                    ...data.intent,
+                    amount: Number(data.intent.amount || 0),
+                }
+                : null,
+        };
+    },
+
+    async createOptmaPayPayment(token: string): Promise<PublicOptmaPayPaymentState> {
+        const normalizedToken = decodeURIComponent(token).trim();
+        const { data, error } = await supabasePublic.functions.invoke('optmapay-public-checkout', {
+            body: { action: 'create', publicOrderToken: normalizedToken },
+        });
+        if (error) throw error;
+        if (!data?.ok) {
+            throw new Error(data?.error || 'Não foi possível preparar o PIX no OptmaPay.');
+        }
+        return {
+            ...(data as PublicOptmaPayPaymentState),
+            eligible: Boolean(data?.eligible),
+            intent: data?.intent
+                ? {
+                    ...data.intent,
+                    amount: Number(data.intent.amount || 0),
+                }
+                : null,
         };
     },
 
