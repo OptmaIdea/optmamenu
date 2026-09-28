@@ -1053,3 +1053,57 @@ Frete excepcional acertado fora da tabela normal deve ser armazenado como **taxa
 - regra futura para itens preparados poderá bloquear cancelamento após início de preparo.
 
 Essas duas frentes permanecem como próximo pacote funcional; não foram marcadas como concluídas nesta rodada.
+
+
+---
+
+## Ajustes pós-homologação de Clientes/Slug — 27/09/2026
+
+### Retorno de Meu consumo para a área do cliente
+
+Ao abrir um produto a partir de **Meu consumo**, o card do catálogo agora carrega com contexto de retorno. Ao fechar o card, o sistema reabre automaticamente **Minha conta → Meu consumo**, em vez de deixar o cliente na página inicial da loja.
+
+Também foi removido o gatilho inferior **Olá, fulano** da loja pública. O acesso à conta foi movido para o cabeçalho, com ação **Minha conta** para autenticados e **Entrar** para visitantes. O desenho de uma futura barra fixa inferior em estilo app nativo — com Menu, Conta, Carrinho e Contato, substituindo o WhatsApp flutuante — fica reservado para a frente de navegação da loja pública, para ser tratado em conjunto com os atuais CTAs de carrinho e contato e evitar elementos duplicados.
+
+### Fidelidade — Web/App permanente
+
+A preferência **Web/App** deixa de ser revogável:
+- é o canal interno permanente da área do cliente;
+- a interface mostra **Sempre ativo**, sem checkbox;
+- o backend força `loyalty_webapp=granted` mesmo se houver chamada manipulada tentando revogar;
+- participantes já ativos foram normalizados para o estado `granted`;
+- WhatsApp, e-mail e SMS continuam optativos e revogáveis;
+- confirmações essenciais de adesão, saída, pedido e segurança continuam independentes de consentimento promocional.
+
+Migration:
+- `20260927214145_customer_loyalty_webapp_required.sql`.
+
+### Auditoria administrativa
+
+O histórico de Segurança foi reforçado:
+- `session_heartbeat` passa a ser apresentado como **Sessão ativa**, inclusive para registros antigos cuja `display_action` esteja em inglês;
+- remoção administrativa da fidelidade gera **Cliente removido da fidelidade**;
+- bloqueio gera **CPF bloqueado na fidelidade**;
+- desbloqueio gera **CPF liberado na fidelidade**;
+- esses eventos são marcados como sensíveis e preservam ator, cliente alvo, motivo e referência mínima necessária;
+- `insert_security_log` agora resolve também o nome amigável do usuário executor para novos eventos quando houver `auth.uid()`;
+- alterações de produto já existentes no log passam a exibir o nome do produto e referência técnica curta na interface.
+
+Migration:
+- `20260927214328_security_audit_loyalty_membership_actions.sql`.
+
+A regra de negócio sobre o que acontece com pontos/saldo/histórico quando um participante com movimentação é removido administrativamente deve ser respondida e refinada somente na frente específica de **Fidelidade**.
+
+### Regras preservadas para a frente Horários/Pedidos
+
+Ao retomar regras de loja fechada ou próxima do fechamento, preservar as decisões já tomadas:
+- loja/cardápio público deve informar claramente **aberta, próxima do fechamento ou fechada** e a condição de atendimento;
+- retirada e delivery têm operação distinta e não devem compartilhar automaticamente a mesma regra de expiração;
+- pedido de delivery já aceito não expira automaticamente apenas porque o horário comercial terminou;
+- retirada não paga e reservas técnicas continuam sujeitas ao timer/tolerância configurados enquanto aplicável;
+- pedido já pago não deve ser cancelado automaticamente por expiração; permanece para decisão operacional/gerencial;
+- existe requisito de **prazo-limite configurável antes do fechamento para aceitar novos pedidos**, mas o número exato de minutos ainda não está fixado como regra definitiva;
+- mensagens de recebimento/aceite/pronto devem comunicar a modalidade e o prazo/horário aplicável;
+- pedidos já aceitos devem permanecer na fila operacional adequada, em vez de desaparecer apenas porque a loja fechou.
+
+A implementação dessa política deve ser feita na frente de **Horários + Pedido Online**, preservando separadamente retirada e entrega e sem alterar nesta rodada o fluxo já homologado de expiração de retirada não paga.
