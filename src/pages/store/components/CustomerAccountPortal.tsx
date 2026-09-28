@@ -28,7 +28,7 @@ import {
     UserRound,
     X,
 } from 'lucide-react';
-import { AuthService } from '@/services/customerAuth';
+import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
 import { CustomerService } from '@/services/customerService';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { flushCustomerCartServerSync } from '@/services/customerCartPersistence';
@@ -343,8 +343,14 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
     const loyaltyTopRef = useRef<HTMLDivElement | null>(null);
+    const [storeDisplayName, setStoreDisplayName] = useState('esta loja');
+    const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [trustedDevices, setTrustedDevices] = useState<TrustedCustomerDevice[]>([]);
+    const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
+    const [trustedDevicesRevoking, setTrustedDevicesRevoking] = useState(false);
+    const [deviceActionPassword, setDeviceActionPassword] = useState('');
     const [exportingData, setExportingData] = useState(false);
     const [deletionOpen, setDeletionOpen] = useState(false);
     const [deletionPassword, setDeletionPassword] = useState('');
@@ -362,6 +368,29 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         () => customer?.nickname || customer?.full_name || 'cliente',
         [customer?.full_name, customer?.nickname],
     );
+
+    useEffect(() => {
+        const slug = cartContext?.canonicalSlug || cartContext?.requestedSlug;
+        if (!slug) {
+            setStoreDisplayName('esta loja');
+            return;
+        }
+
+        let active = true;
+        void PublicStorefrontService.getStorefrontBySlug(slug)
+            .then((result) => {
+                if (!active) return;
+                const name = result.store?.name?.trim();
+                setStoreDisplayName(name || 'esta loja');
+            })
+            .catch(() => {
+                if (active) setStoreDisplayName('esta loja');
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [cartContext?.canonicalSlug, cartContext?.requestedSlug]);
 
     const consumptionHistory = useMemo(() => {
         const grouped = new Map<string, {
@@ -680,6 +709,17 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     }, [customer?.id]);
 
+    const loadTrustedDevices = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+        if (!customer) return;
+        if (!silent) setTrustedDevicesLoading(true);
+        try {
+            const devices = await AuthService.listTrustedDevices();
+            setTrustedDevices(devices);
+        } finally {
+            if (!silent) setTrustedDevicesLoading(false);
+        }
+    }, [customer?.id]);
+
     useEffect(() => {
         ordersRef.current = [];
         setOrders([]);
@@ -937,6 +977,13 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         loadNotifications,
     ]);
 
+    useEffect(() => {
+        if (!open || !customer || tab !== 'security') return;
+        void loadTrustedDevices().catch((deviceError) => {
+            console.error('[CUSTOMER_SECURITY] Falha ao carregar dispositivos:', deviceError);
+        });
+    }, [open, customer?.id, tab, loadTrustedDevices]);
+
     if (!customer) return null;
 
     const logout = async () => {
@@ -962,7 +1009,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `optmamenu-meus-dados-${new Date().toISOString().slice(0, 10)}.json`;
+            const exportSlug = cartContext?.canonicalSlug || cartContext?.requestedSlug || 'loja';
+            link.download = `meus-dados-${exportSlug}-${new Date().toISOString().slice(0, 10)}.json`;
             link.style.display = 'none';
             document.body.appendChild(link);
             link.click();
@@ -1461,6 +1509,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const savePassword = async () => {
         clearFeedback();
+        if (!currentPassword) {
+            setError('Informe sua senha atual.');
+            return;
+        }
         if (newPassword.length < 8 || newPassword.length > 72 || !/[A-Za-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
             setError('A senha deve ter de 8 a 72 caracteres, com pelo menos uma letra e um número.');
             return;
@@ -1472,14 +1524,51 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
         setLoading(true);
         try {
-            await AuthService.setPassword(newPassword);
+            const result = await AuthService.setPassword(currentPassword, newPassword);
+            setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
-            setMessage('Senha atualizada com sucesso.');
+            setDeviceActionPassword('');
+            await loadTrustedDevices({ silent: true }).catch(() => undefined);
+            const feedback = result.revokedCount > 0
+                ? `Senha alterada com segurança. ${result.revokedCount} outro(s) dispositivo(s) foram desconectados.`
+                : 'Senha alterada com segurança. Sua sessão atual foi renovada.';
+            setMessage(feedback);
+            toast.success(feedback);
         } catch (passwordError) {
-            setError(passwordError instanceof Error ? passwordError.message : 'Não foi possível atualizar a senha.');
+            const feedback = passwordError instanceof Error ? passwordError.message : 'Não foi possível atualizar a senha.';
+            setError(feedback);
+            toast.error(feedback);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const revokeOtherTrustedDevices = async () => {
+        clearFeedback();
+        if (!deviceActionPassword) {
+            setError('Informe sua senha atual para desconectar os outros dispositivos.');
+            return;
+        }
+
+        setTrustedDevicesRevoking(true);
+        try {
+            const result = await AuthService.revokeOtherTrustedDevices(deviceActionPassword);
+            setDeviceActionPassword('');
+            setTrustedDevices(result.devices);
+            const feedback = result.revokedCount > 0
+                ? `${result.revokedCount} outro(s) dispositivo(s) foram desconectados. Este dispositivo continua ativo.`
+                : 'Não havia outro dispositivo ativo para desconectar. Sua sessão atual foi renovada.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (deviceError) {
+            const feedback = deviceError instanceof Error
+                ? deviceError.message
+                : 'Não foi possível desconectar os outros dispositivos.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setTrustedDevicesRevoking(false);
         }
     };
 
@@ -2057,15 +2146,15 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
                                         <div className="flex items-center justify-between gap-3">
                                             <div>
-                                                <h3 className="font-black text-slate-900 dark:text-white">Web/App</h3>
+                                                <h3 className="font-black text-slate-900 dark:text-white">{storeDisplayName}</h3>
                                                 <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Canal interno da sua conta para status de pedidos, segurança, avisos do programa e outras informações do relacionamento com a loja.
+                                                    Canal interno da sua conta na {storeDisplayName} para status de pedidos, segurança, avisos do programa e outras informações do relacionamento com a loja.
                                                 </p>
                                             </div>
                                             <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
                                         </div>
                                         <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                                            Web/App significa mensagens dentro do OptmaMenu. Notificações que aparecem fora da página, na área de notificações do navegador ou do celular, dependem de uma autorização adicional do próprio dispositivo e não são ativadas automaticamente por esta opção.
+                                            As mensagens desta área ficam dentro da {storeDisplayName}. Notificações que aparecem fora da página, na área de notificações do navegador ou do celular, dependem de uma autorização adicional do próprio dispositivo e não são ativadas automaticamente por esta opção.
                                         </p>
                                     </section>
 
@@ -2117,7 +2206,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                             <div>
                                                 <h3 className="font-black text-slate-900 dark:text-white">Mensagens na sua conta</h3>
-                                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Histórico recente do canal interno Web/App.</p>
+                                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Histórico recente das mensagens da {storeDisplayName} nesta área.</p>
                                             </div>
                                             <div className="flex gap-2">
                                                 <button type="button" onClick={() => void loadNotifications()} disabled={notificationsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">
@@ -2223,7 +2312,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/15">
                                             <h3 className="font-black text-slate-900 dark:text-white">Entrar no programa</h3>
                                             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                A participação no programa é separada das permissões de marketing. Escolha como deseja receber novidades. Web/App mantém as novidades dentro desta área; confirmações essenciais de adesão, saída, pedido e segurança continuam independentes destas opções.
+                                                A participação no programa é separada das permissões de marketing. Escolha como deseja receber novidades. A área da {storeDisplayName} mantém as mensagens internas disponíveis; confirmações essenciais de adesão, saída, pedido e segurança continuam independentes destas opções.
                                             </p>
 
                                             <label className="mt-4 flex items-start gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-900">
@@ -2277,7 +2366,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                         <MessageCircle className="h-4 w-4 text-emerald-600" /> SMS
                                                     </label>
                                                     <div className="flex items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
-                                                        <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Web/App</span>
+                                                        <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> {storeDisplayName}</span>
                                                         <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
                                                     </div>
                                                 </div>
@@ -2439,8 +2528,92 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                             {tab === 'security' && (
                                 <div className="mx-auto max-w-xl space-y-4">
                                     <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
-                                        Sua conta da loja é protegida pelo telefone confirmado por SMS e pela senha criada por você. Dependendo da política de segurança, uma alteração sensível pode pedir nova confirmação por SMS.
+                                        Sua conta na {storeDisplayName} é protegida pelo telefone confirmado por SMS e pela senha criada por você. Alterações sensíveis exigem reautenticação e podem encerrar acessos em outros dispositivos.
                                     </div>
+                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex items-start gap-3">
+                                            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+                                            <div className="min-w-0 flex-1">
+                                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                    <div>
+                                                        <h3 className="font-black text-slate-900 dark:text-white">Dispositivos confiáveis</h3>
+                                                        <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                            São navegadores que já confirmaram seu telefone por SMS. Um dispositivo precisa confirmar novamente após o período de segurança ou depois de ficar inativo.
+                                                        </p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void loadTrustedDevices()}
+                                                        disabled={trustedDevicesLoading || trustedDevicesRevoking}
+                                                        className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+                                                    >
+                                                        <RefreshCw className={`h-3.5 w-3.5 ${trustedDevicesLoading ? 'animate-spin' : ''}`} />
+                                                        Atualizar
+                                                    </button>
+                                                </div>
+
+                                                {trustedDevicesLoading && trustedDevices.length === 0 ? (
+                                                    <div className="flex justify-center py-6">
+                                                        <Loader2 className="h-5 w-5 animate-spin text-emerald-600" />
+                                                    </div>
+                                                ) : trustedDevices.length === 0 ? (
+                                                    <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">
+                                                        Nenhum dispositivo confiável foi listado para esta sessão.
+                                                    </p>
+                                                ) : (
+                                                    <div className="mt-4 space-y-2">
+                                                        {trustedDevices.map((device) => (
+                                                            <div key={device.id} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+                                                                <div className="flex items-start justify-between gap-3">
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-black text-slate-900 dark:text-white">{device.label}</p>
+                                                                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                                            Última atividade: {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('pt-BR') : 'não informada'}
+                                                                        </p>
+                                                                        <p className="text-xs leading-5 text-slate-400">
+                                                                            Última confirmação por SMS: {device.last_otp_verified_at ? new Date(device.last_otp_verified_at).toLocaleString('pt-BR') : 'não informada'}
+                                                                        </p>
+                                                                    </div>
+                                                                    {device.is_current && (
+                                                                        <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">
+                                                                            Este dispositivo
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {trustedDevices.some((device) => !device.is_current) && (
+                                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
+                                                        <p className="text-xs leading-5 text-amber-800 dark:text-amber-200">
+                                                            Para desconectar os outros dispositivos, confirme sua senha atual. As sessões antigas deixam de ter acesso aos dados da conta e precisarão entrar novamente.
+                                                        </p>
+                                                        <div className="mt-3">
+                                                            <PasswordField
+                                                                label="Senha atual"
+                                                                value={deviceActionPassword}
+                                                                onChange={setDeviceActionPassword}
+                                                                placeholder="Sua senha atual"
+                                                                autoComplete="current-password"
+                                                            />
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => void revokeOtherTrustedDevices()}
+                                                            disabled={trustedDevicesRevoking || !deviceActionPassword}
+                                                            className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-red-300 px-4 py-2.5 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
+                                                        >
+                                                            {trustedDevicesRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+                                                            {trustedDevicesRevoking ? 'Desconectando…' : 'Desconectar outros dispositivos'}
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </section>
+
                                     <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
                                         <div className="flex items-start gap-3">
                                             <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
@@ -2546,11 +2719,25 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             </div>
                                         </div>
                                     </section>
-                                    <PasswordField label="Nova senha" value={newPassword} onChange={setNewPassword} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" />
-                                    <PasswordField label="Repita a nova senha" value={confirmPassword} onChange={setConfirmPassword} placeholder="Repita a nova senha" autoComplete="new-password" />
-                                    <button type="button" onClick={savePassword} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
-                                        <KeyRound className="h-4 w-4" /> Alterar senha
-                                    </button>
+                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex items-start gap-3">
+                                            <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="font-black text-slate-900 dark:text-white">Alterar senha</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Confirme sua senha atual. Depois da alteração, outras sessões e dispositivos confiáveis são desconectados por segurança; este dispositivo recebe uma sessão nova.
+                                                </p>
+                                                <div className="mt-4 space-y-3">
+                                                    <PasswordField label="Senha atual" value={currentPassword} onChange={setCurrentPassword} placeholder="Sua senha atual" autoComplete="current-password" />
+                                                    <PasswordField label="Nova senha" value={newPassword} onChange={setNewPassword} placeholder="Mínimo de 8 caracteres" autoComplete="new-password" />
+                                                    <PasswordField label="Repita a nova senha" value={confirmPassword} onChange={setConfirmPassword} placeholder="Repita a nova senha" autoComplete="new-password" />
+                                                </div>
+                                                <button type="button" onClick={savePassword} disabled={loading || !currentPassword || !newPassword || !confirmPassword} className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+                                                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />} Alterar senha
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </section>
                                     <button type="button" onClick={logout} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-red-200 py-3 font-black text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/20">
                                         <LogOut className="h-4 w-4" /> Sair da conta
                                     </button>
