@@ -716,6 +716,27 @@ export default function Catalog() {
         setIsProductModalOpen(true);
     };
 
+    const closeProduct = () => {
+        setIsProductModalOpen(false);
+        const params = new URLSearchParams(location.search);
+        if (!params.has('product')) return;
+        params.delete('product');
+        const query = params.toString();
+        navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true });
+    };
+
+    useEffect(() => {
+        if (loadingProducts || products.length === 0) return;
+        const productId = new URLSearchParams(location.search).get('product');
+        if (!productId) return;
+
+        const product = products.find((item) => item.id === productId);
+        if (!product) return;
+
+        setSelectedProduct(product);
+        setIsProductModalOpen(true);
+    }, [loadingProducts, location.search, products]);
+
     if (loadingStore) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-slate-900">
@@ -944,7 +965,7 @@ export default function Catalog() {
 
             <ProductModal
                 isOpen={isProductModalOpen}
-                onClose={() => setIsProductModalOpen(false)}
+                onClose={closeProduct}
                 product={selectedProduct}
                 onAddToCart={(product, quantity) => addToCart(product, quantity)}
             />
