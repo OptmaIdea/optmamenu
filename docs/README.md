@@ -40,3 +40,5 @@ A documentação do OptmaMenu é organizada em 10 documentos autoritativos na ra
 
 - [Guia rápido — InfinitePay no OptmaMenu](./GUIA_RAPIDO_INFINITEPAY_OPTMAMENU_20260927.md) — referência para futura ativação real sem acoplamento ao domínio de pedidos.
 - [Pacote 02A — Fundação do adapter Pix OptmaPay](./PACOTE_02A_OPTMAPAY_ADAPTER_PIX_20260927.md) — arquitetura, segurança, deploy e checklist E2E da integração sandbox.
+
+- [Guia de credenciais — OptmaPay Sandbox](./GUIA_CREDENCIAIS_OPTMAPAY_SANDBOX_20260927.md) — provisionamento seguro via Supabase Vault, rotação e teste de conexão.

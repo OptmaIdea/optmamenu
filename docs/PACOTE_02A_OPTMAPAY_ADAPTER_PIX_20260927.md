@@ -158,3 +158,101 @@ Ver:
 - `docs/GUIA_RAPIDO_INFINITEPAY_OPTMAMENU_20260927.md`.
 
 A InfinitePay é a primeira referência operacional de provider real, mas não altera o contrato interno do OptmaMenu. Outros adapters (Inter, C6, Mercado Pago etc.) deverão seguir o mesmo princípio.
+
+
+---
+
+## 11. Atualização — Checkout público + Vault
+
+A fundação foi estendida até o ponto imediatamente anterior ao primeiro pagamento E2E real do Sandbox.
+
+### Credenciais
+
+Foi adicionado armazenamento em **Supabase Vault**:
+
+- `get_online_payment_vault_secret_internal` — somente `service_role`;
+- `upsert_online_payment_vault_secret_internal` — somente `service_role`;
+- `configure_optmapay_sandbox_credentials_internal` — somente `service_role`;
+- Edge Function autenticada `optmapay-credentials`.
+
+A tela `/admin/online-payments` permite ao owner/usuário autorizado informar diretamente:
+
+- Account ID OptmaPay;
+- API key Sandbox;
+- webhook secret;
+- conta financeira de liquidação.
+
+API key e webhook secret não são persistidos em tabelas públicas e não voltam ao navegador após o salvamento.
+
+### Disponibilidade do PIX no checkout
+
+A forma `pix` integrada só recebe:
+
+- `pay_now=true`;
+- `integration_enabled=true`;
+- `provider_code=optma_sandbox`;
+
+quando o provider `optma_sandbox` está simultaneamente **habilitado** e com `credential_status=ready`.
+
+O trigger `trg_sync_optmapay_checkout_availability` mantém essa condição sincronizada. Desabilitar o provider ou invalidar suas credenciais retira automaticamente o PIX API do checkout público. O PIX manual com comprovante (`pix_manual_qr`) permanece independente.
+
+### Checkout público
+
+Foi publicada a Edge Function pública `optmapay-public-checkout`.
+
+Ela aceita apenas o token público de alta entropia do pedido e deriva server-side:
+
+- loja;
+- pedido;
+- valor;
+- forma de pagamento;
+- provider;
+- merchant;
+- conta financeira;
+- expiração.
+
+O navegador nunca informa valor ou store como autoridade.
+
+A RPC `create_or_reuse_optmapay_public_pix_intent_internal` é somente `service_role`, bloqueia o pedido em transação e reutiliza intent pendente ainda válido antes de criar outro.
+
+### Experiência do cliente
+
+Quando o checkout conclui um pedido com PIX API OptmaPay:
+
+1. o pedido é criado normalmente;
+2. o OptmaMenu tenta preparar o intent;
+3. o cliente é encaminhado para `/p/{public_order_token}`;
+4. a página mostra o código Pix Sandbox;
+5. o cliente pode copiar o código e abrir o OptmaPay;
+6. enquanto pendente, a tela consulta a confirmação periodicamente;
+7. após `pix.paid`, o card muda para pagamento confirmado.
+
+Se a criação da instrução falhar depois da criação do pedido, o pedido **não é perdido**: o cliente chega à tela de acompanhamento e pode gerar o PIX novamente.
+
+### Publicações adicionais
+
+- `optmapay-credentials` — autenticada;
+- `optmapay-public-checkout` — pública por token, sem JWT;
+- `optmapay-sandbox-adapter` — usa Vault;
+- `optmapay-sandbox-webhook` — usa Vault e HMAC.
+
+### Testes de segurança executados nesta etapa
+
+- chamada interna com token inválido → `invalid_token`;
+- tentativa de gravar API key fora do formato permitido → `invalid_optmapay_api_key`;
+- funções de Vault e criação/reuso de intent sem EXECUTE para `anon` e `authenticated`;
+- PIX API público permanece `pay_now=false` enquanto o OptmaPay estiver `not_configured`.
+
+## 12. Único passo manual antes do Golden Pix
+
+Nenhum segredo deve ser enviado no chat.
+
+1. Abrir `https://optmapay.optmaidea.com.br/dev-panel`.
+2. Na conta recebedora do OptmaMenu, gerar uma API key Sandbox com `account:read`.
+3. Em Webhooks, cadastrar a URL mostrada em **OptmaMenu → Financeiro → Pagamentos online → Provedores** e selecionar `pix.paid`.
+4. Copiar o webhook secret exibido pelo OptmaPay.
+5. No OptmaMenu, abrir `/admin/online-payments`, aba **Provedores**.
+6. Colar Account ID, API key e webhook secret nos campos seguros, selecionar a conta financeira e salvar.
+7. Usar **Testar conexão**.
+
+Se a conexão ficar **Pronta**, o trigger habilita automaticamente o PIX API para o checkout público. A rodada seguinte é então o Golden Pix completo com pedido real de homologação, webhook, liquidação, replay e auditoria de estoque/timer/Livro Diário.
