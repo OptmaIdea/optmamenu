@@ -6,7 +6,8 @@ export type CustomerConsentType =
     | 'loyalty_program'
     | 'marketing_whatsapp'
     | 'marketing_email'
-    | 'marketing_sms';
+    | 'marketing_sms'
+    | 'loyalty_webapp';
 
 export type CustomerConsentAction = 'granted' | 'revoked';
 
