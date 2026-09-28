@@ -411,13 +411,13 @@ export const AuthService = {
             : [];
     },
 
-    async revokeOtherTrustedDevices() {
+    async revokeOtherTrustedDevices(currentPassword: string) {
         const token = await refreshCustomerSessionIfNeeded();
         if (!token) throw new Error('Sua sessão expirou. Entre novamente para desconectar outros dispositivos.');
 
         const deviceTokenHash = await getDeviceTokenHash();
         const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
-            body: { action: 'revoke_other_devices', deviceTokenHash },
+            body: { action: 'revoke_other_devices', currentPassword, deviceTokenHash },
         });
         const errorPayload = error ? await readFunctionErrorPayload(error) : null;
         const payload = (data && typeof data === 'object' ? data : errorPayload) as {
@@ -430,6 +430,16 @@ export const AuthService = {
             passwordConfigured?: boolean;
         } | null;
 
+        if (payload?.error === 'current_password_required') {
+            throw new Error('Informe sua senha atual para desconectar os outros dispositivos.');
+        }
+        if (payload?.error === 'invalid_current_password') {
+            throw new Error('A senha atual informada não confere.');
+        }
+        if (payload?.error === 'locked') {
+            const seconds = Math.max(60, Number((payload as { retryAfterSeconds?: number }).retryAfterSeconds || 900));
+            throw new Error(`Muitas tentativas incorretas. Aguarde cerca de ${Math.ceil(seconds / 60)} minuto(s) e tente novamente.`);
+        }
         if (payload?.error === 'reauth_required' || payload?.error === 'unauthorized') {
             throw new Error('Sua sessão de segurança expirou. Entre novamente para desconectar outros dispositivos.');
         }
