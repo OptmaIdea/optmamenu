@@ -1107,3 +1107,7 @@ Ao retomar regras de loja fechada ou próxima do fechamento, preservar as decis�
 - pedidos já aceitos devem permanecer na fila operacional adequada, em vez de desaparecer apenas porque a loja fechou.
 
 A implementação dessa política deve ser feita na frente de **Horários + Pedido Online**, preservando separadamente retirada e entrega e sem alterar nesta rodada o fluxo já homologado de expiração de retirada não paga.
+
+
+Complemento aplicado em seguida:
+- migration `20260927215019_security_backfill_log_actor_names.sql` normaliza o rótulo histórico de `session_heartbeat` para **Sessão ativa** e preenche, quando resolvível por `user_id`, nome/e-mail do ator em logs antigos que estavam sem identidade amigável.
