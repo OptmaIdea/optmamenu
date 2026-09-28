@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     ChevronDown,
     ChevronUp,
@@ -271,6 +272,7 @@ function PasswordField({
 }
 
 export function CustomerAccountPortal() {
+    const navigate = useNavigate();
     const customer = useCustomerAuth((state) => state.customer);
     const cartContext = useCartStore((state) => state.context);
     const addToCart = useCartStore((state) => state.addToCart);
@@ -320,6 +322,10 @@ export function CustomerAccountPortal() {
     const [orderSearch, setOrderSearch] = useState('');
     const [consumptionFulfillmentFilter, setConsumptionFulfillmentFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
     const [consumptionSearch, setConsumptionSearch] = useState('');
+    const [consumptionCatalog, setConsumptionCatalog] = useState<Map<string, {
+        id: string;
+        imageUrl: string | null;
+    }>>(new Map());
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
     const [newPassword, setNewPassword] = useState('');
@@ -742,6 +748,49 @@ export function CustomerAccountPortal() {
             document.removeEventListener('visibilitychange', refreshAccount);
         };
     }, [open, customer?.id, refreshCustomerSnapshot]);
+
+    useEffect(() => {
+        if (!open || !customer || tab !== 'consumption') return;
+        const slug = cartContext?.canonicalSlug || cartContext?.requestedSlug;
+        if (!slug) return;
+
+        let active = true;
+        void PublicStorefrontService.getCatalogBySlug(slug)
+            .then((catalog) => {
+                if (!active || !catalog.ok || !catalog.catalog_enabled) return;
+                const next = new Map<string, { id: string; imageUrl: string | null }>();
+                (catalog.categories || []).forEach((category) => {
+                    (category.products || []).forEach((product) => {
+                        const imageUrl = Array.isArray(product.images) && product.images.length > 0
+                            ? product.images[0] || null
+                            : product.image_url || null;
+                        next.set(product.id, { id: product.id, imageUrl });
+                    });
+                });
+                setConsumptionCatalog(next);
+            })
+            .catch(() => undefined);
+
+        return () => {
+            active = false;
+        };
+    }, [open, customer?.id, tab, cartContext?.canonicalSlug, cartContext?.requestedSlug]);
+
+    const openConsumedProduct = (productId: string | null) => {
+        if (!productId) return;
+        const slug = cartContext?.canonicalSlug || cartContext?.requestedSlug;
+        if (!slug) {
+            toast.error('Não foi possível abrir este produto agora.');
+            return;
+        }
+
+        const basePath = cartContext?.type === 'table' && cartContext.tableCode
+            ? `/q/${encodeURIComponent(slug)}/${encodeURIComponent(cartContext.tableCode)}`
+            : `/s/${encodeURIComponent(slug)}`;
+
+        setOpen(false);
+        navigate(`${basePath}?product=${encodeURIComponent(productId)}`);
+    };
 
     useEffect(() => {
         if (!open || !customer || tab !== 'loyalty') return;
@@ -1736,27 +1785,71 @@ export function CustomerAccountPortal() {
                                         const expanded = expandedConsumptionKey === product.key;
                                         return (
                                             <section key={product.key} className="overflow-hidden rounded-3xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setExpandedConsumptionKey(expanded ? null : product.key)}
-                                                    className="flex w-full items-start justify-between gap-4 p-4 text-left"
-                                                >
-                                                    <div className="min-w-0">
-                                                        <p className="truncate font-black text-slate-900 dark:text-white">{product.name}</p>
+                                                <div className="flex items-start gap-3 p-4">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (product.productId && consumptionCatalog.has(product.productId)) {
+                                                                openConsumedProduct(product.productId);
+                                                            }
+                                                        }}
+                                                        disabled={!product.productId || !consumptionCatalog.has(product.productId)}
+                                                        className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 disabled:cursor-default dark:border-slate-800 dark:bg-slate-900"
+                                                        aria-label={product.productId && consumptionCatalog.has(product.productId) ? `Abrir ${product.name} no catálogo` : undefined}
+                                                    >
+                                                        {product.productId && consumptionCatalog.get(product.productId)?.imageUrl ? (
+                                                            <img
+                                                                src={consumptionCatalog.get(product.productId)?.imageUrl || ''}
+                                                                alt=""
+                                                                className="h-full w-full object-cover"
+                                                            />
+                                                        ) : (
+                                                            <ShoppingCart className="h-5 w-5 text-slate-400" />
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setExpandedConsumptionKey(expanded ? null : product.key)}
+                                                        className="flex min-w-0 flex-1 items-start justify-between gap-4 text-left"
+                                                    >
+                                                        <div className="min-w-0">
+                                                            {product.productId && consumptionCatalog.has(product.productId) ? (
+                                                                <span
+                                                                    role="link"
+                                                                    tabIndex={0}
+                                                                    onClick={(event) => {
+                                                                        event.stopPropagation();
+                                                                        openConsumedProduct(product.productId);
+                                                                    }}
+                                                                    onKeyDown={(event) => {
+                                                                        if (event.key === 'Enter' || event.key === ' ') {
+                                                                            event.preventDefault();
+                                                                            event.stopPropagation();
+                                                                            openConsumedProduct(product.productId);
+                                                                        }
+                                                                    }}
+                                                                    className="block truncate font-black text-slate-900 underline decoration-emerald-300 underline-offset-4 hover:text-emerald-700 dark:text-white dark:hover:text-emerald-300"
+                                                                >
+                                                                    {product.name}
+                                                                </span>
+                                                            ) : (
+                                                                <p className="truncate font-black text-slate-900 dark:text-white">{product.name}</p>
+                                                            )}
                                                         <p className="mt-1 text-xs text-slate-500">
                                                             {product.totalQuantity} unidade(s) em {product.occurrences.length} pedido(s)
                                                             {product.lastOrderedAt ? ' · última compra ' + new Date(product.lastOrderedAt).toLocaleDateString('pt-BR') : ''}
                                                         </p>
                                                         <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-700 dark:text-emerald-400">
                                                             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                                            {expanded ? 'Ocultar compras' : 'Ver quando comprei'}
+                                                            {expanded ? 'Ocultar pedidos' : 'Pedidos'}
                                                         </p>
                                                     </div>
                                                     <div className="shrink-0 text-right">
                                                         <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Total pago</p>
                                                         <p className="mt-1 font-black text-emerald-700 dark:text-emerald-400">R$ {formatBRL(product.totalSpent)}</p>
                                                     </div>
-                                                </button>
+                                                    </button>
+                                                </div>
 
                                                 {expanded && (
                                                     <div className="space-y-2 border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50">
