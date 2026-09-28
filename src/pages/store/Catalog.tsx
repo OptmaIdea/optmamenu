@@ -719,10 +719,24 @@ export default function Catalog() {
     const closeProduct = () => {
         setIsProductModalOpen(false);
         const params = new URLSearchParams(location.search);
-        if (!params.has('product')) return;
+        const returnTo = params.get('returnTo');
+        const hadProduct = params.has('product');
+
         params.delete('product');
-        const query = params.toString();
-        navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true });
+        params.delete('returnTo');
+
+        if (hadProduct) {
+            const query = params.toString();
+            navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true });
+        }
+
+        if (returnTo === 'consumption') {
+            window.setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('optmamenu:open-customer-account', {
+                    detail: { tab: 'consumption' },
+                }));
+            }, 0);
+        }
     };
 
     useEffect(() => {
