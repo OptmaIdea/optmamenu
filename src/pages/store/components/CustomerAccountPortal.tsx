@@ -1544,7 +1544,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
         setLoading(true);
         try {
-            const result = await AuthService.setPassword(currentPassword, newPassword);
+            const result = await AuthService.setPassword(newPassword, currentPassword);
             setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
