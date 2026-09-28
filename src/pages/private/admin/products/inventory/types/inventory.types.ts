@@ -56,6 +56,7 @@ export interface StockMovement {
     new_stock: number;
     created_at: string;
     created_at_display?: string | null;
+    affects_physical?: boolean;
     transfer_id?: string | null;
 
     location_id?: string | null;
