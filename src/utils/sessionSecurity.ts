@@ -1,4 +1,3 @@
-import { supabase } from '@/lib/supabase';
 
 // BroadcastChannel para comunicação entre abas
 let channel: BroadcastChannel | null = null;
