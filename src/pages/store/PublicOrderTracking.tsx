@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 'lucide-react';
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
 import PublicOrderPaymentProofCard from '@/pages/store/components/PublicOrderPaymentProofCard';
+import PublicOrderOptmaPayCard from '@/pages/store/components/PublicOrderOptmaPayCard';
 
 const APP_VERSION = '0.10.0-rc.1';
 const OPTMAMENU_URL = 'https://optmamenu.com.br';
@@ -173,6 +174,7 @@ export default function PublicOrderTracking() {
           </div>
         </section>
 
+        {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
         {publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
