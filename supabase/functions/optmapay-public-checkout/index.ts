@@ -34,6 +34,8 @@ function safeIntent(row: any) {
     pixPayload: row.pix_payload || null,
     expiresAt: row.expires_at || null,
     paidAt: row.paid_at || null,
+    rotationCycle: Number(row.rotation_cycle ?? row.metadata?.rotation_cycle ?? 0),
+    autoRotationIndex: Number(row.auto_rotation_index ?? row.metadata?.auto_rotation_index ?? 0),
   };
 }
 
@@ -108,7 +110,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await service
       .from("orders")
-      .select("id,store_id,order_code,total,status,payment_status,payment_method_code,expires_at,public_order_token")
+      .select("id,store_id,order_code,total,status,payment_status,payment_method_code,expires_at,cancellation_grace_until,public_order_token")
       .eq("public_order_token", publicOrderToken)
       .maybeSingle();
 
@@ -142,7 +144,7 @@ Deno.serve(async (req: Request) => {
 
     let { data: intent } = await service
       .from("online_payment_intents")
-      .select("id,status,amount,external_reference,pix_payload,expires_at,paid_at,created_at")
+      .select("id,status,amount,external_reference,pix_payload,expires_at,paid_at,created_at,metadata")
       .eq("store_id", order.store_id)
       .eq("order_id", order.id)
       .eq("provider_id", provider?.id || "00000000-0000-0000-0000-000000000000")
@@ -175,6 +177,12 @@ Deno.serve(async (req: Request) => {
       order.status !== "completed",
     );
 
+    const latestIntent = safeIntent(intent);
+    const manualRegenerationRequired = Boolean(
+      latestIntent?.status === "expired" &&
+      Number(latestIntent?.autoRotationIndex || 0) >= 2,
+    );
+
     if (action === "status") {
       return reply({
         ok: true,
@@ -184,18 +192,24 @@ Deno.serve(async (req: Request) => {
         paymentStatus: order.payment_status,
         paymentMethodCode: order.payment_method_code,
         providerReady: Boolean(provider?.enabled && provider?.credential_status === "ready"),
+        manualRegenerationRequired,
         environment: "sandbox",
         realMoney: false,
-        intent: safeIntent(intent),
+        intent: latestIntent,
       }, 200, origin);
     }
 
-    if (action !== "create") {
-      return reply({ ok: false, error: "unsupported_action" }, 400, origin);
-    }
+    const rotationMode =
+      action === "rotate"
+        ? "automatic"
+        : action === "regenerate"
+          ? "manual"
+          : action === "create"
+            ? "initial"
+            : null;
 
-    if (!eligible) {
-      return reply({ ok: false, error: "payment_not_eligible" }, 409, origin);
+    if (!rotationMode) {
+      return reply({ ok: false, error: "unsupported_action" }, 400, origin);
     }
 
     if (order.payment_status === "paid") {
@@ -205,21 +219,23 @@ Deno.serve(async (req: Request) => {
         alreadyPaid: true,
         orderCode: order.order_code,
         paymentStatus: order.payment_status,
+        manualRegenerationRequired: false,
         environment: "sandbox",
         realMoney: false,
-        intent: safeIntent(intent),
+        intent: latestIntent,
       }, 200, origin);
+    }
+
+    if (!eligible) {
+      return reply({ ok: false, error: "payment_not_eligible" }, 409, origin);
     }
 
     const merchant = await fetchMerchantAccount(service, provider, baseUrl);
     const candidateIntentId = crypto.randomUUID();
     const externalReference = buildOptmaMenuPixReference(order.store_id, candidateIntentId);
 
-    const orderExpiryMs = order.expires_at ? new Date(order.expires_at).getTime() : Number.POSITIVE_INFINITY;
-    const expiresAtMs = Math.min(Date.now() + 10 * 60 * 1000, orderExpiryMs);
-    if (!Number.isFinite(expiresAtMs) || expiresAtMs <= Date.now()) {
-      return reply({ ok: false, error: "order_expired" }, 409, origin);
-    }
+    const issuedAtMs = Date.now();
+    const expiresAtMs = issuedAtMs + 15 * 60 * 1000;
     const expiresAt = new Date(expiresAtMs);
 
     const payload = new URL("OPTMAPAY://PIX/v1");
@@ -230,10 +246,11 @@ Deno.serve(async (req: Request) => {
     payload.searchParams.set("ref", externalReference);
     payload.searchParams.set("desc", `Pedido ${order.order_code}`);
     payload.searchParams.set("env", "sandbox");
-    payload.searchParams.set("ts", String(Math.floor(expiresAt.getTime() / 1000)));
+    payload.searchParams.set("ts", String(issuedAtMs));
+    payload.searchParams.set("exp", String(expiresAtMs));
 
     const { data: result, error: rpcError } = await service.rpc(
-      "create_or_reuse_optmapay_public_pix_intent_internal",
+      "create_or_reuse_optmapay_public_pix_intent_v2_internal",
       {
         p_public_order_token: publicOrderToken,
         p_candidate_intent_id: candidateIntentId,
@@ -241,10 +258,25 @@ Deno.serve(async (req: Request) => {
         p_pix_payload: payload.toString(),
         p_expires_at: expiresAt.toISOString(),
         p_merchant_account_id: merchant.id,
+        p_rotation_mode: rotationMode,
       },
     );
 
     if (rpcError) throw rpcError;
+
+    if (result?.error === "manual_regeneration_required") {
+      return reply({
+        ok: true,
+        eligible: true,
+        manualRegenerationRequired: true,
+        orderCode: order.order_code,
+        paymentStatus: order.payment_status,
+        environment: "sandbox",
+        realMoney: false,
+        intent: latestIntent,
+      }, 200, origin);
+    }
+
     if (!result?.ok) return reply(result, 409, origin);
 
     const returnedIntent = result.intent
@@ -256,6 +288,8 @@ Deno.serve(async (req: Request) => {
           pixPayload: result.intent.pix_payload || null,
           expiresAt: result.intent.expires_at || null,
           paidAt: result.intent.paid_at || null,
+          rotationCycle: Number(result.intent.rotation_cycle || 0),
+          autoRotationIndex: Number(result.intent.auto_rotation_index || 0),
         }
       : null;
 
@@ -264,6 +298,7 @@ Deno.serve(async (req: Request) => {
       eligible: true,
       reused: Boolean(result.reused),
       alreadyPaid: Boolean(result.already_paid),
+      manualRegenerationRequired: Boolean(result.manual_regeneration_required),
       orderCode: result.order_code || order.order_code,
       paymentStatus: result.already_paid ? "paid" : order.payment_status,
       environment: "sandbox",
