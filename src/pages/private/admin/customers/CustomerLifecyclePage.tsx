@@ -62,6 +62,7 @@ function consentSourceLabel(source?: string | null) {
     customer_portal_profile: 'Perfil do cliente',
     customer_loyalty_join: 'Adesão à fidelidade pelo cliente',
     customer_loyalty_preferences: 'Preferências de comunicação da fidelidade',
+    customer_communication_preferences: 'Preferências de comunicação do cliente',
     system_required_webapp: 'Canal interno obrigatório',
     public_store: 'Loja pública',
     whatsapp: 'WhatsApp',
