@@ -60,6 +60,9 @@ function consentSourceLabel(source?: string | null) {
     admin_recorded: 'Registrado no administrativo',
     customer_portal: 'Portal do cliente',
     customer_portal_profile: 'Perfil do cliente',
+    customer_loyalty_join: 'Adesão à fidelidade pelo cliente',
+    customer_loyalty_preferences: 'Preferências de comunicação da fidelidade',
+    system_required_webapp: 'Canal interno obrigatório',
     public_store: 'Loja pública',
     whatsapp: 'WhatsApp',
     qr_table: 'QR/Mesa',
@@ -91,6 +94,8 @@ function consentLabel(type?: string | null) {
     marketing_whatsapp: 'Marketing por WhatsApp',
     marketing_email: 'Marketing por e-mail',
     marketing_sms: 'Marketing por SMS',
+    loyalty_webapp: 'Web/App',
+    loyalty_data_responsibility: 'Responsabilidade pelos dados da fidelidade',
   };
   return labels[type || ''] || type || 'Consentimento';
 }
