@@ -158,11 +158,12 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
             </main>
 
             {sessionRestored && isAuthenticated && customer ? (
-                <CustomerAccountPortal />
+                <CustomerAccountPortal hideTrigger={!isCheckoutRoute} />
             ) : (
                 <CustomerAuthPortal
                     storeSlug={storeSlug}
                     storeId={context?.storeId || null}
+                    hideTrigger={!isCheckoutRoute}
                 />
             )}
 
