@@ -312,6 +312,8 @@ export function CustomerAccountPortal() {
     const [marketingWhatsapp, setMarketingWhatsapp] = useState(false);
     const [marketingEmail, setMarketingEmail] = useState(false);
     const [marketingSms, setMarketingSms] = useState(false);
+    const [loyaltyWebApp, setLoyaltyWebApp] = useState(true);
+    const [loyaltyPreferencesSaving, setLoyaltyPreferencesSaving] = useState(false);
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -328,6 +330,7 @@ export function CustomerAccountPortal() {
     }>>(new Map());
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
+    const loyaltyTopRef = useRef<HTMLDivElement | null>(null);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [exportingData, setExportingData] = useState(false);
@@ -642,6 +645,7 @@ export function CustomerAccountPortal() {
         setMarketingWhatsapp(latest.get('marketing_whatsapp') === 'granted');
         setMarketingEmail(latest.get('marketing_email') === 'granted');
         setMarketingSms(latest.get('marketing_sms') === 'granted');
+        setLoyaltyWebApp(latest.get('loyalty_webapp') !== 'revoked');
     }, [customer?.id]);
 
     useEffect(() => {
@@ -791,6 +795,53 @@ export function CustomerAccountPortal() {
         setOpen(false);
         navigate(`${basePath}?product=${encodeURIComponent(productId)}`);
     };
+
+    useEffect(() => {
+        if (!open || !customer || tab !== 'loyalty' || !customer.loyalty_opt_in) return;
+
+        let active = true;
+        let channel: ReturnType<typeof supabaseCustomer.channel> | null = null;
+
+        void (async () => {
+            const token = await AuthService.getRealtimeAccessToken();
+            if (!active || !token) return;
+
+            await supabaseCustomer.realtime.setAuth(token);
+            if (!active) return;
+
+            channel = supabaseCustomer
+                .channel(`customer-loyalty-${customer.id}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: '*',
+                        schema: 'public',
+                        table: 'loyalty_transactions',
+                        filter: `customer_id=eq.${customer.id}`,
+                    },
+                    () => {
+                        if (!active || document.visibilityState !== 'visible') return;
+                        void Promise.all([
+                            loadLoyaltyTransactions(),
+                            refreshCustomerSnapshot(),
+                        ]).catch(() => undefined);
+                    },
+                )
+                .subscribe();
+        })().catch(() => undefined);
+
+        return () => {
+            active = false;
+            if (channel) void supabaseCustomer.removeChannel(channel);
+        };
+    }, [
+        open,
+        customer?.id,
+        customer?.loyalty_opt_in,
+        tab,
+        loadLoyaltyTransactions,
+        refreshCustomerSnapshot,
+    ]);
 
     useEffect(() => {
         if (!open || !customer || tab !== 'loyalty') return;
@@ -1194,6 +1245,9 @@ export function CustomerAccountPortal() {
                 marketingEmail,
                 marketingSms,
             });
+            await CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, {
+                source: 'customer_loyalty_preferences',
+            });
 
             await Promise.all([
                 refreshCustomerSnapshot(),
@@ -1217,6 +1271,31 @@ export function CustomerAccountPortal() {
             toast.error(feedback);
         } finally {
             setLoyaltySaving(false);
+        }
+    };
+
+    const saveLoyaltyCommunicationPreferences = async () => {
+        clearFeedback();
+        setLoyaltyPreferencesSaving(true);
+        try {
+            await Promise.all([
+                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, { source: 'customer_loyalty_preferences' }),
+            ]);
+            await loadMarketingConsents();
+            const feedback = 'Preferências de comunicação atualizadas.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (preferencesError) {
+            const feedback = preferencesError instanceof Error
+                ? preferencesError.message
+                : 'Não foi possível salvar suas preferências de comunicação.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setLoyaltyPreferencesSaving(false);
         }
     };
 
