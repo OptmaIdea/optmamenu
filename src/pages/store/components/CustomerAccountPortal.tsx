@@ -793,8 +793,21 @@ export function CustomerAccountPortal() {
             : `/s/${encodeURIComponent(slug)}`;
 
         setOpen(false);
-        navigate(`${basePath}?product=${encodeURIComponent(productId)}`);
+        navigate(`${basePath}?product=${encodeURIComponent(productId)}&returnTo=consumption`);
     };
+
+    useEffect(() => {
+        const reopenAccount = (event: Event) => {
+            const detail = (event as CustomEvent<{ tab?: AccountTab }>).detail;
+            const targetTab = detail?.tab;
+            if (!targetTab) return;
+            setTab(targetTab);
+            setOpen(true);
+        };
+
+        window.addEventListener('optmamenu:open-customer-account', reopenAccount);
+        return () => window.removeEventListener('optmamenu:open-customer-account', reopenAccount);
+    }, []);
 
     useEffect(() => {
         if (!open || !customer || tab !== 'loyalty' || !customer.loyalty_opt_in) return;
