@@ -194,6 +194,24 @@ export function getMovementOperationLabel(movement: ProductMovementNarrativeInpu
     return getSaleChannelLabel(movement);
   }
 
+  if (type === 'reservation') {
+    const customer = getSaleCustomerLabel(movement);
+    const reference = getMovementReferenceLabel(movement);
+    const reservationStatus = String(movement.metadata?.reservation_status ?? '').toLowerCase();
+    const paymentStatus = String(movement.metadata?.payment_status ?? '').toLowerCase();
+
+    const statusSuffix =
+      reservationStatus === 'consumed'
+        ? ' A reserva foi posteriormente consumida na conclusão do pedido.'
+        : reservationStatus === 'cancelled'
+          ? ' A reserva foi posteriormente liberada.'
+          : paymentStatus === 'paid'
+            ? ' Pagamento confirmado: a reserva permanece protegida até a retirada/expedição.'
+            : ' O estoque físico ainda não foi baixado.';
+
+    return `${location} reservou ${qty} un. para ${customer} — ${reference}.${statusSuffix}`;
+  }
+
   if (type === 'clearance') {
     return 'Baixa / Perda';
   }
@@ -384,6 +402,13 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
 }
 
 export function getMovementStockPath(movement: ProductMovementNarrativeInput) {
+  const type = String(movement.type ?? '').toLowerCase();
+  const affectsPhysical = movement.metadata?.affects_physical;
+
+  if (type === 'reservation' || affectsPhysical === false) {
+    return 'Físico inalterado';
+  }
+
   const previous = asNumber(movement.previous_stock);
   const next = asNumber(movement.new_stock);
 
@@ -400,6 +425,7 @@ export function getMovementTone(movement: ProductMovementNarrativeInput) {
   if (source === 'manual_adjustment') return 'neutral';
   if (type === 'clearance') return 'danger';
   if (source === 'stock_transfer') return 'transfer';
+  if (type === 'reservation') return 'reservation';
   if (source === 'purchase_document' || source === 'purchase_receipt') return 'purchase';
   if (type === 'entry') return 'entry';
   if (type === 'exit') return 'exit';
@@ -417,6 +443,8 @@ export function getMovementToneClass(movement: ProductMovementNarrativeInput) {
       return 'border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/35 dark:text-red-100';
     case 'transfer':
       return 'border-blue-200 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-950/35 dark:text-blue-100';
+    case 'reservation':
+      return 'border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-800 dark:bg-violet-950/35 dark:text-violet-100';
     case 'purchase':
       return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/35 dark:text-emerald-100';
     case 'entry':
