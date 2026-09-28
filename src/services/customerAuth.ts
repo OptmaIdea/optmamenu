@@ -333,7 +333,7 @@ export const AuthService = {
         };
     },
 
-    async setPassword(currentPassword: string, password: string) {
+    async setPassword(password: string, currentPassword?: string) {
         const token = await refreshCustomerSessionIfNeeded();
         if (!token) throw new Error('Sua sessão expirou. Entre novamente antes de alterar a senha.');
 
