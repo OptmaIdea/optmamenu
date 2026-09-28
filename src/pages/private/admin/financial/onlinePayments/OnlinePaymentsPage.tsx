@@ -434,6 +434,13 @@ export default function OnlinePaymentsPage() {
                             </div>
                           </div>
 
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <a href="https://optmapay.optmaidea.com.br/dev-panel" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-violet-300 px-3 py-2 font-black text-violet-800 dark:border-violet-700 dark:text-violet-100">
+                              Abrir Painel do Desenvolvedor <ExternalLink size={13} />
+                            </a>
+                            <span className="opacity-75">Gere a API key e cadastre o webhook acima diretamente no OptmaPay.</span>
+                          </div>
+
                           <label className="block">
                             <span className="text-xs font-black uppercase tracking-wide">Account ID OptmaPay</span>
                             <input value={optmaAccountId} onChange={(event) => setOptmaAccountId(event.target.value)} placeholder="UUID da conta recebedora" autoComplete="off" className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white" />
