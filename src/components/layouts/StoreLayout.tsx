@@ -197,8 +197,13 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                 </div>
             )}
 
-            <footer className="hidden sm:block mt-12 text-center text-gray-400 text-sm pb-8">
-                <p>© {new Date().getFullYear()} <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="hover:underline">OptmaIdea</a>. Todos os direitos reservados.</p>
+            <footer className="mt-12 px-4 pb-28 text-center text-xs text-gray-400 sm:pb-8">
+                <p>
+                    © {new Date().getFullYear()} Loja online por{' '}
+                    <a href="https://optmamenu.com/" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">OptmaMenu</a>
+                    {' · '}
+                    <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">OptmaIdea</a>
+                </p>
             </footer>
         </div>
     );
