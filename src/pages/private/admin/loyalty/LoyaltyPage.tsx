@@ -127,6 +127,12 @@ export default function LoyaltyPage() {
     const [canManage, setCanManage] = useState(false);
     const [search, setSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+    const [membershipDialog, setMembershipDialog] = useState<{
+        action: 'remove' | 'ban' | 'unban';
+        customer: LoyaltyCustomer | null;
+        block: LoyaltyMembershipBlock | null;
+        reason: string;
+    } | null>(null);
 
     const [pointForm, setPointForm] = useState({
         id: '',
@@ -419,45 +425,67 @@ export default function LoyaltyPage() {
         }
     }
 
-    async function membershipAction(customer: LoyaltyCustomer, action: 'remove' | 'ban') {
-        if (!storeId || !canManage) return;
-        const verb = action === 'ban' ? 'bloquear' : 'remover';
-        const reason = action === 'ban'
-            ? window.prompt('Informe o motivo do bloqueio (mínimo 3 caracteres):', '')
-            : window.prompt('Motivo da remoção (opcional):', '');
-        if (reason === null) return;
+    function openMembershipDialog(customer: LoyaltyCustomer, action: 'remove' | 'ban') {
+        setMembershipDialog({
+            action,
+            customer,
+            block: null,
+            reason: '',
+        });
+    }
+
+    function openUnbanDialog(block: LoyaltyMembershipBlock) {
+        if (!block.customer_id) {
+            toast.error('Este bloqueio não possui cliente vinculado para desbloqueio pela interface.');
+            return;
+        }
+        setMembershipDialog({
+            action: 'unban',
+            customer: null,
+            block,
+            reason: '',
+        });
+    }
+
+    async function confirmMembershipDialog() {
+        if (!storeId || !canManage || !membershipDialog) return;
+
+        const { action, customer, block, reason } = membershipDialog;
         if (action === 'ban' && reason.trim().length < 3) {
             toast.error('O bloqueio exige um motivo com pelo menos 3 caracteres.');
             return;
         }
-        if (!window.confirm('Confirma ' + verb + ' ' + displayCustomer(customer) + ' do programa?')) return;
-        setSaving(true);
-        try {
-            await LoyaltyAdvancedService.setMembershipAction(storeId, customer.id, action, reason.trim() || null);
-            toast.success(action === 'ban' ? 'CPF bloqueado para novas adesões.' : 'Participação removida; reentrada continua permitida.');
-            if (selectedCustomerId === customer.id) setSelectedCustomerId('');
-            await loadAll();
-        } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Não foi possível concluir a ação.');
-        } finally {
-            setSaving(false);
-        }
-    }
 
-    async function unban(block: LoyaltyMembershipBlock) {
-        if (!storeId || !canManage || !block.customer_id) {
-            toast.error('Este bloqueio não possui cliente vinculado para desbloqueio pela interface.');
+        const customerId = action === 'unban' ? block?.customer_id : customer?.id;
+        if (!customerId) {
+            toast.error('Não foi possível identificar o cliente desta ação.');
             return;
         }
-        const reason = window.prompt('Observação do desbloqueio (opcional):', '');
-        if (reason === null) return;
+
         setSaving(true);
         try {
-            await LoyaltyAdvancedService.setMembershipAction(storeId, block.customer_id, 'unban', reason.trim() || null);
-            toast.success('CPF liberado para nova adesão.');
+            await LoyaltyAdvancedService.setMembershipAction(
+                storeId,
+                customerId,
+                action,
+                reason.trim() || null,
+            );
+
+            if (action === 'ban') toast.success('CPF bloqueado para novas adesões.');
+            else if (action === 'unban') toast.success('CPF liberado para nova adesão.');
+            else toast.success('Participação removida; reentrada continua permitida.');
+
+            if (selectedCustomerId === customerId) setSelectedCustomerId('');
+            setMembershipDialog(null);
             await loadAll();
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Erro ao desbloquear.');
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : action === 'unban'
+                        ? 'Erro ao desbloquear.'
+                        : 'Não foi possível concluir a ação.',
+            );
         } finally {
             setSaving(false);
         }
@@ -893,7 +921,7 @@ export default function LoyaltyPage() {
                                         <td className="px-3 py-3">{customer.loyalty_tier || '—'}</td>
                                         <td className="px-3 py-3">{customer.join_count || 1}</td>
                                         <td className="px-3 py-3">{customer.cpf_last4 ? '•••.' + customer.cpf_last4 : '—'}</td>
-                                        <td className="px-3 py-3"><div className="flex gap-2"><button type="button" disabled={!canManage || saving} onClick={() => void membershipAction(customer, 'remove')} className="rounded-lg border px-2 py-1 text-xs font-bold disabled:opacity-50 dark:border-gray-700">Remover</button><button type="button" disabled={!canManage || saving || !customer.cpf_last4} onClick={() => void membershipAction(customer, 'ban')} className="rounded-lg border border-red-200 px-2 py-1 text-xs font-bold text-red-600 disabled:opacity-50 dark:border-red-900">Bloquear CPF</button></div></td>
+                                        <td className="px-3 py-3"><div className="flex gap-2"><button type="button" disabled={!canManage || saving} onClick={() => openMembershipDialog(customer, 'remove')} className="rounded-lg border px-2 py-1 text-xs font-bold disabled:opacity-50 dark:border-gray-700">Remover</button><button type="button" disabled={!canManage || saving || !customer.cpf_last4} onClick={() => openMembershipDialog(customer, 'ban')} className="rounded-lg border border-red-200 px-2 py-1 text-xs font-bold text-red-600 disabled:opacity-50 dark:border-red-900">Bloquear CPF</button></div></td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -977,7 +1005,7 @@ export default function LoyaltyPage() {
                                 {blocks.filter((block) => !block.unblocked_at).map((block) => (
                                     <div key={block.id} className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 p-3 dark:border-gray-800">
                                         <div><div className="font-bold text-gray-900 dark:text-white">{block.customer_name || 'Cliente'}</div><div className="text-xs text-gray-500">CPF •••.{block.cpf_last4 || '—'} · {block.reason || 'sem motivo'} · {formatDate(block.blocked_at)}</div></div>
-                                        <button type="button" disabled={!canManage || saving || !block.customer_id} onClick={() => void unban(block)} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 dark:border-gray-700">Liberar CPF</button>
+                                        <button type="button" disabled={!canManage || saving || !block.customer_id} onClick={() => openUnbanDialog(block)} className="rounded-lg border px-3 py-2 text-xs font-bold disabled:opacity-50 dark:border-gray-700">Liberar CPF</button>
                                     </div>
                                 ))}
                                 {!blocks.some((block) => !block.unblocked_at) && <p className="text-sm text-gray-500">Nenhum bloqueio ativo.</p>}
@@ -1028,6 +1056,88 @@ export default function LoyaltyPage() {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {membershipDialog && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="loyalty-membership-dialog-title"
+                        className="w-full max-w-lg rounded-3xl border border-gray-200 bg-white p-5 shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+                    >
+                        <div className="flex items-start gap-3">
+                            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
+                                membershipDialog.action === 'ban'
+                                    ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            }`}>
+                                {membershipDialog.action === 'ban' ? <Ban size={20} /> : <ShieldCheck size={20} />}
+                            </div>
+                            <div className="min-w-0">
+                                <h2 id="loyalty-membership-dialog-title" className="text-lg font-black text-gray-900 dark:text-white">
+                                    {membershipDialog.action === 'ban'
+                                        ? 'Bloquear CPF no programa'
+                                        : membershipDialog.action === 'unban'
+                                            ? 'Liberar CPF para nova adesão'
+                                            : 'Remover participação'}
+                                </h2>
+                                <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">
+                                    {membershipDialog.action === 'ban'
+                                        ? `O cliente será removido do programa e o CPF ficará impedido de aderir novamente até o desbloqueio.`
+                                        : membershipDialog.action === 'unban'
+                                            ? 'O bloqueio será encerrado e uma nova adesão voltará a ser permitida.'
+                                            : `${membershipDialog.customer ? displayCustomer(membershipDialog.customer) : 'O cliente'} sairá do programa, mas poderá aderir novamente depois.`}
+                                </p>
+                            </div>
+                        </div>
+
+                        <label className="mt-5 block">
+                            <span className={labelClass}>
+                                {membershipDialog.action === 'ban' ? 'Motivo do bloqueio' : 'Observação'}
+                            </span>
+                            <textarea
+                                rows={4}
+                                className={fieldClass}
+                                value={membershipDialog.reason}
+                                onChange={(event) => setMembershipDialog((current) => current ? {
+                                    ...current,
+                                    reason: event.target.value,
+                                } : current)}
+                                placeholder={membershipDialog.action === 'ban' ? 'Obrigatório, mínimo 3 caracteres' : 'Opcional'}
+                            />
+                        </label>
+
+                        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => setMembershipDialog(null)}
+                                className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                disabled={saving || (membershipDialog.action === 'ban' && membershipDialog.reason.trim().length < 3)}
+                                onClick={() => void confirmMembershipDialog()}
+                                className={`rounded-xl px-4 py-2.5 text-sm font-black text-white transition disabled:opacity-50 ${
+                                    membershipDialog.action === 'ban'
+                                        ? 'bg-red-600 hover:bg-red-700'
+                                        : 'bg-[#19A999] hover:bg-[#14887B]'
+                                }`}
+                            >
+                                {saving
+                                    ? 'Salvando…'
+                                    : membershipDialog.action === 'ban'
+                                        ? 'Confirmar bloqueio'
+                                        : membershipDialog.action === 'unban'
+                                            ? 'Confirmar desbloqueio'
+                                            : 'Confirmar remoção'}
+                            </button>
+                        </div>
+                    </section>
                 </div>
             )}
         </PageContainer>
