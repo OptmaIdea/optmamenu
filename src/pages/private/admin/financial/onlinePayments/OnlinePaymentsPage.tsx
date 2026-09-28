@@ -94,8 +94,38 @@ function capabilityLabel(capability: string) {
     credit_card: 'Cartão',
     payment_link: 'Link de pagamento',
     test_scenarios: 'Cenários de teste',
+    external_adapter: 'Integração externa',
   };
   return labels[capability] || capability.replaceAll('_', ' ');
+}
+
+function optmaConnectionMessage(error?: string | null) {
+  const value = String(error || '').trim();
+  if (!value) return 'A conexão ainda não está pronta.';
+
+  if (value.includes('FORBIDDEN_ACCOUNT')) {
+    return 'A API key pertence a outra conta do OptmaPay. Use o Account ID da mesma conta em que a chave foi gerada, ou gere uma nova chave nessa conta e salve novamente.';
+  }
+  if (value.includes('INVALID_API_KEY')) {
+    return 'A API key informada não é válida. Gere uma nova chave Sandbox no OptmaPay e salve novamente.';
+  }
+  if (value.includes('REVOKED_API_KEY')) {
+    return 'A API key foi revogada no OptmaPay. Gere uma nova chave Sandbox e substitua a credencial salva.';
+  }
+  if (value.includes('EXPIRED_API_KEY')) {
+    return 'A API key expirou. Gere uma nova chave Sandbox e substitua a credencial salva.';
+  }
+  if (value.includes('INSUFFICIENT_SCOPE')) {
+    return 'A API key não possui a permissão necessária. Gere uma chave com o escopo account:read e salve novamente.';
+  }
+  if (value.includes('ACCOUNT_NOT_FOUND') || value.includes('ACCOUNT_MISMATCH')) {
+    return 'A conta configurada no OptmaMenu não corresponde à conta da API key no OptmaPay. Confira o Account ID e a conta ativa usada para gerar a chave.';
+  }
+  if (value.includes('OPTMAPAY_API_KEY_NOT_CONFIGURED') || value.includes('API_KEY_NOT_CONFIGURED')) {
+    return 'A API key ainda não foi configurada para esta loja.';
+  }
+
+  return value;
 }
 
 function paymentMethodLabel(method: string) {
@@ -241,7 +271,7 @@ export default function OnlinePaymentsPage() {
       if (status.credentialStatus === 'ready') {
         toast.success(`Conexão OptmaPay validada${status.account?.name ? `: ${status.account.name}` : '.'}`);
       } else {
-        toast.warning(status.error || 'A conexão ainda não está pronta.');
+        toast.warning(optmaConnectionMessage(status.error));
       }
       await load();
     } catch (error) {
@@ -413,7 +443,7 @@ export default function OnlinePaymentsPage() {
                       <div>
                         <p className="font-black">Conexão OptmaPay Sandbox</p>
                         <p className="mt-1 text-xs opacity-80">
-                          Status: {optmaStatus?.credentialStatus === 'ready' ? 'conexão validada' : optmaStatus?.error || 'aguardando credenciais válidas'}.
+                          Status: {optmaStatus?.credentialStatus === 'ready' ? 'conexão validada' : optmaConnectionMessage(optmaStatus?.error)}
                         </p>
                         {optmaStatus?.account?.name && (
                           <p className="mt-1 text-xs font-semibold">Conta: {optmaStatus.account.name}</p>
@@ -443,6 +473,7 @@ export default function OnlinePaymentsPage() {
 
                           <label className="block">
                             <span className="text-xs font-black uppercase tracking-wide">Account ID OptmaPay</span>
+                            <span className="mt-1 block text-[11px] opacity-75">Use o ID da mesma conta do OptmaPay em que a API key foi gerada.</span>
                             <input value={optmaAccountId} onChange={(event) => setOptmaAccountId(event.target.value)} placeholder="UUID da conta recebedora" autoComplete="off" className="mt-1 w-full rounded-lg border border-violet-200 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-violet-800 dark:bg-gray-950 dark:text-white" />
                           </label>
 
