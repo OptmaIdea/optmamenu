@@ -16,6 +16,7 @@ export type ProductMovementNarrativeInput = {
   reason?: string | null;
   reason_code?: string | null;
   created_at?: string | null;
+  affects_physical?: boolean | null;
 
   location_name?: string | null;
   location_code?: string | null;
@@ -194,24 +195,6 @@ export function getMovementOperationLabel(movement: ProductMovementNarrativeInpu
     return getSaleChannelLabel(movement);
   }
 
-  if (type === 'reservation') {
-    const customer = getSaleCustomerLabel(movement);
-    const reference = getMovementReferenceLabel(movement);
-    const reservationStatus = String(movement.metadata?.reservation_status ?? '').toLowerCase();
-    const paymentStatus = String(movement.metadata?.payment_status ?? '').toLowerCase();
-
-    const statusSuffix =
-      reservationStatus === 'consumed'
-        ? ' A reserva foi posteriormente consumida na conclusão do pedido.'
-        : reservationStatus === 'cancelled'
-          ? ' A reserva foi posteriormente liberada.'
-          : paymentStatus === 'paid'
-            ? ' Pagamento confirmado: a reserva permanece protegida até a retirada/expedição.'
-            : ' O estoque físico ainda não foi baixado.';
-
-    return `${location} reservou ${qty} un. para ${customer} — ${reference}.${statusSuffix}`;
-  }
-
   if (type === 'clearance') {
     return 'Baixa / Perda';
   }
@@ -380,6 +363,24 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
     return `${destination} recebeu ${qty} un. por compra confirmada de ${supplier}.`;
   }
 
+  if (type === 'reservation') {
+    const customer = getSaleCustomerLabel(movement);
+    const reference = getMovementReferenceLabel(movement);
+    const reservationStatus = String(movement.metadata?.reservation_status ?? '').toLowerCase();
+    const paymentStatus = String(movement.metadata?.payment_status ?? '').toLowerCase();
+
+    const statusSuffix =
+      reservationStatus === 'consumed'
+        ? ' A reserva foi posteriormente consumida na conclusão do pedido.'
+        : reservationStatus === 'cancelled'
+          ? ' A reserva foi posteriormente liberada.'
+          : paymentStatus === 'paid'
+            ? ' Pagamento confirmado: a reserva permanece protegida até a retirada/expedição.'
+            : ' O estoque físico ainda não foi baixado.';
+
+    return `${location} reservou ${qty} un. para ${customer} — ${reference}.${statusSuffix}`;
+  }
+
   if (type === 'clearance') {
     return `${location} teve baixa de ${qty} un. no estoque.`;
   }
@@ -403,7 +404,7 @@ export function getMovementHumanDescription(movement: ProductMovementNarrativeIn
 
 export function getMovementStockPath(movement: ProductMovementNarrativeInput) {
   const type = String(movement.type ?? '').toLowerCase();
-  const affectsPhysical = movement.metadata?.affects_physical;
+  const affectsPhysical = movement.affects_physical ?? movement.metadata?.affects_physical;
 
   if (type === 'reservation' || affectsPhysical === false) {
     return 'Físico inalterado';
