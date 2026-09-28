@@ -30,6 +30,15 @@ export type PasswordLoginResult = {
     customer?: Customer;
 };
 
+export type TrustedCustomerDevice = {
+    id: string;
+    label: string;
+    is_current: boolean;
+    first_verified_at?: string | null;
+    last_otp_verified_at?: string | null;
+    last_seen_at?: string | null;
+};
+
 const CUSTOMER_REFRESH_TOKEN_KEY = 'customer_refresh_token';
 const CUSTOMER_EXPIRES_AT_KEY = 'customer_expires_at';
 const CUSTOMER_DEVICE_SECRET_KEY = 'customer_device_secret_v1';
@@ -324,23 +333,115 @@ export const AuthService = {
         };
     },
 
-    async setPassword(password: string) {
+    async setPassword(currentPassword: string, password: string) {
         const token = await refreshCustomerSessionIfNeeded();
-        if (!token) throw new Error('Sua sessão expirou. Confirme seu telefone novamente.');
+        if (!token) throw new Error('Sua sessão expirou. Entre novamente antes de alterar a senha.');
 
         const deviceTokenHash = await getDeviceTokenHash();
         const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
-            body: { action: 'set_password', password, deviceTokenHash },
+            body: { action: 'set_password', currentPassword, password, deviceTokenHash },
         });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            retryAfterSeconds?: number;
+            tokenHash?: string;
+            customer?: unknown;
+            passwordConfigured?: boolean;
+            revokedCount?: number;
+        } | null;
 
-        if (data?.error === 'weak_password') {
+        if (payload?.error === 'weak_password') {
             throw new Error('A senha deve ter de 8 a 72 caracteres, com letras e números.');
         }
-        if (data?.error === 'reauth_required') {
-            throw new Error('Por segurança, confirme seu telefone novamente antes de definir a senha.');
+        if (payload?.error === 'current_password_required') {
+            throw new Error('Informe sua senha atual.');
         }
-        if (error || !data?.ok) throw new Error('Não foi possível salvar a senha agora.');
-        return true;
+        if (payload?.error === 'invalid_current_password') {
+            throw new Error('A senha atual informada não confere.');
+        }
+        if (payload?.error === 'locked') {
+            const seconds = Math.max(60, Number(payload.retryAfterSeconds || 900));
+            throw new Error(`Muitas tentativas incorretas. Aguarde cerca de ${Math.ceil(seconds / 60)} minuto(s) e tente novamente.`);
+        }
+        if (payload?.error === 'reauth_required' || payload?.error === 'unauthorized') {
+            throw new Error('Sua sessão de segurança expirou. Entre novamente antes de alterar a senha.');
+        }
+        if (error || !payload?.ok || !payload.tokenHash || !payload.customer) {
+            throw new Error('Não foi possível alterar a senha agora.');
+        }
+
+        await completeSession(payload);
+        return {
+            changed: true,
+            revokedCount: Number(payload.revokedCount || 0),
+        };
+    },
+
+    async listTrustedDevices(): Promise<TrustedCustomerDevice[]> {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) throw new Error('Sua sessão expirou. Entre novamente para revisar seus dispositivos.');
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: { action: 'trusted_devices', deviceTokenHash },
+        });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            devices?: TrustedCustomerDevice[];
+        } | null;
+
+        if (payload?.error === 'reauth_required' || payload?.error === 'unauthorized') {
+            throw new Error('Sua sessão de segurança expirou. Entre novamente para revisar seus dispositivos.');
+        }
+        if (error || !payload?.ok) throw new Error('Não foi possível carregar os dispositivos confiáveis.');
+
+        return Array.isArray(payload.devices)
+            ? payload.devices.map((device) => ({
+                id: String(device.id),
+                label: String(device.label || 'Dispositivo confiável'),
+                is_current: Boolean(device.is_current),
+                first_verified_at: device.first_verified_at || null,
+                last_otp_verified_at: device.last_otp_verified_at || null,
+                last_seen_at: device.last_seen_at || null,
+            }))
+            : [];
+    },
+
+    async revokeOtherTrustedDevices() {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) throw new Error('Sua sessão expirou. Entre novamente para desconectar outros dispositivos.');
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: { action: 'revoke_other_devices', deviceTokenHash },
+        });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            devices?: TrustedCustomerDevice[];
+            revokedCount?: number;
+            tokenHash?: string;
+            customer?: unknown;
+            passwordConfigured?: boolean;
+        } | null;
+
+        if (payload?.error === 'reauth_required' || payload?.error === 'unauthorized') {
+            throw new Error('Sua sessão de segurança expirou. Entre novamente para desconectar outros dispositivos.');
+        }
+        if (error || !payload?.ok || !payload.tokenHash || !payload.customer) {
+            throw new Error('Não foi possível desconectar os outros dispositivos agora.');
+        }
+
+        await completeSession(payload);
+        return {
+            revokedCount: Number(payload.revokedCount || 0),
+            devices: Array.isArray(payload.devices) ? payload.devices : [],
+        };
     },
 
     async restoreSession() {
