@@ -312,7 +312,7 @@ export function CustomerAccountPortal() {
     const [marketingWhatsapp, setMarketingWhatsapp] = useState(false);
     const [marketingEmail, setMarketingEmail] = useState(false);
     const [marketingSms, setMarketingSms] = useState(false);
-    const [loyaltyWebApp, setLoyaltyWebApp] = useState(true);
+    const loyaltyWebApp = true;
     const [loyaltyPreferencesSaving, setLoyaltyPreferencesSaving] = useState(false);
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
@@ -645,7 +645,6 @@ export function CustomerAccountPortal() {
         setMarketingWhatsapp(latest.get('marketing_whatsapp') === 'granted');
         setMarketingEmail(latest.get('marketing_email') === 'granted');
         setMarketingSms(latest.get('marketing_sms') === 'granted');
-        setLoyaltyWebApp(latest.get('loyalty_webapp') !== 'revoked');
     }, [customer?.id]);
 
     useEffect(() => {
@@ -2082,10 +2081,10 @@ export function CustomerAccountPortal() {
                                                         <input type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
                                                         <MessageCircle className="h-4 w-4 text-emerald-600" /> SMS
                                                     </label>
-                                                    <label className="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                                        <input type="checkbox" checked={loyaltyWebApp} onChange={(event) => setLoyaltyWebApp(event.target.checked)} />
-                                                        <Sparkles className="h-4 w-4 text-emerald-600" /> Web/App
-                                                    </label>
+                                                    <div className="flex items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
+                                                        <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Web/App</span>
+                                                        <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
+                                                    </div>
                                                 </div>
                                             </div>
 
@@ -2132,7 +2131,7 @@ export function CustomerAccountPortal() {
                                         <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
                                             <h3 className="font-black text-slate-900 dark:text-white">Preferências de comunicação</h3>
                                             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                Você pode alterar ou revogar estes canais a qualquer momento. Web/App mantém as novidades de fidelidade apenas nesta área. Confirmações essenciais de adesão e saída continuam disponíveis mesmo sem canais promocionais.
+                                                Você pode alterar ou revogar WhatsApp, e-mail e SMS a qualquer momento. Web/App é o canal interno permanente da sua conta e permanece sempre ativo. Confirmações essenciais de adesão e saída continuam disponíveis mesmo sem canais promocionais.
                                             </p>
                                             <div className="mt-4 grid gap-2 sm:grid-cols-2">
                                                 <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
@@ -2147,10 +2146,10 @@ export function CustomerAccountPortal() {
                                                     <input type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
                                                     <MessageCircle className="h-4 w-4 text-emerald-600" /> SMS
                                                 </label>
-                                                <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                                    <input type="checkbox" checked={loyaltyWebApp} onChange={(event) => setLoyaltyWebApp(event.target.checked)} />
-                                                    <Sparkles className="h-4 w-4 text-emerald-600" /> Web/App
-                                                </label>
+                                                <div className="flex items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
+                                                    <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Web/App</span>
+                                                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
+                                                </div>
                                             </div>
                                             <button
                                                 type="button"
