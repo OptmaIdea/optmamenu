@@ -952,3 +952,104 @@ Ainda precisam de desenho/implementação específica:
 - homologação manual dos fluxos dependentes de OTP/SMS.
 
 A sugestão de mensagens de boas-vindas e movimentações do programa de fidelidade foi mantida fora desta frente para ser tratada na frente específica de Fidelidade.
+
+
+---
+
+## Fechamento complementar Clientes/Slug e refinamentos de Fidelidade — 27/09/2026
+
+### Homologações adicionais aprovadas
+
+O ciclo de expiração de pedido **Retirada + pagamento na retirada** foi validado de ponta a ponta em homologação:
+- contador normal;
+- destaque vermelho nos minutos finais;
+- estado **Prazo encerrado · cancela em Xm Ys** durante a carência;
+- estado **Expiração em processamento** até a execução do cron;
+- cancelamento automático;
+- atualização em tempo real no portal como **Expirado · Retirada**;
+- mensagem de pedido aceito informa o horário limite;
+- aviso de pronto mantém o limite de retirada;
+- finalização refletida corretamente;
+- console limpo no teste.
+
+Também foi validado **Retirada + pagamento antecipado**:
+- sem timer de expiração;
+- confirmação do pagamento refletida corretamente;
+- aviso de pronto correto;
+- conclusão do pedido sem regressão.
+
+Troca de telefone também passou em teste real:
+- telefone antigo deixa de autenticar;
+- troca exige OTP;
+- primeiro acesso com o número novo exige novo OTP/dispositivo confiável.
+
+Ficam pendentes apenas testes de borda de OTP, como código inválido/expirado e bloqueio por tentativas.
+
+### Meu consumo ligado ao catálogo
+
+A área **Meu consumo** passou a:
+- mostrar miniatura da imagem principal do produto quando ele ainda está disponível no catálogo;
+- transformar o nome/miniatura em acesso ao card atual do produto;
+- abrir o modal real do produto por deep-link `?product=<uuid>`;
+- preservar rota de mesa quando o contexto for QR/mesa;
+- renomear **Ver quando comprei** para **Pedidos**;
+- manter o histórico de compra mesmo quando o produto já não existe no catálogo, porém sem link enganoso.
+
+Commits:
+- `24d0405595d5726e7c39c0ef54915e5c39052159`;
+- `e3cad07df5deb8282933f0819bf70fe591f8c1d5`.
+
+### Preferências de comunicação da fidelidade
+
+Foi adicionada uma preferência auditável **Web/App**:
+- migration live/versionada `20260927211607_customer_loyalty_webapp_consent.sql`;
+- `set_customer_self_consent_safe` passa a aceitar `loyalty_webapp`;
+- a escolha Web/App não altera o agregado geral `marketing_consent`;
+- cliente participante pode alterar ou revogar WhatsApp, e-mail, SMS e Web/App na própria área de Fidelidade;
+- Web/App significa manter novidades do programa dentro do portal/app, sem exigir comunicação externa rotineira;
+- confirmações essenciais de adesão, saída, pedido e segurança permanecem independentes dessas preferências;
+- e-mail só pode ser habilitado quando estiver confirmado.
+
+Commits:
+- `c9b0cbee5b1fbeefc782f6d67379fee668029da4`;
+- `42c5103f3bf3a8b8c02338eeed6f5d206569c87c`;
+- `512373824d3bee61281151c05e90146bffd31adc`;
+- `a1b68958b9c715647c8089bb03e8ddb2098ba527`.
+
+### Extrato do cliente
+
+O extrato da Fidelidade agora:
+- fica abaixo de **Como funciona**;
+- possui **Voltar ao topo**;
+- continua com atualização manual de contingência;
+- também assina `loyalty_transactions` em Realtime com o JWT isolado do cliente e atualiza saldo + extrato quando houver movimentação.
+
+A tabela já possuía RLS de leitura do próprio cliente e participação no `supabase_realtime`; nenhuma abertura adicional de dados foi necessária.
+
+### UX administrativa da Fidelidade
+
+Remoção, bloqueio e desbloqueio de participantes deixaram de usar `window.prompt/window.confirm`.
+Agora usam modal próprio da aplicação, com:
+- motivo/observação no próprio modal;
+- validação de motivo mínimo no bloqueio;
+- confirmação visual consistente;
+- resultado por toast padrão Sonner.
+
+Commit:
+- `883be4b27a84a144841ca77ebb6bc8ff8f00740b`.
+
+### Regras aceitas para a próxima implementação
+
+**Retirada → Delivery** deve revalidar estoque/local de saída, cobertura, mínimo, frete e pagamento. Se já pago e o novo total for maior, nasce diferença a receber.
+
+**Delivery → Retirada** deve revalidar estoque da loja e remover/recalcular o frete. Se o frete já tiver sido pago, nasce valor auditável a devolver.
+
+Frete excepcional acertado fora da tabela normal deve ser armazenado como **taxa manual daquele pedido**, com valor, motivo, operador e horário, sem alterar a configuração global.
+
+**Cancelamento pelo cliente**:
+- antes de retirada/entrega e sem pagamento: cancela e libera a reserva;
+- pago e ainda não retirado/despachado: cancelamento depende do fluxo de estorno e confirmação financeira;
+- após conclusão: passa a ser devolução/estorno da venda, não simples cancelamento;
+- regra futura para itens preparados poderá bloquear cancelamento após início de preparo.
+
+Essas duas frentes permanecem como próximo pacote funcional; não foram marcadas como concluídas nesta rodada.
