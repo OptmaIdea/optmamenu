@@ -271,7 +271,7 @@ function PasswordField({
     );
 }
 
-export function CustomerAccountPortal() {
+export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: boolean }) {
     const navigate = useNavigate();
     const customer = useCustomerAuth((state) => state.customer);
     const cartContext = useCartStore((state) => state.context);
@@ -1426,6 +1426,7 @@ export function CustomerAccountPortal() {
 
     return (
         <>
+            {!hideTrigger && (
             <div className="fixed bottom-28 left-4 z-[65] sm:bottom-5">
                 <div className="flex items-center gap-1 rounded-full border border-emerald-200 bg-white p-1 pl-2 shadow-xl dark:border-emerald-900 dark:bg-slate-900">
                     <button
@@ -1450,6 +1451,7 @@ export function CustomerAccountPortal() {
                     </button>
                 </div>
             </div>
+            )}
 
             {open && (
                 <div className="fixed inset-0 z-[120] flex items-stretch justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
