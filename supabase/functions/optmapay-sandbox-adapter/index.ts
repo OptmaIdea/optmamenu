@@ -182,7 +182,8 @@ Deno.serve(async (req: Request) => {
 
       const intentId = crypto.randomUUID();
       const externalReference = buildOptmaMenuPixReference(storeId, intentId);
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+      const issuedAtMs = Date.now();
+      const expiresAt = new Date(issuedAtMs + 15 * 60 * 1000);
       const description = String(body?.description || "Pagamento OptmaMenu").slice(0, 120);
       const payload = new URL("OPTMAPAY://PIX/v1");
       payload.searchParams.set("to", pixKey);
@@ -192,7 +193,8 @@ Deno.serve(async (req: Request) => {
       payload.searchParams.set("ref", externalReference);
       payload.searchParams.set("desc", description);
       payload.searchParams.set("env", "sandbox");
-      payload.searchParams.set("ts", String(Math.floor(expiresAt.getTime() / 1000)));
+      payload.searchParams.set("ts", String(issuedAtMs));
+      payload.searchParams.set("exp", String(expiresAt.getTime()));
 
       const { data: intent, error: intentError } = await service
         .from("online_payment_intents")
