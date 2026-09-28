@@ -392,6 +392,26 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         };
     }, [cartContext?.canonicalSlug, cartContext?.requestedSlug]);
 
+    useEffect(() => {
+        if (!open) return;
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                setOpen(false);
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [open]);
+
     const consumptionHistory = useMemo(() => {
         const grouped = new Map<string, {
             key: string;
@@ -1613,11 +1633,16 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
             {open && (
                 <div className="fixed inset-0 z-[120] flex items-stretch justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-4">
-                    <div className="flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-950 sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl">
+                    <div
+                        className="flex h-full w-full flex-col overflow-hidden bg-white shadow-2xl dark:bg-slate-950 sm:h-[90vh] sm:max-w-4xl sm:rounded-3xl"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="customer-account-title"
+                    >
                         <header className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6">
                             <div>
                                 <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Minha conta</p>
-                                <h2 className="mt-1 text-xl font-black text-slate-900 dark:text-white">{displayName}</h2>
+                                <h2 id="customer-account-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">{displayName}</h2>
                                 <p className="text-xs text-slate-500">{customer.phone}</p>
                             </div>
                             <button
@@ -1625,6 +1650,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                 onClick={() => setOpen(false)}
                                 className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                 aria-label="Fechar minha conta"
+                                autoFocus
                             >
                                 <X className="h-5 w-5" />
                             </button>
