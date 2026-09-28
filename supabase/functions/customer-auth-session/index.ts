@@ -29,6 +29,72 @@ function validDeviceHash(value: unknown) {
   return /^[0-9a-f]{64}$/i.test(String(value || ""));
 }
 
+function decodeJwtIssuedAt(token: string) {
+  try {
+    const payload = token.split(".")[1] || "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+    const parsed = JSON.parse(atob(padded));
+    const issuedAt = Number(parsed?.iat || 0);
+    return Number.isFinite(issuedAt) ? issuedAt : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function deviceLabelFromUserAgent(userAgent: string) {
+  const ua = userAgent || "";
+  let browser = "Navegador";
+  let platform = "dispositivo";
+
+  if (/Edg\//i.test(ua)) browser = "Microsoft Edge";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/CriOS\//i.test(ua) || /Chrome\//i.test(ua)) browser = "Chrome";
+  else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = "Safari";
+
+  if (/Android/i.test(ua)) platform = "Android";
+  else if (/iPhone/i.test(ua)) platform = "iPhone";
+  else if (/iPad/i.test(ua)) platform = "iPad";
+  else if (/Windows/i.test(ua)) platform = "Windows";
+  else if (/Mac OS X|Macintosh/i.test(ua)) platform = "Mac";
+  else if (/Linux/i.test(ua)) platform = "Linux";
+
+  return `${browser} em ${platform}`;
+}
+
+async function persistDeviceMetadata(
+  service: any,
+  customerId: string,
+  storeId: string,
+  deviceTokenHash: string,
+  req: Request,
+) {
+  if (!validDeviceHash(deviceTokenHash)) return;
+
+  const userAgent = String(req.headers.get("user-agent") || "").slice(0, 500);
+  await service
+    .from("customer_auth_trusted_devices")
+    .update({
+      device_label: deviceLabelFromUserAgent(userAgent),
+      user_agent: userAgent || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("customer_id", customerId)
+    .eq("store_id", storeId)
+    .eq("device_token_hash", deviceTokenHash)
+    .is("revoked_at", null);
+}
+
+async function waitForRotatedSessionBoundary(validAfter: unknown) {
+  const validAfterMs = Date.parse(String(validAfter || ""));
+  if (!Number.isFinite(validAfterMs)) return;
+  const requiredMs = Math.ceil(validAfterMs / 1000) * 1000 + 75;
+  const delay = Math.max(0, requiredMs - Date.now());
+  if (delay > 0) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(delay, 1500)));
+  }
+}
+
 function normalizeCustomer(row: any) {
   return {
     id: String(row.id),
@@ -86,11 +152,21 @@ async function getBearerIdentity(service: any, req: Request) {
 
   const { data: identity } = await service
     .from("customer_auth_identities")
-    .select("customer_id,store_id")
+    .select("customer_id,store_id,revoked_at,sessions_valid_after")
     .eq("auth_user_id", authUserId)
     .maybeSingle();
 
-  return identity || null;
+  if (!identity || identity.revoked_at) return null;
+
+  if (identity.sessions_valid_after) {
+    const issuedAt = decodeJwtIssuedAt(token);
+    const validAfterSeconds = Math.ceil(Date.parse(String(identity.sessions_valid_after)) / 1000);
+    if (!issuedAt || !Number.isFinite(validAfterSeconds) || issuedAt < validAfterSeconds) {
+      return null;
+    }
+  }
+
+  return identity;
 }
 
 async function issueSessionProof(service: any, customerId: string, storeId: string) {
@@ -182,11 +258,113 @@ Deno.serve(async (req: Request) => {
       return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
     }
 
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+
     const customer = await loadCustomer(service, String(identity.customer_id), String(identity.store_id));
     if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
 
     return json({
       ok: true,
+      customer: normalizeCustomer(customer),
+      passwordConfigured: await passwordConfigured(service, String(identity.customer_id)),
+    }, 200, origin);
+  }
+
+  if (action === "trusted_devices") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "unauthorized" }, 401, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 401, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+
+    const { data: result, error } = await service.rpc("customer_list_trusted_devices_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+    });
+    if (error) return json({ ok: false, error: "device_list_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "device_list_failed" }, 400, origin);
+    return json({ ok: true, devices: result.devices || [], activeCount: Number(result.active_count || 0) }, 200, origin);
+  }
+
+  if (action === "revoke_other_devices") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "unauthorized" }, 401, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 401, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
+    }
+
+    const { data: rotation, error: rotationError } = await service.rpc(
+      "customer_revoke_other_trusted_devices_service_safe",
+      {
+        p_customer_id: identity.customer_id,
+        p_store_id: identity.store_id,
+        p_current_device_hash: deviceTokenHash,
+      },
+    );
+    if (rotationError || !rotation?.ok) {
+      return json({ ok: false, error: rotation?.error || "device_revoke_failed" }, 400, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+    await waitForRotatedSessionBoundary(rotation.sessions_valid_after);
+
+    const customer = await loadCustomer(service, String(identity.customer_id), String(identity.store_id));
+    if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
+
+    const tokenHash = await issueSessionProof(service, String(identity.customer_id), String(identity.store_id));
+    if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
+
+    const { data: listed } = await service.rpc("customer_list_trusted_devices_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+    });
+
+    return json({
+      ok: true,
+      revokedCount: Number(rotation.revoked_count || 0),
+      devices: listed?.devices || [],
+      tokenHash,
+      verificationType: "magiclink",
       customer: normalizeCustomer(customer),
       passwordConfigured: await passwordConfigured(service, String(identity.customer_id)),
     }, 200, origin);
@@ -204,7 +382,27 @@ Deno.serve(async (req: Request) => {
     });
     if (!deviceState?.ok) return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 401, origin);
 
+    const currentPassword = String(input.currentPassword || "");
     const password = String(input.password || "");
+    if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 400, origin);
+
+    const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_password: currentPassword,
+    });
+    if (verifyError) return json({ ok: false, error: "password_verification_failed" }, 500, origin);
+    if (!verified?.ok) {
+      if (verified?.error === "locked") {
+        return json({
+          ok: false,
+          error: "locked",
+          retryAfterSeconds: Number(verified.retry_after_seconds || 900),
+        }, 423, origin);
+      }
+      return json({ ok: false, error: "invalid_current_password" }, 401, origin);
+    }
+
     const { data: result, error } = await service.rpc("customer_set_password_service_safe", {
       p_customer_id: identity.customer_id,
       p_store_id: identity.store_id,
@@ -212,7 +410,42 @@ Deno.serve(async (req: Request) => {
     });
     if (error) return json({ ok: false, error: "password_update_failed" }, 500, origin);
     if (!result?.ok) return json({ ok: false, error: result?.error || "password_update_failed" }, 400, origin);
-    return json({ ok: true }, 200, origin);
+
+    const { data: rotation, error: rotationError } = await service.rpc(
+      "customer_revoke_other_trusted_devices_service_safe",
+      {
+        p_customer_id: identity.customer_id,
+        p_store_id: identity.store_id,
+        p_current_device_hash: deviceTokenHash,
+      },
+    );
+    if (rotationError || !rotation?.ok) {
+      return json({ ok: false, error: rotation?.error || "session_rotation_failed" }, 500, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+    await waitForRotatedSessionBoundary(rotation.sessions_valid_after);
+
+    const customer = await loadCustomer(service, String(identity.customer_id), String(identity.store_id));
+    if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
+
+    const tokenHash = await issueSessionProof(service, String(identity.customer_id), String(identity.store_id));
+    if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
+
+    return json({
+      ok: true,
+      revokedCount: Number(rotation.revoked_count || 0),
+      tokenHash,
+      verificationType: "magiclink",
+      customer: normalizeCustomer(customer),
+      passwordConfigured: true,
+    }, 200, origin);
   }
 
   if (action === "password_login") {
@@ -250,6 +483,8 @@ Deno.serve(async (req: Request) => {
 
     const customer = await loadCustomer(service, customerId, storeId);
     if (!customer) return json({ ok: false, error: "invalid_credentials" }, 401, origin);
+
+    await persistDeviceMetadata(service, customerId, storeId, deviceTokenHash, req);
 
     const tokenHash = await issueSessionProof(service, customerId, storeId);
     if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
@@ -345,6 +580,7 @@ Deno.serve(async (req: Request) => {
       console.error("customer_trust_device_failed", { customerId, storeId });
       return json({ ok: false, error: "device_trust_failed" }, 500, origin);
     }
+    await persistDeviceMetadata(service, customerId, storeId, deviceTokenHash, req);
   }
 
   const customer = await loadCustomer(service, customerId, storeId);
