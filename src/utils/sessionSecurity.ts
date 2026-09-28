@@ -92,37 +92,20 @@ async function validateSessionSecurityOnce(signOutFn: () => Promise<void>): Prom
         }
         return true;
     } else {
-        // Sem sessão ativa no sessionStorage desta aba (início frio ou nova aba).
-        // Envia ping para outras abas ativas
+        // Uma nova aba não herda obrigatoriamente o sessionStorage da aba de origem.
+        // A autenticação Supabase já foi validada antes desta função; portanto,
+        // ausência da flag local não deve invalidar uma sessão legítima.
+        //
+        // Mantemos o BroadcastChannel apenas como coordenação auxiliar, mas não
+        // dependemos mais de um pong em poucos milissegundos (abas em background
+        // podem ser throttled pelo navegador).
         const chan = getChannel();
-        if (!chan) return true;
-
-        let hasOtherTabs = false;
-        const handlePong = (e: MessageEvent) => {
-            if (e.data && e.data.type === 'pong') {
-                hasOtherTabs = true;
-            }
-        };
-
-        chan.addEventListener('message', handlePong);
-        chan.postMessage({ type: 'ping' });
-
-        // Aguarda 200ms para obter resposta das outras abas
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        chan.removeEventListener('message', handlePong);
-
-        if (hasOtherTabs) {
-            // Outra aba está logada, podemos adotar a sessão nesta aba
-            markSessionAsActive();
-            return true;
-        } else {
-            // Nenhuma outra aba está ativa. Foi um início frio total (navegador fechado).
-            // Forçamos o logout para invalidar a persistência do localStorage
-            await logDisconnectedEvent('Sessão encerrada devido ao fechamento do navegador ou todas as abas.');
-            clearSessionSecurity();
-            await signOutFn();
-            return false;
+        if (chan) {
+            chan.postMessage({ type: 'ping' });
         }
+
+        markSessionAsActive();
+        return true;
     }
 }
 
