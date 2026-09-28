@@ -141,9 +141,12 @@ async function passwordConfigured(service: any, customerId: string) {
   return Boolean(data?.customer_id);
 }
 
+function getBearerToken(req: Request) {
+  return (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+}
+
 async function getBearerIdentity(service: any, req: Request) {
-  const bearer = req.headers.get("authorization") || "";
-  const token = bearer.replace(/^Bearer\s+/i, "").trim();
+  const token = getBearerToken(req);
   if (!token) return null;
 
   const { data: userData, error: userError } = await service.auth.getUser(token);
@@ -346,6 +349,16 @@ Deno.serve(async (req: Request) => {
       return json({ ok: false, error: "invalid_current_password" }, 401, origin);
     }
 
+    const currentJwt = getBearerToken(req);
+    const { error: globalSignOutError } = await service.auth.admin.signOut(currentJwt, "global");
+    if (globalSignOutError) {
+      console.error("customer_global_signout_failed", {
+        customerId: identity.customer_id,
+        code: globalSignOutError.code,
+      });
+      return json({ ok: false, error: "session_rotation_failed" }, 500, origin);
+    }
+
     const { data: rotation, error: rotationError } = await service.rpc(
       "customer_revoke_other_trusted_devices_service_safe",
       {
@@ -434,6 +447,16 @@ Deno.serve(async (req: Request) => {
     });
     if (error) return json({ ok: false, error: "password_update_failed" }, 500, origin);
     if (!result?.ok) return json({ ok: false, error: result?.error || "password_update_failed" }, 400, origin);
+
+    const currentJwt = getBearerToken(req);
+    const { error: globalSignOutError } = await service.auth.admin.signOut(currentJwt, "global");
+    if (globalSignOutError) {
+      console.error("customer_password_global_signout_failed", {
+        customerId: identity.customer_id,
+        code: globalSignOutError.code,
+      });
+      return json({ ok: false, error: "session_rotation_failed" }, 500, origin);
+    }
 
     const { data: rotation, error: rotationError } = await service.rpc(
       "customer_revoke_other_trusted_devices_service_safe",
