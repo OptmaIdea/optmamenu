@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
+    BellRing,
     ChevronDown,
     ChevronUp,
     Eye,
@@ -85,6 +86,15 @@ interface LoyaltyTransactionSummary {
     created_at?: string | null;
 }
 
+interface CustomerNotificationSummary {
+    id: string;
+    title?: string | null;
+    message?: string | null;
+    type?: string | null;
+    read?: boolean;
+    created_at?: string | null;
+}
+
 interface LoyaltyProgramSummary {
     id?: string;
     name?: string;
@@ -102,7 +112,7 @@ interface LoyaltyProgramSummary {
     updated_at?: string;
 }
 
-type AccountTab = 'profile' | 'addresses' | 'orders' | 'consumption' | 'loyalty' | 'security';
+type AccountTab = 'profile' | 'addresses' | 'orders' | 'consumption' | 'communications' | 'loyalty' | 'security';
 
 const CUSTOMER_ORDERS_REFRESH_MS = 12000;
 
@@ -314,6 +324,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [marketingSms, setMarketingSms] = useState(false);
     const loyaltyWebApp = true;
     const [loyaltyPreferencesSaving, setLoyaltyPreferencesSaving] = useState(false);
+    const [notifications, setNotifications] = useState<CustomerNotificationSummary[]>([]);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -647,6 +659,27 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         setMarketingSms(latest.get('marketing_sms') === 'granted');
     }, [customer?.id]);
 
+    const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+        if (!customer) return;
+        if (!silent) setNotificationsLoading(true);
+        try {
+            const rows = await CustomerService.getNotifications(customer.id);
+            setNotifications((rows || []).map((row) => {
+                const item = row as Record<string, unknown>;
+                return {
+                    id: String(item.id ?? ''),
+                    title: item.title ? String(item.title) : null,
+                    message: item.message ? String(item.message) : null,
+                    type: item.type ? String(item.type) : null,
+                    read: Boolean(item.read),
+                    created_at: item.created_at ? String(item.created_at) : null,
+                };
+            }).filter((item) => item.id));
+        } finally {
+            if (!silent) setNotificationsLoading(false);
+        }
+    }, [customer?.id]);
+
     useEffect(() => {
         ordersRef.current = [];
         setOrders([]);
@@ -879,6 +912,29 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         loadLoyaltyTransactions,
         loadLoyaltyProgram,
         loadMarketingConsents,
+    ]);
+
+    useEffect(() => {
+        if (!open || !customer || tab !== 'communications') return;
+
+        void Promise.all([
+            loadMarketingConsents(),
+            loadNotifications(),
+        ]).catch((communicationError) => {
+            console.error('[CUSTOMER_COMMUNICATIONS] Falha ao atualizar comunicações:', communicationError);
+        });
+
+        const intervalId = window.setInterval(() => {
+            void loadNotifications({ silent: true }).catch(() => undefined);
+        }, CUSTOMER_ORDERS_REFRESH_MS);
+
+        return () => window.clearInterval(intervalId);
+    }, [
+        open,
+        customer?.id,
+        tab,
+        loadMarketingConsents,
+        loadNotifications,
     ]);
 
     if (!customer) return null;
@@ -1286,15 +1342,15 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     };
 
-    const saveLoyaltyCommunicationPreferences = async () => {
+    const saveCommunicationPreferences = async () => {
         clearFeedback();
         setLoyaltyPreferencesSaving(true);
         try {
             await Promise.all([
-                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_loyalty_preferences' }),
-                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_loyalty_preferences' }),
-                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_loyalty_preferences' }),
-                CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_communication_preferences' }),
+                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_communication_preferences' }),
+                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_communication_preferences' }),
+                CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, { source: 'customer_communication_preferences' }),
             ]);
             await loadMarketingConsents();
             const feedback = 'Preferências de comunicação atualizadas.';
@@ -1309,6 +1365,18 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         } finally {
             setLoyaltyPreferencesSaving(false);
         }
+    };
+
+    const markNotificationRead = async (notificationId: string) => {
+        await CustomerService.markAsRead(notificationId);
+        setNotifications((current) => current.map((notification) =>
+            notification.id === notificationId ? { ...notification, read: true } : notification
+        ));
+    };
+
+    const markAllNotificationsRead = async () => {
+        await CustomerService.markAllAsRead(customer?.id);
+        setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
     };
 
     const leaveLoyaltyProgram = async () => {
@@ -1420,6 +1488,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         { id: 'addresses', label: 'Endereços', icon: MapPin },
         { id: 'orders', label: 'Pedidos', icon: PackageCheck },
         { id: 'consumption', label: 'Meu consumo', icon: History },
+        { id: 'communications', label: 'Comunicações', icon: BellRing },
         { id: 'loyalty', label: 'Fidelidade', icon: Gift },
         { id: 'security', label: 'Segurança', icon: KeyRound },
     ];
@@ -1971,6 +2040,130 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                 </div>
                             )}
 
+                            {tab === 'communications' && (
+                                <div className="mx-auto max-w-2xl space-y-4">
+                                    <section className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                                        <div className="flex items-start gap-3">
+                                            <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Como a loja pode falar com você</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Mensagens essenciais de pedido, conta e segurança não são publicidade e continuam disponíveis quando necessárias. As opções abaixo controlam apenas promoções e novidades enviadas para fora desta área.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Web/App</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Canal interno da sua conta para status de pedidos, segurança, avisos do programa e outras informações do relacionamento com a loja.
+                                                </p>
+                                            </div>
+                                            <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
+                                        </div>
+                                        <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                                            Web/App significa mensagens dentro do OptmaMenu. Notificações que aparecem fora da página, na área de notificações do navegador ou do celular, dependem de uma autorização adicional do próprio dispositivo e não são ativadas automaticamente por esta opção.
+                                        </p>
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <h3 className="font-black text-slate-900 dark:text-white">Promoções e novidades</h3>
+                                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                            Você pode autorizar ou revogar estes canais a qualquer momento. Desativar todos não impede códigos de segurança, confirmação de e-mail ou mensagens operacionais indispensáveis ao pedido.
+                                        </p>
+                                        <div className="mt-4 grid gap-3">
+                                            <label className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
+                                                <input className="mt-1" type="checkbox" checked={marketingWhatsapp} onChange={(event) => setMarketingWhatsapp(event.target.checked)} />
+                                                <span>
+                                                    <span className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp</span>
+                                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Promoções, campanhas e novidades quando a loja utilizar este canal.</span>
+                                                </span>
+                                            </label>
+
+                                            <label className={`flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900 ${customer.email_verified ? '' : 'cursor-not-allowed opacity-60'}`}>
+                                                <input className="mt-1" type="checkbox" checked={marketingEmail} disabled={!customer.email_verified} onChange={(event) => setMarketingEmail(event.target.checked)} />
+                                                <span>
+                                                    <span className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><Mail className="h-4 w-4 text-emerald-600" /> E-mail</span>
+                                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                        {customer.email_verified ? 'Promoções e novidades no e-mail confirmado da sua conta.' : 'Confirme seu e-mail antes de habilitar comunicações promocionais por este canal.'}
+                                                    </span>
+                                                </span>
+                                            </label>
+
+                                            <label className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
+                                                <input className="mt-1" type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
+                                                <span>
+                                                    <span className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><MessageCircle className="h-4 w-4 text-emerald-600" /> SMS</span>
+                                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Promoções e novidades por SMS. Códigos OTP de segurança não dependem desta permissão.</span>
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => void saveCommunicationPreferences()}
+                                            disabled={loyaltyPreferencesSaving}
+                                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
+                                        >
+                                            {loyaltyPreferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                            {loyaltyPreferencesSaving ? 'Salvando…' : 'Salvar preferências'}
+                                        </button>
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Mensagens na sua conta</h3>
+                                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Histórico recente do canal interno Web/App.</p>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                <button type="button" onClick={() => void loadNotifications()} disabled={notificationsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">
+                                                    {notificationsLoading ? 'Atualizando…' : 'Atualizar'}
+                                                </button>
+                                                {notifications.some((notification) => !notification.read) && (
+                                                    <button type="button" onClick={() => void markAllNotificationsRead()} className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700 dark:border-emerald-900 dark:text-emerald-300">
+                                                        Marcar todas como lidas
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {notificationsLoading && notifications.length === 0 ? (
+                                            <div className="mt-4 flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>
+                                        ) : notifications.length === 0 ? (
+                                            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
+                                                Nenhuma mensagem registrada ainda.
+                                            </div>
+                                        ) : (
+                                            <div className="mt-4 space-y-2">
+                                                {notifications.map((notification) => (
+                                                    <button
+                                                        key={notification.id}
+                                                        type="button"
+                                                        onClick={() => { if (!notification.read) void markNotificationRead(notification.id); }}
+                                                        className={`w-full rounded-2xl border p-4 text-left transition ${notification.read ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="min-w-0">
+                                                                <p className="font-black text-slate-900 dark:text-white">{notification.title || 'Mensagem da loja'}</p>
+                                                                {notification.message && <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>}
+                                                            </div>
+                                                            {!notification.read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-label="Não lida" />}
+                                                        </div>
+                                                        <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                                                            {notification.created_at ? new Date(notification.created_at).toLocaleString('pt-BR') : 'Data não disponível'}
+                                                        </p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </section>
+                                </div>
+                            )}
+
                             {tab === 'loyalty' && (
                                 <div ref={loyaltyTopRef} className="mx-auto max-w-2xl space-y-4">
                                     <section className={`rounded-3xl p-5 shadow-lg ${customer.loyalty_opt_in ? 'bg-emerald-600 text-white' : 'border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-slate-900 dark:border-emerald-900/50 dark:from-emerald-950/30 dark:to-slate-950 dark:text-white'}`}>
@@ -2131,36 +2324,12 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
                                     {customer.loyalty_opt_in && (
                                         <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                            <h3 className="font-black text-slate-900 dark:text-white">Preferências de comunicação</h3>
+                                            <h3 className="font-black text-slate-900 dark:text-white">Comunicações do programa</h3>
                                             <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                Você pode alterar ou revogar WhatsApp, e-mail e SMS a qualquer momento. Web/App é o canal interno permanente da sua conta e permanece sempre ativo. Confirmações essenciais de adesão e saída continuam disponíveis mesmo sem canais promocionais.
+                                                Suas permissões de WhatsApp, e-mail e SMS valem para o relacionamento com a loja e ficam centralizadas em Comunicações. Você pode revogá-las mesmo se sair da fidelidade.
                                             </p>
-                                            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                                                <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                                    <input type="checkbox" checked={marketingWhatsapp} onChange={(event) => setMarketingWhatsapp(event.target.checked)} />
-                                                    <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp
-                                                </label>
-                                                <label className={`flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold dark:bg-slate-900 ${customer.email_verified ? 'text-slate-700 dark:text-slate-200' : 'cursor-not-allowed text-slate-400'}`}>
-                                                    <input type="checkbox" checked={marketingEmail} disabled={!customer.email_verified} onChange={(event) => setMarketingEmail(event.target.checked)} />
-                                                    <Mail className="h-4 w-4 text-emerald-600" /> {customer.email_verified ? 'E-mail' : 'E-mail (confirme primeiro)'}
-                                                </label>
-                                                <label className="flex items-center gap-2 rounded-2xl bg-slate-50 p-3 text-sm font-bold text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                                    <input type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
-                                                    <MessageCircle className="h-4 w-4 text-emerald-600" /> SMS
-                                                </label>
-                                                <div className="flex items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-sm font-bold text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
-                                                    <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" /> Web/App</span>
-                                                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
-                                                </div>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => void saveLoyaltyCommunicationPreferences()}
-                                                disabled={loyaltyPreferencesSaving}
-                                                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
-                                            >
-                                                {loyaltyPreferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                                {loyaltyPreferencesSaving ? 'Salvando…' : 'Salvar preferências'}
+                                            <button type="button" onClick={() => setTab('communications')} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-2xl border border-emerald-200 px-4 text-sm font-black text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900/50 dark:text-emerald-300 dark:hover:bg-emerald-950/20">
+                                                <BellRing className="h-4 w-4" /> Gerenciar comunicações
                                             </button>
                                         </section>
                                     )}
