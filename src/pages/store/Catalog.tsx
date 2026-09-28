@@ -816,6 +816,24 @@ export default function Catalog() {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                window.dispatchEvent(new CustomEvent(
+                                    isAuthenticated
+                                        ? 'optmamenu:open-customer-account'
+                                        : 'optmamenu:open-customer-auth',
+                                    isAuthenticated ? { detail: { tab: 'profile' } } : undefined,
+                                ));
+                            }}
+                            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/20 px-3 text-xs font-black text-white shadow-sm transition hover:bg-white/30"
+                            aria-label={isAuthenticated ? 'Abrir minha conta' : 'Entrar ou criar conta'}
+                            title={isAuthenticated ? 'Minha conta' : 'Entrar'}
+                        >
+                            <User className="h-4 w-4" />
+                            <span className="hidden sm:inline">{isAuthenticated ? 'Minha conta' : 'Entrar'}</span>
+                        </button>
+
                         {CUSTOMER_PORTAL_AUTH_ENABLED && (isAuthenticated ? (
                             <div className="flex items-center rounded-full bg-white/20 p-1 pl-3 text-white">
                                 <button
