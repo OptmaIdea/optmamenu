@@ -350,10 +350,6 @@ export default function PrivateLayout() {
         return true;
     }, [isOnboardingPending, isOwner, hasPermission, hasRootPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
 
-    const [isNewSession] = useState(() => {
-        const stored = sessionStorage.getItem('optmamenu.session.start');
-        return !stored;
-    });
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -922,12 +918,6 @@ export default function PrivateLayout() {
     };
 
     useEffect(() => {
-        if (isNewSession && pathname !== '/admin') {
-            navigate('/admin', { replace: true });
-        }
-    }, [isNewSession, pathname, navigate]);
-
-    useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
@@ -1034,6 +1024,15 @@ export default function PrivateLayout() {
         }
         return null;
     }, [navigationItems, pathname, location.search]);
+
+    useEffect(() => {
+        const label = currentItem?.item?.label || 'Início';
+        document.title = `OptmaMenu | ${label}`;
+
+        return () => {
+            document.title = 'OptmaMenu';
+        };
+    }, [currentItem?.item?.label]);
 
     // Helper para verificar se um item de menu está ativo no contexto atual
     const isMenuItemActive = useCallback(
