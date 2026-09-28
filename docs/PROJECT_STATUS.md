@@ -1171,3 +1171,116 @@ O painel administrativo agora sincroniza o título com o item atual:
 - etc.
 
 O favicon existente continua sendo aplicado pelo `PrivateLayout`, formando visualmente no navegador **[favicon] OptmaMenu | <item atual>**.
+
+
+---
+
+## Fechamento crítico de Clientes — comunicações, Push e diagnóstico de pontuação — 27/09/2026
+
+### Comunicações do cliente separadas da Fidelidade
+
+Foi identificado um problema de governança de consentimento na UX anterior: WhatsApp, e-mail e SMS eram configuráveis apenas dentro da aba **Fidelidade**. Entretanto, os consentimentos de marketing continuam existindo mesmo quando o cliente deixa o programa; a saída da fidelidade remove os consentimentos próprios do programa, mas não apaga `marketing_whatsapp`, `marketing_email` e `marketing_sms`.
+
+Para impedir que um cliente fique sem caminho de autoatendimento para revogar esses canais, a área do cliente ganhou a aba **Comunicações**, independente da participação em Fidelidade.
+
+A nova área:
+- deixa **Web/App** como canal interno permanente e sem checkbox;
+- separa explicitamente **mensagens essenciais** de pedido, conta e segurança de comunicações promocionais;
+- permite autorizar/revogar WhatsApp, e-mail e SMS a qualquer momento;
+- mantém e-mail promocional bloqueado enquanto o e-mail da conta não estiver confirmado;
+- esclarece que OTP por SMS, confirmação de e-mail e mensagens operacionais indispensáveis não dependem do opt-in promocional;
+- concentra o histórico recente de `customer_notifications` como **Mensagens na sua conta**, com marcar individual/todas como lidas;
+- atualiza esse histórico por verificação periódica enquanto a aba estiver aberta, usando as RPCs seguras já existentes e sem abrir SELECT direto da tabela para o cliente;
+- mantém a captura inicial das preferências no fluxo de adesão à Fidelidade, mas a alteração posterior fica centralizada em Comunicações.
+
+Novo source de auditoria/consentimento:
+- `customer_communication_preferences` → **Preferências de comunicação do cliente**.
+
+Na tela administrativa Clientes 360º também foram traduzidos registros recentes que ainda apareciam técnicos:
+- `loyalty_webapp` → **Web/App**;
+- `loyalty_data_responsibility` → **Responsabilidade pelos dados da fidelidade**;
+- `system_required_webapp` → **Canal interno obrigatório**;
+- `customer_loyalty_join` → **Adesão à fidelidade pelo cliente**;
+- `customer_loyalty_preferences` → **Preferências de comunicação da fidelidade**;
+- `customer_communication_preferences` → **Preferências de comunicação do cliente**.
+
+Commits:
+- `151bf973b3667343c4c33276e31f7dc808abb0cc`;
+- `b72591ead2f4d33e7eaa78742ff2481d95b9e5be`;
+- `9d0539595ab57710cca217e1e014e499c0ac35ac`;
+- `7d0bb3b60dba53b522c7e86ccbe4dfb28a211eb4`.
+
+### Push do navegador — decisão arquitetural para a frente de Clientes/Slug
+
+**Web/App interno** e **Web Push** são mecanismos diferentes.
+
+O canal Web/App permanece sempre disponível dentro do portal. Para notificações que aparecem fora da página, o desenho aprovado para futura implementação deve separar duas autorizações:
+
+1. **permissão técnica do navegador/dispositivo**, solicitada explicitamente ao usuário por gesto próprio;
+2. **preferência de negócio no OptmaMenu**, vinculada ao cliente e à loja para definir quais tipos de mensagem podem gerar Push.
+
+Como as lojas públicas hoje usam caminhos sob a mesma origem OptmaMenu, a permissão técnica do navegador pertence à origem, e não individualmente ao slug. Por isso o backend deverá vincular cada assinatura a:
+- `store_id`;
+- `customer_id`;
+- navegador/dispositivo;
+- finalidade(s) autorizada(s);
+- timestamps de criação, último sucesso/falha e revogação.
+
+Cada navegador/dispositivo terá sua própria assinatura. A interface deverá oferecer, no mínimo, **Ativar neste dispositivo** e **Desativar neste dispositivo**, sem confundir isso com o canal Web/App obrigatório.
+
+O repositório contém um scaffold legado de Web Push (`NotificationReceiver`, `notificationService` e `public/sw.js`), porém ele **não deve ser reutilizado como solução de produção do cliente sem hardening**: o código tenta gravar em `web_push_subscriptions`, tabela que não existe no banco live atual, e foi desenhado originalmente para identidade de usuário administrativo, não para a identidade isolada do cliente.
+
+Para a implementação final, usar tabela própria de assinaturas de cliente, RPC/Edge Function segura, VAPID privado somente no servidor e remoção/revogação das assinaturas no ciclo de exclusão de conta. Dispositivo compartilhado deve receber aviso de privacidade porque a notificação pode aparecer fora da página.
+
+### Diagnóstico do pedido de R$ 3,75 que gerou 8 pontos
+
+Pedido auditado:
+- `PED-20260927-220957-4776`;
+- 1 × **Graviola** por R$ 3,75;
+- categoria **Picolé cremoso**;
+- categoria marcada como elegível e multiplicador `1.00`.
+
+O backend calculou **8 pontos** porque aplicou duas regras ativas e cumulativas:
+- **Pontuação base por compra**: `floor(3,75 × 1) = 3` pontos;
+- regra **VALE5**: bônus fixo de **5 pontos** em todo `order_completed`.
+
+Resultado: **3 + 5 = 8 pontos**.
+
+A regra `VALE5` está ativa, com `points_mode=fixed`, valor 5, `conditions={}` e descrição comercial de desconto de R$ 5 em compras a partir de R$ 50. Na implementação atual ela está sendo interpretada como bônus de fidelidade sem a condição de R$ 50, por isso incidiu também no pedido de R$ 3,75.
+
+Outro achado importante: a função live `calculate_order_loyalty_points_advanced` atualmente calcula a pontuação a partir de `loyalty_point_rules` e do total do pedido; **não utiliza `categories.loyalty_multiplier` na fórmula**, apesar de o multiplicador de categoria existir na configuração e no catálogo.
+
+Nenhuma regra foi alterada nesta frente. A correção pertence à frente específica de **Fidelidade**, onde deve ser resolvida a semântica das regras e recalculada/testada sem misturar Clientes com a autoridade do motor de pontos.
+
+### Requisito futuro — exceção de pontuação por produto
+
+Registrar para a frente Fidelidade:
+
+Exemplo desejado:
+- categoria **Picolé cremoso** normalmente gera fator/pontuação 1;
+- durante uma campanha mensal, somente **Graviola** passa a gerar fator/pontuação 2;
+- os demais produtos da categoria permanecem com a regra normal.
+
+O modelo deve suportar:
+- regra padrão do programa;
+- regra por categoria;
+- exceção/override por produto;
+- vigência `starts_at` / `ends_at`;
+- prioridade explícita;
+- política clara de substituição versus acumulação;
+- snapshot/auditoria das regras efetivamente aplicadas na transação para permitir explicar no futuro por que determinado pedido gerou determinada quantidade de pontos.
+
+Para multiplicadores, a preferência de desenho é **override mais específico vence** (produto > categoria > programa), evitando multiplicação acidental. Bônus separados podem continuar tendo regra explícita de acumulação.
+
+### Pendências reais para considerar Clientes concluído
+
+Funcionalmente, cadastro, autenticação, OTP, telefone, e-mail, pedidos, consumo, endereços, carrinho persistido, exportação e exclusão já estão em estado avançado e homologado. Restam principalmente endurecimentos finais:
+
+1. **Dispositivos e sessões do cliente** — backend possui dispositivos confiáveis, mas a área do cliente ainda não lista/revoga outros dispositivos de forma amigável. Criar gestão segura de dispositivos/sessões sem expor hashes.
+2. **Troca de senha com reautenticação forte** — a troca atual exige sessão válida + dispositivo confiável, mas deve ser avaliada para exigir senha atual ou OTP recente antes de alterar a credencial.
+3. **Web Push do cliente** — implementar a arquitetura descrita acima, separada do scaffold legado.
+4. **UX responsiva final da conta** — revisar navegação de muitas abas no mobile e o desenho futuro de barra inferior da loja pública, coordenando Conta, Menu, Carrinho e Contato para não duplicar CTAs.
+5. **Acessibilidade da área modal** — revisão final de foco, teclado/Escape, anúncio semântico e scroll lock.
+6. **Reteste pós-OptmaPay** — como a frente OptmaPay está alterando pagamento Golden Pix e partes relacionadas ao cliente, repetir ao final o fluxo cliente → pedido → pagamento → confirmação → status/consumo para garantir que não houve regressão.
+
+Os Advisors Supabase continuam sendo tratados em rodada própria de hardening do projeto, conforme regra operacional do repositório, sem misturar a correção de linter com o fechamento funcional da UX de Clientes.
