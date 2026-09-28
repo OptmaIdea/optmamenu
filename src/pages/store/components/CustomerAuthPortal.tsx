@@ -20,6 +20,7 @@ type OtpContext = 'registration' | 'password_stepup' | 'sms_login';
 interface CustomerAuthPortalProps {
     storeSlug?: string | null;
     storeId?: string | null;
+    hideTrigger?: boolean;
 }
 
 function cleanPhone(value: string) {
@@ -102,7 +103,7 @@ function PasswordField({
     );
 }
 
-export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalProps) {
+export function CustomerAuthPortal({ storeSlug, storeId, hideTrigger = false }: CustomerAuthPortalProps) {
     const {
         customer,
         isAuthenticated,
@@ -197,6 +198,12 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
         resetFlow('login');
         setOpen(true);
     };
+
+    useEffect(() => {
+        const openAuth = () => startLogin();
+        window.addEventListener('optmamenu:open-customer-auth', openAuth);
+        return () => window.removeEventListener('optmamenu:open-customer-auth', openAuth);
+    }, []);
 
     const validatePhone = () => {
         const normalized = normalizePhoneForRequest(phone);
@@ -381,6 +388,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
     };
 
     if (!sessionRestored) {
+        if (hideTrigger) return null;
         return (
             <div className="fixed bottom-28 left-4 z-[65] flex h-11 items-center gap-2 rounded-full border border-white/30 bg-slate-900/90 px-4 text-xs font-bold text-white shadow-xl backdrop-blur sm:bottom-5">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -393,6 +401,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
 
     return (
         <>
+            {!hideTrigger && (
             <div className="fixed bottom-28 left-4 z-[65] sm:bottom-5">
                 <button
                     type="button"
@@ -403,6 +412,7 @@ export function CustomerAuthPortal({ storeSlug, storeId }: CustomerAuthPortalPro
                     Entrar
                 </button>
             </div>
+            )}
 
             {open && (
                 <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
