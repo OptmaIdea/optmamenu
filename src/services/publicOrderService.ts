@@ -195,6 +195,8 @@ export interface PublicOptmaPayIntent {
     pixPayload?: string | null;
     expiresAt?: string | null;
     paidAt?: string | null;
+    rotationCycle?: number;
+    autoRotationIndex?: number;
 }
 
 export interface PublicOptmaPayPaymentState {
@@ -210,6 +212,7 @@ export interface PublicOptmaPayPaymentState {
     realMoney?: false;
     reused?: boolean;
     alreadyPaid?: boolean;
+    manualRegenerationRequired?: boolean;
     intent?: PublicOptmaPayIntent | null;
 }
 
@@ -322,19 +325,31 @@ export const PublicOrderService = {
         return {
             ...(data as PublicOptmaPayPaymentState),
             eligible: Boolean(data?.eligible),
+            manualRegenerationRequired: Boolean(data?.manualRegenerationRequired),
             intent: data?.intent
                 ? {
                     ...data.intent,
                     amount: Number(data.intent.amount || 0),
+                    rotationCycle: Number(data.intent.rotationCycle || 0),
+                    autoRotationIndex: Number(data.intent.autoRotationIndex || 0),
                 }
                 : null,
         };
     },
 
-    async createOptmaPayPayment(token: string): Promise<PublicOptmaPayPaymentState> {
+    async createOptmaPayPayment(
+        token: string,
+        mode: 'initial' | 'automatic' | 'manual' = 'initial',
+    ): Promise<PublicOptmaPayPaymentState> {
         const normalizedToken = decodeURIComponent(token).trim();
+        const action = mode === 'automatic'
+            ? 'rotate'
+            : mode === 'manual'
+                ? 'regenerate'
+                : 'create';
+
         const { data, error } = await supabasePublic.functions.invoke('optmapay-public-checkout', {
-            body: { action: 'create', publicOrderToken: normalizedToken },
+            body: { action, publicOrderToken: normalizedToken },
         });
         if (error) throw error;
         if (!data?.ok) {
@@ -343,10 +358,13 @@ export const PublicOrderService = {
         return {
             ...(data as PublicOptmaPayPaymentState),
             eligible: Boolean(data?.eligible),
+            manualRegenerationRequired: Boolean(data?.manualRegenerationRequired),
             intent: data?.intent
                 ? {
                     ...data.intent,
                     amount: Number(data.intent.amount || 0),
+                    rotationCycle: Number(data.intent.rotationCycle || 0),
+                    autoRotationIndex: Number(data.intent.autoRotationIndex || 0),
                 }
                 : null,
         };
