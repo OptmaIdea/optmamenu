@@ -128,6 +128,7 @@ Deno.serve(async (req: Request) => {
       !method?.requires_proof &&
       (method?.base_code || method?.code) === "pix" &&
       method?.metadata?.checkout?.confirmation_mode === "api" &&
+      method?.metadata?.checkout?.integration_enabled === true &&
       method?.metadata?.checkout?.provider_code === "optma_sandbox",
     );
 
@@ -144,6 +145,7 @@ Deno.serve(async (req: Request) => {
       .select("id,status,amount,external_reference,pix_payload,expires_at,paid_at,created_at")
       .eq("store_id", order.store_id)
       .eq("order_id", order.id)
+      .eq("provider_id", provider?.id || "00000000-0000-0000-0000-000000000000")
       .eq("method_code", "pix")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -169,7 +171,8 @@ Deno.serve(async (req: Request) => {
       provider?.credential_status === "ready" &&
       provider?.capabilities?.pix === true &&
       order.status !== "cancelled" &&
-      order.status !== "expired",
+      order.status !== "expired" &&
+      order.status !== "completed",
     );
 
     if (action === "status") {
