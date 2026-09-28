@@ -89,6 +89,8 @@ function consentTypeLabel(value: unknown) {
     marketing_whatsapp: 'Marketing por WhatsApp',
     marketing_email: 'Marketing por e-mail',
     marketing_sms: 'Marketing por SMS',
+    loyalty_webapp: 'Web/App',
+    loyalty_data_responsibility: 'Responsabilidade pelos dados da fidelidade',
   };
   const key = typeof value === 'string' ? value : '';
   return labels[key] || key || null;
