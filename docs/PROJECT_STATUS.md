@@ -1111,3 +1111,63 @@ A implementação dessa política deve ser feita na frente de **Horários + Pedi
 
 Complemento aplicado em seguida:
 - migration `20260927215019_security_backfill_log_actor_names.sql` normaliza o rótulo histórico de `session_heartbeat` para **Sessão ativa** e preenche, quando resolvível por `user_id`, nome/e-mail do ator em logs antigos que estavam sem identidade amigável.
+
+
+---
+
+## Sessão, múltiplas guias, títulos e auditoria amigável — 27/09/2026
+
+### Múltiplas guias
+
+Foi identificado o motivo exato de links do menu abertos com **Abrir em nova guia** caírem no Início:
+- `PrivateLayout` tratava toda guia sem `sessionStorage['optmamenu.session.start']` como uma sessão nova;
+- em seguida executava `navigate('/admin', { replace: true })`, apagando a rota profunda originalmente aberta;
+- a validação auxiliar de sessão também dependia de um `pong` via `BroadcastChannel` em apenas 200 ms e podia invalidar uma sessão legítima quando a aba de origem estivesse em background/throttled.
+
+Correção:
+- nova guia preserva a URL original do menu;
+- sessão Supabase já válida é adotada na nova guia sem redirecionamento forçado;
+- ciclo de vida de guia deixa de ser usado como motivo independente para logout;
+- inatividade passa a ser a única autoridade para encerramento automático, respeitando a configuração da loja.
+
+### Inatividade
+
+No banco da Gelinhares a configuração real estava:
+- habilitada;
+- **25 minutos**;
+- com uma lista legada de rotas isentas, incluindo Início, Pedidos, Produtos e áreas de estoque.
+
+Isso explicava o comportamento aparentemente inconsistente. O histórico confirma encerramentos reais por inatividade, inclusive em 20/09/2026.
+
+Correção:
+- o timeout passa a valer em **todo o painel administrativo**;
+- atividade em qualquer guia do OptmaMenu renova a mesma sessão, pois o último evento é compartilhado via `localStorage`;
+- se nenhuma guia tiver atividade durante o período configurado, uma única guia coordena o logout;
+- novos eventos usam a ação amigável **Sessão encerrada por inatividade**;
+- a tela **Sessão e inatividade** agora explica explicitamente o comportamento entre guias;
+- registros históricos de timeout foram normalizados para rótulos amigáveis.
+
+Migration:
+- `20260927221220_security_backfill_session_disconnect_labels.sql`.
+
+### Histórico de atividades
+
+Foram normalizados nomes técnicos que ainda apareciam ao usuário:
+- `store_member_exit_registered` → **Desligamento de usuário registrado**;
+- `store_member_linked_existing_user` → **Usuário existente vinculado à loja**;
+- convites, alterações de status, funções personalizadas, permissões em lote e teste de sessão também receberam rótulos pt-BR.
+
+Migration:
+- `20260927221051_security_friendly_activity_labels.sql`.
+
+Sobre remoções anteriores da Fidelidade: o banco possui um evento de segurança recente **Cliente removido da fidelidade** às 21:56:47 de 27/09/2026. Remoções feitas antes da implantação dessa auditoria não possuem dados suficientes para reconstrução fiel de ator/motivo e não foram inventadas retroativamente.
+
+### Título da guia do navegador
+
+O painel administrativo agora sincroniza o título com o item atual:
+- `OptmaMenu | Produtos`;
+- `OptmaMenu | Clientes`;
+- `OptmaMenu | Pedidos`;
+- etc.
+
+O favicon existente continua sendo aplicado pelo `PrivateLayout`, formando visualmente no navegador **[favicon] OptmaMenu | <item atual>**.
