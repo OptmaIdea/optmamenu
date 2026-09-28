@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, Copy, ExternalLink, Landmark, RefreshCw, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -25,11 +25,21 @@ function formatExpiry(value?: string | null) {
   });
 }
 
+function formatCountdown(value: number | null) {
+  if (value == null) return '—';
+  const seconds = Math.max(0, value);
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+}
+
 export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
   const [state, setState] = useState<PublicOptmaPayPaymentState | null>(null);
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+  const rotatingIntentRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -48,43 +58,113 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
     void load();
   }, [load]);
 
+  const paid = state?.paymentStatus === 'paid' || state?.intent?.status === 'paid';
+  const expired = state?.intent?.status === 'expired';
+  const autoRotationIndex = Number(state?.intent?.autoRotationIndex || 0);
+  const manualRegenerationRequired = Boolean(
+    state?.manualRegenerationRequired || (expired && autoRotationIndex >= 2),
+  );
+  const expiresLabel = useMemo(() => formatExpiry(state?.intent?.expiresAt), [state?.intent?.expiresAt]);
+
+  useEffect(() => {
+    if (!state?.intent?.expiresAt || paid) {
+      setRemainingSeconds(null);
+      return;
+    }
+
+    const update = () => {
+      const expiresAt = new Date(state.intent?.expiresAt || '').getTime();
+      if (!Number.isFinite(expiresAt)) {
+        setRemainingSeconds(null);
+        return;
+      }
+      setRemainingSeconds(Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)));
+    };
+
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [paid, state?.intent?.expiresAt]);
+
   useEffect(() => {
     const pending = state?.intent?.status && ['created', 'pending', 'authorized'].includes(state.intent.status);
-    if (!pending) return;
+    if (!pending || paid) return;
 
     const timer = window.setInterval(() => {
       void load();
     }, 3000);
 
     return () => window.clearInterval(timer);
-  }, [load, state?.intent?.status]);
+  }, [load, paid, state?.intent?.status]);
 
-  const paid = state?.paymentStatus === 'paid' || state?.intent?.status === 'paid';
-  const expired = state?.intent?.status === 'expired';
-  const expiresLabel = useMemo(() => formatExpiry(state?.intent?.expiresAt), [state?.intent?.expiresAt]);
+  useEffect(() => {
+    if (remainingSeconds !== 0 || paid) return;
+    void load();
+  }, [load, paid, remainingSeconds]);
 
-  async function createPayment() {
+  const requestPayment = useCallback(async (
+    mode: 'initial' | 'automatic' | 'manual',
+    options?: { silent?: boolean },
+  ) => {
     setWorking(true);
     setError(null);
     try {
-      const result = await PublicOrderService.createOptmaPayPayment(token);
+      const result = await PublicOrderService.createOptmaPayPayment(token, mode);
       setState(result);
+
       if (result.alreadyPaid || result.intent?.status === 'paid') {
         toast.success('Pagamento já confirmado.');
-      } else {
+        return;
+      }
+
+      if (result.manualRegenerationRequired) {
+        if (!options?.silent) {
+          toast.info('As duas atualizações automáticas foram usadas. Gere um novo código para continuar.');
+        }
+        return;
+      }
+
+      if (mode === 'automatic') {
+        const index = Number(result.intent?.autoRotationIndex || 0);
+        toast.success(`Código PIX atualizado automaticamente (${index}/2).`);
+      } else if (mode === 'manual') {
+        toast.success('Novo ciclo PIX gerado. O código é válido por 15 minutos.');
+      } else if (!options?.silent) {
         toast.success('PIX Sandbox preparado.');
       }
     } catch (cause) {
       console.error('[OPTMAPAY] Falha ao preparar pagamento:', cause);
-      setError('Não foi possível gerar o PIX agora. Seu pedido continua salvo e você pode tentar novamente.');
+      setError(
+        mode === 'automatic'
+          ? 'A atualização automática do código não pôde ser concluída. Você pode tentar novamente.'
+          : 'Não foi possível gerar o PIX agora. Seu pedido continua salvo e você pode tentar novamente.',
+      );
     } finally {
       setWorking(false);
     }
-  }
+  }, [token]);
+
+  useEffect(() => {
+    const intent = state?.intent;
+    if (
+      !intent ||
+      intent.status !== 'expired' ||
+      paid ||
+      manualRegenerationRequired ||
+      !state?.eligible ||
+      working
+    ) {
+      return;
+    }
+
+    if (rotatingIntentRef.current === intent.id) return;
+    rotatingIntentRef.current = intent.id;
+    void requestPayment('automatic', { silent: true });
+  }, [manualRegenerationRequired, paid, requestPayment, state, working]);
 
   async function copyPayload() {
     const payload = state?.intent?.pixPayload;
-    if (!payload) return;
+    if (!payload || expired) return;
     try {
       await navigator.clipboard.writeText(payload);
       toast.success('Código PIX copiado.');
@@ -114,7 +194,7 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
           <div>
             <h2 className="text-lg font-black text-emerald-950">Pagamento confirmado</h2>
             <p className="mt-1 text-sm text-emerald-800">
-              O OptmaPay Sandbox confirmou este PIX. Nenhum dinheiro real foi movimentado.
+              O OptmaPay Sandbox confirmou este PIX. A reserva permanece protegida até a retirada ou a etapa operacional que fizer a baixa física.
             </p>
             {state.intent?.paidAt && (
               <p className="mt-2 text-xs font-semibold text-emerald-700">
@@ -127,6 +207,10 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
     );
   }
 
+  const isAutoRefreshing = expired && !manualRegenerationRequired && working;
+  const shouldShowManualButton = !state?.intent?.pixPayload || manualRegenerationRequired;
+  const canRetryAuto = expired && !manualRegenerationRequired && Boolean(error);
+
   return (
     <section className="rounded-3xl border border-violet-200 bg-white p-6 shadow-sm">
       <div className="flex items-start gap-3">
@@ -137,10 +221,16 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
         )}
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-black text-slate-950">
-            {expired ? 'PIX Sandbox expirado' : 'Pagar agora com OptmaPay'}
+            {manualRegenerationRequired
+              ? 'Gerar novo código PIX'
+              : isAutoRefreshing
+                ? 'Atualizando código PIX'
+                : expired
+                  ? 'Código PIX expirado'
+                  : 'Pagar agora com OptmaPay'}
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Ambiente de testes. Este pagamento simula o fluxo bancário completo sem movimentar dinheiro real.
+            Cada código é válido por 15 minutos. O sistema faz até duas atualizações automáticas; depois disso, um novo ciclo deve ser gerado manualmente.
           </p>
         </div>
       </div>
@@ -151,29 +241,57 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
         </div>
       )}
 
-      {!state?.intent?.pixPayload || expired ? (
+      {isAutoRefreshing && (
+        <div className="mt-5 flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm font-semibold text-violet-800">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Gerando automaticamente o próximo código PIX...
+        </div>
+      )}
+
+      {shouldShowManualButton && !isAutoRefreshing && (
         <button
           type="button"
           disabled={working || !state?.eligible}
-          onClick={() => void createPayment()}
+          onClick={() => void requestPayment(state?.intent ? 'manual' : 'initial')}
           className="mt-5 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {working ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
-          {expired ? 'Gerar novo PIX' : 'Gerar PIX Sandbox'}
+          {state?.intent ? 'Gerar novo código PIX' : 'Gerar PIX Sandbox'}
         </button>
-      ) : (
+      )}
+
+      {canRetryAuto && (
+        <button
+          type="button"
+          disabled={working}
+          onClick={() => {
+            rotatingIntentRef.current = null;
+            void requestPayment('automatic');
+          }}
+          className="mt-3 inline-flex items-center gap-2 rounded-xl border border-violet-300 px-4 py-2 text-sm font-black text-violet-800 disabled:opacity-50"
+        >
+          <RefreshCw className="h-4 w-4" />
+          Tentar atualização novamente
+        </button>
+      )}
+
+      {state?.intent?.pixPayload && !expired && (
         <div className="mt-5 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-violet-50 p-3">
               <p className="text-xs font-bold uppercase tracking-wide text-violet-500">Valor</p>
               <p className="mt-1 text-xl font-black text-violet-950">{formatCurrency(state.intent.amount)}</p>
             </div>
             <div className="rounded-xl bg-violet-50 p-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-violet-500">Status</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-violet-500">Validade</p>
               <p className="mt-1 flex items-center gap-2 font-black text-violet-950">
                 <Clock3 className="h-4 w-4 text-amber-600" />
-                Aguardando pagamento
+                {formatCountdown(remainingSeconds)}
               </p>
+            </div>
+            <div className="rounded-xl bg-violet-50 p-3">
+              <p className="text-xs font-bold uppercase tracking-wide text-violet-500">Atualizações</p>
+              <p className="mt-1 font-black text-violet-950">{autoRotationIndex}/2 automáticas</p>
             </div>
           </div>
 
@@ -219,7 +337,7 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
 
           {expiresLabel && (
             <p className="text-xs text-slate-500">
-              Esta instrução expira em {expiresLabel}. Enquanto estiver pendente, esta tela verifica a confirmação automaticamente.
+              Código atual válido até {expiresLabel}. Se não houver pagamento, ele será atualizado automaticamente enquanto houver atualização disponível.
             </p>
           )}
         </div>
