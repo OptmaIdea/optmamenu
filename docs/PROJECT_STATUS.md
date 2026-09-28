@@ -1284,3 +1284,156 @@ Funcionalmente, cadastro, autenticação, OTP, telefone, e-mail, pedidos, consum
 6. **Reteste pós-OptmaPay** — como a frente OptmaPay está alterando pagamento Golden Pix e partes relacionadas ao cliente, repetir ao final o fluxo cliente → pedido → pagamento → confirmação → status/consumo para garantir que não houve regressão.
 
 Os Advisors Supabase continuam sendo tratados em rodada própria de hardening do projeto, conforme regra operacional do repositório, sem misturar a correção de linter com o fechamento funcional da UX de Clientes.
+
+
+---
+
+## Clientes — dispositivos, senha forte e preparação de fechamento — 27/09/2026
+
+### Branding público da loja
+
+Decisão de UX reafirmada:
+- dentro da experiência do cliente, priorizar **o nome da loja**;
+- não usar a marca OptmaMenu/OptmaIdea como protagonista nas mensagens da conta;
+- **OptmaMenu** e **OptmaIdea** ficam como atribuição discreta no rodapé da experiência comercial, com links;
+- textos jurídicos continuam sendo tratados como documentos legais próprios e não devem ser silenciosamente reescritos apenas por branding.
+
+Aplicado:
+- a antiga explicação de **Web/App** deixou de citar OptmaMenu e passa a citar dinamicamente o nome da loja obtido pela slug;
+- a fidelidade, quando fala do canal interno ao cliente, usa a área da própria loja;
+- o arquivo de exportação do cliente deixa de levar `optmamenu-` no nome;
+- o `StoreLayout` exibe no rodapé público os links de atribuição **OptmaMenu** e **OptmaIdea**.
+
+### Dispositivos confiáveis e invalidação real de sessões
+
+Migration:
+- `20260928023000_customer_trusted_devices_and_password_session_hardening.sql`.
+
+A identidade sintética do cliente ganhou `sessions_valid_after`. As funções centrais:
+- `app_current_customer_id()`;
+- `app_current_store_id()`;
+- `app_current_role()`;
+
+agora recusam o vínculo de cliente para JWTs emitidos antes da rotação de segurança. Isso fecha uma limitação anterior: apenas marcar um dispositivo como revogado não era suficiente para impedir um JWT já emitido de chamar diretamente uma RPC self-service até expirar.
+
+A tabela de dispositivos ganhou metadados amigáveis de navegador/dispositivo, sem expor o hash ao cliente.
+
+Novas primitivas service-role-only:
+- `customer_verify_current_password_service_safe`;
+- `customer_list_trusted_devices_service_safe`;
+- `customer_revoke_other_trusted_devices_service_safe`.
+
+ACL validada:
+- `anon`: sem EXECUTE;
+- `authenticated`: sem EXECUTE direto;
+- `service_role`: EXECUTE permitido;
+- acesso passa pela Edge Function autenticada.
+
+`customer-auth-session` foi publicada em **v6 ACTIVE** e agora:
+- valida também `revoked_at` e `sessions_valid_after` da identidade;
+- lista dispositivos confiáveis sem devolver `device_token_hash`;
+- identifica o dispositivo atual;
+- grava rótulo amigável derivado do User-Agent;
+- exige a senha atual para **desconectar outros dispositivos**;
+- revoga os outros dispositivos e rotaciona a geração da sessão;
+- emite uma nova sessão apenas para o dispositivo atual;
+- exige a senha atual para alterar a senha;
+- depois da troca de senha, desconecta outros dispositivos, invalida JWTs anteriores e renova a sessão atual.
+
+A troca segura de telefone também passou a atualizar `sessions_valid_after`, além de revogar todos os dispositivos e exigir novo login.
+
+### UX de Segurança da conta
+
+Na aba **Segurança** do cliente:
+- nova seção **Dispositivos confiáveis**;
+- mostra navegador/plataforma, última atividade, última confirmação por SMS e marca **Este dispositivo**;
+- ação **Desconectar outros dispositivos**, protegida pela senha atual;
+- troca de senha agora exige:
+  1. senha atual;
+  2. nova senha;
+  3. confirmação da nova senha;
+- após trocar a senha, outras sessões são encerradas e a sessão atual é renovada;
+- feedback informa quantos outros dispositivos foram desconectados.
+
+Acessibilidade do modal da conta também foi reforçada:
+- `role="dialog"`;
+- `aria-modal="true"`;
+- título associado por `aria-labelledby`;
+- foco inicial no botão Fechar;
+- tecla Escape fecha a conta;
+- scroll da página de fundo é bloqueado enquanto o modal está aberto.
+
+### Fidelidade — itens que NÃO devem se perder na consolidação
+
+Não alterar nesta frente de Clientes; encaminhar para a frente específica de Fidelidade.
+
+1. **Nomes técnicos em “Regras existentes”**
+
+A página unificada ainda imprime `rule.trigger_event` diretamente, por isso aparecem valores como `order_completed`. A correção é somente de apresentação: usar rótulos comerciais amigáveis e manter os códigos técnicos apenas internamente.
+
+2. **Vale/selos por quantidade de compras elegíveis**
+
+A suspeita de perda na fusão entre “Fidelidade” e “Fidelidade avançada” foi confirmada estruturalmente.
+
+O modelo ainda possui:
+- `enable_stamps`;
+- `min_order_for_stamp`;
+- `stamps_target`;
+- `points_per_stamp_block`.
+
+Na Gelinhares, o programa live ainda está configurado com:
+- `enable_stamps=true`;
+- mínimo atual para selo: R$ 13,00;
+- alvo: 10 compras/selos;
+- recompensa: 5 pontos por bloco.
+
+Porém:
+- a página unificada atual não expõe essa configuração;
+- o trigger ativo `on_order_completed_loyalty` chama `handle_new_order_points_v2()`;
+- `handle_new_order_points_v2()` chama apenas `apply_order_loyalty_points_advanced()`;
+- a antiga lógica de selos presente em `handle_new_order_points()` não é a função ativa do trigger.
+
+Portanto a capacidade de **“a cada N compras com valor mínimo X, conceder Y pontos”** existe como legado de modelo, mas deixou de fazer parte da autoridade ativa do motor unificado.
+
+Requisito a restaurar na frente Fidelidade:
+- quantidade de compras elegíveis configurável;
+- valor mínimo da compra configurável;
+- recompensa em pontos configurável;
+- janela/vigência opcional;
+- comportamento cíclico;
+- histórico/auditoria de progresso e concessão;
+- impedir contagem de pedido cancelado/estornado;
+- definir política de devolução após o selo já ter contribuído para uma recompensa.
+
+Exemplo solicitado: **a cada 5 compras de R$ 50,00 ou mais, conceder X pontos**.
+
+Isso é diferente de uma regra fixa como `VALE5`: “vale/selos” deve representar progressão por compras elegíveis, não “+5 pontos em todo pedido concluído”.
+
+3. **Exceção de pontuação por produto**
+
+Preservar a decisão:
+- programa define base;
+- categoria pode sobrescrever a base;
+- produto pode sobrescrever a categoria;
+- precedência para multiplicadores: **produto > categoria > programa**;
+- vigência e prioridade explícitas;
+- bônus acumuláveis devem ser uma regra distinta, não uma multiplicação implícita;
+- a transação deve guardar snapshot das regras efetivamente aplicadas.
+
+4. **Erro dos 8 pontos**
+
+Continua encaminhado para Fidelidade:
+- pedido R$ 3,75;
+- 3 pontos da regra base;
+- +5 indevidos da regra ativa `VALE5`;
+- total observado: 8.
+A correção deve eliminar a interpretação indevida do `VALE5` e reconciliar o motor com multiplicadores de categoria/produto sem alterar dados às cegas.
+
+### Situação dos quatro blocos finais de Clientes
+
+1. **Segurança de conta** — praticamente fechado nesta rodada: dispositivos confiáveis, desconexão dos outros dispositivos, rotação de JWT e troca de senha com senha atual.
+2. **Push do cliente** — ainda pendente. Implementar depois sobre identidade cliente+loja+dispositivo; não reutilizar diretamente o scaffold legado.
+3. **UI/UX e acessibilidade** — modal recebeu o primeiro fechamento de acessibilidade; ainda falta decidir/refinar a navegação mobile da conta e a futura barra inferior coordenando Menu, Conta, Carrinho e Contato.
+4. **Reteste pós-OptmaPay** — propositalmente pendente até a frente paralela de OptmaPay estabilizar o Golden Pix. Ao final repetir cliente → pedido → Golden Pix → confirmação → status → conclusão → Meu consumo.
+
+Não realizar alterações de OptmaPay nesta frente de Clientes.
