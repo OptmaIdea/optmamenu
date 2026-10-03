@@ -17,6 +17,7 @@ import {
 interface StorefrontBottomNavigationProps {
     storeSlug: string | null;
     storeName: string;
+    storeLogoUrl?: string | null;
     isAuthenticated: boolean;
     onOpenStore: () => void;
     onOpenContact: () => void;
@@ -25,6 +26,7 @@ interface StorefrontBottomNavigationProps {
 export function StorefrontBottomNavigation({
     storeSlug,
     storeName,
+    storeLogoUrl,
     isAuthenticated,
     onOpenStore,
     onOpenContact,
@@ -105,9 +107,15 @@ export function StorefrontBottomNavigation({
                         className={`${navButton} ${muted}`}
                         aria-label={`Abrir área da ${storeName}`}
                     >
-                        <span className="flex h-7 min-w-7 items-center justify-center rounded-xl bg-emerald-100 px-2 text-[11px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                            {storeName.trim().slice(0, 1).toUpperCase() || 'L'}
-                        </span>
+                        {storeLogoUrl ? (
+                            <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700">
+                                <img src={storeLogoUrl} alt="" className="h-full w-full object-cover" />
+                            </span>
+                        ) : (
+                            <span className="flex h-7 min-w-7 items-center justify-center rounded-xl bg-emerald-100 px-2 text-[11px] font-black text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                {storeName.trim().slice(0, 1).toUpperCase() || 'L'}
+                            </span>
+                        )}
                         <span className="max-w-full truncate px-1">{storeName || 'Loja'}</span>
                     </button>
 
