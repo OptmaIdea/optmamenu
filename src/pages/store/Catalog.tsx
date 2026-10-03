@@ -633,6 +633,20 @@ export default function Catalog() {
         return values.length > 0 ? Math.min(...values) : 0;
     }, [deliveryMethods]);
 
+    const hasDelivery = useMemo(
+        () => deliveryMethods.some((method) => method.fulfillment_type === 'delivery'),
+        [deliveryMethods],
+    );
+
+    const hasProgressivePricing = useMemo(
+        () => categories.some((category) => (
+            category.price_logic_type === 'category_volume'
+            || (category.price_rules?.length || 0) > 0
+            || (category.pricing_group?.price_rules?.length || 0) > 0
+        )) || products.some((product) => (product.price_rules?.length || 0) > 0),
+        [categories, products],
+    );
+
     const resetLoginForm = () => {
         setLoginStep('password_login');
         setLoginPhone('');
@@ -897,10 +911,12 @@ export default function Catalog() {
                 </div>
             )}
 
+            {(hasProgressivePricing || hasDelivery || store.config?.loyalty_active) && (
             <section
                 aria-label="Informações da loja"
                 className="mx-auto mt-5 flex max-w-5xl gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide"
             >
+                {hasProgressivePricing && (
                 <button
                     type="button"
                     onClick={() => setInfoModal('pricing')}
@@ -910,7 +926,9 @@ export default function Catalog() {
                     <BadgePercent className="h-8 w-8 shrink-0" />
                     <span className="text-sm font-black leading-4">Compre mais<br />pague menos</span>
                 </button>
+                )}
 
+                {hasDelivery && (
                 <button
                     type="button"
                     onClick={() => setInfoModal('delivery')}
@@ -920,6 +938,7 @@ export default function Catalog() {
                     <Truck className="h-8 w-8 shrink-0" />
                     <span className="text-sm font-black leading-4">Delivery<br />consulte condições</span>
                 </button>
+                )}
 
                 {store.config?.loyalty_active && (
                     <button
@@ -941,6 +960,7 @@ export default function Catalog() {
                     </button>
                 )}
             </section>
+            )}
 
             <main className="mx-auto mt-5 max-w-5xl px-4">
                 <div className="mb-5 flex gap-2">
