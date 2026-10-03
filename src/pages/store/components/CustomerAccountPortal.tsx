@@ -1669,7 +1669,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         { id: 'orders', label: 'Pedidos', icon: PackageCheck },
         { id: 'consumption', label: 'Meu consumo', icon: History },
         { id: 'communications', label: 'Comunicações', icon: BellRing },
-        { id: 'loyalty', label: 'Fidelidade', icon: Gift },
         { id: 'security', label: 'Segurança', icon: KeyRound },
     ];
 
