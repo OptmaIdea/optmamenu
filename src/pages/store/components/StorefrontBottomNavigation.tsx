@@ -80,7 +80,7 @@ export function StorefrontBottomNavigation({
         }
     };
 
-    const navButton = 'relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-black transition sm:text-xs';
+    const navButton = 'relative flex min-w-0 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-black transition sm:text-xs';
     const muted = 'text-slate-500 dark:text-slate-400';
     const active = 'text-emerald-600 dark:text-emerald-400';
 
@@ -90,7 +90,7 @@ export function StorefrontBottomNavigation({
                 aria-label="Navegação da loja"
                 className="safe-area-bottom fixed inset-x-0 bottom-0 z-[80] border-t border-slate-200 bg-white/95 px-2 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(15,23,42,0.10)] backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/95 lg:hidden"
             >
-                <div className="mx-auto flex min-h-[4.6rem] max-w-3xl items-stretch">
+                <div className="mx-auto grid min-h-[4.6rem] max-w-3xl grid-cols-5 items-stretch">
                     <button
                         type="button"
                         onClick={goHome}
@@ -118,6 +118,8 @@ export function StorefrontBottomNavigation({
                         )}
                         <span className="max-w-full truncate px-1">{storeName || 'Loja'}</span>
                     </button>
+
+                    <div aria-hidden="true" className="pointer-events-none" />
 
                     <button
                         type="button"
