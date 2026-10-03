@@ -819,37 +819,35 @@ export default function Catalog() {
                             title={isAuthenticated ? 'Minha conta' : 'Entrar'}
                         >
                             <User className="h-4 w-4" />
-                            <span className="hidden sm:inline">{isAuthenticated ? 'Minha conta' : 'Entrar'}</span>
+                            <span className="hidden sm:inline">
+                                {isAuthenticated ? `Olá, ${customer?.nickname || customer?.full_name || 'cliente'}` : 'Entrar'}
+                            </span>
                         </button>
 
-                        {CUSTOMER_PORTAL_AUTH_ENABLED && (isAuthenticated ? (
-                            <div className="flex items-center rounded-full bg-white/20 p-1 pl-3 text-white">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCompleteProfileModal(true)}
-                                    className="max-w-24 truncate text-xs font-bold"
-                                >
-                                    Olá, {customer?.nickname || 'cliente'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={logout}
-                                    className="ml-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-red-500"
-                                    aria-label="Sair"
-                                >
-                                    <LogOut size={15} />
-                                </button>
-                            </div>
-                        ) : (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                window.setTimeout(() => searchInputRef.current?.focus(), 220);
+                            }}
+                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                            aria-label="Buscar produtos"
+                            title="Buscar"
+                        >
+                            <Search size={18} />
+                        </button>
+
+                        {isAuthenticated && (
                             <button
                                 type="button"
-                                onClick={() => setShowLoginModal(true)}
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"
-                                aria-label="Entrar"
+                                onClick={() => void handleCustomerLogout()}
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                                aria-label="Sair da conta"
+                                title="Sair"
                             >
-                                <User size={20} />
+                                <LogOut size={17} />
                             </button>
-                        ))}
+                        )}
 
                         <button
                             type="button"
