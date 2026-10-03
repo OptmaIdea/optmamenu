@@ -1682,7 +1682,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                         <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6">
                             <div className="min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Minha conta</p>
+                                    <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
+                                        {tab === 'loyalty' ? storeDisplayName : 'Minha conta'}
+                                    </p>
                                     <button
                                         type="button"
                                         onClick={() => void logout()}
@@ -1695,8 +1697,12 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         <span className="hidden sm:inline">Sair</span>
                                     </button>
                                 </div>
-                                <h2 id="customer-account-title" className="mt-1 truncate text-xl font-black text-slate-900 dark:text-white">{displayName}</h2>
-                                <p className="text-xs text-slate-500">{customer.phone}</p>
+                                <h2 id="customer-account-title" className="mt-1 truncate text-xl font-black text-slate-900 dark:text-white">
+                                    {tab === 'loyalty' ? 'Pontos e benefícios' : displayName}
+                                </h2>
+                                <p className="text-xs text-slate-500">
+                                    {tab === 'loyalty' ? `Programa da ${storeDisplayName}` : customer.phone}
+                                </p>
                             </div>
                             <button
                                 type="button"
