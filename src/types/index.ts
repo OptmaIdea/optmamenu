@@ -137,6 +137,7 @@ export interface StoreConfig {
     visual_banner_overlay_opacity?: number;
     loyalty_active?: boolean;
     visual_slogan?: string;
+    catalog_search_placeholder?: string;
     about_text?: string;
     about_image_url?: string;
     contact_phone?: string;
