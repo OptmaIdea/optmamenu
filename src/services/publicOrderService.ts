@@ -191,12 +191,30 @@ export interface PublicOptmaPayIntent {
     id: string;
     status: string;
     amount: number;
+    methodCode?: string | null;
     externalReference?: string | null;
     pixPayload?: string | null;
     expiresAt?: string | null;
     paidAt?: string | null;
     rotationCycle?: number;
     autoRotationIndex?: number;
+}
+
+export interface PublicOptmaPayCardReceipt {
+    transactionId?: string | null;
+    amountGross: number;
+    feePercent: number;
+    feeAmount: number;
+    amountNet: number;
+    installments: number;
+    settlementPlan: string;
+    cardMasked: string;
+    cardBrand: string;
+    authorizationCode: string;
+    nsu: string;
+    tid: string;
+    createdAt: string;
+    fromCache?: boolean;
 }
 
 export interface PublicOptmaPayPaymentState {
@@ -213,6 +231,10 @@ export interface PublicOptmaPayPaymentState {
     reused?: boolean;
     alreadyPaid?: boolean;
     manualRegenerationRequired?: boolean;
+    authorized?: boolean;
+    message?: string;
+    retryable?: boolean;
+    receipt?: PublicOptmaPayCardReceipt | null;
     intent?: PublicOptmaPayIntent | null;
 }
 
@@ -330,6 +352,7 @@ export const PublicOrderService = {
                 ? {
                     ...data.intent,
                     amount: Number(data.intent.amount || 0),
+                    methodCode: data.intent.methodCode || data.intent.method_code || null,
                     rotationCycle: Number(data.intent.rotationCycle || 0),
                     autoRotationIndex: Number(data.intent.autoRotationIndex || 0),
                 }
@@ -363,6 +386,62 @@ export const PublicOrderService = {
                 ? {
                     ...data.intent,
                     amount: Number(data.intent.amount || 0),
+                    rotationCycle: Number(data.intent.rotationCycle || 0),
+                    autoRotationIndex: Number(data.intent.autoRotationIndex || 0),
+                }
+                : null,
+        };
+    },
+
+    async chargeOptmaPayCard(params: {
+        token: string;
+        cardNumber: string;
+        cardholderName: string;
+        expirationDate: string;
+        cvv: string;
+        installments?: number;
+    }): Promise<PublicOptmaPayPaymentState> {
+        const normalizedToken = decodeURIComponent(params.token).trim();
+        const { data, error } = await supabasePublic.functions.invoke('optmapay-public-checkout', {
+            body: {
+                action: 'card_charge',
+                publicOrderToken: normalizedToken,
+                cardNumber: params.cardNumber,
+                cardholderName: params.cardholderName,
+                expirationDate: params.expirationDate,
+                cvv: params.cvv,
+                installments: params.installments || 1,
+            },
+        });
+        if (error) throw error;
+        if (!data?.ok) {
+            const message = String(data?.message || 'Não foi possível autorizar este cartão.');
+            const err = new Error(message) as Error & { code?: string; retryable?: boolean };
+            err.code = String(data?.error || 'card_not_authorized');
+            err.retryable = Boolean(data?.retryable);
+            throw err;
+        }
+
+        return {
+            ...(data as PublicOptmaPayPaymentState),
+            eligible: true,
+            authorized: Boolean(data?.authorized),
+            alreadyPaid: Boolean(data?.alreadyPaid),
+            receipt: data?.receipt
+                ? {
+                    ...data.receipt,
+                    amountGross: Number(data.receipt.amountGross || 0),
+                    feePercent: Number(data.receipt.feePercent || 0),
+                    feeAmount: Number(data.receipt.feeAmount || 0),
+                    amountNet: Number(data.receipt.amountNet || 0),
+                    installments: Number(data.receipt.installments || 1),
+                }
+                : null,
+            intent: data?.intent
+                ? {
+                    ...data.intent,
+                    amount: Number(data.intent.amount || 0),
+                    methodCode: data.intent.methodCode || data.intent.method_code || null,
                     rotationCycle: Number(data.intent.rotationCycle || 0),
                     autoRotationIndex: Number(data.intent.autoRotationIndex || 0),
                 }
