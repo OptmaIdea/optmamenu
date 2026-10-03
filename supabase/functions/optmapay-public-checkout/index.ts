@@ -1,6 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { buildOptmaMenuPixReference } from "../_shared/optmapayWebhook.ts";
+import {
+  buildOptmaMenuPaymentReference,
+  buildOptmaMenuPixReference,
+} from "../_shared/optmapayWebhook.ts";
 import { resolveOptmaPaySecret } from "../_shared/optmapaySecrets.ts";
 
 const DEFAULT_OPTMAPAY_BASE = "https://optmapay.optmaidea.com.br";
@@ -24,16 +27,49 @@ function cleanBaseUrl(value: string) {
   return value.replace(/\/+$/, "");
 }
 
+function normalizeCardResponse(data: any) {
+  const source = data?.data || data || {};
+  return {
+    transactionId: source.transactionId || source.transaction_id || null,
+    amountGross: Number(source.amountGross ?? source.grossAmount ?? source.amount_gross ?? source.gross_amount ?? 0),
+    feePercent: Number(source.feePercent ?? source.fee_percent ?? 0),
+    feeAmount: Number(source.feeAmount ?? source.fee_amount ?? 0),
+    amountNet: Number(source.amountNet ?? source.netAmount ?? source.amount_net ?? source.net_amount ?? 0),
+    installments: Number(source.installments || 1),
+    settlementPlan: String(source.settlementPlan || source.settlement_plan || source.plan || "standard"),
+    cardMasked: String(source.cardMasked || source.card_masked || ""),
+    cardBrand: String(source.cardBrand || source.card_brand || "OptmaCard"),
+    authorizationCode: String(source.authorizationCode || source.authorization_code || ""),
+    nsu: String(source.nsu || ""),
+    tid: String(source.tid || ""),
+    createdAt: String(source.createdAt || source.created_at || new Date().toISOString()),
+    fromCache: Boolean(source.fromCache || source.from_cache),
+  };
+}
+
+function friendlyCardError(code: string, fallback = "Não foi possível autorizar este cartão.") {
+  const normalized = String(code || "").toUpperCase();
+  if (normalized.includes("LIMIT")) return "Limite insuficiente neste cartão.";
+  if (normalized.includes("SALDO") || normalized.includes("BALANCE")) return "Saldo insuficiente para esta compra no débito.";
+  if (normalized.includes("EXPIRED") || normalized.includes("VALIDADE")) return "Este cartão está vencido ou a validade informada não confere.";
+  if (normalized.includes("CVV")) return "O código de segurança informado não confere.";
+  if (normalized.includes("BLOCK") || normalized.includes("INACTIVE")) return "Este cartão está bloqueado ou indisponível.";
+  if (normalized.includes("REAL_CARD")) return "Este ambiente Sandbox aceita apenas cartões fictícios OptmaPay.";
+  return fallback;
+}
+
 function safeIntent(row: any) {
   if (!row) return null;
   return {
     id: row.id,
     status: row.status,
     amount: Number(row.amount || 0),
+    methodCode: row.method_code || null,
     externalReference: row.external_reference || null,
     pixPayload: row.pix_payload || null,
     expiresAt: row.expires_at || null,
     paidAt: row.paid_at || null,
+    metadata: row.metadata || {},
     rotationCycle: Number(row.rotation_cycle ?? row.metadata?.rotation_cycle ?? 0),
     autoRotationIndex: Number(row.auto_rotation_index ?? row.metadata?.auto_rotation_index ?? 0),
   };
@@ -43,6 +79,7 @@ async function fetchMerchantAccount(
   service: any,
   provider: any,
   baseUrl: string,
+  requirePix = true,
 ) {
   const accountId = String(provider?.public_config?.optmapay_account_id || "").trim();
   if (!accountId) throw new Error("merchant_account_not_configured");
@@ -80,12 +117,13 @@ async function fetchMerchantAccount(
 
   const account = data?.account || {};
   if (String(account.id || "") !== accountId) throw new Error("merchant_account_mismatch");
-  if (!String(account.pixKey || "").trim()) throw new Error("merchant_pix_key_missing");
+  if (requirePix && !String(account.pixKey || "").trim()) throw new Error("merchant_pix_key_missing");
 
   return {
     id: accountId,
     name: String(account.name || "OptmaMenu"),
-    pixKey: String(account.pixKey).trim(),
+    pixKey: String(account.pixKey || "").trim(),
+    apiKey: apiSecret.value,
   };
 }
 
@@ -128,7 +166,7 @@ Deno.serve(async (req: Request) => {
       method?.active &&
       method?.public_enabled &&
       !method?.requires_proof &&
-      (method?.base_code || method?.code) === "pix" &&
+      baseCode === "pix" &&
       method?.metadata?.checkout?.confirmation_mode === "api" &&
       method?.metadata?.checkout?.integration_enabled === true &&
       method?.metadata?.checkout?.provider_code === "optma_sandbox",
@@ -141,6 +179,253 @@ Deno.serve(async (req: Request) => {
       .eq("provider_code", "optma_sandbox")
       .eq("environment", "sandbox")
       .maybeSingle();
+
+    const baseCode = String(method?.base_code || method?.code || "");
+    const isCard = baseCode === "debit_card" || baseCode === "credit_card";
+
+    if (isCard) {
+      const capability = baseCode === "debit_card" ? "debit_card" : "credit_card";
+      const isApiCard = Boolean(
+        method?.active &&
+        method?.public_enabled &&
+        !method?.requires_proof &&
+        method?.metadata?.checkout?.confirmation_mode === "api" &&
+        method?.metadata?.checkout?.integration_enabled === true &&
+        method?.metadata?.checkout?.provider_code === "optma_sandbox",
+      );
+      const eligible = Boolean(
+        isApiCard &&
+        provider?.enabled &&
+        provider?.credential_status === "ready" &&
+        provider?.capabilities?.[capability] === true &&
+        order.status !== "cancelled" &&
+        order.status !== "expired" &&
+        order.status !== "completed",
+      );
+
+      const { data: latestCardIntent } = await service
+        .from("online_payment_intents")
+        .select("id,status,amount,method_code,external_reference,expires_at,paid_at,created_at,metadata")
+        .eq("store_id", order.store_id)
+        .eq("order_id", order.id)
+        .eq("provider_id", provider?.id || "00000000-0000-0000-0000-000000000000")
+        .eq("method_code", method?.code || order.payment_method_code)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (action === "status" || action === "card_status") {
+        return reply({
+          ok: true,
+          eligible,
+          orderCode: order.order_code,
+          orderStatus: order.status,
+          paymentStatus: order.payment_status,
+          paymentMethodCode: order.payment_method_code,
+          providerReady: Boolean(provider?.enabled && provider?.credential_status === "ready"),
+          environment: "sandbox",
+          realMoney: false,
+          intent: safeIntent(latestCardIntent),
+        }, 200, origin);
+      }
+
+      if (action !== "card_charge") {
+        return reply({ ok: false, error: "unsupported_action" }, 400, origin);
+      }
+
+      if (order.payment_status === "paid") {
+        return reply({
+          ok: true,
+          eligible: true,
+          alreadyPaid: true,
+          orderCode: order.order_code,
+          paymentStatus: "paid",
+          environment: "sandbox",
+          realMoney: false,
+          intent: safeIntent(latestCardIntent),
+        }, 200, origin);
+      }
+
+      if (!eligible) {
+        return reply({
+          ok: false,
+          error: "payment_not_eligible",
+          message: "Este meio de pagamento ainda não está disponível para este pedido.",
+        }, 409, origin);
+      }
+
+      // Dados sensíveis existem apenas em memória nesta requisição e nunca são persistidos/logados.
+      const cardNumber = String(body?.cardNumber || "").replace(/\D/g, "");
+      const expirationDate = String(body?.expirationDate || "").trim();
+      const cvv = String(body?.cvv || "").trim();
+      const cardholderName = String(body?.cardholderName || "").trim().slice(0, 100);
+      const installments = baseCode === "debit_card"
+        ? 1
+        : Math.max(1, Math.min(12, Number.parseInt(String(body?.installments || "1"), 10) || 1));
+
+      if (!/^\d{12,19}$/.test(cardNumber)) {
+        return reply({ ok: false, error: "card_invalid", message: "Confira o número do cartão e tente novamente." }, 400, origin);
+      }
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expirationDate)) {
+        return reply({ ok: false, error: "card_invalid", message: "Informe a validade no formato MM/AA." }, 400, origin);
+      }
+      if (!/^\d{3,4}$/.test(cvv)) {
+        return reply({ ok: false, error: "card_invalid", message: "Confira o código de segurança do cartão." }, 400, origin);
+      }
+
+      const merchant = await fetchMerchantAccount(service, provider, baseUrl, false);
+      const candidateIntentId = crypto.randomUUID();
+      const externalReference = buildOptmaMenuPaymentReference(
+        order.store_id,
+        candidateIntentId,
+        method.code as "debit_card" | "credit_card",
+      );
+      const settlementPlan = String(provider?.public_config?.card_settlement_plan || "standard").trim() || "standard";
+
+      const { data: intentResult, error: intentError } = await service.rpc(
+        "create_or_reuse_optmapay_public_card_intent_internal",
+        {
+          p_public_order_token: publicOrderToken,
+          p_candidate_intent_id: candidateIntentId,
+          p_external_reference: externalReference,
+          p_method_code: method.code,
+          p_installments: installments,
+          p_settlement_plan: settlementPlan,
+          p_merchant_account_id: merchant.id,
+        },
+      );
+      if (intentError) throw intentError;
+      if (!intentResult?.ok) {
+        return reply({ ok: false, error: "card_intent_failed", message: "Não foi possível preparar este pagamento." }, 409, origin);
+      }
+      if (intentResult?.already_paid) {
+        return reply({
+          ok: true,
+          alreadyPaid: true,
+          orderCode: order.order_code,
+          paymentStatus: "paid",
+          environment: "sandbox",
+          realMoney: false,
+          intent: safeIntent(intentResult.intent),
+        }, 200, origin);
+      }
+
+      const intent = intentResult.intent;
+      const idempotencyKey = `optmamenu-card:${intent.id}`;
+      const chargeResponse = await fetch(`${baseUrl}/api/sandbox/v1/cards/charge`, {
+        method: "POST",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${merchant.apiKey}`,
+          "x-optmapay-account-id": merchant.id,
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify({
+          cardNumber,
+          cardholderName: cardholderName || "CLIENTE SANDBOX",
+          expirationDate,
+          cvv,
+          amount: Number(order.total),
+          installments,
+          tipo: baseCode === "debit_card" ? "debito" : "credito",
+          orderId: intent.external_reference,
+          description: `Pedido ${order.order_code}`,
+          settlementPlan,
+        }),
+      });
+
+      const rawCharge = await chargeResponse.text();
+      let chargePayload: any = null;
+      try { chargePayload = rawCharge ? JSON.parse(rawCharge) : null; } catch { chargePayload = null; }
+
+      const apiEnvironment = chargeResponse.headers.get("x-optmapay-environment");
+      const apiRealMoney = chargeResponse.headers.get("x-optmapay-real-money");
+      if ((apiEnvironment && apiEnvironment !== "sandbox") || (apiRealMoney && apiRealMoney !== "false")) {
+        throw new Error("sandbox_boundary_rejected");
+      }
+
+      if (!chargeResponse.ok || chargePayload?.success === false) {
+        const providerCode = String(chargePayload?.error?.code || chargePayload?.code || "CARD_AUTH_FAILED");
+        const shouldKeepPending = chargeResponse.status >= 500 || providerCode === "IDEMPOTENCY_IN_PROGRESS";
+        if (!shouldKeepPending) {
+          await service
+            .from("online_payment_intents")
+            .update({
+              status: "failed",
+              metadata: {
+                ...(intent.metadata || {}),
+                failure_code: providerCode,
+                failed_at: new Date().toISOString(),
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", intent.id)
+            .eq("status", "pending");
+        }
+        return reply({
+          ok: false,
+          error: "card_not_authorized",
+          message: friendlyCardError(
+            providerCode,
+            String(chargePayload?.error?.message || "Não foi possível autorizar este cartão."),
+          ),
+          retryable: shouldKeepPending,
+          environment: "sandbox",
+          realMoney: false,
+        }, chargeResponse.status >= 500 ? 503 : 422, origin);
+      }
+
+      const safeCard = normalizeCardResponse(chargePayload);
+      await service
+        .from("online_payment_intents")
+        .update({
+          status: "authorized",
+          external_payment_id: safeCard.transactionId,
+          provider_snapshot: {
+            transactionId: safeCard.transactionId,
+            amountGross: safeCard.amountGross,
+            feePercent: safeCard.feePercent,
+            feeAmount: safeCard.feeAmount,
+            amountNet: safeCard.amountNet,
+            installments: safeCard.installments,
+            settlementPlan: safeCard.settlementPlan,
+            cardMasked: safeCard.cardMasked,
+            cardBrand: safeCard.cardBrand,
+            authorizationCode: safeCard.authorizationCode,
+            nsu: safeCard.nsu,
+            tid: safeCard.tid,
+            createdAt: safeCard.createdAt,
+            environment: "sandbox",
+            realMoney: false,
+          },
+          metadata: {
+            ...(intent.metadata || {}),
+            authorized_at: safeCard.createdAt,
+            idempotency_key: idempotencyKey,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", intent.id)
+        .in("status", ["pending", "authorized"]);
+
+      return reply({
+        ok: true,
+        authorized: true,
+        paymentStatus: "processing",
+        message: "Pagamento autorizado. Estamos confirmando o recebimento.",
+        orderCode: order.order_code,
+        environment: "sandbox",
+        realMoney: false,
+        intent: {
+          ...safeIntent(intent),
+          id: intent.id,
+          status: "authorized",
+          externalReference: intent.external_reference,
+        },
+        receipt: safeCard,
+      }, 200, origin);
+    }
 
     let { data: intent } = await service
       .from("online_payment_intents")
@@ -230,7 +515,7 @@ Deno.serve(async (req: Request) => {
       return reply({ ok: false, error: "payment_not_eligible" }, 409, origin);
     }
 
-    const merchant = await fetchMerchantAccount(service, provider, baseUrl);
+    const merchant = await fetchMerchantAccount(service, provider, baseUrl, true);
     const candidateIntentId = crypto.randomUUID();
     const externalReference = buildOptmaMenuPixReference(order.store_id, candidateIntentId);
 
