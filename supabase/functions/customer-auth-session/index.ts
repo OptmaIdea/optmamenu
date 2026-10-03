@@ -29,17 +29,27 @@ function validDeviceHash(value: unknown) {
   return /^[0-9a-f]{64}$/i.test(String(value || ""));
 }
 
-function decodeJwtIssuedAt(token: string) {
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const payload = token.split(".")[1] || "";
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
-    const parsed = JSON.parse(atob(padded));
-    const issuedAt = Number(parsed?.iat || 0);
-    return Number.isFinite(issuedAt) ? issuedAt : 0;
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
   } catch {
-    return 0;
+    return null;
   }
+}
+
+function decodeJwtIssuedAt(token: string) {
+  const parsed = decodeJwtPayload(token);
+  const issuedAt = Number(parsed?.iat || 0);
+  return Number.isFinite(issuedAt) ? issuedAt : 0;
+}
+
+function decodeJwtSessionId(token: string) {
+  const parsed = decodeJwtPayload(token);
+  const sessionId = String(parsed?.session_id || "");
+  return validUuid(sessionId) ? sessionId : null;
 }
 
 function deviceLabelFromUserAgent(userAgent: string) {
@@ -149,6 +159,9 @@ async function getBearerIdentity(service: any, req: Request) {
   const token = getBearerToken(req);
   if (!token) return null;
 
+  const sessionId = decodeJwtSessionId(token);
+  if (!sessionId) return null;
+
   const { data: userData, error: userError } = await service.auth.getUser(token);
   const authUserId = userData?.user?.id;
   if (userError || !authUserId) return null;
@@ -169,7 +182,35 @@ async function getBearerIdentity(service: any, req: Request) {
     }
   }
 
-  return identity;
+  return {
+    ...identity,
+    auth_user_id: authUserId,
+    session_id: sessionId,
+  };
+}
+
+async function bindCurrentSessionDevice(
+  service: any,
+  identity: any,
+  deviceTokenHash: string,
+) {
+  if (!identity?.session_id || !identity?.auth_user_id || !validDeviceHash(deviceTokenHash)) {
+    return { ok: false, error: "reauth_required" };
+  }
+
+  const { data, error } = await service.rpc("customer_touch_bound_session_service_safe", {
+    p_session_id: identity.session_id,
+    p_customer_id: identity.customer_id,
+    p_store_id: identity.store_id,
+    p_auth_user_id: identity.auth_user_id,
+    p_device_token_hash: deviceTokenHash,
+  });
+
+  if (error || !data?.ok) {
+    return { ok: false, error: data?.error || "reauth_required" };
+  }
+
+  return { ok: true };
 }
 
 async function issueSessionProof(service: any, customerId: string, storeId: string) {
@@ -249,8 +290,8 @@ Deno.serve(async (req: Request) => {
 
   if (action === "me") {
     const identity = await getBearerIdentity(service, req);
-    if (!identity) return json({ ok: false, error: "unauthorized" }, 401, origin);
-    if (!validDeviceHash(deviceTokenHash)) return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 401, origin);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 200, origin);
 
     const { data: deviceState, error: deviceError } = await service.rpc("customer_touch_trusted_device_service_safe", {
       p_customer_id: identity.customer_id,
@@ -258,7 +299,12 @@ Deno.serve(async (req: Request) => {
       p_device_token_hash: deviceTokenHash,
     });
     if (deviceError || !deviceState?.ok) {
-      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required", reason: boundSession.error }, 200, origin);
     }
 
     await persistDeviceMetadata(
@@ -281,9 +327,9 @@ Deno.serve(async (req: Request) => {
 
   if (action === "trusted_devices") {
     const identity = await getBearerIdentity(service, req);
-    if (!identity) return json({ ok: false, error: "unauthorized" }, 401, origin);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
     if (!validDeviceHash(deviceTokenHash)) {
-      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 401, origin);
+      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 200, origin);
     }
 
     const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
@@ -292,7 +338,12 @@ Deno.serve(async (req: Request) => {
       p_device_token_hash: deviceTokenHash,
     });
     if (!deviceState?.ok) {
-      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required", reason: boundSession.error }, 200, origin);
     }
 
     await persistDeviceMetadata(
@@ -313,9 +364,116 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, devices: result.devices || [], activeCount: Number(result.active_count || 0) }, 200, origin);
   }
 
+  if (action === "rename_device") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const targetDeviceId = String(input.deviceId || "");
+    const label = String(input.label || "").trim();
+    if (!validUuid(targetDeviceId) || !label) {
+      return json({ ok: false, error: "invalid_request" }, 200, origin);
+    }
+
+    const { data: result, error } = await service.rpc("customer_rename_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+      p_target_device_id: targetDeviceId,
+      p_label: label,
+    });
+    if (error) return json({ ok: false, error: "device_rename_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "device_rename_failed" }, 200, origin);
+
+    return json({ ok: true, label: result.label }, 200, origin);
+  }
+
+  if (action === "revoke_device") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const currentPassword = String(input.currentPassword || "");
+    const targetDeviceId = String(input.deviceId || "");
+    if (!currentPassword || !validUuid(targetDeviceId)) {
+      return json({ ok: false, error: "current_password_required" }, 200, origin);
+    }
+
+    const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_password: currentPassword,
+    });
+    if (verifyError) return json({ ok: false, error: "password_verification_failed" }, 500, origin);
+    if (!verified?.ok) {
+      if (verified?.error === "locked") {
+        return json({
+          ok: false,
+          error: "locked",
+          retryAfterSeconds: Number(verified.retry_after_seconds || 900),
+        }, 200, origin);
+      }
+      return json({ ok: false, error: "invalid_current_password" }, 200, origin);
+    }
+
+    const { data: result, error } = await service.rpc("customer_revoke_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+      p_target_device_id: targetDeviceId,
+    });
+    if (error) return json({ ok: false, error: "device_revoke_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "device_revoke_failed" }, 200, origin);
+
+    const { data: listed } = await service.rpc("customer_list_trusted_devices_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+    });
+
+    return json({
+      ok: true,
+      revokedDeviceId: targetDeviceId,
+      label: result.label,
+      devices: listed?.devices || [],
+    }, 200, origin);
+  }
+
   if (action === "revoke_other_devices") {
     const identity = await getBearerIdentity(service, req);
-    if (!identity) return json({ ok: false, error: "unauthorized" }, 401, origin);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
     if (!validDeviceHash(deviceTokenHash)) {
       return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 401, origin);
     }
@@ -330,7 +488,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const currentPassword = String(input.currentPassword || "");
-    if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 400, origin);
+    if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 200, origin);
 
     const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
       p_customer_id: identity.customer_id,
@@ -344,9 +502,9 @@ Deno.serve(async (req: Request) => {
           ok: false,
           error: "locked",
           retryAfterSeconds: Number(verified.retry_after_seconds || 900),
-        }, 423, origin);
+        }, 200, origin);
       }
-      return json({ ok: false, error: "invalid_current_password" }, 401, origin);
+      return json({ ok: false, error: "invalid_current_password" }, 200, origin);
     }
 
     const currentJwt = getBearerToken(req);
@@ -405,22 +563,25 @@ Deno.serve(async (req: Request) => {
 
   if (action === "set_password") {
     const identity = await getBearerIdentity(service, req);
-    if (!identity) return json({ ok: false, error: "unauthorized" }, 401, origin);
-    if (!validDeviceHash(deviceTokenHash)) return json({ ok: false, error: "reauth_required" }, 401, origin);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) return json({ ok: false, error: "reauth_required" }, 200, origin);
 
     const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
       p_customer_id: identity.customer_id,
       p_store_id: identity.store_id,
       p_device_token_hash: deviceTokenHash,
     });
-    if (!deviceState?.ok) return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 401, origin);
+    if (!deviceState?.ok) return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 200, origin);
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) return json({ ok: false, error: "reauth_required" }, 200, origin);
 
     const currentPassword = String(input.currentPassword || "");
     const password = String(input.password || "");
     const alreadyHasPassword = await passwordConfigured(service, String(identity.customer_id));
 
     if (alreadyHasPassword) {
-      if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 400, origin);
+      if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 200, origin);
 
       const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
         p_customer_id: identity.customer_id,
@@ -434,9 +595,9 @@ Deno.serve(async (req: Request) => {
             ok: false,
             error: "locked",
             retryAfterSeconds: Number(verified.retry_after_seconds || 900),
-          }, 423, origin);
+          }, 200, origin);
         }
-        return json({ ok: false, error: "invalid_current_password" }, 401, origin);
+        return json({ ok: false, error: "invalid_current_password" }, 200, origin);
       }
     }
 
@@ -500,7 +661,7 @@ Deno.serve(async (req: Request) => {
     const password = String(input.password || "");
     const storeId = String(input.storeId || "").trim();
     if (!phone || !password || !validUuid(storeId) || !validDeviceHash(deviceTokenHash)) {
-      return json({ ok: false, error: "invalid_credentials" }, 401, origin);
+      return json({ ok: false, error: "invalid_credentials" }, 200, origin);
     }
 
     const { data: verified, error: verifyError } = await service.rpc("customer_verify_password_service_safe", {
@@ -512,13 +673,13 @@ Deno.serve(async (req: Request) => {
     if (verifyError) return json({ ok: false, error: "login_unavailable" }, 503, origin);
     if (!verified?.ok) {
       if (verified?.error === "locked") {
-        return json({ ok: false, error: "locked", retryAfterSeconds: Number(verified?.retry_after_seconds || 900) }, 423, origin);
+        return json({ ok: false, error: "locked", retryAfterSeconds: Number(verified?.retry_after_seconds || 900) }, 200, origin);
       }
-      return json({ ok: false, error: "invalid_credentials" }, 401, origin);
+      return json({ ok: false, error: "invalid_credentials" }, 200, origin);
     }
 
     const customerId = String(verified.customer_id || "");
-    if (!customerId) return json({ ok: false, error: "invalid_credentials" }, 401, origin);
+    if (!customerId) return json({ ok: false, error: "invalid_credentials" }, 200, origin);
 
     if (verified.otp_required) {
       return json({
@@ -529,7 +690,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const customer = await loadCustomer(service, customerId, storeId);
-    if (!customer) return json({ ok: false, error: "invalid_credentials" }, 401, origin);
+    if (!customer) return json({ ok: false, error: "invalid_credentials" }, 200, origin);
 
     await persistDeviceMetadata(service, customerId, storeId, deviceTokenHash, req);
 
@@ -564,7 +725,7 @@ Deno.serve(async (req: Request) => {
   });
   if (verifyError) return json({ ok: false, error: "otp_verification_failed" }, 500, origin);
   if (!verified?.isValid) {
-    return json({ ok: false, error: verified?.locked ? "otp_locked" : "invalid_or_expired_otp" }, verified?.locked ? 423 : 401, origin);
+    return json({ ok: false, error: verified?.locked ? "otp_locked" : "invalid_or_expired_otp" }, 200, origin);
   }
 
   let customerId = verified?.customer?.id ? String(verified.customer.id) : "";
