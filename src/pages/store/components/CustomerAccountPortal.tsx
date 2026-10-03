@@ -351,6 +351,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
     const [trustedDevicesRevoking, setTrustedDevicesRevoking] = useState(false);
     const [deviceActionPassword, setDeviceActionPassword] = useState('');
+    const [editingTrustedDeviceId, setEditingTrustedDeviceId] = useState<string | null>(null);
+    const [editingTrustedDeviceLabel, setEditingTrustedDeviceLabel] = useState('');
+    const [revokingTrustedDeviceId, setRevokingTrustedDeviceId] = useState<string | null>(null);
+    const [targetDevicePassword, setTargetDevicePassword] = useState('');
     const [exportingData, setExportingData] = useState(false);
     const [deletionOpen, setDeletionOpen] = useState(false);
     const [deletionPassword, setDeletionPassword] = useState('');
@@ -1592,6 +1596,73 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     };
 
+    const startRenameTrustedDevice = (device: TrustedCustomerDevice) => {
+        setEditingTrustedDeviceId(device.id);
+        setEditingTrustedDeviceLabel(device.label || 'Dispositivo confiável');
+        setRevokingTrustedDeviceId(null);
+        setTargetDevicePassword('');
+        clearFeedback();
+    };
+
+    const saveTrustedDeviceLabel = async (deviceId: string) => {
+        clearFeedback();
+        const label = editingTrustedDeviceLabel.trim();
+        if (!label || label.length > 40) {
+            setError('Use um apelido de 1 a 40 caracteres.');
+            return;
+        }
+
+        setTrustedDevicesLoading(true);
+        try {
+            const savedLabel = await AuthService.renameTrustedDevice(deviceId, label);
+            setTrustedDevices((devices) => devices.map((device) => (
+                device.id === deviceId ? { ...device, label: savedLabel } : device
+            )));
+            setEditingTrustedDeviceId(null);
+            setEditingTrustedDeviceLabel('');
+            toast.success('Apelido do dispositivo atualizado.');
+        } catch (deviceError) {
+            const feedback = deviceError instanceof Error
+                ? deviceError.message
+                : 'Não foi possível renomear o dispositivo.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setTrustedDevicesLoading(false);
+        }
+    };
+
+    const revokeTrustedDevice = async (device: TrustedCustomerDevice) => {
+        clearFeedback();
+        if (device.is_current) {
+            await logout();
+            return;
+        }
+        if (!targetDevicePassword) {
+            setError('Informe sua senha atual para desconectar este dispositivo.');
+            return;
+        }
+
+        setTrustedDevicesRevoking(true);
+        try {
+            const result = await AuthService.revokeTrustedDevice(device.id, targetDevicePassword);
+            setTrustedDevices(result.devices);
+            setRevokingTrustedDeviceId(null);
+            setTargetDevicePassword('');
+            const feedback = `${result.label} foi desconectado da sua conta.`;
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (deviceError) {
+            const feedback = deviceError instanceof Error
+                ? deviceError.message
+                : 'Não foi possível desconectar o dispositivo.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setTrustedDevicesRevoking(false);
+        }
+    };
+
     const tabs: Array<{ id: AccountTab; label: string; icon: typeof UserRound }> = [
         { id: 'profile', label: 'Meus dados', icon: UserRound },
         { id: 'addresses', label: 'Endereços', icon: MapPin },
@@ -2591,8 +2662,55 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                         {trustedDevices.map((device) => (
                                                             <div key={device.id} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
                                                                 <div className="flex items-start justify-between gap-3">
-                                                                    <div className="min-w-0">
-                                                                        <p className="font-black text-slate-900 dark:text-white">{device.label}</p>
+                                                                    <div className="min-w-0 flex-1">
+                                                                        {editingTrustedDeviceId === device.id ? (
+                                                                            <div className="flex gap-2">
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={editingTrustedDeviceLabel}
+                                                                                    maxLength={40}
+                                                                                    onChange={(event) => setEditingTrustedDeviceLabel(event.target.value)}
+                                                                                    className="min-h-10 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                                                                                    aria-label="Apelido do dispositivo"
+                                                                                    autoFocus
+                                                                                />
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => void saveTrustedDeviceLabel(device.id)}
+                                                                                    disabled={trustedDevicesLoading}
+                                                                                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white disabled:opacity-50"
+                                                                                    aria-label="Salvar apelido"
+                                                                                    title="Salvar apelido"
+                                                                                >
+                                                                                    <Save className="h-4 w-4" />
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        setEditingTrustedDeviceId(null);
+                                                                                        setEditingTrustedDeviceLabel('');
+                                                                                    }}
+                                                                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 dark:border-slate-700"
+                                                                                    aria-label="Cancelar edição"
+                                                                                    title="Cancelar"
+                                                                                >
+                                                                                    <X className="h-4 w-4" />
+                                                                                </button>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex items-center gap-2">
+                                                                                <p className="truncate font-black text-slate-900 dark:text-white">{device.label}</p>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => startRenameTrustedDevice(device)}
+                                                                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-emerald-600 dark:hover:bg-slate-800"
+                                                                                    aria-label={`Dar apelido para ${device.label}`}
+                                                                                    title="Renomear dispositivo"
+                                                                                >
+                                                                                    <Pencil className="h-3.5 w-3.5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
                                                                         <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
                                                                             Última atividade: {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('pt-BR') : 'não informada'}
                                                                         </p>
@@ -2606,6 +2724,64 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                                         </span>
                                                                     )}
                                                                 </div>
+
+                                                                {revokingTrustedDeviceId === device.id && !device.is_current ? (
+                                                                    <div className="mt-3 rounded-xl border border-red-200 bg-white p-3 dark:border-red-900/50 dark:bg-slate-950">
+                                                                        <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                                                                            Confirme sua senha para desconectar somente <strong>{device.label}</strong>.
+                                                                        </p>
+                                                                        <div className="mt-2">
+                                                                            <PasswordField
+                                                                                label="Senha atual"
+                                                                                value={targetDevicePassword}
+                                                                                onChange={setTargetDevicePassword}
+                                                                                placeholder="Sua senha atual"
+                                                                                autoComplete="current-password"
+                                                                            />
+                                                                        </div>
+                                                                        <div className="mt-3 flex gap-2">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setRevokingTrustedDeviceId(null);
+                                                                                    setTargetDevicePassword('');
+                                                                                }}
+                                                                                className="flex-1 rounded-xl border border-slate-200 py-2 text-xs font-black text-slate-600 dark:border-slate-700 dark:text-slate-300"
+                                                                            >
+                                                                                Cancelar
+                                                                            </button>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => void revokeTrustedDevice(device)}
+                                                                                disabled={trustedDevicesRevoking || !targetDevicePassword}
+                                                                                className="flex-1 rounded-xl bg-red-600 py-2 text-xs font-black text-white disabled:opacity-50"
+                                                                            >
+                                                                                {trustedDevicesRevoking ? 'Desconectando…' : 'Desconectar'}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="mt-3 flex justify-end">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                if (device.is_current) {
+                                                                                    void logout();
+                                                                                    return;
+                                                                                }
+                                                                                setEditingTrustedDeviceId(null);
+                                                                                setRevokingTrustedDeviceId(device.id);
+                                                                                setTargetDevicePassword('');
+                                                                                clearFeedback();
+                                                                            }}
+                                                                            disabled={trustedDevicesRevoking}
+                                                                            className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-red-200 px-3 text-xs font-black text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/20"
+                                                                        >
+                                                                            <LogOut className="h-3.5 w-3.5" />
+                                                                            {device.is_current ? 'Sair deste dispositivo' : 'Desconectar este dispositivo'}
+                                                                        </button>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         ))}
                                                     </div>
