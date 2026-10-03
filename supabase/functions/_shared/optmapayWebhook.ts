@@ -3,7 +3,10 @@ export type OptmaPayWebhookVerification = {
   reason?: 'invalid_timestamp' | 'replay' | 'invalid_signature_format' | 'invalid_signature';
 };
 
+export type OptmaMenuOnlinePaymentMethod = 'pix' | 'debit_card' | 'credit_card';
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SUPPORTED_METHODS = new Set<OptmaMenuOnlinePaymentMethod>(['pix', 'debit_card', 'credit_card']);
 
 function bytesToHex(bytes: Uint8Array) {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -85,24 +88,39 @@ export async function verifyOptmaPayWebhook(input: {
   return valid ? { ok: true } : { ok: false, reason: 'invalid_signature' };
 }
 
-export function buildOptmaMenuPixReference(storeId: string, intentId: string) {
-  if (!UUID_RE.test(storeId) || !UUID_RE.test(intentId)) {
-    throw new Error('invalid_optmamenu_pix_reference_ids');
+export function buildOptmaMenuPaymentReference(
+  storeId: string,
+  intentId: string,
+  method: OptmaMenuOnlinePaymentMethod,
+) {
+  if (!UUID_RE.test(storeId) || !UUID_RE.test(intentId) || !SUPPORTED_METHODS.has(method)) {
+    throw new Error('invalid_optmamenu_payment_reference');
   }
-  return `optmamenu:${storeId}:${intentId}:pix`;
+  return `optmamenu:${storeId}:${intentId}:${method}`;
 }
 
-export function parseOptmaMenuPixReference(reference: string) {
-  const parts = reference.split(':');
+export function parseOptmaMenuPaymentReference(reference: string) {
+  const parts = String(reference || '').split(':');
+  const method = parts[3] as OptmaMenuOnlinePaymentMethod;
   if (
     parts.length !== 4 ||
     parts[0] !== 'optmamenu' ||
-    parts[3] !== 'pix' ||
+    !SUPPORTED_METHODS.has(method) ||
     !UUID_RE.test(parts[1]) ||
     !UUID_RE.test(parts[2])
   ) {
     return null;
   }
 
-  return { storeId: parts[1], intentId: parts[2], method: 'pix' as const };
+  return { storeId: parts[1], intentId: parts[2], method };
+}
+
+export function buildOptmaMenuPixReference(storeId: string, intentId: string) {
+  return buildOptmaMenuPaymentReference(storeId, intentId, 'pix');
+}
+
+export function parseOptmaMenuPixReference(reference: string) {
+  const parsed = parseOptmaMenuPaymentReference(reference);
+  if (!parsed || parsed.method !== 'pix') return null;
+  return parsed;
 }
