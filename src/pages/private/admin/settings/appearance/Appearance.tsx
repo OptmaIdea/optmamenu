@@ -110,6 +110,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         visual_color_highlight: '#fbbf24',
         visual_banner_url: '',
         visual_slogan: '',
+        catalog_search_placeholder: '',
         about_text: '',
         about_image_url: '',
         contact_phone: '',
@@ -524,6 +525,21 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
                                             disabled={disabled}
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Texto da busca no catálogo</label>
+                                        <input
+                                            type="text"
+                                            value={config.catalog_search_placeholder || ''}
+                                            onChange={(e) => setConfig({ ...config, catalog_search_placeholder: e.target.value.slice(0, 80) })}
+                                            placeholder="Ex: Qual produto você procura?"
+                                            maxLength={80}
+                                            className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
+                                            disabled={disabled}
+                                        />
+                                        <p className="mt-2 text-xs leading-5 text-gray-400">
+                                            Use uma frase adequada ao seu negócio. Se ficar vazio, a loja exibirá “Buscar produtos”.
+                                        </p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Frase do Rodapé</label>
