@@ -49,7 +49,6 @@ type SocialLink = {
 export default function PublicLegalFooter() {
     const { pathname } = useLocation();
     const cartContext = useCartStore((state) => state.context);
-    const cartItems = useCartStore((state) => state.items);
     const [storeConfig, setStoreConfig] = useState<StoreConfig | null>(null);
 
     const pathSlug = slugFromPublicPath(pathname);
@@ -80,7 +79,7 @@ export default function PublicLegalFooter() {
     if (isPrivatePath(pathname)) return null;
 
     const storeLegalBase = storeSlug ? `/s/${encodeURIComponent(storeSlug)}/legal` : null;
-    const hasFixedCartBar = Boolean(storeSlug && cartItems.length > 0 && !pathname.includes('/legal/'));
+    const hasStorefrontBottomNavigation = /^\/(?:s|loja|cardapio|q|mesa)\//.test(pathname) && !pathname.includes('/legal/');
     const termsPath = storeLegalBase ? `${storeLegalBase}/termos` : '/terms';
     const privacyPath = storeLegalBase ? `${storeLegalBase}/privacidade` : '/politica-privacidade';
     const cookiesPath = storeLegalBase ? `${storeLegalBase}/cookies` : '/politica-cookies';
@@ -103,7 +102,7 @@ export default function PublicLegalFooter() {
     };
 
     return (
-        <footer className={`border-t border-slate-200 bg-slate-100 px-4 pt-7 text-center text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 ${hasFixedCartBar ? 'pb-36 sm:pb-32' : 'pb-7'}`}>
+        <footer className={`border-t border-slate-200 bg-slate-100 px-4 pt-7 text-center text-slate-600 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-300 ${hasStorefrontBottomNavigation ? 'pb-28 lg:pb-7' : 'pb-7'}`}>
             <div className="mx-auto max-w-5xl">
                 <div className="flex items-center justify-center gap-2 text-sm font-black text-slate-900 dark:text-white">
                     <ShieldCheck className="h-4 w-4 text-emerald-600" aria-hidden="true" />
