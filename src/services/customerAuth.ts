@@ -165,12 +165,26 @@ async function completeSession(data: any) {
     }
 
     persistCustomerSession(authData.session);
-    const customer = toCustomer(data.customer);
+
+    // Vincula a sessão GoTrue recém-criada ao navegador/dispositivo confiável antes
+    // de liberar qualquer RPC customer-scoped. Isso permite revogação seletiva.
+    const deviceTokenHash = await getDeviceTokenHash();
+    const { data: bound, error: bindError } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+        body: { action: 'me', deviceTokenHash },
+    });
+
+    if (bindError || !bound?.ok || !bound?.customer) {
+        clearPersistedCustomerSession();
+        await supabaseCustomerAuth.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        throw new Error('A sessão foi criada, mas não foi possível confirmar este dispositivo. Entre novamente.');
+    }
+
+    const customer = toCustomer(bound.customer);
     useCustomerAuth.getState().login(customer);
 
     return {
         customer,
-        passwordConfigured: Boolean(data.passwordConfigured),
+        passwordConfigured: Boolean(bound.passwordConfigured ?? data.passwordConfigured),
     };
 }
 
@@ -409,6 +423,96 @@ export const AuthService = {
                 last_seen_at: device.last_seen_at || null,
             }))
             : [];
+    },
+
+    async renameTrustedDevice(deviceId: string, label: string) {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) throw new Error('Sua sessão expirou. Entre novamente para renomear o dispositivo.');
+
+        const cleanLabel = label.trim();
+        if (!cleanLabel || cleanLabel.length > 40) {
+            throw new Error('Use um apelido de 1 a 40 caracteres.');
+        }
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: {
+                action: 'rename_device',
+                deviceId,
+                label: cleanLabel,
+                deviceTokenHash,
+            },
+        });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            label?: string;
+        } | null;
+
+        if (payload?.error === 'reauth_required' || payload?.error === 'session_expired') {
+            throw new Error('Sua sessão de segurança expirou. Entre novamente para continuar.');
+        }
+        if (payload?.error === 'invalid_label') {
+            throw new Error('Use um apelido de 1 a 40 caracteres.');
+        }
+        if (payload?.error === 'device_not_found') {
+            throw new Error('Este dispositivo não está mais ativo.');
+        }
+        if (error || !payload?.ok) {
+            throw new Error('Não foi possível renomear o dispositivo agora.');
+        }
+
+        return String(payload.label || cleanLabel);
+    },
+
+    async revokeTrustedDevice(deviceId: string, currentPassword: string) {
+        const token = await refreshCustomerSessionIfNeeded();
+        if (!token) throw new Error('Sua sessão expirou. Entre novamente para desconectar o dispositivo.');
+        if (!currentPassword) throw new Error('Informe sua senha atual.');
+
+        const deviceTokenHash = await getDeviceTokenHash();
+        const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
+            body: {
+                action: 'revoke_device',
+                deviceId,
+                currentPassword,
+                deviceTokenHash,
+            },
+        });
+        const errorPayload = error ? await readFunctionErrorPayload(error) : null;
+        const payload = (data && typeof data === 'object' ? data : errorPayload) as {
+            ok?: boolean;
+            error?: string;
+            retryAfterSeconds?: number;
+            devices?: TrustedCustomerDevice[];
+            label?: string;
+        } | null;
+
+        if (payload?.error === 'invalid_current_password') {
+            throw new Error('A senha atual informada não confere.');
+        }
+        if (payload?.error === 'locked') {
+            const seconds = Math.max(60, Number(payload.retryAfterSeconds || 900));
+            throw new Error(`Muitas tentativas incorretas. Aguarde cerca de ${Math.ceil(seconds / 60)} minuto(s) e tente novamente.`);
+        }
+        if (payload?.error === 'cannot_revoke_current_device') {
+            throw new Error('Para sair deste dispositivo, use o botão Sair da conta.');
+        }
+        if (payload?.error === 'device_not_found') {
+            throw new Error('Este dispositivo não está mais ativo.');
+        }
+        if (payload?.error === 'reauth_required' || payload?.error === 'session_expired') {
+            throw new Error('Sua sessão de segurança expirou. Entre novamente para continuar.');
+        }
+        if (error || !payload?.ok) {
+            throw new Error('Não foi possível desconectar o dispositivo agora.');
+        }
+
+        return {
+            label: payload.label || 'Dispositivo',
+            devices: Array.isArray(payload.devices) ? payload.devices : [],
+        };
     },
 
     async revokeOtherTrustedDevices(currentPassword: string) {
