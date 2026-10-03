@@ -350,7 +350,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [trustedDevices, setTrustedDevices] = useState<TrustedCustomerDevice[]>([]);
     const [trustedDevicesLoading, setTrustedDevicesLoading] = useState(false);
     const [trustedDevicesRevoking, setTrustedDevicesRevoking] = useState(false);
-    const [deviceActionPassword, setDeviceActionPassword] = useState('');
     const [editingTrustedDeviceId, setEditingTrustedDeviceId] = useState<string | null>(null);
     const [editingTrustedDeviceLabel, setEditingTrustedDeviceLabel] = useState('');
     const [revokingTrustedDeviceId, setRevokingTrustedDeviceId] = useState<string | null>(null);
@@ -1552,7 +1551,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');
-            setDeviceActionPassword('');
             await loadTrustedDevices({ silent: true }).catch(() => undefined);
             const feedback = result.revokedCount > 0
                 ? `Senha alterada com segurança. ${result.revokedCount} outro(s) dispositivo(s) foram desconectados.`
@@ -1565,34 +1563,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             toast.error(feedback);
         } finally {
             setLoading(false);
-        }
-    };
-
-    const revokeOtherTrustedDevices = async () => {
-        clearFeedback();
-        if (!deviceActionPassword) {
-            setError('Informe sua senha atual para desconectar os outros dispositivos.');
-            return;
-        }
-
-        setTrustedDevicesRevoking(true);
-        try {
-            const result = await AuthService.revokeOtherTrustedDevices(deviceActionPassword);
-            setDeviceActionPassword('');
-            setTrustedDevices(result.devices);
-            const feedback = result.revokedCount > 0
-                ? `${result.revokedCount} outro(s) dispositivo(s) foram desconectados. Este dispositivo continua ativo.`
-                : 'Não havia outro dispositivo ativo para desconectar. Sua sessão atual foi renovada.';
-            setMessage(feedback);
-            toast.success(feedback);
-        } catch (deviceError) {
-            const feedback = deviceError instanceof Error
-                ? deviceError.message
-                : 'Não foi possível desconectar os outros dispositivos.';
-            setError(feedback);
-            toast.error(feedback);
-        } finally {
-            setTrustedDevicesRevoking(false);
         }
     };
 
@@ -2799,31 +2769,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                     </div>
                                                 )}
 
-                                                {trustedDevices.some((device) => !device.is_current) && (
-                                                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-900/50 dark:bg-amber-950/20">
-                                                        <p className="text-xs leading-5 text-amber-800 dark:text-amber-200">
-                                                            Para desconectar os outros dispositivos, confirme sua senha atual. As sessões antigas deixam de ter acesso aos dados da conta e precisarão entrar novamente.
-                                                        </p>
-                                                        <div className="mt-3">
-                                                            <PasswordField
-                                                                label="Senha atual"
-                                                                value={deviceActionPassword}
-                                                                onChange={setDeviceActionPassword}
-                                                                placeholder="Sua senha atual"
-                                                                autoComplete="current-password"
-                                                            />
-                                                        </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void revokeOtherTrustedDevices()}
-                                                            disabled={trustedDevicesRevoking || !deviceActionPassword}
-                                                            className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-red-300 px-4 py-2.5 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30"
-                                                        >
-                                                            {trustedDevicesRevoking ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-                                                            {trustedDevicesRevoking ? 'Desconectando…' : 'Desconectar outros dispositivos'}
-                                                        </button>
-                                                    </div>
-                                                )}
                                             </div>
                                         </div>
                                     </section>
