@@ -95,6 +95,8 @@ export default function PublicLegalFooter() {
     const socialLinks: SocialLink[] = candidates.flatMap((social) => (
         social.href ? [{ ...social, href: social.href }] : []
     ));
+    const storeContactEmail = storeSlug ? storeConfig?.contact_email?.trim() || null : null;
+    const contactEmail = storeContactEmail || (!storeSlug ? 'faleconosco@optmaidea.com.br' : null);
 
     const openCookiePreferences = () => {
         window.dispatchEvent(new CustomEvent('optmamenu:open-cookie-preferences'));
@@ -129,18 +131,24 @@ export default function PublicLegalFooter() {
                 )}
                 <div className="mx-auto mt-5 max-w-3xl border-t border-slate-300 pt-4 text-xs leading-5 text-slate-500 dark:border-slate-800 dark:text-slate-400">
                     <p className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-                        <span>© {CURRENT_YEAR}</span>
-                        <a href="https://optmaidea.com.br" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-slate-700 hover:underline dark:text-slate-200">OptmaIdea <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
+                        <span>© {CURRENT_YEAR} Loja online por</span>
+                        <a href="https://optmamenu.com.br/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-slate-700 hover:underline dark:text-slate-200">
+                            OptmaMenu <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        </a>
                         <span>·</span>
-                        <a href="https://optmamenu.optmaidea.com.br" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-slate-700 hover:underline dark:text-slate-200">OptmaMenu ver. {APP_VERSION} <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
-                        <span>· {CURRENT_YEAR}</span>
+                        <a href="https://www.optmaidea.com.br/" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-bold text-slate-700 hover:underline dark:text-slate-200">
+                            OptmaIdea <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        </a>
+                        <span className="sr-only">Versão {APP_VERSION}</span>
                     </p>
                     <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
                         <span>Termos atualizados em {TERMS_UPDATED_AT}</span><span aria-hidden="true">|</span><span>Privacidade atualizada em {PRIVACY_UPDATED_AT}</span><span aria-hidden="true">|</span><span>Cookies: versão {COOKIES_VERSION}</span>
                     </p>
-                    <a href="mailto:faleconosco@optmaidea.com.br" className="mt-2 inline-flex items-center gap-1.5 font-bold text-slate-600 hover:underline dark:text-slate-300">
-                        <Mail className="h-3.5 w-3.5" aria-hidden="true" /> faleconosco@optmaidea.com.br
-                    </a>
+                    {contactEmail && (
+                        <a href={`mailto:${contactEmail}`} className="mt-2 inline-flex items-center gap-1.5 font-bold text-slate-600 hover:underline dark:text-slate-300">
+                            <Mail className="h-3.5 w-3.5" aria-hidden="true" /> {contactEmail}
+                        </a>
+                    )}
                 </div>
             </div>
         </footer>
