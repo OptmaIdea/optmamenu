@@ -9,6 +9,7 @@ import {
     PackageCheck,
     Search,
     ShieldCheck,
+    ShoppingCart,
     UserRound,
     X,
 } from 'lucide-react';
