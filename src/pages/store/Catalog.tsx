@@ -1013,24 +1013,11 @@ export default function Catalog() {
                 onAddToCart={(product, quantity) => addToCart(product, quantity)}
             />
 
-            {whatsappEnabled && (
-                <a
-                    href={whatsappUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className={`fixed right-4 z-50 flex h-13 w-13 items-center justify-center rounded-full bg-green-600 text-white shadow-xl transition hover:bg-green-700 ${cartItems.length > 0 ? 'bottom-28' : 'bottom-5'}`}
-                    aria-label="Falar com a loja pelo WhatsApp"
-                    title="Falar com a loja pelo WhatsApp"
-                >
-                    <MessageCircle className="h-6 w-6" />
-                </a>
-            )}
-
             {showBackToTop && (
                 <button
                     type="button"
                     onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className={`fixed right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-white shadow-xl transition hover:bg-slate-700 ${cartItems.length > 0 ? 'bottom-44' : whatsappEnabled ? 'bottom-20' : 'bottom-5'}`}
+                    className="fixed bottom-[10rem] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-white shadow-xl transition hover:bg-slate-700 lg:bottom-24"
                     aria-label="Voltar ao topo"
                     title="Voltar ao topo"
                 >
@@ -1038,28 +1025,155 @@ export default function Catalog() {
                 </button>
             )}
 
-            {cartItems.length > 0 && (
-                <button
-                    type="button"
-                    onClick={() => navigate('/checkout')}
-                    className="safe-area-bottom fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-3xl items-center justify-between gap-4 rounded-2xl bg-emerald-600 px-5 py-4 text-left text-white shadow-2xl transition hover:bg-emerald-700 active:scale-[0.99]"
-                >
-                    <span className="flex items-center gap-3">
-                        <span className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-white/15">
-                            <ShoppingCart className="h-6 w-6" />
-                            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-[10px] font-black text-emerald-700">
-                                {cartQuantity}
-                            </span>
-                        </span>
-                        <span>
-                            <span className="block text-xs font-bold opacity-90">
-                                {cartQuantity} {cartQuantity === 1 ? 'item' : 'itens'}
-                            </span>
-                            <span className="block text-xl font-black">R$ {formatBRL(cartTotal)}</span>
-                        </span>
-                    </span>
-                    <span className="font-black">Ver carrinho</span>
-                </button>
+            {showCategoryPanel && (
+                <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 backdrop-blur-sm sm:items-center sm:p-4">
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="category-panel-title"
+                        className="max-h-[80vh] w-full overflow-hidden rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:max-w-2xl sm:rounded-[2rem]"
+                    >
+                        <header className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Catálogo</p>
+                                <h2 id="category-panel-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">Todas as categorias</h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowCategoryPanel(false)}
+                                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                                aria-label="Fechar categorias"
+                                autoFocus
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </header>
+                        <div className="grid max-h-[calc(80vh-5rem)] grid-cols-2 gap-2 overflow-y-auto p-4 sm:grid-cols-3">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSelectedCategory('all');
+                                    setShowCategoryPanel(false);
+                                }}
+                                className={`min-h-14 rounded-2xl border px-3 text-left text-sm font-black transition ${selectedCategory === 'all'
+                                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                                    : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200'}`}
+                            >
+                                Tudo
+                            </button>
+                            {categories.map((category) => (
+                                <button
+                                    key={category.id}
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedCategory(category.id);
+                                        setShowCategoryPanel(false);
+                                    }}
+                                    className={`min-h-14 rounded-2xl border px-3 text-left text-sm font-black transition ${selectedCategory === category.id
+                                        ? 'border-emerald-600 bg-emerald-600 text-white'
+                                        : 'border-slate-200 bg-slate-50 text-slate-700 hover:border-emerald-300 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200'}`}
+                                >
+                                    {category.name}
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            {infoModal && (
+                <div className="fixed inset-0 z-[105] flex items-end justify-center bg-black/45 backdrop-blur-sm sm:items-center sm:p-4">
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="store-info-modal-title"
+                        className="w-full rounded-t-[2rem] bg-white p-5 shadow-2xl dark:bg-slate-950 sm:max-w-lg sm:rounded-[2rem] sm:p-6"
+                    >
+                        <div className="flex items-start justify-between gap-4">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Informações da loja</p>
+                                <h2 id="store-info-modal-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">
+                                    {infoModal === 'pricing'
+                                        ? 'Compre mais e pague menos'
+                                        : infoModal === 'delivery'
+                                            ? 'Condições de delivery'
+                                            : 'Fidelidade e benefícios'}
+                                </h2>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setInfoModal(null)}
+                                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                                aria-label="Fechar informações"
+                                autoFocus
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+
+                        {infoModal === 'pricing' && (
+                            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                <p>Alguns produtos podem ter preços progressivos conforme a quantidade, inclusive quando a loja configura grupos ou categorias combinadas.</p>
+                                <p className="rounded-2xl bg-slate-100 p-3 dark:bg-slate-900">
+                                    Quando houver uma condição especial, o produto mostra os preços e quantidades aplicáveis antes de você concluir o pedido.
+                                </p>
+                            </div>
+                        )}
+
+                        {infoModal === 'delivery' && (
+                            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                {deliveryMethods.filter((method) => method.fulfillment_type === 'delivery').length === 0 ? (
+                                    <p>A loja não possui uma modalidade de entrega pública disponível neste momento.</p>
+                                ) : (
+                                    deliveryMethods
+                                        .filter((method) => method.fulfillment_type === 'delivery')
+                                        .map((method) => (
+                                            <div key={method.code} className="rounded-2xl bg-slate-100 p-3 dark:bg-slate-900">
+                                                <p className="font-black text-slate-900 dark:text-white">{method.name}</p>
+                                                {method.description && <p className="mt-1">{method.description}</p>}
+                                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold text-slate-500 dark:text-slate-400">
+                                                    {Number(method.minimum_order_value || 0) > 0 && (
+                                                        <span>Mínimo: R$ {formatBRL(Number(method.minimum_order_value))}</span>
+                                                    )}
+                                                    <span>
+                                                        Taxa: {Number(method.delivery_fee || 0) > 0
+                                                            ? `R$ ${formatBRL(Number(method.delivery_fee))}`
+                                                            : 'conforme condição da loja'}
+                                                    </span>
+                                                    {(method.estimated_minutes_min || method.estimated_minutes_max) && (
+                                                        <span>
+                                                            Prazo: {method.estimated_minutes_min || '?'}–{method.estimated_minutes_max || '?'} min
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))
+                                )}
+                                {deliveryMinimum > 0 && (
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                                        O menor pedido mínimo de entrega configurado atualmente é R$ {formatBRL(deliveryMinimum)}. Retirada pode ter regras diferentes.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        {infoModal === 'loyalty' && (
+                            <div className="mt-4 space-y-3 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                <p>Clientes participantes podem acumular pontos e receber benefícios conforme as regras definidas pela própria {store.name}.</p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setInfoModal(null);
+                                        window.dispatchEvent(new CustomEvent('optmamenu:open-customer-auth'));
+                                    }}
+                                    className="min-h-11 w-full rounded-2xl bg-emerald-600 px-4 font-black text-white"
+                                >
+                                    Entrar para consultar
+                                </button>
+                            </div>
+                        )}
+                    </section>
+                </div>
             )}
 
             {CUSTOMER_PORTAL_AUTH_ENABLED && showLoginModal && (
