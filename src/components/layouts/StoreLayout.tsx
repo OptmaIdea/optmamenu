@@ -1,10 +1,12 @@
-import { useEffect, useLayoutEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ShoppingCart } from 'lucide-react';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
-import { PublicStorefrontService } from '@/services/publicStorefrontService';
+import { FloatingCartDock } from '@/pages/store/components/FloatingCartDock';
+import { StorefrontBottomNavigation } from '@/pages/store/components/StorefrontBottomNavigation';
+import { StoreHubPortal } from '@/pages/store/components/StoreHubPortal';
+import { PublicStorefrontService, type PublicStorefrontStore } from '@/services/publicStorefrontService';
 import {
     activateCustomerCart,
     configureCustomerCartRetention,
@@ -14,7 +16,6 @@ import {
 } from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
-import { formatBRL } from '@/utils/pricing';
 
 function getStoreSlugFromPath(pathname: string): string | null {
     const segments = pathname.split('/').filter(Boolean);
@@ -47,6 +48,10 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
         : '/checkout';
     const isTableContext = context?.type === 'table';
     const isCheckoutRoute = location.pathname === '/checkout';
+
+    const isStoreCatalogRoute = Boolean(getStoreSlugFromPath(location.pathname));
+    const [publicStore, setPublicStore] = useState<PublicStorefrontStore | null>(null);
+    const [storeHubOpen, setStoreHubOpen] = useState(false);
 
     useLayoutEffect(() => {
         const root = document.documentElement;
@@ -118,7 +123,10 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     }, [customer, isAuthenticated, sessionRestored]);
 
     useEffect(() => {
-        if (!storeSlug || !context?.storeId) return;
+        if (!storeSlug) {
+            setPublicStore(null);
+            return;
+        }
 
         let active = true;
 
@@ -128,6 +136,10 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
         ])
             .then(([storefront, catalog]) => {
                 if (!active) return;
+
+                setPublicStore(storefront.store || null);
+
+                if (!context?.storeId) return;
 
                 configureCustomerCartRetention(
                     context.storeId,
@@ -151,8 +163,22 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
         };
     }, [context?.storeId, storeSlug]);
 
+    const openStoreContact = () => {
+        setStoreHubOpen(true);
+    };
+
+    const openStoreLoyalty = () => {
+        setStoreHubOpen(false);
+        window.setTimeout(() => {
+            window.dispatchEvent(new CustomEvent(
+                isAuthenticated ? 'optmamenu:open-customer-account' : 'optmamenu:open-customer-auth',
+                isAuthenticated ? { detail: { tab: 'loyalty' } } : undefined,
+            ));
+        }, 0);
+    };
+
     return (
-        <div className={`min-h-screen ${isCheckoutRoute ? '' : 'pb-24 sm:pb-0'}`}>
+        <div className={`min-h-screen ${isStoreCatalogRoute ? 'pb-24 lg:pb-0' : ''}`}>
             <main className="transition-all duration-300">
                 {children}
             </main>
@@ -167,44 +193,30 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                 />
             )}
 
-            {!isCheckoutRoute && cartCount > 0 && (
-                <div className="fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[26rem] sm:px-0 sm:pb-0">
-                    <Link
-                        to={checkoutPath}
-                        className="flex min-h-16 items-center gap-3 rounded-2xl bg-emerald-600 px-4 py-3 text-white shadow-2xl transition hover:bg-emerald-700 active:scale-[0.99]"
-                        aria-label={isTableContext ? 'Ver comanda' : 'Ver carrinho'}
-                    >
-                        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
-                            <ShoppingCart size={23} aria-hidden="true" />
-                            <span className="absolute -right-2 -top-2 flex min-h-6 min-w-6 items-center justify-center rounded-full border-2 border-emerald-600 bg-white px-1 text-xs font-black text-emerald-700">
-                                {cartCount}
-                            </span>
-                        </span>
-
-                        <span className="min-w-0 flex-1">
-                            <span className="block text-xs font-semibold text-emerald-50">
-                                {cartCount} {cartCount === 1 ? 'item' : 'itens'}
-                            </span>
-                            <span className="block truncate text-lg font-black">
-                                R$ {formatBRL(cartTotal)}
-                            </span>
-                        </span>
-
-                        <span className="shrink-0 text-sm font-bold">
-                            {isTableContext ? 'Ver comanda' : 'Ver carrinho'}
-                        </span>
-                    </Link>
-                </div>
+            {isStoreCatalogRoute && publicStore && (
+                <>
+                    <StorefrontBottomNavigation
+                        storeSlug={storeSlug}
+                        storeName={publicStore.name}
+                        isAuthenticated={isAuthenticated}
+                        onOpenStore={() => setStoreHubOpen(true)}
+                        onOpenContact={openStoreContact}
+                    />
+                    <FloatingCartDock
+                        checkoutPath={checkoutPath}
+                        count={cartCount}
+                        total={cartTotal}
+                        label={isTableContext ? 'Comanda' : 'Carrinho'}
+                    />
+                    <StoreHubPortal
+                        open={storeHubOpen}
+                        onClose={() => setStoreHubOpen(false)}
+                        store={publicStore}
+                        authenticated={isAuthenticated}
+                        onOpenLoyalty={openStoreLoyalty}
+                    />
+                </>
             )}
-
-            <footer className="mt-12 px-4 pb-28 text-center text-xs text-gray-400 sm:pb-8">
-                <p>
-                    © {new Date().getFullYear()} Loja online por{' '}
-                    <a href="https://optmamenu.com/" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">OptmaMenu</a>
-                    {' · '}
-                    <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="font-semibold hover:underline">OptmaIdea</a>
-                </p>
-            </footer>
         </div>
     );
 }
