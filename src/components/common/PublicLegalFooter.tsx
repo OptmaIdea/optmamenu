@@ -95,7 +95,9 @@ export default function PublicLegalFooter() {
         social.href ? [{ ...social, href: social.href }] : []
     ));
     const storeContactEmail = storeSlug ? storeConfig?.contact_email?.trim() || null : null;
-    const contactEmail = storeContactEmail || (!storeSlug ? 'faleconosco@optmaidea.com.br' : null);
+    const isCommercePath = pathname === '/checkout' || pathname.startsWith('/p/');
+    const contactEmail = storeContactEmail
+        || (!storeSlug && !isCommercePath ? 'faleconosco@optmaidea.com.br' : null);
 
     const openCookiePreferences = () => {
         window.dispatchEvent(new CustomEvent('optmamenu:open-cookie-preferences'));
