@@ -107,7 +107,7 @@ export default function Catalog() {
         syncCatalogPricing,
     } = useCartStore();
 
-    const { isAuthenticated, customer, logout } = useCustomerAuth();
+    const { isAuthenticated, customer } = useCustomerAuth();
 
     const [store, setStore] = useState<Store | null>(null);
     const [categories, setCategories] = useState<Category[]>([]);
