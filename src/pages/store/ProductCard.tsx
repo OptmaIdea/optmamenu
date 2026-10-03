@@ -1,97 +1,177 @@
-import { Plus, Star } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import type { Product } from '@/types';
+import { BadgePercent, ChevronRight, ImageIcon, PackageX, Plus } from 'lucide-react';
+import type { KeyboardEvent, MouseEvent } from 'react';
+import type { Product, PriceRule } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL, getPriceForQuantity } from '@/utils/pricing';
 
 interface ProductCardProps {
     product: Product;
     onOpenDetails: (product: Product) => void;
-    onAddToCart: (product: Product) => void;
+    onNotifyAvailability?: (product: Product) => void;
+    onAddToCart?: (product: Product) => void;
 }
 
-export function ProductCard({ product, onOpenDetails, onAddToCart }: ProductCardProps) {
+function getFirstPromotionRule(rules: PriceRule[], basePrice: number) {
+    return [...rules]
+        .filter((rule) => rule.min > 1 && rule.price < basePrice)
+        .sort((left, right) => left.min - right.min)[0] || null;
+}
+
+export function ProductCard({
+    product,
+    onOpenDetails,
+    onNotifyAvailability,
+}: ProductCardProps) {
     const categoryRules = useCartStore((state) => state.categoryRules);
-    const images = Array.isArray(product.images) && product.images.length > 0
-        ? product.images
-        : [product.image_url || 'https://via.placeholder.com/300'];
+    const imageUrl = product.images?.[0] || product.image_url || null;
 
-    const [currentImageIndex, setCurrentImageIndex] = useState(0);
-    const [isHovered, setIsHovered] = useState(false);
-
-    const rating = product.rating_avg || 5.0;
-
-    // Effective display price (supports category pricing inheritance)
     const pricing = product.use_category_pricing && product.category_id
         ? categoryRules[product.category_id]
         : undefined;
-    const effectivePrice = pricing ? (getPriceForQuantity(pricing.rules, 1) ?? product.price) : product.price;
-    const showFromLabel = Boolean(pricing && pricing.type === 'category_volume');
 
-    // Slideshow Effect
-    useEffect(() => {
-        if (!isHovered || images.length <= 1) {
-            setCurrentImageIndex(0); // Reset on mouse leave
-            return;
+    const pricingRules = pricing?.pricingGroup?.rules?.length
+        ? pricing.pricingGroup.rules
+        : pricing?.rules?.length
+            ? pricing.rules
+            : product.price_rules || [];
+
+    const basePrice = Number(product.price || 0);
+    const currentUnitPrice = pricingRules.length
+        ? (getPriceForQuantity(pricingRules, 1) ?? basePrice)
+        : basePrice;
+    const promotionRule = getFirstPromotionRule(pricingRules, basePrice);
+
+    const availability = product.public_availability;
+    const isUnavailable = availability?.status === 'unavailable'
+        || Number(product.stock_quantity ?? 0) <= 0;
+    const showLowStock = availability?.status === 'low_stock'
+        && availability.displayMode !== 'hidden';
+    const showExactLowStock = showLowStock
+        && availability?.displayMode === 'exact'
+        && typeof availability.availableOnline === 'number';
+    const exactLowStockQuantity = showExactLowStock
+        ? Math.max(0, Math.floor(availability.availableOnline || 0))
+        : null;
+
+    const stockLabel = showExactLowStock && exactLowStockQuantity !== null
+        ? exactLowStockQuantity === 1
+            ? '1 unidade disponível'
+            : `${exactLowStockQuantity} unidades disponíveis`
+        : showLowStock
+            ? 'Poucas unidades'
+            : null;
+
+    const openConfigurator = () => {
+        if (!isUnavailable) onOpenDetails(product);
+    };
+
+    const handleCardKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+        if (!isUnavailable && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            openConfigurator();
         }
+    };
 
-        const interval = setInterval(() => {
-            setCurrentImageIndex(prev => (prev + 1) % images.length);
-        }, 800); // Change every 800ms
-
-        return () => clearInterval(interval);
-    }, [isHovered, images.length]);
-
-    const handleAddToCart = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        onAddToCart(product);
+    const handleNotifyAvailability = (event: MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        onNotifyAvailability?.(product);
     };
 
     return (
-        <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-3 shadow-sm relative group active:scale-95 transition-all h-full flex flex-col">
-            <button
-                onClick={handleAddToCart}
-                className="absolute top-3 right-3 z-10 bg-[#98FF98] p-2 rounded-full shadow-lg text-green-900 border-2 border-white hover:scale-110 transition-transform"
-                aria-label="Adicionar ao carrinho"
-            >
-                <Plus className="w-5 h-5" />
-            </button>
-            <div
-                onClick={() => onOpenDetails(product)}
-                className="flex-1 flex flex-col cursor-pointer"
-                onMouseEnter={() => setIsHovered(true)}
-                onMouseLeave={() => setIsHovered(false)}
-            >
-                <div className="bg-gray-50 rounded-2xl mb-2 flex justify-center p-4 h-36 items-center overflow-hidden relative">
-                    {/* Image */}
+        <article
+            className="group relative flex h-full min-w-0 flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-slate-800 sm:rounded-3xl"
+            onClick={openConfigurator}
+            onKeyDown={handleCardKeyDown}
+            role={isUnavailable ? undefined : 'button'}
+            tabIndex={isUnavailable ? -1 : 0}
+            aria-label={isUnavailable ? undefined : `Abrir detalhes de ${product.name}`}
+        >
+            <div className="relative aspect-[4/3] w-full overflow-hidden bg-stone-50 dark:bg-slate-700/70">
+                {imageUrl ? (
                     <img
-                        src={images[currentImageIndex]}
+                        src={imageUrl}
                         alt={product.name}
-                        className="max-h-28 object-contain drop-shadow-md transition-all duration-300"
+                        className={`h-full w-full object-contain p-3 transition duration-300 sm:p-4 ${isUnavailable ? 'grayscale opacity-60' : 'group-hover:scale-[1.03]'}`}
                         loading="lazy"
                     />
+                ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-4 text-center text-stone-400 dark:text-slate-400">
+                        <ImageIcon className="h-8 w-8" aria-hidden="true" />
+                        <span className="text-[11px] font-semibold">Imagem não cadastrada</span>
+                    </div>
+                )}
 
-                    {/* Slideshow Indicator */}
-                    {images.length > 1 && (
-                        <div className="absolute bottom-2 flex gap-1">
-                            {images.map((_, idx) => (
-                                <div
-                                    key={idx}
-                                    className={`w-1.5 h-1.5 rounded-full transition-colors ${currentImageIndex === idx ? 'bg-green-500' : 'bg-gray-300'}`}
-                                />
-                            ))}
-                        </div>
+                <div className="absolute left-2 top-2 flex max-w-[calc(100%-3.5rem)] flex-col items-start gap-1.5 sm:left-3 sm:top-3">
+                    {promotionRule && !isUnavailable && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-extrabold text-emerald-700 shadow-sm backdrop-blur dark:bg-slate-900/90 dark:text-emerald-300">
+                            <BadgePercent className="h-3.5 w-3.5" aria-hidden="true" />
+                            Oferta por quantidade
+                        </span>
+                    )}
+
+                    {stockLabel && !isUnavailable && (
+                        <span className="rounded-full bg-amber-100/95 px-2.5 py-1 text-[10px] font-extrabold text-amber-900 shadow-sm backdrop-blur dark:bg-amber-950/90 dark:text-amber-200">
+                            {stockLabel}
+                        </span>
                     )}
                 </div>
-                <div className="flex items-center gap-1 mb-1">
-                    <Star className="w-3 h-3 fill-yellow-400 text-yellow-400" />
-                    <span className="text-[10px] font-bold text-gray-500">{rating}</span>
-                </div>
-                <h3 className="font-bold text-sm leading-tight mb-1 text-gray-900 dark:text-gray-100">{product.name}</h3>
-                <p className="text-green-600 font-extrabold text-base mt-auto">
-                    {showFromLabel ? 'A partir de ' : ''}R$ {formatBRL(Number(effectivePrice))}
-                </p>
+
+                {isUnavailable ? (
+                    <span className="absolute inset-x-3 bottom-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900/90 px-3 py-2 text-xs font-bold text-white">
+                        <PackageX className="h-4 w-4" aria-hidden="true" />
+                        Indisponível no momento
+                    </span>
+                ) : (
+                    <span
+                        className="absolute right-2 top-2 inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-green text-white shadow-md transition group-hover:scale-105 sm:right-3 sm:top-3"
+                        aria-hidden="true"
+                    >
+                        <Plus className="h-5 w-5" />
+                    </span>
+                )}
             </div>
-        </div>
+
+            <div className="flex flex-1 flex-col p-3 sm:p-4">
+                <h3 className="line-clamp-2 min-h-10 text-sm font-extrabold leading-5 text-gray-900 dark:text-gray-100 sm:text-base">
+                    {product.name}
+                </h3>
+
+                {product.description && (
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                        {product.description}
+                    </p>
+                )}
+
+                <div className="mt-auto pt-3">
+                    {isUnavailable ? (
+                        <button
+                            type="button"
+                            onClick={handleNotifyAvailability}
+                            disabled={!onNotifyAvailability}
+                            className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-emerald-600 px-3 text-sm font-black text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-gray-300 disabled:text-gray-400 dark:text-emerald-300 dark:hover:bg-emerald-950/30"
+                        >
+                            Avise-me
+                        </button>
+                    ) : (
+                        <>
+                            <p className="text-lg font-black leading-none text-emerald-700 dark:text-emerald-300">
+                                R$ {formatBRL(currentUnitPrice)}
+                            </p>
+
+                            {promotionRule && (
+                                <p className="mt-2 text-[11px] font-semibold leading-4 text-emerald-800 dark:text-emerald-200">
+                                    A partir de {promotionRule.min} itens: R$ {formatBRL(promotionRule.price)} cada
+                                </p>
+                            )}
+
+                            <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-gray-600 dark:text-gray-300">
+                                {promotionRule ? 'Saiba mais' : 'Ver detalhes'}
+                                <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                            </span>
+                        </>
+                    )}
+                </div>
+            </div>
+        </article>
     );
 }

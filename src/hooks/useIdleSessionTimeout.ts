@@ -1,6 +1,6 @@
 // src/hooks/useIdleSessionTimeout.ts
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -18,16 +18,10 @@ const ACTIVITY_EVENTS = [
 
 const LAST_ACTIVITY_KEY = 'optmamenu:lastActivityAt';
 const ACTIVE_TAB_KEY = 'optmamenu:activeTabs';
+const IDLE_LOGOUT_LOCK_KEY = 'optmamenu:idleLogoutAt';
 
 function now() {
     return Date.now();
-}
-
-function routeMatches(pathname: string, route: string) {
-    if (route === '/admin') {
-        return pathname === '/admin';
-    }
-    return pathname === route || pathname.startsWith(`${route}/`);
 }
 
 export function useIdleSessionTimeout() {
@@ -38,7 +32,6 @@ export function useIdleSessionTimeout() {
     const [settings, setSettings] = useState<{
         idle_timeout_enabled: boolean;
         idle_timeout_minutes: number;
-        idle_timeout_exempt_routes: string[];
     } | null>(null);
 
     const tabIdRef = useRef<string>(
@@ -66,16 +59,6 @@ export function useIdleSessionTimeout() {
             setSettings({
                 idle_timeout_enabled: settingsData?.idle_timeout_enabled ?? true,
                 idle_timeout_minutes: settingsData?.idle_timeout_minutes ?? 30,
-                idle_timeout_exempt_routes: settingsData?.idle_timeout_exempt_routes ?? [
-                    '/admin',
-                    '/admin/dashboard',
-                    '/admin/orders',
-                    '/admin/recent-activities',
-                    '/admin/products',
-                    '/admin/stock',
-                    '/admin/stock-locations',
-                    '/admin/stock-movements',
-                ],
             });
         } catch (err) {
             console.error('Erro ao carregar configurações de inatividade:', err);
@@ -89,23 +72,6 @@ export function useIdleSessionTimeout() {
 
     const idleTimeoutEnabled = settings?.idle_timeout_enabled ?? true;
     const idleTimeoutMinutes = settings?.idle_timeout_minutes ?? 30;
-
-    const exemptRoutes = useMemo(() => {
-        return settings?.idle_timeout_exempt_routes ?? [
-            '/admin',
-            '/admin/dashboard',
-            '/admin/orders',
-            '/admin/recent-activities',
-            '/admin/products',
-            '/admin/stock',
-            '/admin/stock-locations',
-            '/admin/stock-movements',
-        ];
-    }, [settings]);
-
-    const isExemptRoute = useMemo(() => {
-        return exemptRoutes.some((route) => routeMatches(location.pathname, route));
-    }, [exemptRoutes, location.pathname]);
 
     // Coordenador de abas (heartbeat)
     useEffect(() => {
@@ -164,9 +130,12 @@ export function useIdleSessionTimeout() {
 
         function markActivity() {
             localStorage.setItem(LAST_ACTIVITY_KEY, String(now()));
+            localStorage.removeItem(IDLE_LOGOUT_LOCK_KEY);
         }
 
-        markActivity();
+        if (!localStorage.getItem(LAST_ACTIVITY_KEY)) {
+            markActivity();
+        }
 
         ACTIVITY_EVENTS.forEach((eventName) => {
             window.addEventListener(eventName, markActivity, { passive: true });
@@ -179,20 +148,29 @@ export function useIdleSessionTimeout() {
         };
     }, [activeStoreId, user?.id, idleTimeoutEnabled]);
 
-    // Loop de inatividade e encerramento da sessão
+    // Loop de inatividade e encerramento da sessão.
+    // A política vale para todo o painel; atividade em qualquer aba mantém a sessão viva
+    // porque LAST_ACTIVITY_KEY é compartilhada pelo mesmo navegador.
     useEffect(() => {
         if (!activeStoreId || !user?.id) return;
         if (!idleTimeoutEnabled) return;
-        if (isExemptRoute) return;
 
         const timeoutMs = idleTimeoutMinutes * 60 * 1000;
+        let closing = false;
 
         async function closeByIdleTimeout() {
+            if (closing) return;
+
+            const previousLock = Number(localStorage.getItem(IDLE_LOGOUT_LOCK_KEY) || 0);
+            if (Number.isFinite(previousLock) && now() - previousLock < 60_000) return;
+
+            closing = true;
+            localStorage.setItem(IDLE_LOGOUT_LOCK_KEY, String(now()));
+
             try {
-                // Registrar log de desconexão por inatividade no Supabase
                 await supabase.rpc('log_user_session_event', {
                     p_store_id: activeStoreId,
-                    p_action: 'session_disconnected',
+                    p_action: 'idle_timeout',
                     p_details: {
                         source: 'idle_timeout',
                         reason: 'Sessão encerrada automaticamente por falta de atividades.',
@@ -205,22 +183,27 @@ export function useIdleSessionTimeout() {
                 console.error('Erro ao registrar encerramento por inatividade:', error);
             }
 
-            // Limpa as flags do sessionStorage e executa signOut
             sessionStorage.removeItem('optmamenu.session_active');
             sessionStorage.removeItem('optmamenu.last_unload_timestamp');
+            sessionStorage.removeItem('optmamenu.session.start');
             await untrackAllStorePresences();
             await supabase.auth.signOut();
         }
 
-        const interval = window.setInterval(() => {
-            const lastActivityAt = Number(localStorage.getItem(LAST_ACTIVITY_KEY) || now());
-            const inactiveFor = now() - lastActivityAt;
+        function checkIdle() {
+            const stored = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
+            if (!Number.isFinite(stored) || stored <= 0) {
+                localStorage.setItem(LAST_ACTIVITY_KEY, String(now()));
+                return;
+            }
 
-            if (inactiveFor >= timeoutMs) {
-                window.clearInterval(interval);
+            if (now() - stored >= timeoutMs) {
                 void closeByIdleTimeout();
             }
-        }, 30_000);
+        }
+
+        checkIdle();
+        const interval = window.setInterval(checkIdle, 15_000);
 
         return () => {
             window.clearInterval(interval);
@@ -230,7 +213,6 @@ export function useIdleSessionTimeout() {
         user?.id,
         idleTimeoutEnabled,
         idleTimeoutMinutes,
-        isExemptRoute,
         location.pathname,
     ]);
 }

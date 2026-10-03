@@ -1,5 +1,3 @@
-import { supabase } from '@/lib/supabase';
-import { getActiveStoreId } from '@/utils/activeStore';
 
 // BroadcastChannel para comunicação entre abas
 let channel: BroadcastChannel | null = null;
@@ -32,24 +30,6 @@ if (typeof window !== 'undefined') {
     });
 }
 
-async function logDisconnectedEvent(reason: string) {
-    const storeId = getActiveStoreId();
-    if (!storeId) return;
-    try {
-        await supabase.rpc('log_user_session_event', {
-            p_store_id: storeId,
-            p_action: 'session_disconnected',
-            p_details: {
-                source: 'session_security',
-                reason: reason
-            },
-            p_outcome: 'success',
-        });
-    } catch (error) {
-        console.warn('Não foi possível registrar log de desconexão:', error);
-    }
-}
-
 /**
  * Marca a sessão atual como ativa no sessionStorage da aba.
  */
@@ -72,60 +52,26 @@ export function clearSessionSecurity() {
  * Valida o estado de segurança da sessão.
  * Retorna true se a sessão estiver ativa e válida, false se tiver expirado e deslogado.
  */
-async function validateSessionSecurityOnce(signOutFn: () => Promise<void>): Promise<boolean> {
+async function validateSessionSecurityOnce(_signOutFn: () => Promise<void>): Promise<boolean> {
     if (typeof window === 'undefined') return true;
 
-    const sessionActive = sessionStorage.getItem('optmamenu.session_active');
-    const lastUnload = sessionStorage.getItem('optmamenu.last_unload_timestamp');
+    // O token Supabase já foi validado por App.tsx antes desta função.
+    // sessionStorage é isolado por guia e não pode ser usado para invalidar
+    // uma sessão legítima apenas porque a guia é nova, foi restaurada ou
+    // ficou em background.
+    //
+    // O encerramento por inatividade é responsabilidade única de
+    // useIdleSessionTimeout, respeitando o tempo configurado pela loja e
+    // compartilhando a última atividade entre todas as guias.
+    markSessionAsActive();
 
-    if (sessionActive === 'true') {
-        if (lastUnload) {
-            const timeDiff = Date.now() - Number(lastUnload);
-            // Se a aba esteve descarregada por mais de 60 segundos
-            if (timeDiff > 60000) {
-                console.warn('[Session Security] Sessão expirou por inatividade/unload de mais de 60s.');
-                await logDisconnectedEvent(`Conexão encerrada automaticamente por inatividade (tempo ausente: ${Math.round(timeDiff / 1000)}s).`);
-                clearSessionSecurity();
-                await signOutFn();
-                return false;
-            }
-        }
-        return true;
-    } else {
-        // Sem sessão ativa no sessionStorage desta aba (início frio ou nova aba).
-        // Envia ping para outras abas ativas
-        const chan = getChannel();
-        if (!chan) return true;
-
-        let hasOtherTabs = false;
-        const handlePong = (e: MessageEvent) => {
-            if (e.data && e.data.type === 'pong') {
-                hasOtherTabs = true;
-            }
-        };
-
-        chan.addEventListener('message', handlePong);
+    const chan = getChannel();
+    if (chan) {
         chan.postMessage({ type: 'ping' });
-
-        // Aguarda 200ms para obter resposta das outras abas
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        chan.removeEventListener('message', handlePong);
-
-        if (hasOtherTabs) {
-            // Outra aba está logada, podemos adotar a sessão nesta aba
-            markSessionAsActive();
-            return true;
-        } else {
-            // Nenhuma outra aba está ativa. Foi um início frio total (navegador fechado).
-            // Forçamos o logout para invalidar a persistência do localStorage
-            await logDisconnectedEvent('Sessão encerrada devido ao fechamento do navegador ou todas as abas.');
-            clearSessionSecurity();
-            await signOutFn();
-            return false;
-        }
     }
-}
 
+    return true;
+}
 
 let sessionSecurityValidation: Promise<boolean> | null = null;
 

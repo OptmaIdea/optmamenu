@@ -13,6 +13,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "homologation:preflight": "node scripts/homologation/preflight.mjs",
+    "homologation:preflight:install": "node scripts/homologation/preflight.mjs --install",
     "preview": "vite preview",
     "convert:webp": "node scripts/convert-to-webp.js",
     "convert:webp:delete": "node scripts/convert-to-webp.js --delete",

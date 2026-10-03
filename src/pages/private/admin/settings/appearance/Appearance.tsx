@@ -110,6 +110,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         visual_color_highlight: '#fbbf24',
         visual_banner_url: '',
         visual_slogan: '',
+        catalog_search_placeholder: '',
         about_text: '',
         about_image_url: '',
         contact_phone: '',
@@ -526,6 +527,21 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                         />
                                     </div>
                                     <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Texto da busca no catálogo</label>
+                                        <input
+                                            type="text"
+                                            value={config.catalog_search_placeholder || ''}
+                                            onChange={(e) => setConfig({ ...config, catalog_search_placeholder: e.target.value.slice(0, 80) })}
+                                            placeholder="Ex: Qual produto você procura?"
+                                            maxLength={80}
+                                            className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
+                                            disabled={disabled}
+                                        />
+                                        <p className="mt-2 text-xs leading-5 text-gray-400">
+                                            Use uma frase adequada ao seu negócio. Se ficar vazio, a loja exibirá “Buscar produtos”.
+                                        </p>
+                                    </div>
+                                    <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Frase do Rodapé</label>
                                         <input
                                             type="text"
@@ -621,10 +637,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-1">Aparecerá no botão flutuante.</p>
+                                        <p className="text-xs text-gray-400 mt-1">Usado na área “Fale com a loja” e nos canais de atendimento da página pública.</p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email de Contato</label>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail de atendimento ao cliente</label>
                                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
                                             <Mail size={20} className="text-gray-400 ml-2" />
                                             <input
@@ -636,6 +652,9 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Pedidos, entrega, retirada, produtos e dúvidas comerciais devem chegar ao próprio lojista. A OptmaIdea fica restrita às questões da infraestrutura da plataforma.
+                                        </p>
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Endereço Completo</label>

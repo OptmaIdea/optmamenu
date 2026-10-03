@@ -49,13 +49,13 @@ import {
     UserCircle,
     Clock,
     BookOpen,
+    CreditCard,
     MessageSquare,
     Truck,
     RadioTower,
     Activity,
     ArrowRightLeft,
     WalletCards,
-    Sparkles,
     FileStack,
     Megaphone,
     Store as StoreIcon,
@@ -350,10 +350,6 @@ export default function PrivateLayout() {
         return true;
     }, [isOnboardingPending, isOwner, hasPermission, hasRootPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
 
-    const [isNewSession] = useState(() => {
-        const stored = sessionStorage.getItem('optmamenu.session.start');
-        return !stored;
-    });
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -381,7 +377,6 @@ export default function PrivateLayout() {
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
-            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
@@ -393,6 +388,7 @@ export default function PrivateLayout() {
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
             { path: '/admin/account-plan', icon: FolderTree, label: 'Plano de contas', permission: 'financial.account_plan.view' },
             { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'financial.accounts.view' },
+            { path: '/admin/online-payments', icon: CreditCard, label: 'Pagamentos online', permission: 'payments.online.view' },
         ],
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
@@ -922,12 +918,6 @@ export default function PrivateLayout() {
     };
 
     useEffect(() => {
-        if (isNewSession && pathname !== '/admin') {
-            navigate('/admin', { replace: true });
-        }
-    }, [isNewSession, pathname, navigate]);
-
-    useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
@@ -1034,6 +1024,15 @@ export default function PrivateLayout() {
         }
         return null;
     }, [navigationItems, pathname, location.search]);
+
+    useEffect(() => {
+        const label = currentItem?.item?.label || 'Início';
+        document.title = `OptmaMenu | ${label}`;
+
+        return () => {
+            document.title = 'OptmaMenu';
+        };
+    }, [currentItem?.item?.label]);
 
     // Helper para verificar se um item de menu está ativo no contexto atual
     const isMenuItemActive = useCallback(

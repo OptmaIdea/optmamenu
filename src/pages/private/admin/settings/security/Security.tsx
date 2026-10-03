@@ -209,9 +209,14 @@ function formatSecurityLogAction(action?: string): string {
         sensitive_manage: 'Gerenciar dados sensíveis',
 
         session_store_selected: 'Entrada na loja selecionada',
+        session_heartbeat: 'Sessão ativa',
         session_logout: 'Saída do sistema',
         session_disconnected: 'Usuário desconectado',
         session_login_test: 'Teste de login/sessão',
+
+        loyalty_membership_removed: 'Cliente removido da fidelidade',
+        loyalty_membership_banned: 'CPF bloqueado na fidelidade',
+        loyalty_membership_unbanned: 'CPF liberado na fidelidade',
     };
 
     if (!action) return 'Ação não identificada';
@@ -223,6 +228,7 @@ function formatSecurityLogAction(action?: string): string {
 
 const ACTION_LABELS: Record<string, string> = {
     session_store_selected: 'Loja acessada',
+    session_heartbeat: 'Sessão ativa',
     session_disconnected: 'Sessão encerrada',
     session_login: 'Login realizado',
     login: 'Login realizado',
@@ -231,6 +237,9 @@ const ACTION_LABELS: Record<string, string> = {
     store_idle_timeout_settings_updated: 'Configuração de inatividade alterada',
     store_role_permission_template_updated: 'Permissão por papel alterada',
     role_permission_updated: 'Permissão por papel alterada',
+    loyalty_membership_removed: 'Cliente removido da fidelidade',
+    loyalty_membership_banned: 'CPF bloqueado na fidelidade',
+    loyalty_membership_unbanned: 'CPF liberado na fidelidade',
 };
 
 const SECURITY_ACTION_LABELS: Record<string, string> = {
@@ -264,6 +273,10 @@ function getActionLabel(action: string | null | undefined): string {
 }
 
 function getDisplayAction(item: { action?: string | null; display_action?: string | null }) {
+    const action = item.action || '';
+    const knownLabel = ACTION_LABELS[action] ?? SECURITY_ACTION_LABELS[action];
+    if (knownLabel) return knownLabel;
+
     if (
         item.display_action &&
         item.display_action !== item.action &&
@@ -272,7 +285,7 @@ function getDisplayAction(item: { action?: string | null; display_action?: strin
         return item.display_action;
     }
 
-    return getActionLabel(item.action || '');
+    return getActionLabel(action);
 }
 
 function getStringDetail(
@@ -415,6 +428,34 @@ function formatSecurityLogDetails(log: SecurityLog): string | null {
             : 'não definido';
 
         return `${formatSecurityLogAction(actionCode)} · exigência: ${oldRequirement} \u2192 ${newRequirement}`;
+    }
+
+    if (
+        log.action === 'loyalty_membership_removed'
+        || log.action === 'loyalty_membership_banned'
+        || log.action === 'loyalty_membership_unbanned'
+    ) {
+        const customerName =
+            getStringDetail(details, 'target_customer_name')
+            || getStringDetail(details, 'target_customer_id')
+            || 'cliente';
+        const reason = getStringDetail(details, 'reason');
+        const cpfLast4 = getStringDetail(details, 'cpf_last4');
+
+        const parts = [customerName];
+        if (cpfLast4) parts.push(`CPF •••.${cpfLast4}`);
+        if (reason) parts.push(`Motivo: ${reason}`);
+        return parts.join(' · ');
+    }
+
+    if (log.action === 'session_heartbeat') {
+        return 'Verificação automática de presença da sessão.';
+    }
+
+    if (['Criar Produto', 'Editar Produto', 'Excluir Produto', 'Inativar Produto', 'Reativar Produto'].includes(log.action || '')) {
+        const productName = getStringDetail(details, 'name') || 'Produto';
+        const productId = getStringDetail(details, 'product_id');
+        return productId ? `${productName} · ref. ${productId.slice(0, 8)}…` : productName;
     }
 
     if (log.action === 'session_store_selected') {
@@ -4986,7 +5027,7 @@ export default function Security() {
                                         Configuração de Sessão e Inatividade
                                     </h3>
                                     <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
-                                        Gerencie as diretrizes de tempo limite de sessão e desconexão automática do painel administrativo por inatividade.
+                                        Gerencie o tempo limite de sessão por inatividade. A política vale para todo o painel administrativo e a atividade em qualquer guia aberta mantém a mesma sessão ativa.
                                     </p>
 
                                     <div className="bg-white dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700 space-y-6">
@@ -5003,7 +5044,7 @@ export default function Security() {
                                                     Encerrar sessão por inatividade
                                                 </span>
                                                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                                                    Ao marcar esta opção, o sistema irá desconectar usuários ociosos de forma automática.
+                                                    Ao marcar esta opção, o sistema desconecta automaticamente a sessão quando não houver atividade em nenhuma guia do OptmaMenu pelo tempo configurado.
                                                 </p>
                                             </div>
                                         </label>

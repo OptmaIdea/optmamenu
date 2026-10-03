@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 'lucide-react';
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
+import PublicOrderPaymentProofCard from '@/pages/store/components/PublicOrderPaymentProofCard';
+import PublicOrderOptmaPayCard from '@/pages/store/components/PublicOrderOptmaPayCard';
+
 
 const STATUS_LABELS: Record<string, string> = {
   reserved: 'Aguardando confirmação',
@@ -142,6 +145,9 @@ export default function PublicOrderTracking() {
           </div>
         </section>
 
+        {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
+        {publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
+
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <ShoppingBag className="h-5 w-5 text-emerald-600" />
@@ -181,6 +187,7 @@ export default function PublicOrderTracking() {
             Voltar ao cardápio
           </Link>
         </div>
+
       </main>
     </div>
   );

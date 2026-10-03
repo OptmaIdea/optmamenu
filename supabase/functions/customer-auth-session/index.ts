@@ -1,0 +1,812 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const TERMS_VERSION = "2026-02-11";
+const PRIVACY_VERSION = "2026-02-11";
+const CUSTOMER_COLUMNS = "id,store_id,phone,full_name,nickname,cpf,email,birth_date,loyalty_points,loyalty_tier,current_tier_id,is_whatsapp,contact_preference,marketing_consent,loyalty_opt_in,email_verified,phone_verified_at,status,merged_into_customer_id";
+
+function cors(origin: string | null) {
+  return {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Cache-Control": "no-store",
+  };
+}
+
+function json(body: unknown, status = 200, origin: string | null = null) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...cors(origin) },
+  });
+}
+
+function validUuid(value: string) {
+  return /^[0-9a-f-]{36}$/i.test(value);
+}
+
+function validDeviceHash(value: unknown) {
+  return /^[0-9a-f]{64}$/i.test(String(value || ""));
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const payload = token.split(".")[1] || "";
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+    return JSON.parse(atob(padded)) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function decodeJwtIssuedAt(token: string) {
+  const parsed = decodeJwtPayload(token);
+  const issuedAt = Number(parsed?.iat || 0);
+  return Number.isFinite(issuedAt) ? issuedAt : 0;
+}
+
+function decodeJwtSessionId(token: string) {
+  const parsed = decodeJwtPayload(token);
+  const sessionId = String(parsed?.session_id || "");
+  return validUuid(sessionId) ? sessionId : null;
+}
+
+function deviceLabelFromUserAgent(userAgent: string) {
+  const ua = userAgent || "";
+  let browser = "Navegador";
+  let platform = "dispositivo";
+
+  if (/Edg\//i.test(ua)) browser = "Microsoft Edge";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/CriOS\//i.test(ua) || /Chrome\//i.test(ua)) browser = "Chrome";
+  else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = "Safari";
+
+  if (/Android/i.test(ua)) platform = "Android";
+  else if (/iPhone/i.test(ua)) platform = "iPhone";
+  else if (/iPad/i.test(ua)) platform = "iPad";
+  else if (/Windows/i.test(ua)) platform = "Windows";
+  else if (/Mac OS X|Macintosh/i.test(ua)) platform = "Mac";
+  else if (/Linux/i.test(ua)) platform = "Linux";
+
+  return `${browser} em ${platform}`;
+}
+
+async function persistDeviceMetadata(
+  service: any,
+  customerId: string,
+  storeId: string,
+  deviceTokenHash: string,
+  req: Request,
+) {
+  if (!validDeviceHash(deviceTokenHash)) return;
+
+  const userAgent = String(req.headers.get("user-agent") || "").slice(0, 500);
+  await service
+    .from("customer_auth_trusted_devices")
+    .update({
+      device_label: deviceLabelFromUserAgent(userAgent),
+      user_agent: userAgent || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("customer_id", customerId)
+    .eq("store_id", storeId)
+    .eq("device_token_hash", deviceTokenHash)
+    .is("revoked_at", null);
+}
+
+async function waitForRotatedSessionBoundary(validAfter: unknown) {
+  const validAfterMs = Date.parse(String(validAfter || ""));
+  if (!Number.isFinite(validAfterMs)) return;
+  const requiredMs = Math.ceil(validAfterMs / 1000) * 1000 + 75;
+  const delay = Math.max(0, requiredMs - Date.now());
+  if (delay > 0) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(delay, 1500)));
+  }
+}
+
+function normalizeCustomer(row: any) {
+  return {
+    id: String(row.id),
+    store_id: String(row.store_id),
+    phone: String(row.phone || ""),
+    full_name: row.full_name ?? null,
+    nickname: row.nickname ?? null,
+    cpf: row.cpf ?? null,
+    email: row.email ?? null,
+    birth_date: row.birth_date ?? null,
+    loyalty_points: Number(row.loyalty_points ?? 0),
+    loyalty_tier: row.loyalty_tier ?? "Bronze",
+    current_tier_id: row.current_tier_id ?? null,
+    is_whatsapp: Boolean(row.is_whatsapp ?? true),
+    contact_preference: row.contact_preference ?? null,
+    marketing_consent: Boolean(row.marketing_consent ?? false),
+    loyalty_opt_in: Boolean(row.loyalty_opt_in ?? false),
+    email_verified: Boolean(row.email_verified ?? false),
+    phone_verified: Boolean(row.phone_verified_at),
+    status: row.status ?? "active",
+  };
+}
+
+async function loadCustomer(service: any, customerId: string, storeId: string) {
+  const { data, error } = await service
+    .from("customers")
+    .select(CUSTOMER_COLUMNS)
+    .eq("id", customerId)
+    .eq("store_id", storeId)
+    .eq("status", "active")
+    .is("merged_into_customer_id", null)
+    .maybeSingle();
+
+  return error ? null : data;
+}
+
+async function passwordConfigured(service: any, customerId: string) {
+  const { data } = await service
+    .from("customer_credentials")
+    .select("customer_id")
+    .eq("customer_id", customerId)
+    .not("password_hash", "is", null)
+    .maybeSingle();
+  return Boolean(data?.customer_id);
+}
+
+function getBearerToken(req: Request) {
+  return (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").trim();
+}
+
+async function getBearerIdentity(service: any, req: Request) {
+  const token = getBearerToken(req);
+  if (!token) return null;
+
+  const sessionId = decodeJwtSessionId(token);
+  if (!sessionId) return null;
+
+  const { data: userData, error: userError } = await service.auth.getUser(token);
+  const authUserId = userData?.user?.id;
+  if (userError || !authUserId) return null;
+
+  const { data: identity } = await service
+    .from("customer_auth_identities")
+    .select("customer_id,store_id,revoked_at,sessions_valid_after")
+    .eq("auth_user_id", authUserId)
+    .maybeSingle();
+
+  if (!identity || identity.revoked_at) return null;
+
+  if (identity.sessions_valid_after) {
+    const issuedAt = decodeJwtIssuedAt(token);
+    const validAfterSeconds = Math.ceil(Date.parse(String(identity.sessions_valid_after)) / 1000);
+    if (!issuedAt || !Number.isFinite(validAfterSeconds) || issuedAt < validAfterSeconds) {
+      return null;
+    }
+  }
+
+  return {
+    ...identity,
+    auth_user_id: authUserId,
+    session_id: sessionId,
+  };
+}
+
+async function bindCurrentSessionDevice(
+  service: any,
+  identity: any,
+  deviceTokenHash: string,
+) {
+  if (!identity?.session_id || !identity?.auth_user_id || !validDeviceHash(deviceTokenHash)) {
+    return { ok: false, error: "reauth_required" };
+  }
+
+  const { data, error } = await service.rpc("customer_touch_bound_session_service_safe", {
+    p_session_id: identity.session_id,
+    p_customer_id: identity.customer_id,
+    p_store_id: identity.store_id,
+    p_auth_user_id: identity.auth_user_id,
+    p_device_token_hash: deviceTokenHash,
+  });
+
+  if (error || !data?.ok) {
+    return { ok: false, error: data?.error || "reauth_required" };
+  }
+
+  return { ok: true };
+}
+
+async function issueSessionProof(service: any, customerId: string, storeId: string) {
+  const syntheticEmail = `customer-${customerId}@auth.optmamenu.com.br`;
+  let authUserId: string | null = null;
+
+  const { data: existingIdentity } = await service
+    .from("customer_auth_identities")
+    .select("auth_user_id")
+    .eq("customer_id", customerId)
+    .maybeSingle();
+
+  if (existingIdentity?.auth_user_id) {
+    authUserId = String(existingIdentity.auth_user_id);
+  } else {
+    const { data: created, error: createError } = await service.auth.admin.createUser({
+      email: syntheticEmail,
+      email_confirm: true,
+      user_metadata: { portal: "customer", customer_id: customerId, store_id: storeId },
+      app_metadata: { portal: "customer" },
+    });
+    if (createError || !created.user?.id) {
+      console.error("customer_auth_user_create_failed", { customerId, code: createError?.code });
+      return null;
+    }
+    authUserId = created.user.id;
+
+    const { error: identityError } = await service.from("customer_auth_identities").insert({
+      customer_id: customerId,
+      store_id: storeId,
+      auth_user_id: authUserId,
+      last_issued_at: new Date().toISOString(),
+    });
+    if (identityError) {
+      await service.auth.admin.deleteUser(authUserId).catch(() => undefined);
+      console.error("customer_auth_identity_link_failed", { customerId, code: identityError.code });
+      return null;
+    }
+  }
+
+  const { data: linkData, error: linkError } = await service.auth.admin.generateLink({
+    type: "magiclink",
+    email: syntheticEmail,
+  });
+  const tokenHash = linkData?.properties?.hashed_token;
+  if (linkError || !tokenHash) {
+    console.error("customer_session_link_failed", { customerId, code: linkError?.code });
+    return null;
+  }
+
+  await service
+    .from("customer_auth_identities")
+    .update({ last_issued_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq("customer_id", customerId);
+
+  return String(tokenHash);
+}
+
+Deno.serve(async (req: Request) => {
+  const origin = req.headers.get("origin");
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors(origin) });
+  if (req.method !== "POST") return json({ ok: false, error: "method_not_allowed" }, 405, origin);
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!supabaseUrl || !serviceRoleKey) return json({ ok: false, error: "server_configuration_error" }, 503, origin);
+
+  const service = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const input = await req.json().catch(() => null) as Record<string, any> | null;
+  if (!input) return json({ ok: false, error: "invalid_json" }, 400, origin);
+
+  const action = String(input.action || "otp").toLowerCase();
+  const deviceTokenHash = String(input.deviceTokenHash || "").trim().toLowerCase();
+
+  if (action === "me") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 200, origin);
+
+    const { data: deviceState, error: deviceError } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (deviceError || !deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required", reason: boundSession.error }, 200, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+
+    const customer = await loadCustomer(service, String(identity.customer_id), String(identity.store_id));
+    if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
+
+    return json({
+      ok: true,
+      customer: normalizeCustomer(customer),
+      passwordConfigured: await passwordConfigured(service, String(identity.customer_id)),
+    }, 200, origin);
+  }
+
+  if (action === "trusted_devices") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 200, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required", reason: boundSession.error }, 200, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+
+    const { data: result, error } = await service.rpc("customer_list_trusted_devices_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+    });
+    if (error) return json({ ok: false, error: "device_list_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "device_list_failed" }, 400, origin);
+    return json({ ok: true, devices: result.devices || [], activeCount: Number(result.active_count || 0) }, 200, origin);
+  }
+
+  if (action === "rename_device") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const targetDeviceId = String(input.deviceId || "");
+    const label = String(input.label || "").trim();
+    if (!validUuid(targetDeviceId) || !label) {
+      return json({ ok: false, error: "invalid_request" }, 200, origin);
+    }
+
+    const { data: result, error } = await service.rpc("customer_rename_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+      p_target_device_id: targetDeviceId,
+      p_label: label,
+    });
+    if (error) return json({ ok: false, error: "device_rename_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "device_rename_failed" }, 200, origin);
+
+    return json({ ok: true, label: result.label }, 200, origin);
+  }
+
+  if (action === "revoke_device") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required" }, 200, origin);
+    }
+
+    const currentPassword = String(input.currentPassword || "");
+    const targetDeviceId = String(input.deviceId || "");
+    if (!currentPassword || !validUuid(targetDeviceId)) {
+      return json({ ok: false, error: "current_password_required" }, 200, origin);
+    }
+
+    const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_password: currentPassword,
+    });
+    if (verifyError) return json({ ok: false, error: "password_verification_failed" }, 500, origin);
+    if (!verified?.ok) {
+      if (verified?.error === "locked") {
+        return json({
+          ok: false,
+          error: "locked",
+          retryAfterSeconds: Number(verified.retry_after_seconds || 900),
+        }, 200, origin);
+      }
+      return json({ ok: false, error: "invalid_current_password" }, 200, origin);
+    }
+
+    const { data: result, error } = await service.rpc("customer_revoke_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+      p_target_device_id: targetDeviceId,
+    });
+    if (error) return json({ ok: false, error: "device_revoke_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "device_revoke_failed" }, 200, origin);
+
+    const { data: listed } = await service.rpc("customer_list_trusted_devices_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+    });
+
+    return json({
+      ok: true,
+      revokedDeviceId: targetDeviceId,
+      label: result.label,
+      devices: listed?.devices || [],
+    }, 200, origin);
+  }
+
+  if (action === "revoke_other_devices") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 200, origin);
+    }
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) {
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required", reason: boundSession.error }, 200, origin);
+    }
+
+    const currentPassword = String(input.currentPassword || "");
+    if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 200, origin);
+
+    const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_password: currentPassword,
+    });
+    if (verifyError) return json({ ok: false, error: "password_verification_failed" }, 500, origin);
+    if (!verified?.ok) {
+      if (verified?.error === "locked") {
+        return json({
+          ok: false,
+          error: "locked",
+          retryAfterSeconds: Number(verified.retry_after_seconds || 900),
+        }, 200, origin);
+      }
+      return json({ ok: false, error: "invalid_current_password" }, 200, origin);
+    }
+
+    const currentJwt = getBearerToken(req);
+    const { error: globalSignOutError } = await service.auth.admin.signOut(currentJwt, "global");
+    if (globalSignOutError) {
+      console.error("customer_global_signout_failed", {
+        customerId: identity.customer_id,
+        code: globalSignOutError.code,
+      });
+      return json({ ok: false, error: "session_rotation_failed" }, 500, origin);
+    }
+
+    const { data: rotation, error: rotationError } = await service.rpc(
+      "customer_revoke_other_trusted_devices_service_safe",
+      {
+        p_customer_id: identity.customer_id,
+        p_store_id: identity.store_id,
+        p_current_device_hash: deviceTokenHash,
+      },
+    );
+    if (rotationError || !rotation?.ok) {
+      return json({ ok: false, error: rotation?.error || "device_revoke_failed" }, 400, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+    await waitForRotatedSessionBoundary(rotation.sessions_valid_after);
+
+    const customer = await loadCustomer(service, String(identity.customer_id), String(identity.store_id));
+    if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
+
+    const tokenHash = await issueSessionProof(service, String(identity.customer_id), String(identity.store_id));
+    if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
+
+    const { data: listed } = await service.rpc("customer_list_trusted_devices_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_current_device_hash: deviceTokenHash,
+    });
+
+    return json({
+      ok: true,
+      revokedCount: Number(rotation.revoked_count || 0),
+      devices: listed?.devices || [],
+      tokenHash,
+      verificationType: "magiclink",
+      customer: normalizeCustomer(customer),
+      passwordConfigured: await passwordConfigured(service, String(identity.customer_id)),
+    }, 200, origin);
+  }
+
+  if (action === "set_password") {
+    const identity = await getBearerIdentity(service, req);
+    if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
+    if (!validDeviceHash(deviceTokenHash)) return json({ ok: false, error: "reauth_required" }, 200, origin);
+
+    const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (!deviceState?.ok) return json({ ok: false, error: "reauth_required", reason: deviceState?.reason }, 200, origin);
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) return json({ ok: false, error: "reauth_required" }, 200, origin);
+
+    const currentPassword = String(input.currentPassword || "");
+    const password = String(input.password || "");
+    const alreadyHasPassword = await passwordConfigured(service, String(identity.customer_id));
+
+    if (alreadyHasPassword) {
+      if (!currentPassword) return json({ ok: false, error: "current_password_required" }, 200, origin);
+
+      const { data: verified, error: verifyError } = await service.rpc("customer_verify_current_password_service_safe", {
+        p_customer_id: identity.customer_id,
+        p_store_id: identity.store_id,
+        p_password: currentPassword,
+      });
+      if (verifyError) return json({ ok: false, error: "password_verification_failed" }, 500, origin);
+      if (!verified?.ok) {
+        if (verified?.error === "locked") {
+          return json({
+            ok: false,
+            error: "locked",
+            retryAfterSeconds: Number(verified.retry_after_seconds || 900),
+          }, 200, origin);
+        }
+        return json({ ok: false, error: "invalid_current_password" }, 200, origin);
+      }
+    }
+
+    const { data: result, error } = await service.rpc("customer_set_password_service_safe", {
+      p_customer_id: identity.customer_id,
+      p_store_id: identity.store_id,
+      p_password: password,
+    });
+    if (error) return json({ ok: false, error: "password_update_failed" }, 500, origin);
+    if (!result?.ok) return json({ ok: false, error: result?.error || "password_update_failed" }, 400, origin);
+
+    const currentJwt = getBearerToken(req);
+    const { error: globalSignOutError } = await service.auth.admin.signOut(currentJwt, "global");
+    if (globalSignOutError) {
+      console.error("customer_password_global_signout_failed", {
+        customerId: identity.customer_id,
+        code: globalSignOutError.code,
+      });
+      return json({ ok: false, error: "session_rotation_failed" }, 500, origin);
+    }
+
+    const { data: rotation, error: rotationError } = await service.rpc(
+      "customer_revoke_other_trusted_devices_service_safe",
+      {
+        p_customer_id: identity.customer_id,
+        p_store_id: identity.store_id,
+        p_current_device_hash: deviceTokenHash,
+      },
+    );
+    if (rotationError || !rotation?.ok) {
+      return json({ ok: false, error: rotation?.error || "session_rotation_failed" }, 500, origin);
+    }
+
+    await persistDeviceMetadata(
+      service,
+      String(identity.customer_id),
+      String(identity.store_id),
+      deviceTokenHash,
+      req,
+    );
+    await waitForRotatedSessionBoundary(rotation.sessions_valid_after);
+
+    const customer = await loadCustomer(service, String(identity.customer_id), String(identity.store_id));
+    if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
+
+    const tokenHash = await issueSessionProof(service, String(identity.customer_id), String(identity.store_id));
+    if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
+
+    return json({
+      ok: true,
+      revokedCount: Number(rotation.revoked_count || 0),
+      tokenHash,
+      verificationType: "magiclink",
+      customer: normalizeCustomer(customer),
+      passwordConfigured: true,
+    }, 200, origin);
+  }
+
+  if (action === "password_login") {
+    const phone = String(input.phone || "").trim();
+    const password = String(input.password || "");
+    const storeId = String(input.storeId || "").trim();
+    if (!phone || !password || !validUuid(storeId) || !validDeviceHash(deviceTokenHash)) {
+      return json({ ok: false, error: "invalid_credentials" }, 200, origin);
+    }
+
+    const { data: verified, error: verifyError } = await service.rpc("customer_verify_password_service_safe", {
+      p_phone: phone,
+      p_password: password,
+      p_store_id: storeId,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (verifyError) return json({ ok: false, error: "login_unavailable" }, 503, origin);
+    if (!verified?.ok) {
+      if (verified?.error === "locked") {
+        return json({ ok: false, error: "locked", retryAfterSeconds: Number(verified?.retry_after_seconds || 900) }, 200, origin);
+      }
+      return json({ ok: false, error: "invalid_credentials" }, 200, origin);
+    }
+
+    const customerId = String(verified.customer_id || "");
+    if (!customerId) return json({ ok: false, error: "invalid_credentials" }, 200, origin);
+
+    if (verified.otp_required) {
+      return json({
+        ok: true,
+        otpRequired: true,
+        reason: verified.reason || "new_device",
+      }, 200, origin);
+    }
+
+    const customer = await loadCustomer(service, customerId, storeId);
+    if (!customer) return json({ ok: false, error: "invalid_credentials" }, 200, origin);
+
+    await persistDeviceMetadata(service, customerId, storeId, deviceTokenHash, req);
+
+    const tokenHash = await issueSessionProof(service, customerId, storeId);
+    if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
+
+    return json({
+      ok: true,
+      otpRequired: false,
+      tokenHash,
+      verificationType: "magiclink",
+      customer: normalizeCustomer(customer),
+      passwordConfigured: true,
+    }, 200, origin);
+  }
+
+  if (action !== "otp") return json({ ok: false, error: "unsupported_action" }, 400, origin);
+
+  const phone = String(input.phone || "").trim();
+  const otp = String(input.otp || "").trim();
+  const storeId = String(input.storeId || "").trim();
+  const purpose = String(input.purpose || "login").trim().toLowerCase();
+  if (!phone || !/^\d{6}$/.test(otp.replace(/\D/g, "")) || !validUuid(storeId)) {
+    return json({ ok: false, error: "invalid_request" }, 400, origin);
+  }
+
+  const { data: verified, error: verifyError } = await service.rpc("verify_customer_otp_sms_safe", {
+    p_phone: phone,
+    p_otp: otp,
+    p_store_id: storeId,
+    p_purpose: purpose,
+  });
+  if (verifyError) return json({ ok: false, error: "otp_verification_failed" }, 500, origin);
+  if (!verified?.isValid) {
+    return json({ ok: false, error: verified?.locked ? "otp_locked" : "invalid_or_expired_otp" }, 200, origin);
+  }
+
+  let customerId = verified?.customer?.id ? String(verified.customer.id) : "";
+
+  if (customerId && purpose === "registration") {
+    return json({ ok: false, error: "customer_already_exists" }, 409, origin);
+  }
+
+  if (!customerId) {
+    if (purpose !== "registration") return json({ ok: false, error: "customer_not_found" }, 404, origin);
+    const registration = input.registration || {};
+    if (registration.termsAccepted !== true) return json({ ok: false, error: "terms_required" }, 400, origin);
+    if (!registration.password) return json({ ok: false, error: "password_required" }, 400, origin);
+
+    const { data: registered, error: registerError } = await service.rpc("register_public_customer_safe", {
+      p_store_id: storeId,
+      p_phone: phone,
+      p_full_name: registration.fullName || null,
+      p_nickname: registration.nickname || null,
+      p_email: registration.email || null,
+      p_birth_date: registration.birthDate || null,
+      p_terms_accepted: true,
+      p_terms_version: TERMS_VERSION,
+      p_privacy_version: PRIVACY_VERSION,
+      p_loyalty_opt_in: Boolean(registration.loyaltyOptIn),
+      p_marketing_whatsapp_consent: Boolean(registration.marketingConsent),
+      p_source: "public_store_otp",
+    });
+    if (registerError || !registered?.ok || !registered?.customer_id) {
+      return json({ ok: false, error: String(registered?.error || "registration_failed") }, 409, origin);
+    }
+    customerId = String(registered.customer_id);
+
+    const { data: passwordResult, error: passwordError } = await service.rpc("customer_set_password_service_safe", {
+      p_customer_id: customerId,
+      p_store_id: storeId,
+      p_password: String(registration.password),
+    });
+    if (passwordError || !passwordResult?.ok) {
+      return json({ ok: false, error: String(passwordResult?.error || "password_setup_failed") }, 400, origin);
+    }
+
+    await service
+      .from("customers")
+      .update({
+        phone_verified_at: new Date().toISOString(),
+        identity_verified_at: new Date().toISOString(),
+      })
+      .eq("id", customerId)
+      .eq("store_id", storeId);
+  }
+
+  if (validDeviceHash(deviceTokenHash)) {
+    const { data: trustResult, error: trustError } = await service.rpc("customer_trust_device_service_safe", {
+      p_customer_id: customerId,
+      p_store_id: storeId,
+      p_device_token_hash: deviceTokenHash,
+    });
+    if (trustError || !trustResult?.ok) {
+      console.error("customer_trust_device_failed", { customerId, storeId });
+      return json({ ok: false, error: "device_trust_failed" }, 500, origin);
+    }
+    await persistDeviceMetadata(service, customerId, storeId, deviceTokenHash, req);
+  }
+
+  const customer = await loadCustomer(service, customerId, storeId);
+  if (!customer) return json({ ok: false, error: "customer_not_found" }, 404, origin);
+
+  const tokenHash = await issueSessionProof(service, customerId, storeId);
+  if (!tokenHash) return json({ ok: false, error: "session_issue_failed" }, 500, origin);
+
+  return json({
+    ok: true,
+    tokenHash,
+    verificationType: "magiclink",
+    customer: normalizeCustomer(customer),
+    passwordConfigured: await passwordConfigured(service, customerId),
+  }, 200, origin);
+});

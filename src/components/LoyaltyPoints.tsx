@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Gift, Award, TrendingUp, History, Ticket, Copy, Loader2, Clock, ExternalLink, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabaseCustomer } from '@/lib/supabase';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
-import { CustomerService } from '@/services/customerService';
 import { toast } from 'sonner';
 import type { LoyaltyTransaction, Reward, Voucher } from '@/types';
 
@@ -20,6 +19,7 @@ export default function LoyaltyPoints() {
     const [activeTab, setActiveTab] = useState<'extract' | 'rewards' | 'vouchers'>('rewards');
     const [optInStep, setOptInStep] = useState<'intro' | 'terms'>('intro');
     const [agreedTerms, setAgreedTerms] = useState(false);
+    const [dataResponsibility, setDataResponsibility] = useState(false);
     const [enrollmentLoading, setEnrollmentLoading] = useState(false);
     const [programTerms, setProgramTerms] = useState<string>('');
 
@@ -34,14 +34,11 @@ export default function LoyaltyPoints() {
 
     const fetchTerms = async () => {
         try {
-            const { data } = await supabase
-                .from('fidelity_programs')
-                .select('program_terms')
-                .eq('store_id', customer?.store_id)
-                .maybeSingle();
-
-            if (data?.program_terms) {
-                setProgramTerms(data.program_terms);
+            const { data, error } = await supabaseCustomer.rpc('get_customer_self_loyalty_program_safe');
+            if (error) throw error;
+            const terms = data?.program?.program_terms;
+            if (terms) {
+                setProgramTerms(terms);
             } else {
                 setProgramTerms('Ao participar do nosso programa de fidelidade, você acumula pontos em cada compra realizada. Os pontos podem ser trocados por prêmios e benefícios exclusivos de acordo com o regulamento vigente da loja.');
             }
@@ -58,12 +55,13 @@ export default function LoyaltyPoints() {
 
             // Always fetch transactions for balance sync
             promises.push(
-                supabase
-                    .from('loyalty_transactions')
-                    .select('*')
-                    .eq('customer_id', customer.id)
-                    .order('created_at', { ascending: false })
-                    .then(({ data }) => setTransactions(data || []))
+                supabaseCustomer
+                    .rpc('get_customer_self_loyalty_transactions_safe', { p_limit: 100 })
+                    .then(({ data, error }) => {
+                        if (error) throw error;
+                        if (!data?.ok) throw new Error(data?.error || 'Não foi possível carregar o extrato.');
+                        setTransactions(data.transactions || []);
+                    })
             );
 
             if (activeTab === 'rewards') {
@@ -71,7 +69,7 @@ export default function LoyaltyPoints() {
                 const nowISO = new Date().toISOString();
 
                 promises.push(
-                    supabase
+                    supabaseCustomer
                         .from('fidelity_rewards')
                         .select('*')
                         .eq('is_active', true)
@@ -82,7 +80,7 @@ export default function LoyaltyPoints() {
 
                 // Count my vouchers per reward_id
                 promises.push(
-                    supabase
+                    supabaseCustomer
                         .from('fidelity_vouchers')
                         .select('reward_id')
                         .eq('customer_id', customer.id)
@@ -98,7 +96,7 @@ export default function LoyaltyPoints() {
 
             if (activeTab === 'vouchers') {
                 promises.push(
-                    supabase
+                    supabaseCustomer
                         .from('fidelity_vouchers')
                         .select('*, reward:fidelity_rewards(title, description, image_url)')
                         .eq('customer_id', customer.id)
@@ -128,7 +126,7 @@ export default function LoyaltyPoints() {
 
         setRedeeming(reward.id);
         try {
-            const { data, error } = await supabase.rpc('redeem_reward', {
+            const { data, error } = await supabaseCustomer.rpc('redeem_reward', {
                 p_customer_id: customer.id,
                 p_reward_id: reward.id
             });
@@ -262,37 +260,54 @@ export default function LoyaltyPoints() {
                                 </label>
                             </div>
 
+                            <div className="flex items-start gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
+                                <input
+                                    type="checkbox"
+                                    id="responsibility-loyalty"
+                                    checked={dataResponsibility}
+                                    onChange={(e) => setDataResponsibility(e.target.checked)}
+                                    className="mt-1 w-5 h-5 text-brand-green border-white/20 rounded focus:ring-brand-green bg-transparent"
+                                />
+                                <label htmlFor="responsibility-loyalty" className="text-sm font-medium text-gray-300 leading-snug cursor-pointer select-none">
+                                    Confirmo que os dados informados para minha participação são verdadeiros e estão atualizados.
+                                </label>
+                            </div>
+
                             <button
                                 onClick={async () => {
-                                    if (!customer?.id || !agreedTerms) return;
+                                    if (!customer?.id || !agreedTerms || !dataResponsibility) return;
                                     setEnrollmentLoading(true);
-                                    console.log(`[LOYALTY_FLOW] Starting enrollment for user: ${customer.id}`);
                                     try {
-                                        // 1. Update Profile (Triggers Join Bonus)
-                                        await CustomerService.updateProfile(customer.id, { loyalty_opt_in: true } as any);
-                                        console.log(`[LOYALTY_FLOW] Updated profile opt-in to true`);
+                                        const { data, error } = await supabaseCustomer.rpc('join_customer_self_loyalty_safe', {
+                                            p_accept_terms: true,
+                                            p_data_responsibility: true,
+                                            p_marketing_whatsapp: false,
+                                            p_marketing_email: false,
+                                            p_marketing_sms: false,
+                                        });
+                                        if (error) throw error;
+                                        if (!data?.ok) {
+                                            throw new Error(data?.message || data?.error || 'Não foi possível concluir a adesão.');
+                                        }
 
-                                        // 2. Log Consent
-                                        await CustomerService.logConsent(customer.id, 'loyalty_program', 'granted');
-                                        console.log(`[LOYALTY_FLOW] Consent logged`);
+                                        const bonusPoints = Number(data?.join_bonus_result?.bonus_points || 0);
+                                        login({
+                                            ...customer,
+                                            loyalty_opt_in: true,
+                                            loyalty_points: (customer.loyalty_points || 0) + bonusPoints,
+                                        });
 
-                                        // 3. UI Updates
-                                        const updated = { ...customer, loyalty_opt_in: true };
-                                        login(updated);
-
-                                        // 4. Double Feedback
-                                        alert('🎉 Parabéns! Você agora faz parte do nosso Clube de Pontos!');
-                                        toast.success('Você ganhou pontos de adesão! Confira seu extrato. 🎁');
-
-                                        console.log(`[LOYALTY_FLOW] Enrollment completed successfully`);
+                                        const explanation = data?.join_bonus_result?.applied_rule?.explanation;
+                                        if (explanation) toast.success(String(explanation));
+                                        else toast.success('Adesão concluída com sucesso.');
                                     } catch (e) {
                                         console.error('[LOYALTY_FLOW] ERROR:', e);
-                                        toast.error('Erro ao ativar. Tente novamente.');
+                                        toast.error(e instanceof Error ? e.message : 'Erro ao ativar. Tente novamente.');
                                     } finally {
                                         setEnrollmentLoading(false);
                                     }
                                 }}
-                                disabled={!agreedTerms || enrollmentLoading}
+                                disabled={!agreedTerms || !dataResponsibility || enrollmentLoading}
                                 className="w-full bg-brand-green text-white py-4 rounded-xl font-bold hover:brightness-110 transition shadow-lg shadow-brand-green/20 text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed"
                             >
                                 {enrollmentLoading ? <Loader2 className="animate-spin" /> : <>Confirmar Adesão <Gift size={20} /></>}
