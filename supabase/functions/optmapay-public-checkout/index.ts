@@ -162,6 +162,8 @@ Deno.serve(async (req: Request) => {
       .eq("code", order.payment_method_code)
       .maybeSingle();
 
+    const baseCode = String(method?.base_code || method?.code || "");
+
     const isApiPix = Boolean(
       method?.active &&
       method?.public_enabled &&
@@ -180,7 +182,6 @@ Deno.serve(async (req: Request) => {
       .eq("environment", "sandbox")
       .maybeSingle();
 
-    const baseCode = String(method?.base_code || method?.code || "");
     const isCard = baseCode === "debit_card" || baseCode === "credit_card";
 
     if (isCard) {
