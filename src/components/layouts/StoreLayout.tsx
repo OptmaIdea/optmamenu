@@ -198,6 +198,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                     <StorefrontBottomNavigation
                         storeSlug={storeSlug}
                         storeName={publicStore.name}
+                        storeLogoUrl={publicStore.logo_url || publicStore.visual_config?.visual_icon_url || null}
                         isAuthenticated={isAuthenticated}
                         onOpenStore={() => setStoreHubOpen(true)}
                         onOpenContact={openStoreContact}
