@@ -637,10 +637,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-1">Aparecerá no botão flutuante.</p>
+                                        <p className="text-xs text-gray-400 mt-1">Usado na área “Fale com a loja” e nos canais de atendimento da página pública.</p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email de Contato</label>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail de atendimento ao cliente</label>
                                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
                                             <Mail size={20} className="text-gray-400 ml-2" />
                                             <input
@@ -652,6 +652,9 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Pedidos, entrega, retirada, produtos e dúvidas comerciais devem chegar ao próprio lojista. A OptmaIdea fica restrita às questões da infraestrutura da plataforma.
+                                        </p>
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Endereço Completo</label>
