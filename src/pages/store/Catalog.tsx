@@ -172,6 +172,25 @@ export default function Catalog() {
         return () => window.removeEventListener('optmamenu:focus-store-search', focusSearch);
     }, []);
 
+    useEffect(() => {
+        if (!showCategoryPanel && !infoModal) return;
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            setShowCategoryPanel(false);
+            setInfoModal(null);
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [infoModal, showCategoryPanel]);
+
     const applyCatalog = useCallback((catalog: Awaited<ReturnType<typeof PublicStorefrontService.getCatalogBySlug>>) => {
         if (!catalog.ok || !catalog.catalog_enabled) {
             setCategories([]);
