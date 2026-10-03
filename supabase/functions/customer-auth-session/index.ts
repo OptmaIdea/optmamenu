@@ -475,7 +475,7 @@ Deno.serve(async (req: Request) => {
     const identity = await getBearerIdentity(service, req);
     if (!identity) return json({ ok: false, error: "session_expired" }, 200, origin);
     if (!validDeviceHash(deviceTokenHash)) {
-      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 401, origin);
+      return json({ ok: false, error: "reauth_required", reason: "device_not_trusted" }, 200, origin);
     }
 
     const { data: deviceState } = await service.rpc("customer_touch_trusted_device_service_safe", {
@@ -484,7 +484,12 @@ Deno.serve(async (req: Request) => {
       p_device_token_hash: deviceTokenHash,
     });
     if (!deviceState?.ok) {
-      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 401, origin);
+      return json({ ok: false, error: "reauth_required", reason: deviceState?.reason || "device_not_trusted" }, 200, origin);
+    }
+
+    const boundSession = await bindCurrentSessionDevice(service, identity, deviceTokenHash);
+    if (!boundSession.ok) {
+      return json({ ok: false, error: "reauth_required", reason: boundSession.error }, 200, origin);
     }
 
     const currentPassword = String(input.currentPassword || "");
