@@ -14,19 +14,18 @@ import {
     type PublicDeliveryMethod,
 } from '@/services/publicStorefrontService';
 import { timezoneUtils } from '@/utils/timezoneUtils';
-import { buildWhatsappUrl, canOpenWhatsapp } from '@/utils/whatsapp';
 import { formatBRL } from '@/utils/pricing';
 import {
     AlertCircle,
     ArrowUp,
     BadgePercent,
+    ChevronDown,
     Gift,
     Loader2,
+    Layers3,
     LogOut,
-    MessageCircle,
     Moon,
     Search,
-    ShoppingCart,
     Sun,
     Truck,
     User,
@@ -123,6 +122,9 @@ export default function Catalog() {
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [isDark, setIsDark] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
+    const searchInputRef = useRef<HTMLInputElement | null>(null);
+    const [showCategoryPanel, setShowCategoryPanel] = useState(false);
+    const [infoModal, setInfoModal] = useState<'pricing' | 'delivery' | 'loyalty' | null>(null);
     const sharedCartLoadedKeyRef = useRef<string | null>(null);
     const sharedCartRemoteRevisionRef = useRef(0);
     const sharedCartLastSyncedFingerprintRef = useRef('');
@@ -158,6 +160,16 @@ export default function Catalog() {
         handleScroll();
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
+
+    useEffect(() => {
+        const focusSearch = () => {
+            searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            window.setTimeout(() => searchInputRef.current?.focus(), 250);
+        };
+
+        window.addEventListener('optmamenu:focus-store-search', focusSearch);
+        return () => window.removeEventListener('optmamenu:focus-store-search', focusSearch);
     }, []);
 
     const applyCatalog = useCallback((catalog: Awaited<ReturnType<typeof PublicStorefrontService.getCatalogBySlug>>) => {
@@ -589,15 +601,9 @@ export default function Catalog() {
             });
     }, [products, searchTerm, selectedCategory, sortOrder]);
 
-    const cartTotal = useMemo(
-        () => cartItems.reduce((total, item) => total + Number(item.price || 0) * item.quantity, 0),
-        [cartItems],
-    );
-
-    const cartQuantity = useMemo(
-        () => cartItems.reduce((total, item) => total + item.quantity, 0),
-        [cartItems],
-    );
+    const primaryCategories = useMemo(() => categories.slice(0, 4), [categories]);
+    const selectedCategoryIsHidden = selectedCategory !== 'all'
+        && !primaryCategories.some((category) => category.id === selectedCategory);
 
     const deliveryMinimum = useMemo(() => {
         const values = deliveryMethods
@@ -607,28 +613,6 @@ export default function Catalog() {
 
         return values.length > 0 ? Math.min(...values) : 0;
     }, [deliveryMethods]);
-
-    const publicStoreUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}${location.pathname}`
-        : `/s/${storeSlug}`;
-
-    const whatsappPhone = store?.whatsapp?.digits
-        || store?.contacts?.whatsapp_business
-        || store?.phone_number
-        || '';
-    const whatsappEnabled = canOpenWhatsapp(whatsappPhone);
-    const whatsappUrl = whatsappEnabled && store
-        ? buildWhatsappUrl(
-            whatsappPhone,
-            [
-                `Olá! Vim pelo cardápio online da ${store.name}.`,
-                '',
-                'Gostaria de fazer um pedido ou tirar uma dúvida.',
-                '',
-                `Cardápio: ${publicStoreUrl}`,
-            ].join('\n'),
-        )
-        : '';
 
     const resetLoginForm = () => {
         setLoginStep('password_login');
@@ -709,6 +693,10 @@ export default function Catalog() {
         } finally {
             setLoginLoading(false);
         }
+    };
+
+    const handleCustomerLogout = async () => {
+        await AuthService.logoutCustomer();
     };
 
     const openProduct = (product: Product) => {
