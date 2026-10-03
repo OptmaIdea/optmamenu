@@ -9,7 +9,6 @@ import {
     PackageCheck,
     Search,
     ShieldCheck,
-    ShoppingCart,
     UserRound,
     X,
 } from 'lucide-react';
@@ -17,7 +16,6 @@ import {
 interface StorefrontBottomNavigationProps {
     storeSlug: string | null;
     storeName: string;
-    cartCount: number;
     isAuthenticated: boolean;
     onOpenStore: () => void;
     onOpenContact: () => void;
@@ -26,7 +24,6 @@ interface StorefrontBottomNavigationProps {
 export function StorefrontBottomNavigation({
     storeSlug,
     storeName,
-    cartCount,
     isAuthenticated,
     onOpenStore,
     onOpenContact,
@@ -99,23 +96,6 @@ export function StorefrontBottomNavigation({
                     >
                         <Home className="h-5 w-5" />
                         <span>Início</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => navigate(storeSlug ? `/checkout?store=${encodeURIComponent(storeSlug)}` : '/checkout')}
-                        className={`${navButton} ${location.pathname === '/checkout' ? active : muted}`}
-                        aria-label="Carrinho"
-                    >
-                        <span className="relative">
-                            <ShoppingCart className="h-5 w-5" />
-                            {cartCount > 0 && (
-                                <span className="absolute -right-3 -top-2 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-[9px] font-black text-white">
-                                    {cartCount > 99 ? '99+' : cartCount}
-                                </span>
-                            )}
-                        </span>
-                        <span>Carrinho</span>
                     </button>
 
                     <button
