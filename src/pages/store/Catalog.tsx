@@ -884,8 +884,9 @@ export default function Catalog() {
             >
                 <button
                     type="button"
-                    title="Produtos participantes podem ter preço reduzido conforme a quantidade combinada no carrinho."
-                    className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm"
+                    onClick={() => setInfoModal('pricing')}
+                    title="Ver como funciona o desconto por quantidade"
+                    className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm transition hover:brightness-105"
                 >
                     <BadgePercent className="h-8 w-8 shrink-0" />
                     <span className="text-sm font-black leading-4">Compre mais<br />pague menos</span>
@@ -893,10 +894,9 @@ export default function Catalog() {
 
                 <button
                     type="button"
-                    title={deliveryMinimum > 0
-                        ? `Entrega disponível conforme área atendida. Pedido mínimo a partir de R$ ${formatBRL(deliveryMinimum)}.`
-                        : 'Entrega disponível conforme área atendida, taxas e condições da loja.'}
-                    className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm"
+                    onClick={() => setInfoModal('delivery')}
+                    title="Ver condições de entrega"
+                    className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm transition hover:brightness-105"
                 >
                     <Truck className="h-8 w-8 shrink-0" />
                     <span className="text-sm font-black leading-4">Delivery<br />consulte condições</span>
@@ -905,8 +905,17 @@ export default function Catalog() {
                 {store.config?.loyalty_active && (
                     <button
                         type="button"
-                        title="Compras elegíveis podem gerar pontos e benefícios conforme as regras da loja."
-                        className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm"
+                        onClick={() => {
+                            if (isAuthenticated) {
+                                window.dispatchEvent(new CustomEvent('optmamenu:open-customer-account', {
+                                    detail: { tab: 'loyalty' },
+                                }));
+                            } else {
+                                setInfoModal('loyalty');
+                            }
+                        }}
+                        title="Ver fidelidade e benefícios"
+                        className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm transition hover:brightness-105"
                     >
                         <Gift className="h-8 w-8 shrink-0" />
                         <span className="text-sm font-black leading-4">Fidelidade<br />ganhe benefícios</span>
@@ -919,8 +928,9 @@ export default function Catalog() {
                     <div className="relative flex-1">
                         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                         <input
+                            ref={searchInputRef}
                             type="search"
-                            placeholder="Qual sabor você busca?"
+                            placeholder={store.config?.catalog_search_placeholder?.trim() || 'Buscar produtos'}
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
                             className="w-full rounded-2xl border-none bg-white py-4 pl-12 pr-4 shadow-md outline-none dark:bg-slate-800 dark:text-white"
@@ -937,28 +947,43 @@ export default function Catalog() {
                 </div>
 
                 {categories.length > 0 && (
-                    <section className="mb-5 flex gap-3 overflow-x-auto pb-3 scrollbar-hide">
-                        <button
-                            type="button"
-                            onClick={() => setSelectedCategory('all')}
-                            className={`whitespace-nowrap rounded-full px-6 py-2.5 shadow-sm ${selectedCategory === 'all'
-                                ? 'bg-green-600 text-white'
-                                : 'bg-white text-gray-700 dark:bg-slate-800 dark:text-gray-200'}`}
-                        >
-                            Tudo
-                        </button>
-                        {categories.map((category) => (
+                    <section className="mb-5">
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                             <button
-                                key={category.id}
                                 type="button"
-                                onClick={() => setSelectedCategory(category.id)}
-                                className={`whitespace-nowrap rounded-full px-6 py-2.5 shadow-sm ${selectedCategory === category.id
+                                onClick={() => setSelectedCategory('all')}
+                                className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-black shadow-sm transition ${selectedCategory === 'all'
                                     ? 'bg-green-600 text-white'
-                                    : 'bg-white text-gray-700 dark:bg-slate-800 dark:text-gray-200'}`}
+                                    : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700'}`}
                             >
-                                {category.name}
+                                Tudo
                             </button>
-                        ))}
+                            {primaryCategories.map((category) => (
+                                <button
+                                    key={category.id}
+                                    type="button"
+                                    onClick={() => setSelectedCategory(category.id)}
+                                    className={`whitespace-nowrap rounded-full px-5 py-2.5 text-sm font-black shadow-sm transition ${selectedCategory === category.id
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700'}`}
+                                >
+                                    {category.name}
+                                </button>
+                            ))}
+                            {categories.length > 4 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCategoryPanel(true)}
+                                    className={`inline-flex items-center whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-black shadow-sm transition ${selectedCategoryIsHidden
+                                        ? 'bg-green-600 text-white'
+                                        : 'bg-white text-gray-700 hover:bg-gray-100 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-700'}`}
+                                >
+                                    <Layers3 className="mr-2 h-4 w-4" />
+                                    Mais ({categories.length - 4})
+                                    <ChevronDown className="ml-1 h-4 w-4" />
+                                </button>
+                            )}
+                        </div>
                     </section>
                 )}
 
