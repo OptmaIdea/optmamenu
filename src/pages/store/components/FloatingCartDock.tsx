@@ -34,9 +34,9 @@ export function FloatingCartDock({
     }, [count]);
 
     return (
-        <div className={`fixed bottom-[5.8rem] right-4 z-[85] ${desktopBottomClass}`}>
+        <div className={`fixed bottom-[3.55rem] left-1/2 z-[85] -translate-x-1/2 lg:left-auto lg:right-5 lg:translate-x-0 ${desktopBottomClass}`}>
             {expanded ? (
-                <div className="flex items-stretch overflow-hidden rounded-2xl bg-emerald-600 text-white shadow-2xl ring-1 ring-black/5">
+                <div className="flex max-w-[calc(100vw-2rem)] items-stretch overflow-hidden rounded-2xl bg-emerald-600 text-white shadow-2xl ring-1 ring-black/5">
                     <Link
                         to={checkoutPath}
                         className="flex min-h-14 items-center gap-3 px-3.5 py-2.5 transition hover:bg-emerald-700"
@@ -77,7 +77,7 @@ export function FloatingCartDock({
                 <button
                     type="button"
                     onClick={() => setExpanded(true)}
-                    className="relative flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-2xl ring-1 ring-black/5 transition hover:bg-emerald-700 active:scale-95"
+                    className="relative flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-emerald-600 text-white shadow-2xl ring-1 ring-black/5 transition hover:bg-emerald-700 active:scale-95 dark:border-slate-950 lg:h-14 lg:w-14 lg:rounded-2xl lg:border-0"
                     aria-label={count > 0 ? `Expandir ${label.toLowerCase()} com ${count} item(ns)` : `Expandir ${label.toLowerCase()}`}
                     title={label}
                 >
