@@ -46,7 +46,8 @@ Também foram revisados `api/sandbox/v1/cards/charge.ts`, `src/lib/cardService.t
 Foram aplicadas as migrations:
 
 - `20261003174317_optmapay_card_receivables_foundation.sql`;
-- `20261003174902_optmapay_card_method_adapter_enablement`.
+- `20261003174902_optmapay_card_method_adapter_enablement`;
+- `20261003175622_optmapay_card_workspace_hardening`.
 
 A fundação adiciona:
 
@@ -58,7 +59,8 @@ A fundação adiciona:
 - RPC de criação/reuso de intent de cartão;
 - RPC de confirmação comercial de cartão;
 - RPC de liquidação posterior do recebível;
-- exposição dos recebíveis no workspace administrativo de pagamentos online.
+- exposição dos recebíveis no workspace administrativo de pagamentos online;
+- execução do workspace administrativo revogada para `anon` e mantida apenas para `authenticated`/`service_role`.
 
 ### Regra financeira aplicada
 
