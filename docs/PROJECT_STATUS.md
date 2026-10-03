@@ -1437,3 +1437,104 @@ A correção deve eliminar a interpretação indevida do `VALE5` e reconciliar o
 4. **Reteste pós-OptmaPay** — propositalmente pendente até a frente paralela de OptmaPay estabilizar o Golden Pix. Ao final repetir cliente → pedido → Golden Pix → confirmação → status → conclusão → Meu consumo.
 
 Não realizar alterações de OptmaPay nesta frente de Clientes.
+
+
+---
+
+## Fechamento da slug — navegação fixa, carrinho flutuante e segurança por dispositivo — 03/10/2026
+
+### Segurança por dispositivo
+
+Após teste real em tablet + PC, foi confirmado que a revogação global anterior produzia corretamente perda de sessão, porém deixava ruído de console no dispositivo revogado (`customer-auth-session 401` e `/auth/v1/user 403`).
+
+A solução foi evoluída para **revogação seletiva por sessão/dispositivo**:
+- cada sessão Auth do cliente é vinculada ao `trusted_device_id` por `session_id`;
+- revogar um dispositivo marca apenas o dispositivo e suas sessões vinculadas como revogados;
+- RPCs customer-scoped passam a depender de sessão vinculada a dispositivo ativo;
+- o dispositivo atual permanece válido;
+- o dispositivo remoto revogado recebe estado funcional de sessão expirada/reauth sem depender de HTTP 401/423 para erros de negócio esperados;
+- bloqueio por várias senhas incorretas continua existindo, mas a Edge Function devolve payload controlado para que a UI mostre a mensagem amigável sem poluir o console com 423 esperado.
+
+Migration:
+- `20261003203500_customer_targeted_trusted_device_sessions.sql`.
+
+A área Segurança do cliente agora permite:
+- dar **apelido** a cada dispositivo confiável;
+- desconectar **um dispositivo específico** mediante confirmação da senha atual;
+- usar **Sair deste dispositivo** no card atual;
+- manter a ação agregada de desconectar outros dispositivos como contingência.
+
+### Cabeçalho da conta
+
+Foi adicionado o botão **Sair** junto de **Minha conta**, conforme solicitado, além do fechamento do modal já existente.
+
+### Slug pública — navegação estilo app
+
+A loja pública passou a adotar uma navegação fixa mobile/tablet com cinco posições visuais:
+1. **Início** — retorna ao catálogo;
+2. **Loja** — usa nome/logo da loja e abre a área institucional/relacionamento;
+3. posição central reservada ao carrinho flutuante;
+4. **Perfil/Entrar** — abre a conta do cliente;
+5. **Menu** — abre as demais áreas navegáveis.
+
+O **Carrinho** deixa de ocupar uma barra duplicada:
+- botão flutuante central sobre a navegação;
+- estado recolhido por padrão;
+- contador quando há itens;
+- expande temporariamente ao adicionar produtos, mostrando quantidade e total;
+- pode ser recolhido novamente pelo cliente;
+- em desktop permanece flutuante fora da barra mobile.
+
+### Área da loja
+
+Foi criada a área institucional da própria loja, separada do Perfil:
+- identidade da loja;
+- fidelidade/pontos e benefícios;
+- texto e imagem institucional;
+- WhatsApp;
+- e-mail;
+- telefone;
+- endereço;
+- mapa;
+- redes sociais/site;
+- texto institucional configurável.
+
+Esses campos utilizam a configuração visual/comercial já disponível em **Aparência da loja**. A habilitação comercial por plano Premium ainda deve ser ligada a uma futura autoridade de assinatura/plano; não foi criado um bloqueio artificial enquanto o modelo de planos não possui fonte autoritativa consolidada no banco.
+
+### Atendimento
+
+Regra adotada:
+- dúvidas de pedido, entrega, retirada, produtos e relacionamento comercial devem usar o **contato informado pelo lojista**;
+- `faleconosco@optmaidea.com.br` fica reservado a contexto de infraestrutura/plataforma;
+- se a loja não configurar e-mail comercial, a slug não exibe o e-mail da OptmaIdea como substituto de atendimento.
+
+### Rodapé e branding
+
+Rodapé público consolidado em uma única atribuição:
+- `© 2026 Loja online por OptmaMenu · OptmaIdea`;
+- OptmaMenu aponta para `https://optmamenu.com.br/`;
+- OptmaIdea aponta para `https://www.optmaidea.com.br/`.
+
+O bloco **Privacidade e transparência** permanece. Referências a OptmaMenu/OptmaIdea dentro dos documentos jurídicos também permanecem quando necessárias para explicar responsabilidades.
+
+### Busca, categorias e informações comerciais
+
+Catálogo:
+- placeholder da busca passa a ser configurável pelo lojista; fallback neutro: **Buscar produtos**;
+- cabeçalho possui ação de busca;
+- mostra **Tudo + até 4 categorias principais**;
+- quando houver mais categorias, exibe **Mais (N)** e abre painel recolhível com todas;
+- evita poluição visual em lojas com muitos grupos/categorias.
+
+Cards informativos:
+- **Compre mais e pague menos** abre explicação contextual quando existirem regras progressivas reais;
+- **Delivery — consulte condições** abre modalidades, mínimos, taxas e prazos configurados;
+- **Fidelidade** só é exibida quando configurada como ativa.
+
+### Pendências antes de declarar a slug encerrada
+
+- homologar visualmente mobile + tablet + desktop da nova navegação e do carrinho;
+- validar apelido/desconexão individual de dispositivos em dois navegadores reais;
+- validar ausência de ruído 401/403/423 para os cenários esperados já tratados;
+- finalizar a frente Fidelidade;
+- executar apenas depois o reteste conjunto com OptmaPay, cuja evolução ocorre em frente separada.
