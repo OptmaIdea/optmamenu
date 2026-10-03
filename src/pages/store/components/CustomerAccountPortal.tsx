@@ -1710,16 +1710,29 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                         aria-modal="true"
                         aria-labelledby="customer-account-title"
                     >
-                        <header className="flex items-center justify-between border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6">
-                            <div>
-                                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Minha conta</p>
-                                <h2 id="customer-account-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">{displayName}</h2>
+                        <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 dark:border-slate-800 sm:px-6">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                    <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Minha conta</p>
+                                    <button
+                                        type="button"
+                                        onClick={() => void logout()}
+                                        disabled={loading}
+                                        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-red-200 px-2.5 text-[11px] font-black text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/20"
+                                        aria-label="Sair da conta"
+                                        title="Sair"
+                                    >
+                                        <LogOut className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">Sair</span>
+                                    </button>
+                                </div>
+                                <h2 id="customer-account-title" className="mt-1 truncate text-xl font-black text-slate-900 dark:text-white">{displayName}</h2>
                                 <p className="text-xs text-slate-500">{customer.phone}</p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setOpen(false)}
-                                className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                                 aria-label="Fechar minha conta"
                                 autoFocus
                             >
