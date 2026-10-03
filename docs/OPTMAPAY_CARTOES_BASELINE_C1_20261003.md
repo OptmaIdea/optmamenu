@@ -47,7 +47,9 @@ Foram aplicadas as migrations:
 
 - `20261003174317_optmapay_card_receivables_foundation.sql`;
 - `20261003174902_optmapay_card_method_adapter_enablement`;
-- `20261003175622_optmapay_card_workspace_hardening`.
+- `20261003175622_optmapay_card_workspace_hardening`;
+- `20261003175742_optmapay_card_pay_now_checkout`;
+- `20261003175906_optmapay_card_pay_now_release_gate`.
 
 A fundação adiciona:
 
@@ -81,7 +83,7 @@ Exemplo de teste: venda R$ 100, taxa R$ 3, recebível líquido R$ 97. Antes da l
 - A referência externa foi generalizada para `pix`, `debit_card` e `credit_card`.
 - Payload persistido de webhook é sanitizado para remover campos sensíveis.
 
-Os métodos de débito e crédito foram ligados ao provider em metadata, mas `pay_now` permanece **desabilitado** para cartões até o motor OptmaPay ter a correção autoritativa de fatura/liquidação e o Golden Debit/Credit passar ponta a ponta.
+Os métodos de débito e crédito foram ligados ao provider em metadata. Houve uma habilitação intermediária de `pay_now`, mas a auditoria detectou que o frontend ainda não fechava o ciclo de cobrança e que o motor OptmaPay ainda possui as lacunas de fatura/liquidação descritas acima. A migration de gate `20261003175906` voltou `pay_now=false`; portanto cartão permanece **deliberadamente não exposto** até o Golden Debit/Credit passar ponta a ponta.
 
 ## Teste automatizado executado no banco
 
