@@ -71,6 +71,30 @@ export type OnlinePaymentReceivable = {
   updated_at: string;
 };
 
+export type OnlinePaymentReceivableFilters = {
+  startDate?: string | null;
+  endDate?: string | null;
+  dateBasis?: 'created' | 'settlement';
+  paymentMethodCode?: 'debit_card' | 'credit_card' | null;
+  settlementPlan?: 'd1' | 'd7' | 'd15' | 'due_date' | 'ontime' | null;
+  classifier?: 'open' | 'settled' | 'anticipated' | 'single' | 'installment' | 'overdue' | null;
+  limit?: number;
+};
+
+export type OnlinePaymentReceivablesResult = {
+  ok: boolean;
+  error?: string;
+  items: OnlinePaymentReceivable[];
+  summary: {
+    total: number;
+    gross: number;
+    fees: number;
+    net: number;
+    open: number;
+    settled: number;
+  };
+};
+
 export type OnlinePaymentEvent = {
   id: string;
   intent_id?: string | null;
@@ -259,6 +283,52 @@ export const OnlinePaymentsService = {
     const result = normalizeWorkspace(data);
     if (!result.ok) throw new Error(result.error || 'Não foi possível carregar pagamentos online.');
     return result;
+  },
+
+  async listReceivables(storeId: string, filters: OnlinePaymentReceivableFilters = {}): Promise<OnlinePaymentReceivablesResult> {
+    const { data, error } = await supabase.rpc('list_online_payment_receivables_safe', {
+      p_store_id: storeId,
+      p_start_date: filters.startDate || null,
+      p_end_date: filters.endDate || null,
+      p_date_basis: filters.dateBasis || 'created',
+      p_payment_method_code: filters.paymentMethodCode || null,
+      p_settlement_plan: filters.settlementPlan || null,
+      p_classifier: filters.classifier || null,
+      p_limit: filters.limit || 500,
+    });
+    if (error) throw error;
+
+    const result = (data || {}) as {
+      ok?: boolean;
+      error?: string;
+      items?: unknown[];
+      summary?: Record<string, unknown>;
+    };
+    if (!result.ok) throw new Error(result.error || 'Não foi possível carregar os recebíveis.');
+
+    const summary = result.summary || {};
+    return {
+      ok: true,
+      items: (Array.isArray(result.items) ? result.items : []).map((item) => {
+        const receivable = item as OnlinePaymentReceivable;
+        return {
+          ...receivable,
+          installments: Number(receivable.installments || 1),
+          gross_amount: Number(receivable.gross_amount || 0),
+          fee_amount: Number(receivable.fee_amount || 0),
+          anticipation_fee_amount: Number(receivable.anticipation_fee_amount || 0),
+          net_amount: Number(receivable.net_amount || 0),
+        };
+      }),
+      summary: {
+        total: Number(summary.total || 0),
+        gross: Number(summary.gross || 0),
+        fees: Number(summary.fees || 0),
+        net: Number(summary.net || 0),
+        open: Number(summary.open || 0),
+        settled: Number(summary.settled || 0),
+      },
+    };
   },
 
   async saveProvider(input: {
