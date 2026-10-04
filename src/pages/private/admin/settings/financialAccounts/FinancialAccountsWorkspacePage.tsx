@@ -176,6 +176,7 @@ export default function FinancialAccountsWorkspacePage() {
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
   const [accountStatusFilter, setAccountStatusFilter] = useState<AccountStatusFilter>('active');
+  const [balanceAccountFilter, setBalanceAccountFilter] = useState('all');
 
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -203,13 +204,19 @@ export default function FinancialAccountsWorkspacePage() {
     [paymentMethods],
   );
   const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
-  const visibleBalanceAccounts = useMemo(
+  const balanceAccountsByStatus = useMemo(
     () => accounts.filter((account) => {
       if (accountStatusFilter === 'active') return account.active;
       if (accountStatusFilter === 'inactive') return !account.active;
       return true;
     }),
     [accounts, accountStatusFilter],
+  );
+  const visibleBalanceAccounts = useMemo(
+    () => balanceAccountsByStatus.filter((account) => (
+      balanceAccountFilter === 'all' || account.id === balanceAccountFilter
+    )),
+    [balanceAccountsByStatus, balanceAccountFilter],
   );
   const canManage = balances?.canManage ?? false;
 
@@ -304,6 +311,11 @@ export default function FinancialAccountsWorkspacePage() {
     const next = new URLSearchParams(searchParams);
     next.set('tab', tab);
     setSearchParams(next, { replace: true });
+  }
+
+  function changeAccountStatusFilter(next: AccountStatusFilter) {
+    setAccountStatusFilter(next);
+    setBalanceAccountFilter('all');
   }
 
   function startCreate() {
@@ -692,12 +704,29 @@ export default function FinancialAccountsWorkspacePage() {
 
             {activeTab === 'balances' && (
               <section className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-                  <div><h2 className="text-lg font-black dark:text-white">Contas financeiras</h2><p className="text-xs font-semibold text-gray-400">Clique em uma forma dentro da conta para abrir a conferência detalhada. Contas inativas preservam o histórico e podem ter seus lançamentos reatribuídos em lote.</p></div>
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setAccountStatusFilter('active')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'active' ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Ativas ({accounts.filter((account) => account.active).length})</button>
-                    <button type="button" onClick={() => setAccountStatusFilter('inactive')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'inactive' ? 'border-amber-600 bg-amber-600 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Inativas ({accounts.filter((account) => !account.active).length})</button>
-                    <button type="button" onClick={() => setAccountStatusFilter('all')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'all' ? 'border-slate-700 bg-slate-700 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Todas ({accounts.length})</button>
+                <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+                  <div><h2 className="text-lg font-black dark:text-white">Contas financeiras</h2><p className="text-xs font-semibold text-gray-400">Selecione uma conta para focar o saldo e a composição. Clique em uma forma dentro da conta para abrir a conferência detalhada.</p></div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+                    <label className="min-w-[240px] space-y-1">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Conta</span>
+                      <select
+                        value={balanceAccountFilter}
+                        onChange={(event) => setBalanceAccountFilter(event.target.value)}
+                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-black text-gray-700 outline-none transition focus:border-teal-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                      >
+                        <option value="all">Todas as contas do filtro</option>
+                        {balanceAccountsByStatus.map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name}{account.active ? '' : ' (inativa)'} · {formatMoney(account.balance)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => changeAccountStatusFilter('active')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'active' ? 'border-teal-600 bg-teal-600 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Ativas ({accounts.filter((account) => account.active).length})</button>
+                      <button type="button" onClick={() => changeAccountStatusFilter('inactive')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'inactive' ? 'border-amber-600 bg-amber-600 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Inativas ({accounts.filter((account) => !account.active).length})</button>
+                      <button type="button" onClick={() => changeAccountStatusFilter('all')} className={`rounded-xl border px-3 py-2 text-xs font-black transition ${accountStatusFilter === 'all' ? 'border-slate-700 bg-slate-700 text-white' : 'border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300'}`}>Todas ({accounts.length})</button>
+                    </div>
                   </div>
                 </div>
                 {visibleBalanceAccounts.length === 0 ? <div className="rounded-2xl border border-dashed p-8 text-center text-sm font-bold text-gray-400">Nenhuma conta neste filtro.</div> : <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
