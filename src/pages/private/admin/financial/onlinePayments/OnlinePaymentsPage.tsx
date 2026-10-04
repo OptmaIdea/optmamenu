@@ -10,6 +10,7 @@ import {
   KeyRound,
   Landmark,
   RefreshCw,
+  SlidersHorizontal,
   Webhook,
   XCircle,
 } from 'lucide-react';
@@ -180,6 +181,22 @@ export default function OnlinePaymentsPage() {
   const [optmaSettlementAccountId, setOptmaSettlementAccountId] = useState('');
   const [optmaAmount, setOptmaAmount] = useState('1,00');
   const [optmaPixIntent, setOptmaPixIntent] = useState<OptmaPaySandboxPixIntent | null>(null);
+  const [receivableStartDate, setReceivableStartDate] = useState('');
+  const [receivableEndDate, setReceivableEndDate] = useState('');
+  const [receivableDateBasis, setReceivableDateBasis] = useState<'created' | 'settlement'>('created');
+  const [receivableMethod, setReceivableMethod] = useState<'all' | 'debit_card' | 'credit_card'>('all');
+  const [receivablePlan, setReceivablePlan] = useState<'all' | 'd1' | 'd7' | 'd15' | 'due_date' | 'ontime'>('all');
+  const [receivableClassifier, setReceivableClassifier] = useState<'all' | 'open' | 'settled' | 'anticipated' | 'single' | 'installment' | 'overdue'>('all');
+  const [receivableItems, setReceivableItems] = useState<OnlinePaymentsWorkspace['receivables']>([]);
+  const [receivablesLoading, setReceivablesLoading] = useState(false);
+  const [receivablesSummary, setReceivablesSummary] = useState({
+    total: 0,
+    gross: 0,
+    fees: 0,
+    net: 0,
+    open: 0,
+    settled: 0,
+  });
 
   const load = useCallback(async () => {
     if (!storeId) return;
@@ -241,19 +258,49 @@ export default function OnlinePaymentsPage() {
     { label: 'Falhas/expirados', value: workspace?.counts.failed || 0, Icon: XCircle, tone: 'text-rose-600' },
   ], [workspace]);
 
-  const receivablesSummary = useMemo(() => {
-    const items = workspace?.receivables || [];
-    const openItems = items.filter((item) => item.status !== 'settled');
-    return {
-      count: openItems.length,
-      gross: openItems.reduce((total, item) => total + Number(item.gross_amount || 0), 0),
-      fees: openItems.reduce(
-        (total, item) => total + Number(item.fee_amount || 0) + Number(item.anticipation_fee_amount || 0),
-        0,
-      ),
-      net: openItems.reduce((total, item) => total + Number(item.net_amount || 0), 0),
-    };
-  }, [workspace?.receivables]);
+  const loadReceivables = useCallback(async () => {
+    if (!storeId) return;
+    setReceivablesLoading(true);
+    try {
+      const result = await OnlinePaymentsService.listReceivables(storeId, {
+        startDate: receivableStartDate || null,
+        endDate: receivableEndDate || null,
+        dateBasis: receivableDateBasis,
+        paymentMethodCode: receivableMethod === 'all' ? null : receivableMethod,
+        settlementPlan: receivablePlan === 'all' ? null : receivablePlan,
+        classifier: receivableClassifier === 'all' ? null : receivableClassifier,
+        limit: 500,
+      });
+      setReceivableItems(result.items);
+      setReceivablesSummary(result.summary);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível filtrar os recebíveis.');
+    } finally {
+      setReceivablesLoading(false);
+    }
+  }, [
+    storeId,
+    receivableStartDate,
+    receivableEndDate,
+    receivableDateBasis,
+    receivableMethod,
+    receivablePlan,
+    receivableClassifier,
+  ]);
+
+  useEffect(() => {
+    if (activeTab !== 'receivables') return;
+    void loadReceivables();
+  }, [activeTab, loadReceivables]);
+
+  function clearReceivableFilters() {
+    setReceivableStartDate('');
+    setReceivableEndDate('');
+    setReceivableDateBasis('created');
+    setReceivableMethod('all');
+    setReceivablePlan('all');
+    setReceivableClassifier('all');
+  }
 
   async function toggleProvider(provider: OnlinePaymentProvider) {
     if (!storeId || !workspace?.permissions.manage) return;
@@ -608,10 +655,75 @@ export default function OnlinePaymentsPage() {
 
           {activeTab === 'receivables' && (
             <div className="space-y-4">
+              <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal size={18} className="text-violet-600" />
+                    <div>
+                      <p className="font-black text-gray-900 dark:text-white">Filtros de recebíveis</p>
+                      <p className="text-xs text-gray-500">Combine período, tipo do cartão, plano D+ e classificador.</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={clearReceivableFilters} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-black text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800">
+                    Limpar filtros
+                  </button>
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+                  <label className="space-y-1 xl:col-span-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Data por</span>
+                    <select value={receivableDateBasis} onChange={(event) => setReceivableDateBasis(event.target.value as 'created' | 'settlement')} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                      <option value="created">Venda</option>
+                      <option value="settlement">Liquidação</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">De</span>
+                    <input type="date" value={receivableStartDate} onChange={(event) => setReceivableStartDate(event.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Até</span>
+                    <input type="date" value={receivableEndDate} onChange={(event) => setReceivableEndDate(event.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white" />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Tipo</span>
+                    <select value={receivableMethod} onChange={(event) => setReceivableMethod(event.target.value as typeof receivableMethod)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                      <option value="all">Débito e crédito</option>
+                      <option value="debit_card">Débito</option>
+                      <option value="credit_card">Crédito</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">D+ / plano</span>
+                    <select value={receivablePlan} onChange={(event) => setReceivablePlan(event.target.value as typeof receivablePlan)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                      <option value="all">Todos</option>
+                      <option value="d1">D+1 útil</option>
+                      <option value="d7">D+7 úteis</option>
+                      <option value="d15">D+15 úteis</option>
+                      <option value="due_date">No vencimento</option>
+                      <option value="ontime">OnTime / antecipado</option>
+                    </select>
+                  </label>
+                  <label className="space-y-1 xl:col-span-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Classificador</span>
+                    <select value={receivableClassifier} onChange={(event) => setReceivableClassifier(event.target.value as typeof receivableClassifier)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold dark:border-gray-700 dark:bg-gray-950 dark:text-white">
+                      <option value="all">Todos os classificadores</option>
+                      <option value="open">A receber / agendado</option>
+                      <option value="settled">Liquidado</option>
+                      <option value="anticipated">Antecipado</option>
+                      <option value="single">À vista (1x)</option>
+                      <option value="installment">Parcelado (2x+)</option>
+                      <option value="overdue">Em atraso</option>
+                    </select>
+                  </label>
+                </div>
+              </section>
+
               <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Recebíveis abertos</p>
-                  <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{receivablesSummary.count}</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Recebíveis no filtro</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{receivablesSummary.total}</p>
+                  <p className="mt-1 text-[10px] font-bold text-gray-400">{receivablesSummary.open} a receber · {receivablesSummary.settled} liquidado(s)</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
                   <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Venda bruta</p>
@@ -622,7 +734,7 @@ export default function OnlinePaymentsPage() {
                   <p className="mt-2 text-xl font-black text-rose-600">-{money.format(receivablesSummary.fees)}</p>
                 </div>
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Líquido a receber</p>
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Líquido</p>
                   <p className="mt-2 text-xl font-black text-violet-600">{money.format(receivablesSummary.net)}</p>
                 </div>
               </div>
@@ -634,13 +746,34 @@ export default function OnlinePaymentsPage() {
                 </p>
               </div>
 
-              {workspace.receivables.length === 0 ? <Empty text="Nenhum recebível de cartão registrado." /> : workspace.receivables.map((item) => (
+              {receivablesLoading ? (
+                <div className="flex min-h-40 items-center justify-center rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                  <RefreshCw className="animate-spin text-violet-600" />
+                </div>
+              ) : receivableItems.length === 0 ? <Empty text="Nenhum recebível corresponde aos filtros selecionados." /> : receivableItems.map((item) => {
+                const anticipated = Number(item.anticipation_fee_amount || 0) > 0
+                  || ['ontime', 'nitro'].includes(String(item.settlement_plan || '').toLowerCase())
+                  || (
+                    item.status === 'settled'
+                    && item.settled_at
+                    && item.expected_settlement_at
+                    && new Date(item.settled_at).getTime() < new Date(item.expected_settlement_at).getTime()
+                  );
+                return (
                 <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-black text-gray-900 dark:text-white">{item.order_code || 'Recebível de cartão'}</p>
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black uppercase text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                          {Number(item.installments || 1) > 1 ? 'Parcelado' : 'À vista'}
+                        </span>
+                        {anticipated && (
+                          <span className="rounded-full bg-fuchsia-100 px-2.5 py-1 text-[10px] font-black uppercase text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300">
+                            Antecipado
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1 text-sm text-gray-500">
                         {paymentMethodLabel(item.payment_method_code)} · {settlementPlanLabel(item.settlement_plan)} · {Number(item.installments || 1)}x
@@ -651,6 +784,9 @@ export default function OnlinePaymentsPage() {
                         </p>
                       )}
                       <p className="mt-2 text-xs text-gray-500">
+                        Venda em {dateTime.format(new Date(item.created_at))}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
                         {item.status === 'settled' && item.settled_at
                           ? `Liquidado em ${dateTime.format(new Date(item.settled_at))}`
                           : item.expected_settlement_at
@@ -675,7 +811,7 @@ export default function OnlinePaymentsPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );})}
             </div>
           )}
 
