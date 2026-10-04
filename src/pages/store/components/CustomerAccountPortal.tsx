@@ -22,7 +22,6 @@ import {
     Save,
     Search,
     ShoppingCart,
-    Sparkles,
     ShieldCheck,
     Star,
     Trash2,
