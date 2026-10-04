@@ -20,6 +20,7 @@ import {
     AlertCircle,
     ArrowUp,
     BadgePercent,
+    BellRing,
     ChevronDown,
     Loader2,
     Layers3,
@@ -119,6 +120,7 @@ export default function Catalog() {
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
     const [showSearchDialog, setShowSearchDialog] = useState(false);
     const searchDialogInputRef = useRef<HTMLInputElement | null>(null);
     const [recommendationMode, setRecommendationMode] = useState<'popular' | 'favorites'>('popular');
@@ -161,6 +163,36 @@ export default function Catalog() {
         window.addEventListener('scroll', handleScroll, { passive: true });
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
+
+    useEffect(() => {
+        if (!isAuthenticated || !customer?.id) {
+            setNotificationUnreadCount(0);
+            return;
+        }
+
+        let active = true;
+        const refreshNotifications = async () => {
+            if (!active || document.visibilityState !== 'visible') return;
+            const rows = await CustomerService.getNotifications(customer.id);
+            if (!active) return;
+            setNotificationUnreadCount((rows || []).filter((row) => {
+                const item = row as Record<string, unknown>;
+                return !Boolean(item.read);
+            }).length);
+        };
+
+        void refreshNotifications();
+        const intervalId = window.setInterval(() => void refreshNotifications(), 12000);
+        window.addEventListener('focus', refreshNotifications);
+        document.addEventListener('visibilitychange', refreshNotifications);
+
+        return () => {
+            active = false;
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', refreshNotifications);
+            document.removeEventListener('visibilitychange', refreshNotifications);
+        };
+    }, [customer?.id, isAuthenticated]);
 
     useEffect(() => {
         const focusSearch = () => {
@@ -686,12 +718,10 @@ export default function Catalog() {
 
     const searchDialogProducts = useMemo(() => {
         const normalizedSearch = normalizeText(searchTerm.trim());
-        if (!normalizedSearch) return popularProducts.slice(0, 10);
         return rankedProducts
-            .filter((product) => normalizeText(product.name).includes(normalizedSearch))
-            .sort((left, right) => Number(right.sales_count || 0) - Number(left.sales_count || 0))
-            .slice(0, 12);
-    }, [popularProducts, rankedProducts, searchTerm]);
+            .filter((product) => !normalizedSearch || normalizeText(product.name).includes(normalizedSearch))
+            .sort((left, right) => left.name.localeCompare(right.name, 'pt-BR'));
+    }, [rankedProducts, searchTerm]);
     const selectedCategoryIsHidden = selectedCategory !== 'all'
         && !primaryCategories.some((category) => category.id === selectedCategory);
 
@@ -903,12 +933,40 @@ export default function Catalog() {
                         </div>
                     </div>
 
-                    <div className="min-w-0 shrink-0 text-right md:pr-24">
-                        <span className="block max-w-[45vw] truncate text-xs font-black text-white/95 sm:text-sm">
-                            {isAuthenticated
-                                ? `Olá, ${customer?.nickname || customer?.full_name || 'cliente'}`
-                                : 'Olá!'}
-                        </span>
+                    <div className="flex min-w-0 shrink-0 items-center gap-2 text-right md:pr-24">
+                        {isAuthenticated ? (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('optmamenu:open-customer-account', {
+                                            detail: { tab: 'messages' },
+                                        }));
+                                    }}
+                                    className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/15 text-white transition hover:bg-white/25"
+                                    aria-label={notificationUnreadCount > 0 ? `Abrir mensagens, ${notificationUnreadCount} não lida(s)` : 'Abrir mensagens'}
+                                    title="Mensagens"
+                                >
+                                    <BellRing className="h-5 w-5" />
+                                    {notificationUnreadCount > 0 && (
+                                        <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white">
+                                            {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
+                                        </span>
+                                    )}
+                                </button>
+                                <span className="block max-w-[40vw] truncate text-xs font-black text-white/95 sm:text-sm">
+                                    Olá, {customer?.nickname || customer?.full_name || 'cliente'}
+                                </span>
+                            </>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => window.dispatchEvent(new CustomEvent('optmamenu:open-customer-auth'))}
+                                className="min-h-10 rounded-full bg-white/15 px-4 text-xs font-black text-white transition hover:bg-white/25 sm:text-sm"
+                            >
+                                Entrar
+                            </button>
+                        )}
                     </div>
                 </div>
             </header>
@@ -1164,8 +1222,22 @@ export default function Catalog() {
                                     placeholder={store.config?.catalog_search_placeholder?.trim() || 'Buscar produtos'}
                                     value={searchTerm}
                                     onChange={(event) => setSearchTerm(event.target.value)}
-                                    className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-base text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                    className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-12 text-base text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 />
+                                {searchTerm && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchTerm('');
+                                            window.setTimeout(() => searchDialogInputRef.current?.focus(), 0);
+                                        }}
+                                        className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-white"
+                                        aria-label="Limpar busca"
+                                        title="Limpar busca"
+                                    >
+                                        <X className="h-4 w-4" />
+                                    </button>
+                                )}
                             </div>
                         </header>
                         <div className="max-h-[calc(82vh-9rem)] overflow-y-auto p-4">

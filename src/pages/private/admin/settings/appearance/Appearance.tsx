@@ -561,7 +561,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                         </p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Categorias principais do catálogo</label>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Categorias em destaque (até 4)</label>
+                                        <p className="mb-2 text-xs font-bold text-emerald-600 dark:text-emerald-300">
+                                            Esta é a configuração manual dos quatro badges exibidos na loja pública.
+                                        </p>
                                         <p className="mb-3 text-xs leading-5 text-gray-400">
                                             Escolha até 4 categorias para os atalhos principais. Sem seleção manual, a loja prioriza automaticamente as categorias com mais itens vendidos em pedidos concluídos e usa a ordem do catálogo como desempate.
                                         </p>
