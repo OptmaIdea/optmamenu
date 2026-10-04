@@ -28,7 +28,7 @@ import {
 } from '@/services/onlinePaymentsService';
 import OnlinePaymentRoutesPanel from './components/OnlinePaymentRoutesPanel';
 
-type Tab = 'overview' | 'providers' | 'routes' | 'transactions' | 'proofs' | 'events' | 'sandbox';
+type Tab = 'overview' | 'providers' | 'routes' | 'transactions' | 'receivables' | 'proofs' | 'events' | 'sandbox';
 
 type SummaryCard = {
   label: string;
@@ -45,6 +45,7 @@ const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'providers', label: 'Provedores' },
   { id: 'routes', label: 'Rotas de recebimento' },
   { id: 'transactions', label: 'Transações' },
+  { id: 'receivables', label: 'Recebíveis' },
   { id: 'proofs', label: 'Comprovantes' },
   { id: 'events', label: 'Webhooks e eventos' },
   { id: 'sandbox', label: 'Laboratório Sandbox' },
@@ -63,6 +64,9 @@ function statusLabel(status: string) {
     refunded: 'Estornado',
     submitted: 'Aguardando conferência',
     confirmed: 'Confirmado',
+    receivable: 'A receber',
+    scheduled: 'Agendado',
+    settled: 'Liquidado',
     rejected: 'Rejeitado',
     superseded: 'Substituído',
   };
@@ -70,9 +74,9 @@ function statusLabel(status: string) {
 }
 
 function statusTone(status: string) {
-  if (['paid', 'confirmed', 'ready'].includes(status)) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300';
+  if (['paid', 'confirmed', 'ready', 'settled'].includes(status)) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300';
   if (['failed', 'rejected', 'expired', 'cancelled'].includes(status)) return 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300';
-  if (['pending', 'submitted', 'created', 'authorized'].includes(status)) return 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300';
+  if (['pending', 'submitted', 'created', 'authorized', 'receivable', 'scheduled'].includes(status)) return 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300';
   return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
 }
 
@@ -137,6 +141,20 @@ function paymentMethodLabel(method: string) {
     cash: 'Dinheiro',
   };
   return labels[method] || method.replaceAll('_', ' ');
+}
+
+function settlementPlanLabel(plan?: string | null) {
+  const normalized = String(plan || '').toLowerCase();
+  const labels: Record<string, string> = {
+    standard: 'D+1 útil',
+    d1: 'D+1 útil',
+    d7: 'D+7 úteis',
+    d15: 'D+15 úteis',
+    due_date: 'No vencimento',
+    ontime: 'OnTime',
+    nitro: 'OnTime',
+  };
+  return labels[normalized] || (plan || 'Plano não informado');
 }
 
 export default function OnlinePaymentsPage() {
@@ -205,9 +223,23 @@ export default function OnlinePaymentsPage() {
   const summaryCards = useMemo<SummaryCard[]>(() => [
     { label: 'Pendentes', value: workspace?.counts.pending || 0, Icon: Clock3, tone: 'text-amber-600' },
     { label: 'Pagos', value: workspace?.counts.paid || 0, Icon: CheckCircle2, tone: 'text-emerald-600' },
+    { label: 'A receber', value: workspace?.counts.receivables_pending || 0, Icon: Landmark, tone: 'text-violet-600' },
     { label: 'Falhas/expirados', value: workspace?.counts.failed || 0, Icon: XCircle, tone: 'text-rose-600' },
-    { label: 'Comprovantes', value: workspace?.counts.proofs_pending || 0, Icon: FileCheck2, tone: 'text-blue-600' },
   ], [workspace]);
+
+  const receivablesSummary = useMemo(() => {
+    const items = workspace?.receivables || [];
+    const openItems = items.filter((item) => item.status !== 'settled');
+    return {
+      count: openItems.length,
+      gross: openItems.reduce((total, item) => total + Number(item.gross_amount || 0), 0),
+      fees: openItems.reduce(
+        (total, item) => total + Number(item.fee_amount || 0) + Number(item.anticipation_fee_amount || 0),
+        0,
+      ),
+      net: openItems.reduce((total, item) => total + Number(item.net_amount || 0), 0),
+    };
+  }, [workspace?.receivables]);
 
   async function toggleProvider(provider: OnlinePaymentProvider) {
     if (!storeId || !workspace?.permissions.manage) return;
@@ -555,6 +587,79 @@ export default function OnlinePaymentsPage() {
                     <div className="flex items-center gap-3"><span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span><strong className="text-lg text-gray-900 dark:text-white">{money.format(Number(item.amount))}</strong></div>
                   </div>
                   {item.checkout_url && <a href={item.checkout_url} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-1 text-sm font-bold text-[#19A999]">Abrir checkout Sandbox <ExternalLink size={14} /></a>}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'receivables' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Recebíveis abertos</p>
+                  <p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{receivablesSummary.count}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Venda bruta</p>
+                  <p className="mt-2 text-xl font-black text-gray-900 dark:text-white">{money.format(receivablesSummary.gross)}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Taxas</p>
+                  <p className="mt-2 text-xl font-black text-rose-600">-{money.format(receivablesSummary.fees)}</p>
+                </div>
+                <div className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Líquido a receber</p>
+                  <p className="mt-2 text-xl font-black text-violet-600">{money.format(receivablesSummary.net)}</p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
+                <p className="font-black">Conciliação de cartão</p>
+                <p className="mt-1 text-xs opacity-85">
+                  A venda bruta e a taxa aparecem separadamente no Livro Diário. Este painel acompanha o valor líquido que ainda será liquidado pelo OptmaPay. A liquidação futura é uma transferência entre contas financeiras, não uma nova receita.
+                </p>
+              </div>
+
+              {workspace.receivables.length === 0 ? <Empty text="Nenhum recebível de cartão registrado." /> : workspace.receivables.map((item) => (
+                <div key={item.id} className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-black text-gray-900 dark:text-white">{item.order_code || 'Recebível de cartão'}</p>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusTone(item.status)}`}>{statusLabel(item.status)}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-gray-500">
+                        {paymentMethodLabel(item.payment_method_code)} · {settlementPlanLabel(item.settlement_plan)} · {Number(item.installments || 1)}x
+                      </p>
+                      {(item.card_brand || item.card_last4) && (
+                        <p className="mt-1 text-xs font-mono text-gray-400">
+                          {item.card_brand || 'Cartão'}{item.card_last4 ? ` •••• ${item.card_last4}` : ''}
+                        </p>
+                      )}
+                      <p className="mt-2 text-xs text-gray-500">
+                        {item.status === 'settled' && item.settled_at
+                          ? `Liquidado em ${dateTime.format(new Date(item.settled_at))}`
+                          : item.expected_settlement_at
+                            ? `Previsão de liquidação: ${dateTime.format(new Date(item.expected_settlement_at))}`
+                            : 'Previsão de liquidação ainda não informada'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 text-right sm:min-w-[360px]">
+                      <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-950">
+                        <p className="text-[10px] font-bold uppercase text-gray-400">Bruto</p>
+                        <p className="mt-1 font-black text-gray-900 dark:text-white">{money.format(Number(item.gross_amount))}</p>
+                      </div>
+                      <div className="rounded-xl bg-rose-50 p-3 dark:bg-rose-950/30">
+                        <p className="text-[10px] font-bold uppercase text-rose-400">Taxa</p>
+                        <p className="mt-1 font-black text-rose-600">-{money.format(Number(item.fee_amount) + Number(item.anticipation_fee_amount || 0))}</p>
+                      </div>
+                      <div className="rounded-xl bg-violet-50 p-3 dark:bg-violet-950/30">
+                        <p className="text-[10px] font-bold uppercase text-violet-400">Líquido</p>
+                        <p className="mt-1 font-black text-violet-600">{money.format(Number(item.net_amount))}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
