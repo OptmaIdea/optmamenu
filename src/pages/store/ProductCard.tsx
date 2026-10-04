@@ -1,4 +1,4 @@
-import { BadgePercent, ChevronRight, ImageIcon, PackageX, Plus } from 'lucide-react';
+import { BadgePercent, ChevronRight, ImageIcon, PackageX, Plus, Star } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import type { Product, PriceRule } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
@@ -139,6 +139,14 @@ export function ProductCard({
                 {product.description && (
                     <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
                         {product.description}
+                    </p>
+                )}
+
+                {Number(product.review_count || 0) > 0 && (
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs font-black text-amber-600 dark:text-amber-400">
+                        <Star className="h-3.5 w-3.5 fill-current" />
+                        {Number(product.rating_avg || 0).toFixed(1)}
+                        <span className="font-semibold text-gray-400">({product.review_count})</span>
                     </p>
                 )}
 

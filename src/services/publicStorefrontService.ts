@@ -113,6 +113,20 @@ export interface PublicCatalogResponse {
     categories: PublicCatalogCategory[];
 }
 
+export interface PublicProductRanking {
+    product_id: string;
+    category_id?: string | null;
+    sales_count: number;
+    rating_avg: number;
+    rating_count: number;
+}
+
+export interface PublicProductRankingsResponse {
+    ok: boolean;
+    error?: string;
+    rankings: PublicProductRanking[];
+}
+
 type Rgb = { r: number; g: number; b: number };
 
 function parseHexColor(value: unknown): Rgb | null {
@@ -341,11 +355,35 @@ export const PublicStorefrontService = {
                         public_availability: normalizePublicAvailability(
                             rawProduct.public_availability ?? rawProduct.availability,
                         ),
-                        rating_avg: product.rating_avg ?? 5,
+                        rating_avg: product.rating_avg ?? 0,
                         review_count: product.review_count ?? 0,
                         active: product.active ?? true,
                     };
                 }),
+            })),
+        };
+    },
+
+    async getProductRankingsBySlug(slug: string): Promise<PublicProductRankingsResponse> {
+        const { data, error } = await supabasePublic.rpc(
+            'get_public_product_rankings_by_slug',
+            { p_slug: slug }
+        );
+
+        if (error) {
+            console.error('get_public_product_rankings_by_slug error:', error);
+            throw error;
+        }
+
+        const payload = data as PublicProductRankingsResponse;
+        return {
+            ...payload,
+            rankings: (payload.rankings || []).map((item) => ({
+                product_id: String(item.product_id),
+                category_id: item.category_id ? String(item.category_id) : null,
+                sales_count: Number(item.sales_count || 0),
+                rating_avg: Number(item.rating_avg || 0),
+                rating_count: Number(item.rating_count || 0),
             })),
         };
     },

@@ -12,6 +12,7 @@ import CustomerProfile from '@/pages/store/components/CustomerProfile';
 import {
     PublicStorefrontService,
     type PublicDeliveryMethod,
+    type PublicProductRanking,
 } from '@/services/publicStorefrontService';
 import { timezoneUtils } from '@/utils/timezoneUtils';
 import { formatBRL } from '@/utils/pricing';
@@ -20,15 +21,12 @@ import {
     ArrowUp,
     BadgePercent,
     ChevronDown,
-    Gift,
     Loader2,
     Layers3,
-    LogOut,
-    Moon,
     Search,
-    Sun,
+    Star,
+    TrendingUp,
     Truck,
-    User,
     X,
 } from 'lucide-react';
 
@@ -120,9 +118,11 @@ export default function Catalog() {
     const [searchTerm, setSearchTerm] = useState('');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
     const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-    const [isDark, setIsDark] = useState(false);
     const [showBackToTop, setShowBackToTop] = useState(false);
-    const searchInputRef = useRef<HTMLInputElement | null>(null);
+    const [showSearchDialog, setShowSearchDialog] = useState(false);
+    const searchDialogInputRef = useRef<HTMLInputElement | null>(null);
+    const [recommendationMode, setRecommendationMode] = useState<'popular' | 'favorites'>('popular');
+    const [productRankings, setProductRankings] = useState<Map<string, PublicProductRanking>>(new Map());
     const [showCategoryPanel, setShowCategoryPanel] = useState(false);
     const [infoModal, setInfoModal] = useState<'pricing' | 'delivery' | 'loyalty' | null>(null);
     const sharedCartLoadedKeyRef = useRef<string | null>(null);
@@ -164,8 +164,8 @@ export default function Catalog() {
 
     useEffect(() => {
         const focusSearch = () => {
-            searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            window.setTimeout(() => searchInputRef.current?.focus(), 250);
+            setShowSearchDialog(true);
+            window.setTimeout(() => searchDialogInputRef.current?.focus(), 120);
         };
 
         window.addEventListener('optmamenu:focus-store-search', focusSearch);
@@ -173,7 +173,7 @@ export default function Catalog() {
     }, []);
 
     useEffect(() => {
-        if (!showCategoryPanel && !infoModal) return;
+        if (!showCategoryPanel && !showSearchDialog && !infoModal) return;
 
         const previousOverflow = document.body.style.overflow;
         document.body.style.overflow = 'hidden';
@@ -181,6 +181,7 @@ export default function Catalog() {
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key !== 'Escape') return;
             setShowCategoryPanel(false);
+            setShowSearchDialog(false);
             setInfoModal(null);
         };
 
@@ -189,7 +190,7 @@ export default function Catalog() {
             document.body.style.overflow = previousOverflow;
             document.removeEventListener('keydown', handleKeyDown);
         };
-    }, [infoModal, showCategoryPanel]);
+    }, [infoModal, showCategoryPanel, showSearchDialog]);
 
     const applyCatalog = useCallback((catalog: Awaited<ReturnType<typeof PublicStorefrontService.getCatalogBySlug>>) => {
         if (!catalog.ok || !catalog.catalog_enabled) {
@@ -255,20 +256,25 @@ export default function Catalog() {
                     isQrTableMode ? 'qr_table' : 'pickup',
                 );
 
-                const [catalog, delivery] = await Promise.all([
+                const [catalog, delivery, rankings] = await Promise.all([
                     PublicStorefrontService.getCatalogBySlug(storeSlug),
                     PublicStorefrontService.getPublicDeliveryMethodsBySlug(storeSlug),
+                    PublicStorefrontService.getProductRankingsBySlug(storeSlug),
                 ]);
 
                 applyCatalog(catalog);
 
                 setDeliveryMethods(delivery.ok ? delivery.delivery_methods || [] : []);
+                setProductRankings(new Map(
+                    (rankings.ok ? rankings.rankings || [] : []).map((item) => [item.product_id, item]),
+                ));
             } catch (error) {
                 console.error('Erro ao carregar loja pública:', error);
                 setStore(null);
                 setCategories([]);
                 setProducts([]);
                 setDeliveryMethods([]);
+                setProductRankings(new Map());
             } finally {
                 setLoadingStore(false);
                 setLoadingProducts(false);
@@ -596,10 +602,22 @@ export default function Catalog() {
         return () => window.clearInterval(timer);
     }, [store, storeHours]);
 
+    const rankedProducts = useMemo(() => (
+        products.map((product) => {
+            const ranking = productRankings.get(product.id);
+            return {
+                ...product,
+                sales_count: Number(ranking?.sales_count ?? product.sales_count ?? 0),
+                rating_avg: Number(ranking?.rating_avg ?? product.rating_avg ?? 0),
+                review_count: Number(ranking?.rating_count ?? product.review_count ?? 0),
+            };
+        })
+    ), [productRankings, products]);
+
     const filteredProducts = useMemo(() => {
         const normalizedSearch = normalizeText(searchTerm);
 
-        return products
+        return rankedProducts
             .filter((product) => {
                 const matchesSearch = normalizeText(product.name).includes(normalizedSearch);
                 const matchesCategory = selectedCategory === 'all'
@@ -618,9 +636,62 @@ export default function Catalog() {
                     ? left.name.localeCompare(right.name, 'pt-BR')
                     : right.name.localeCompare(left.name, 'pt-BR');
             });
-    }, [products, searchTerm, selectedCategory, sortOrder]);
+    }, [rankedProducts, searchTerm, selectedCategory, sortOrder]);
 
-    const primaryCategories = useMemo(() => categories.slice(0, 4), [categories]);
+    const primaryCategories = useMemo(() => {
+        const categorySales = new Map<string, number>();
+        rankedProducts.forEach((product) => {
+            if (!product.category_id) return;
+            categorySales.set(
+                product.category_id,
+                Number(categorySales.get(product.category_id) || 0) + Number(product.sales_count || 0),
+            );
+        });
+
+        const configuredIds = (store?.config?.featured_category_ids || []).slice(0, 4);
+        const configured = configuredIds
+            .map((id) => categories.find((category) => category.id === id))
+            .filter((category): category is Category => Boolean(category));
+
+        const configuredSet = new Set(configured.map((category) => category.id));
+        const automatic = categories
+            .filter((category) => !configuredSet.has(category.id))
+            .map((category, index) => ({ category, index, sales: Number(categorySales.get(category.id) || 0) }))
+            .sort((left, right) => right.sales - left.sales || left.index - right.index)
+            .map(({ category }) => category);
+
+        return [...configured, ...automatic].slice(0, 4);
+    }, [categories, rankedProducts, store?.config?.featured_category_ids]);
+
+    const popularProducts = useMemo(() => {
+        const available = rankedProducts.filter((product) => !isProductUnavailable(product));
+        const sold = available
+            .filter((product) => Number(product.sales_count || 0) > 0)
+            .sort((left, right) => Number(right.sales_count || 0) - Number(left.sales_count || 0));
+        return (sold.length > 0 ? sold : available).slice(0, 10);
+    }, [rankedProducts]);
+
+    const favoriteProducts = useMemo(() => (
+        rankedProducts
+            .filter((product) => !isProductUnavailable(product) && Number(product.review_count || 0) > 0)
+            .sort((left, right) => (
+                Number(right.rating_avg || 0) - Number(left.rating_avg || 0)
+                || Number(right.review_count || 0) - Number(left.review_count || 0)
+                || Number(right.sales_count || 0) - Number(left.sales_count || 0)
+            ))
+            .slice(0, 10)
+    ), [rankedProducts]);
+
+    const suggestedProducts = recommendationMode === 'favorites' ? favoriteProducts : popularProducts;
+
+    const searchDialogProducts = useMemo(() => {
+        const normalizedSearch = normalizeText(searchTerm.trim());
+        if (!normalizedSearch) return popularProducts.slice(0, 10);
+        return rankedProducts
+            .filter((product) => normalizeText(product.name).includes(normalizedSearch))
+            .sort((left, right) => Number(right.sales_count || 0) - Number(left.sales_count || 0))
+            .slice(0, 12);
+    }, [popularProducts, rankedProducts, searchTerm]);
     const selectedCategoryIsHidden = selectedCategory !== 'all'
         && !primaryCategories.some((category) => category.id === selectedCategory);
 
@@ -728,10 +799,6 @@ export default function Catalog() {
         }
     };
 
-    const handleCustomerLogout = async () => {
-        await AuthService.logoutCustomer();
-    };
-
     const openProduct = (product: Product) => {
         setSelectedProduct(product);
         setIsProductModalOpen(true);
@@ -836,63 +903,12 @@ export default function Catalog() {
                         </div>
                     </div>
 
-                    <div className="flex shrink-0 items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                window.dispatchEvent(new CustomEvent(
-                                    isAuthenticated
-                                        ? 'optmamenu:open-customer-account'
-                                        : 'optmamenu:open-customer-auth',
-                                    isAuthenticated ? { detail: { tab: 'profile' } } : undefined,
-                                ));
-                            }}
-                            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white/20 px-3 text-xs font-black text-white shadow-sm transition hover:bg-white/30"
-                            aria-label={isAuthenticated ? 'Abrir minha conta' : 'Entrar ou criar conta'}
-                            title={isAuthenticated ? 'Minha conta' : 'Entrar'}
-                        >
-                            <User className="h-4 w-4" />
-                            <span className="hidden sm:inline">
-                                {isAuthenticated ? `Olá, ${customer?.nickname || customer?.full_name || 'cliente'}` : 'Entrar'}
-                            </span>
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                window.setTimeout(() => searchInputRef.current?.focus(), 220);
-                            }}
-                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
-                            aria-label="Buscar produtos"
-                            title="Buscar"
-                        >
-                            <Search size={18} />
-                        </button>
-
-                        {isAuthenticated && (
-                            <button
-                                type="button"
-                                onClick={() => void handleCustomerLogout()}
-                                className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
-                                aria-label="Sair da conta"
-                                title="Sair"
-                            >
-                                <LogOut size={17} />
-                            </button>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                document.documentElement.classList.toggle('dark');
-                                setIsDark((current) => !current);
-                            }}
-                            className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-white"
-                            aria-label={isDark ? 'Usar tema claro' : 'Usar tema escuro'}
-                        >
-                            {isDark ? <Sun size={18} /> : <Moon size={18} />}
-                        </button>
+                    <div className="min-w-0 shrink-0 text-right md:pr-24">
+                        <span className="block max-w-[45vw] truncate text-xs font-black text-white/95 sm:text-sm">
+                            {isAuthenticated
+                                ? `Olá, ${customer?.nickname || customer?.full_name || 'cliente'}`
+                                : 'Olá!'}
+                        </span>
                     </div>
                 </div>
             </header>
@@ -911,7 +927,7 @@ export default function Catalog() {
                 </div>
             )}
 
-            {(hasProgressivePricing || hasDelivery || store.config?.loyalty_active) && (
+            {(hasProgressivePricing || hasDelivery) && (
             <section
                 aria-label="Informações da loja"
                 className="mx-auto mt-5 flex max-w-5xl gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide"
@@ -939,54 +955,98 @@ export default function Catalog() {
                     <span className="text-sm font-black leading-4">Delivery<br />consulte condições</span>
                 </button>
                 )}
-
-                {store.config?.loyalty_active && (
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (isAuthenticated) {
-                                window.dispatchEvent(new CustomEvent('optmamenu:open-customer-account', {
-                                    detail: { tab: 'loyalty' },
-                                }));
-                            } else {
-                                setInfoModal('loyalty');
-                            }
-                        }}
-                        title="Ver fidelidade e benefícios"
-                        className="flex min-w-44 flex-1 items-center gap-3 rounded-2xl bg-[#0b43c9] px-4 py-4 text-left text-white shadow-sm transition hover:brightness-105"
-                    >
-                        <Gift className="h-8 w-8 shrink-0" />
-                        <span className="text-sm font-black leading-4">Fidelidade<br />ganhe benefícios</span>
-                    </button>
-                )}
             </section>
             )}
 
             <main className="mx-auto mt-5 max-w-5xl px-4">
-                <div className="mb-5 flex gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                        <input
-                            ref={searchInputRef}
-                            type="search"
-                            placeholder={store.config?.catalog_search_placeholder?.trim() || 'Buscar produtos'}
-                            value={searchTerm}
-                            onChange={(event) => setSearchTerm(event.target.value)}
-                            className="w-full rounded-2xl border-none bg-white py-4 pl-12 pr-4 shadow-md outline-none dark:bg-slate-800 dark:text-white"
-                        />
+                <section className="mb-5 overflow-hidden rounded-3xl bg-white shadow-sm dark:bg-slate-800">
+                    <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4">
+                        <div>
+                            <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-600">Sugestões</p>
+                            <h2 className="mt-1 text-lg font-black text-slate-900 dark:text-white">
+                                {recommendationMode === 'popular' ? 'Mais pedidos' : 'Favoritos dos clientes'}
+                            </h2>
+                        </div>
+                        <div className="flex rounded-full bg-slate-100 p-1 dark:bg-slate-900">
+                            <button
+                                type="button"
+                                onClick={() => setRecommendationMode('popular')}
+                                className={`rounded-full px-3 py-2 text-xs font-black ${recommendationMode === 'popular' ? 'bg-emerald-600 text-white' : 'text-slate-500 dark:text-slate-300'}`}
+                            >
+                                Mais pedidos
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setRecommendationMode('favorites')}
+                                className={`rounded-full px-3 py-2 text-xs font-black ${recommendationMode === 'favorites' ? 'bg-amber-500 text-white' : 'text-slate-500 dark:text-slate-300'}`}
+                            >
+                                Favoritos
+                            </button>
+                        </div>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setSortOrder((current) => current === 'asc' ? 'desc' : 'asc')}
-                        className="rounded-2xl bg-white px-4 text-sm font-black shadow-md dark:bg-slate-800 dark:text-white"
-                        title={sortOrder === 'asc' ? 'Ordenar de Z a A' : 'Ordenar de A a Z'}
-                    >
-                        {sortOrder === 'asc' ? 'A–Z' : 'Z–A'}
-                    </button>
-                </div>
+
+                    {suggestedProducts.length === 0 ? (
+                        <p className="px-4 pb-5 text-sm text-slate-500 dark:text-slate-400">
+                            Ainda não há avaliações suficientes para montar esta lista.
+                        </p>
+                    ) : (
+                        <div className="flex gap-3 overflow-x-auto px-4 pb-4 pt-2 scrollbar-hide">
+                            {suggestedProducts.map((product) => {
+                                const imageUrl = product.images?.[0] || product.image_url || null;
+                                return (
+                                    <button
+                                        key={product.id}
+                                        type="button"
+                                        onClick={() => openProduct(product)}
+                                        className="w-36 shrink-0 overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 text-left transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
+                                    >
+                                        <div className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-white dark:bg-slate-800">
+                                            {imageUrl ? (
+                                                <img src={imageUrl} alt="" className="h-full w-full object-contain p-2" loading="lazy" />
+                                            ) : (
+                                                <Search className="h-6 w-6 text-slate-300" />
+                                            )}
+                                        </div>
+                                        <div className="p-3">
+                                            <p className="line-clamp-2 text-xs font-black text-slate-900 dark:text-white">{product.name}</p>
+                                            {recommendationMode === 'favorites' ? (
+                                                <p className="mt-2 flex items-center gap-1 text-[11px] font-black text-amber-600">
+                                                    <Star className="h-3.5 w-3.5 fill-current" />
+                                                    {Number(product.rating_avg || 0).toFixed(1)} · {product.review_count || 0}
+                                                </p>
+                                            ) : (
+                                                <p className="mt-2 flex items-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-300">
+                                                    <TrendingUp className="h-3.5 w-3.5" />
+                                                    {Number(product.sales_count || 0)} vendidos
+                                                </p>
+                                            )}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+
+                {searchTerm.trim() && (
+                    <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                        <span className="min-w-0 truncate font-bold text-emerald-800 dark:text-emerald-200">Filtro: “{searchTerm}”</span>
+                        <button type="button" onClick={() => setSearchTerm('')} className="shrink-0 text-xs font-black text-emerald-700 underline dark:text-emerald-300">Limpar</button>
+                    </div>
+                )}
 
                 {categories.length > 0 && (
                     <section className="mb-5">
+                        <div className="mb-2 flex items-center justify-end">
+                            <button
+                                type="button"
+                                onClick={() => setSortOrder((current) => current === 'asc' ? 'desc' : 'asc')}
+                                className="rounded-xl bg-white px-3 py-2 text-xs font-black shadow-sm dark:bg-slate-800 dark:text-white"
+                                title={sortOrder === 'asc' ? 'Ordenar de Z a A' : 'Ordenar de A a Z'}
+                            >
+                                {sortOrder === 'asc' ? 'A–Z' : 'Z–A'}
+                            </button>
+                        </div>
                         <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                             <button
                                 type="button"
@@ -1052,16 +1112,97 @@ export default function Catalog() {
                 onAddToCart={(product, quantity) => addToCart(product, quantity)}
             />
 
+            <button
+                type="button"
+                onClick={() => {
+                    setShowSearchDialog(true);
+                    window.setTimeout(() => searchDialogInputRef.current?.focus(), 120);
+                }}
+                className="fixed bottom-[5.8rem] right-4 z-[70] flex h-12 w-12 items-center justify-center rounded-full bg-emerald-600 text-white shadow-xl transition hover:bg-emerald-700 md:bottom-5"
+                aria-label="Buscar produtos"
+                title="Buscar produtos"
+            >
+                <Search className="h-5 w-5" />
+            </button>
+
             {showBackToTop && (
                 <button
                     type="button"
                     onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                    className="fixed bottom-[10rem] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-white shadow-xl transition hover:bg-slate-700 lg:bottom-24"
+                    className="fixed bottom-[9.4rem] right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-white shadow-xl transition hover:bg-slate-700 md:bottom-20"
                     aria-label="Voltar ao topo"
                     title="Voltar ao topo"
                 >
                     <ArrowUp className="h-5 w-5" />
                 </button>
+            )}
+
+            {showSearchDialog && (
+                <div className="fixed inset-0 z-[108] flex items-end justify-center bg-black/45 backdrop-blur-sm sm:items-center sm:p-4">
+                    <section
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="store-search-title"
+                        className="max-h-[82vh] w-full overflow-hidden rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:max-w-2xl sm:rounded-[2rem]"
+                    >
+                        <header className="border-b border-slate-200 p-4 dark:border-slate-800">
+                            <div className="flex items-center justify-between gap-3">
+                                <div>
+                                    <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">Filtro do catálogo</p>
+                                    <h2 id="store-search-title" className="mt-1 text-xl font-black text-slate-900 dark:text-white">Buscar produtos</h2>
+                                </div>
+                                <button type="button" onClick={() => setShowSearchDialog(false)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300" aria-label="Fechar busca">
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                            <div className="relative mt-4">
+                                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    ref={searchDialogInputRef}
+                                    type="search"
+                                    autoFocus
+                                    placeholder={store.config?.catalog_search_placeholder?.trim() || 'Buscar produtos'}
+                                    value={searchTerm}
+                                    onChange={(event) => setSearchTerm(event.target.value)}
+                                    className="min-h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-12 pr-4 text-base text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                />
+                            </div>
+                        </header>
+                        <div className="max-h-[calc(82vh-9rem)] overflow-y-auto p-4">
+                            {searchDialogProducts.length === 0 ? (
+                                <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm text-slate-500 dark:bg-slate-900">Nenhum produto encontrado.</p>
+                            ) : (
+                                <div className="space-y-2">
+                                    {searchDialogProducts.map((product) => (
+                                        <button
+                                            key={product.id}
+                                            type="button"
+                                            onClick={() => {
+                                                setShowSearchDialog(false);
+                                                openProduct(product);
+                                            }}
+                                            className="flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 p-3 text-left hover:border-emerald-300 dark:border-slate-800"
+                                        >
+                                            <div className="min-w-0">
+                                                <p className="truncate font-black text-slate-900 dark:text-white">{product.name}</p>
+                                                <p className="mt-1 text-xs text-slate-500">
+                                                    R$ {formatBRL(Number(product.price || 0))}
+                                                    {Number(product.review_count || 0) > 0 ? ` · ★ ${Number(product.rating_avg || 0).toFixed(1)}` : ''}
+                                                </p>
+                                            </div>
+                                            <span className="shrink-0 text-xs font-black text-emerald-700 dark:text-emerald-300">Ver</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                            {searchTerm.trim() && (
+                                <button type="button" onClick={() => setSearchTerm('')} className="mt-4 min-h-10 w-full rounded-2xl border border-slate-200 text-sm font-black text-slate-600 dark:border-slate-800 dark:text-slate-300">
+                                    Limpar filtro
+                                </button>
+                            )}
+                        </div>
+                    </section>
+                </div>
             )}
 
             {showCategoryPanel && (
