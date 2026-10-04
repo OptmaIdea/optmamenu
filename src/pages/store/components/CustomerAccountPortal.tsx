@@ -27,6 +27,7 @@ import {
     Trash2,
     UserRound,
     X,
+    XCircle,
 } from 'lucide-react';
 import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
 import {
@@ -41,6 +42,7 @@ import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { useCartStore } from '@/store/useCartStore';
 import { formatBRL } from '@/utils/pricing';
 import { toast } from 'sonner';
+import { systemConfirm } from '@/components/common/SystemDialogProvider';
 
 interface CustomerAddress {
     id?: string;
@@ -389,6 +391,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
     const [expandedConsumptionKey, setExpandedConsumptionKey] = useState<string | null>(null);
     const [reorderLoadingOrderId, setReorderLoadingOrderId] = useState<string | null>(null);
+    const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
     const [orderStatusFilter, setOrderStatusFilter] = useState<'all' | 'active' | 'completed' | 'cancelled' | 'expired'>('all');
     const [orderFulfillmentFilter, setOrderFulfillmentFilter] = useState<'all' | 'pickup' | 'delivery'>('all');
     const [orderSearch, setOrderSearch] = useState('');
@@ -1685,6 +1688,36 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     };
 
+    const cancelCustomerOrder = async (order: CustomerOrderSummary) => {
+        const confirmed = await systemConfirm({
+            title: 'Cancelar este pedido?',
+            description: 'A reserva dos itens será liberada. Esta ação vale apenas para pedidos ainda não pagos e que não avançaram no atendimento.',
+            confirmLabel: 'Cancelar pedido',
+            cancelLabel: 'Manter pedido',
+            tone: 'danger',
+        });
+        if (!confirmed) return;
+
+        clearFeedback();
+        setCancellingOrderId(order.id);
+        try {
+            await CustomerService.cancelSelfOrder(order.id);
+            await loadOrders({ notifyStatusChanges: false });
+            if (expandedOrderId === order.id) setExpandedOrderId(null);
+            const feedback = `${order.order_code || 'Pedido'} cancelado. A reserva dos itens foi liberada.`;
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (cancelError) {
+            const feedback = cancelError instanceof Error
+                ? cancelError.message
+                : 'Não foi possível cancelar este pedido.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setCancellingOrderId(null);
+        }
+    };
+
     const savePassword = async () => {
         clearFeedback();
         if (!currentPassword) {
@@ -2406,16 +2439,34 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                                 </div>
                                                             ))}
                                                         </div>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void reorderOrder(order)}
-                                                            disabled={reorderLoadingOrderId === order.id || order.order_items.length === 0}
-                                                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                                                        >
-                                                            <ShoppingCart className="h-4 w-4" />
-                                                            {reorderLoadingOrderId === order.id ? 'Verificando disponibilidade…' : 'Comprar novamente'}
-                                                        </button>
-                                                        <p className="mt-2 text-center text-xs text-slate-500">A recompra usa catálogo, preço e estoque atuais. Itens indisponíveis não são adicionados.</p>
+                                                        {order.status === 'completed' && (
+                                                            <>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => void reorderOrder(order)}
+                                                                    disabled={reorderLoadingOrderId === order.id || order.order_items.length === 0}
+                                                                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                                                >
+                                                                    <ShoppingCart className="h-4 w-4" />
+                                                                    {reorderLoadingOrderId === order.id ? 'Verificando disponibilidade…' : 'Comprar novamente'}
+                                                                </button>
+                                                                <p className="mt-2 text-center text-xs text-slate-500">A recompra usa catálogo, preço e estoque atuais. Itens indisponíveis não são adicionados.</p>
+                                                            </>
+                                                        )}
+
+                                                        {order.status === 'reserved' && order.payment_status !== 'paid' && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void cancelCustomerOrder(order)}
+                                                                disabled={cancellingOrderId === order.id}
+                                                                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 bg-red-50 px-4 text-sm font-black text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/60 dark:bg-red-950/20 dark:text-red-300"
+                                                            >
+                                                                {cancellingOrderId === order.id
+                                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                                    : <XCircle className="h-4 w-4" />}
+                                                                {cancellingOrderId === order.id ? 'Cancelando…' : 'Cancelar pedido'}
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 )}
                                             </div>
