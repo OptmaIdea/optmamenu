@@ -48,12 +48,12 @@ function normalizeCardResponse(data: any) {
 }
 
 function friendlyCardError(code: string, fallback = "Não foi possível autorizar este cartão.") {
-  const normalized = String(code || "").toUpperCase();
+  const normalized = `${String(code || "")} ${String(fallback || "")}`.toUpperCase();
   if (normalized.includes("LIMIT")) return "Limite insuficiente neste cartão.";
   if (normalized.includes("SALDO") || normalized.includes("BALANCE")) return "Saldo insuficiente para esta compra no débito.";
   if (normalized.includes("EXPIRED") || normalized.includes("VALIDADE")) return "Este cartão está vencido ou a validade informada não confere.";
-  if (normalized.includes("CVV")) return "O código de segurança informado não confere.";
-  if (normalized.includes("BLOCK") || normalized.includes("INACTIVE")) return "Este cartão está bloqueado ou indisponível.";
+  if (normalized.includes("CVV") || normalized.includes("CÓDIGO DE SEGURANÇA")) return "O código de segurança informado não confere.";
+  if (normalized.includes("BLOCK") || normalized.includes("INACTIVE") || normalized.includes("BLOQUE")) return "Este cartão está bloqueado ou indisponível.";
   if (normalized.includes("REAL_CARD")) return "Este ambiente Sandbox aceita apenas cartões fictícios OptmaPay.";
   return fallback;
 }
