@@ -1561,3 +1561,125 @@ A frente CLIENTES corrigiu o fechamento de dispositivos confiáveis sem abrir ac
 - lock de senha e demais recusas esperadas permanecem como respostas funcionais tratadas pela aplicação.
 
 Não houve migration nova neste bloco: a correção reutiliza as colunas e RPCs seguras já existentes. A Edge Function é a única implantação Supabase necessária.
+
+
+---
+
+## Slug pública — fechamento de navegação, sugestões, avaliações e fidelidade — 04/10/2026
+
+Homologação do cliente confirmou antes desta rodada:
+- apelidos de dispositivos persistem;
+- remoção do apelido restaura o nome automático;
+- alterações de apelidos aparecem nos demais dispositivos com pequeno atraso do polling;
+- desconexão remota remove imediatamente o dispositivo das listas;
+- tentativas repetidas de senha incorreta preservam o bloqueio temporário com contador.
+
+### Dispositivo remoto revogado
+
+O fechamento foi endurecido para que a revogação não dependa de o usuário abrir o Perfil:
+- a slug autenticada executa heartbeat de sessão em background, a cada ~8 segundos enquanto a página está visível e também em foco/retorno de visibilidade;
+- quando a Edge Function informa `session_expired`, `reauth_required` ou equivalente, o dispositivo revogado limpa a sessão local e volta ao estado deslogado;
+- o heartbeat não força refresh de uma sessão revogada;
+- ao revogar um dispositivo, `device_label` e `user_agent` são apagados daquele registro;
+- ao entrar novamente, o dispositivo precisa de OTP conforme a política existente e inicia novamente com identificação automática, sem reaproveitar o apelido anterior;
+- a área Segurança ganhou **Desconectar todos os outros dispositivos**, protegida pela senha atual e preservando o dispositivo em uso.
+
+### Avaliação de produtos — estrelas, sem comentários
+
+Foi criada a infraestrutura customer-scoped para avaliações:
+- tabela `customer_product_ratings` com RLS restritiva;
+- nota de 1 a 5 estrelas;
+- uma avaliação por cliente/produto, editável;
+- não existe campo de comentário;
+- o backend só aceita avaliação se o mesmo cliente possuir pedido `completed`, não estornado, contendo aquele produto;
+- a interface de **Meu consumo** oferece as estrelas apenas sobre produtos vindos de compras concluídas;
+- o catálogo público recebe apenas agregados de nota média e quantidade de avaliações, sem identidade do cliente.
+
+Migration aplicada:
+- `20261004015000_customer_storefront_ratings_and_device_cleanup.sql`.
+
+### Mais pedidos e Favoritos
+
+Foi adicionada a RPC pública agregada `get_public_product_rankings_by_slug`.
+
+Critérios:
+- **Mais pedidos**: quantidade efetivamente vendida em pedidos concluídos e não estornados;
+- **Favoritos**: maior nota média, depois maior quantidade de avaliações e, em empate, maior quantidade vendida.
+
+O smoke test real na slug `gelinharessjn` retornou vendas históricas suficientes para popular **Mais pedidos**. Como ainda não havia avaliações gravadas no momento da implantação, **Favoritos** inicia corretamente sem inventar estrelas ou avaliações.
+
+### Busca e catálogo
+
+A barra de busca fixa foi removida da página inicial e substituída por:
+- botão flutuante de lupa;
+- diálogo de busca/filtro;
+- filtro permanece aplicado ao catálogo até ser limpo;
+- estado do filtro fica visível na página;
+- ação A–Z/Z–A foi preservada.
+
+Foi criada uma faixa de sugestões no topo do catálogo:
+- **Mais pedidos**;
+- **Favoritos**.
+
+### Categorias principais
+
+`StoreConfig` agora aceita `featured_category_ids`.
+
+Em **Aparência da loja** o lojista pode selecionar até quatro categorias principais.
+
+Sem seleção manual:
+- o catálogo calcula vendas por categoria a partir dos rankings públicos;
+- prioriza automaticamente as categorias com mais unidades vendidas em pedidos concluídos;
+- usa a ordem original do catálogo como desempate/fallback.
+
+### Navegação responsiva e carrinho
+
+No mobile:
+- barra inferior: **Início · Loja · Carrinho/Comanda · Perfil/Entrar · Menu**;
+- carrinho fica dentro da barra, com badge, sem botão circular projetado sobre o conteúdo;
+- isso elimina a sobreposição observada sobre o bloco final de privacidade;
+- o item Loja usa ícone genérico de estabelecimento na navegação; logo continua reservado ao cabeçalho/identidade institucional.
+
+Em tablet paisagem/desktop:
+- a barra inferior desaparece a partir do breakpoint `md`;
+- um botão **Menu** fica no topo direito;
+- Menu concentra busca, loja, carrinho, tema, conta/pedidos/consumo/fidelidade/segurança e sair.
+
+No cabeçalho do catálogo:
+- os ícones de busca, tema, logout e perfil foram retirados;
+- permanece apenas a saudação não clicável **Olá, apelido**;
+- tema e sair foram movidos para Menu.
+
+### Fidelidade — separação de responsabilidades na slug
+
+A UX customer-side passa a obedecer três autoridades:
+
+1. **Perfil**
+   - aceite do regulamento;
+   - adesão;
+   - saída do programa;
+   - requisitos cadastrais e bloqueio de participação.
+
+2. **Loja**
+   - marketing institucional da fidelidade;
+   - campanhas, novidades e benefícios divulgados pela loja.
+
+3. **Menu → Fidelidade**
+   - saldo de pontos;
+   - nível;
+   - extrato;
+   - política de validade;
+   - termos publicados sobre prêmios/trocas.
+
+O banco atual não possui vencimento individual por lote de pontos nem tabela customer-facing autoritativa de catálogo de prêmios. Por isso a interface não inventa “X pontos a expirar” nem itens de troca inexistentes: exibe a política de validade configurada e os termos publicados até que essas estruturas existam.
+
+### Commits da rodada
+
+- `6425ec758cf9f3e9a647397b2c31d332b2731997` — ratings e limpeza de metadados de dispositivo;
+- `83aaaca20b873f6e93055c56e7fd5e7e7a39f22c` — heartbeat remoto, desconectar todos e UI de avaliação;
+- `6b8879df294916d8a8f8c93d242ba17d1c033a85` — navegação responsiva, carrinho na barra e categorias configuráveis;
+- `a52e8e6cb3b3031094d62e0079af14dd217102e8` — rankings, sugestões e diálogo de busca;
+- `b5cfd131cbeb52b321ca9f9f5d39c9cf620fcbff` — separação de responsabilidades da fidelidade;
+- `2b9cefd3c46cdde42dca3e9c3d5d8a811efdf663` — correção final de TypeScript da rodada.
+
+O deploy funcional do commit `2b9cefd3c46cdde42dca3e9c3d5d8a811efdf663` foi validado como **READY** antes deste registro documental.
