@@ -868,4 +868,34 @@ export const CustomerService = {
         if (!payload?.ok) throw selfServiceError(payload, 'Erro ao buscar pedidos.');
         return (Array.isArray(payload.orders) ? payload.orders : []) as Order[];
     },
+
+    async cancelSelfOrder(orderId: string, reason = 'Cancelado pelo cliente') {
+        const { data, error } = await supabaseCustomer.rpc('cancel_customer_self_order_safe', {
+            p_order_id: orderId,
+            p_reason: reason,
+        });
+        if (error) throw new Error('Não foi possível cancelar este pedido.');
+
+        const payload = data as (SelfRpcPayload & {
+            order_id?: string;
+            order_code?: string;
+            status?: string;
+            reservations_released?: number;
+        }) | null;
+
+        if (!payload?.ok) {
+            if (payload?.error === 'order_no_longer_cancellable') {
+                throw new Error('Este pedido já avançou no atendimento e não pode mais ser cancelado por aqui.');
+            }
+            if (payload?.error === 'paid_order_requires_refund' || payload?.error === 'payment_already_authorized') {
+                throw new Error('Este pedido já possui pagamento autorizado ou confirmado. O cancelamento precisa seguir o fluxo de estorno.');
+            }
+            if (payload?.error === 'order_not_found') {
+                throw new Error('Pedido não encontrado na sua conta.');
+            }
+            throw selfServiceError(payload, 'Não foi possível cancelar este pedido.');
+        }
+
+        return payload;
+    },
 };
