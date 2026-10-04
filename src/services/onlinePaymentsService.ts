@@ -45,6 +45,32 @@ export type OnlinePaymentTransaction = {
   metadata?: Record<string, unknown>;
 };
 
+export type OnlinePaymentReceivable = {
+  id: string;
+  intent_id: string;
+  order_id?: string | null;
+  order_code?: string | null;
+  provider_id: string;
+  provider_code: string;
+  payment_method_code: string;
+  card_type?: string | null;
+  card_brand?: string | null;
+  card_last4?: string | null;
+  installments: number;
+  gross_amount: number;
+  fee_amount: number;
+  anticipation_fee_amount: number;
+  net_amount: number;
+  settlement_plan: string;
+  expected_settlement_at?: string | null;
+  settled_at?: string | null;
+  status: string;
+  authorization_code?: string | null;
+  provider_transaction_id?: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type OnlinePaymentEvent = {
   id: string;
   intent_id?: string | null;
@@ -85,12 +111,15 @@ export type OnlinePaymentsWorkspace = {
   permissions: OnlinePaymentPermissions;
   providers: OnlinePaymentProvider[];
   transactions: OnlinePaymentTransaction[];
+  receivables: OnlinePaymentReceivable[];
   events: OnlinePaymentEvent[];
   proofs: OnlinePaymentProof[];
   counts: {
     pending: number;
     paid: number;
     failed: number;
+    receivables_pending: number;
+    receivables_settled: number;
     proofs_pending: number;
   };
 };
@@ -197,9 +226,29 @@ function normalizeWorkspace(data: unknown): OnlinePaymentsWorkspace {
     permissions: row.permissions || { view: false, manage: false, credentials: false, proofs: false, refund: false, events: false },
     providers: Array.isArray(row.providers) ? row.providers : [],
     transactions: Array.isArray(row.transactions) ? row.transactions : [],
+    receivables: Array.isArray(row.receivables)
+      ? row.receivables.map((item) => {
+          const receivable = item as OnlinePaymentReceivable;
+          return {
+            ...receivable,
+            installments: Number(receivable.installments || 1),
+            gross_amount: Number(receivable.gross_amount || 0),
+            fee_amount: Number(receivable.fee_amount || 0),
+            anticipation_fee_amount: Number(receivable.anticipation_fee_amount || 0),
+            net_amount: Number(receivable.net_amount || 0),
+          };
+        })
+      : [],
     events: Array.isArray(row.events) ? row.events : [],
     proofs: Array.isArray(row.proofs) ? row.proofs : [],
-    counts: row.counts || { pending: 0, paid: 0, failed: 0, proofs_pending: 0 },
+    counts: row.counts || {
+      pending: 0,
+      paid: 0,
+      failed: 0,
+      receivables_pending: 0,
+      receivables_settled: 0,
+      proofs_pending: 0,
+    },
   };
 }
 
