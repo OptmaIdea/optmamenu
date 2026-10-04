@@ -29,7 +29,11 @@ import {
     X,
 } from 'lucide-react';
 import { AuthService, type TrustedCustomerDevice } from '@/services/customerAuth';
-import { CustomerService } from '@/services/customerService';
+import {
+    CustomerService,
+    type CustomerLoyaltyReward,
+    type CustomerLoyaltyVoucher,
+} from '@/services/customerService';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { flushCustomerCartServerSync } from '@/services/customerCartPersistence';
 import { supabaseCustomer } from '@/lib/supabase';
@@ -91,6 +95,7 @@ interface CustomerNotificationSummary {
     title?: string | null;
     message?: string | null;
     type?: string | null;
+    category?: string | null;
     read?: boolean;
     created_at?: string | null;
 }
@@ -112,7 +117,28 @@ interface LoyaltyProgramSummary {
     updated_at?: string;
 }
 
-type AccountTab = 'profile' | 'addresses' | 'orders' | 'consumption' | 'communications' | 'loyalty' | 'security';
+type AccountTab =
+    | 'profile'
+    | 'loyalty-settings'
+    | 'addresses'
+    | 'orders'
+    | 'consumption'
+    | 'communications'
+    | 'messages'
+    | 'loyalty'
+    | 'security';
+
+type NotificationCategoryFilter =
+    | 'all'
+    | 'orders'
+    | 'loyalty'
+    | 'system'
+    | 'profile'
+    | 'security'
+    | 'marketing'
+    | 'general';
+
+type LoyaltyTransactionFilter = 'all' | 'earned' | 'spent';
 
 const CUSTOMER_ORDERS_REFRESH_MS = 12000;
 const CUSTOMER_SECURITY_REFRESH_MS = 8000;
@@ -213,6 +239,29 @@ function orderPickupDeadlineLabel(order: CustomerOrderSummary) {
     const deadline = new Date(order.available_until);
     if (Number.isNaN(deadline.getTime())) return null;
     return `Retire até ${deadline.toLocaleString('pt-BR')}`;
+}
+
+function notificationCategoryLabel(value?: string | null) {
+    switch (value) {
+        case 'orders': return 'Pedidos';
+        case 'loyalty': return 'Fidelidade';
+        case 'profile': return 'Perfil';
+        case 'security': return 'Segurança';
+        case 'marketing': return 'Marketing';
+        case 'general': return 'Geral';
+        default: return 'Sistema';
+    }
+}
+
+function notificationCategoryClass(value?: string | null) {
+    switch (value) {
+        case 'orders': return 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300';
+        case 'loyalty': return 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300';
+        case 'profile': return 'bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300';
+        case 'security': return 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300';
+        case 'marketing': return 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/40 dark:text-fuchsia-300';
+        default: return 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300';
+    }
 }
 
 function fulfillmentLabel(value?: string | null) {
@@ -318,14 +367,22 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [loyaltyJoinOpen, setLoyaltyJoinOpen] = useState(false);
     const [loyaltyTermsAccepted, setLoyaltyTermsAccepted] = useState(false);
     const [loyaltyDataResponsibilityAccepted, setLoyaltyDataResponsibilityAccepted] = useState(false);
-    const [showLoyaltyTerms, setShowLoyaltyTerms] = useState(false);
     const [showLoyaltyExitConfirm, setShowLoyaltyExitConfirm] = useState(false);
     const [marketingWhatsapp, setMarketingWhatsapp] = useState(false);
     const [marketingEmail, setMarketingEmail] = useState(false);
     const [marketingSms, setMarketingSms] = useState(false);
+    const [marketingPreferencesSaving, setMarketingPreferencesSaving] = useState(false);
+    const [loyaltyWhatsapp, setLoyaltyWhatsapp] = useState(false);
+    const [loyaltyEmail, setLoyaltyEmail] = useState(false);
+    const [loyaltySms, setLoyaltySms] = useState(false);
     const loyaltyWebApp = true;
     const [loyaltyPreferencesSaving, setLoyaltyPreferencesSaving] = useState(false);
+    const [loyaltyRewards, setLoyaltyRewards] = useState<CustomerLoyaltyReward[]>([]);
+    const [loyaltyVouchers, setLoyaltyVouchers] = useState<CustomerLoyaltyVoucher[]>([]);
+    const [loyaltyRewardsLoading, setLoyaltyRewardsLoading] = useState(false);
+    const [loyaltyTransactionFilter, setLoyaltyTransactionFilter] = useState<LoyaltyTransactionFilter>('all');
     const [notifications, setNotifications] = useState<CustomerNotificationSummary[]>([]);
+    const [notificationCategoryFilter, setNotificationCategoryFilter] = useState<NotificationCategoryFilter>('all');
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
@@ -561,6 +618,24 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         return missing;
     }, [customer, loyaltyAgeRestricted]);
 
+    const loyaltyTotals = useMemo(() => loyaltyTransactions.reduce((totals, transaction) => {
+        if (transaction.points > 0) totals.earned += transaction.points;
+        if (transaction.points < 0) totals.spent += Math.abs(transaction.points);
+        return totals;
+    }, { earned: 0, spent: 0 }), [loyaltyTransactions]);
+
+    const filteredLoyaltyTransactions = useMemo(() => {
+        if (loyaltyTransactionFilter === 'earned') return loyaltyTransactions.filter((item) => item.points > 0);
+        if (loyaltyTransactionFilter === 'spent') return loyaltyTransactions.filter((item) => item.points < 0);
+        return loyaltyTransactions;
+    }, [loyaltyTransactionFilter, loyaltyTransactions]);
+
+    const filteredNotifications = useMemo(() => (
+        notificationCategoryFilter === 'all'
+            ? notifications
+            : notifications.filter((item) => (item.category || 'system') === notificationCategoryFilter)
+    ), [notificationCategoryFilter, notifications]);
+
     useEffect(() => {
         if (profileDirty) return;
         setNickname(customer?.nickname || '');
@@ -714,6 +789,21 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         setMarketingWhatsapp(latest.get('marketing_whatsapp') === 'granted');
         setMarketingEmail(latest.get('marketing_email') === 'granted');
         setMarketingSms(latest.get('marketing_sms') === 'granted');
+        setLoyaltyWhatsapp(latest.get('loyalty_whatsapp') === 'granted');
+        setLoyaltyEmail(latest.get('loyalty_email') === 'granted');
+        setLoyaltySms(latest.get('loyalty_sms') === 'granted');
+    }, [customer?.id]);
+
+    const loadLoyaltyRewards = useCallback(async () => {
+        if (!customer) return;
+        setLoyaltyRewardsLoading(true);
+        try {
+            const result = await CustomerService.getSelfLoyaltyRewards();
+            setLoyaltyRewards(result.rewards);
+            setLoyaltyVouchers(result.vouchers);
+        } finally {
+            setLoyaltyRewardsLoading(false);
+        }
     }, [customer?.id]);
 
     const loadNotifications = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
@@ -728,6 +818,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                     title: item.title ? String(item.title) : null,
                     message: item.message ? String(item.message) : null,
                     type: item.type ? String(item.type) : null,
+                    category: item.category ? String(item.category) : 'system',
                     read: Boolean(item.read),
                     created_at: item.created_at ? String(item.created_at) : null,
                 };
@@ -975,7 +1066,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             refreshCustomerSnapshot(),
             loadLoyaltyTransactions(),
             loadLoyaltyProgram(),
-            loadMarketingConsents(),
+            loadLoyaltyRewards(),
         ]).catch((loyaltyError) => {
             if (active) console.error('[LOYALTY] Falha ao atualizar fidelidade:', loyaltyError);
         });
@@ -990,34 +1081,40 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         refreshCustomerSnapshot,
         loadLoyaltyTransactions,
         loadLoyaltyProgram,
-        loadMarketingConsents,
+        loadLoyaltyRewards,
     ]);
 
     useEffect(() => {
-        if (!open || !customer || tab !== 'profile') return;
+        if (!open || !customer || tab !== 'loyalty-settings') return;
 
         void Promise.all([
+            refreshCustomerSnapshot(),
             loadLoyaltyProgram(),
             loadMarketingConsents(),
         ]).catch((loyaltyError) => {
-            console.error('[LOYALTY_PROFILE] Falha ao atualizar adesão:', loyaltyError);
+            console.error('[LOYALTY_SETTINGS] Falha ao atualizar configurações:', loyaltyError);
         });
     }, [
         open,
         customer?.id,
         tab,
+        refreshCustomerSnapshot,
         loadLoyaltyProgram,
         loadMarketingConsents,
     ]);
 
     useEffect(() => {
         if (!open || !customer || tab !== 'communications') return;
+        void loadMarketingConsents().catch((communicationError) => {
+            console.error('[CUSTOMER_MARKETING] Falha ao atualizar preferências:', communicationError);
+        });
+    }, [open, customer?.id, tab, loadMarketingConsents]);
 
-        void Promise.all([
-            loadMarketingConsents(),
-            loadNotifications(),
-        ]).catch((communicationError) => {
-            console.error('[CUSTOMER_COMMUNICATIONS] Falha ao atualizar comunicações:', communicationError);
+    useEffect(() => {
+        if (!open || !customer || tab !== 'messages') return;
+
+        void loadNotifications().catch((notificationError) => {
+            console.error('[CUSTOMER_MESSAGES] Falha ao atualizar mensagens:', notificationError);
         });
 
         const intervalId = window.setInterval(() => {
@@ -1025,13 +1122,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }, CUSTOMER_ORDERS_REFRESH_MS);
 
         return () => window.clearInterval(intervalId);
-    }, [
-        open,
-        customer?.id,
-        tab,
-        loadMarketingConsents,
-        loadNotifications,
-    ]);
+    }, [open, customer?.id, tab, loadNotifications]);
 
     useEffect(() => {
         if (!open || !customer || tab !== 'security') return;
@@ -1426,12 +1517,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             const result = await CustomerService.joinSelfLoyalty({
                 acceptTerms: true,
                 dataResponsibility: true,
-                marketingWhatsapp,
-                marketingEmail,
-                marketingSms,
-            });
-            await CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, {
-                source: 'customer_loyalty_preferences',
+                loyaltyWhatsapp,
+                loyaltyEmail,
+                loyaltySms,
             });
 
             await Promise.all([
@@ -1461,22 +1549,42 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const saveCommunicationPreferences = async () => {
         clearFeedback();
-        setLoyaltyPreferencesSaving(true);
+        setMarketingPreferencesSaving(true);
         try {
             await Promise.all([
-                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_communication_preferences' }),
-                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_communication_preferences' }),
-                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_communication_preferences' }),
-                CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, { source: 'customer_communication_preferences' }),
+                CustomerService.setSelfConsent('marketing_whatsapp', marketingWhatsapp, { source: 'customer_marketing_preferences' }),
+                CustomerService.setSelfConsent('marketing_email', marketingEmail, { source: 'customer_marketing_preferences' }),
+                CustomerService.setSelfConsent('marketing_sms', marketingSms, { source: 'customer_marketing_preferences' }),
             ]);
             await loadMarketingConsents();
-            const feedback = 'Preferências de comunicação atualizadas.';
+            const feedback = 'Preferências de marketing atualizadas.';
             setMessage(feedback);
             toast.success(feedback);
         } catch (preferencesError) {
-            const feedback = preferencesError instanceof Error
-                ? preferencesError.message
-                : 'Não foi possível salvar suas preferências de comunicação.';
+            const feedback = preferencesError instanceof Error ? preferencesError.message : 'Não foi possível salvar suas preferências de marketing.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setMarketingPreferencesSaving(false);
+        }
+    };
+
+    const saveLoyaltyCommunicationPreferences = async () => {
+        clearFeedback();
+        setLoyaltyPreferencesSaving(true);
+        try {
+            await Promise.all([
+                CustomerService.setSelfConsent('loyalty_whatsapp', loyaltyWhatsapp, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('loyalty_email', loyaltyEmail, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('loyalty_sms', loyaltySms, { source: 'customer_loyalty_preferences' }),
+                CustomerService.setSelfConsent('loyalty_webapp', loyaltyWebApp, { source: 'customer_loyalty_preferences' }),
+            ]);
+            await loadMarketingConsents();
+            const feedback = 'Preferências de comunicação da fidelidade atualizadas.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (preferencesError) {
+            const feedback = preferencesError instanceof Error ? preferencesError.message : 'Não foi possível salvar as comunicações da fidelidade.';
             setError(feedback);
             toast.error(feedback);
         } finally {
@@ -1505,6 +1613,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             await Promise.all([
                 refreshCustomerSnapshot(),
                 loadLoyaltyProgram(),
+                loadLoyaltyRewards(),
             ]);
             setShowLoyaltyExitConfirm(false);
             const feedback = 'Sua participação foi encerrada. Saldo, extrato, vouchers e dados operacionais do programa foram removidos e não podem ser restaurados.';
@@ -1723,10 +1832,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const tabs: Array<{ id: AccountTab; label: string; icon: typeof UserRound }> = [
         { id: 'profile', label: 'Meus dados', icon: UserRound },
+        { id: 'loyalty-settings', label: 'Fidelidade', icon: Gift },
         { id: 'addresses', label: 'Endereços', icon: MapPin },
         { id: 'orders', label: 'Pedidos', icon: PackageCheck },
         { id: 'consumption', label: 'Meu consumo', icon: History },
-        { id: 'communications', label: 'Comunicações', icon: BellRing },
+        { id: 'communications', label: 'Marketing', icon: MessageCircle },
         { id: 'security', label: 'Segurança', icon: KeyRound },
     ];
 
@@ -1771,7 +1881,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                             <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                     <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
-                                        {tab === 'loyalty' ? storeDisplayName : 'Minha conta'}
+                                        {tab === 'loyalty' ? storeDisplayName : tab === 'messages' ? 'Central da loja' : 'Minha conta'}
                                     </p>
                                     <button
                                         type="button"
@@ -1786,10 +1896,22 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                     </button>
                                 </div>
                                 <h2 id="customer-account-title" className="mt-1 truncate text-xl font-black text-slate-900 dark:text-white">
-                                    {tab === 'loyalty' ? 'Pontos e benefícios' : displayName}
+                                    {tab === 'loyalty'
+                                        ? 'Minha fidelidade'
+                                        : tab === 'messages'
+                                            ? 'Mensagens'
+                                            : tab === 'loyalty-settings'
+                                                ? 'Configurar fidelidade'
+                                                : displayName}
                                 </h2>
                                 <p className="text-xs text-slate-500">
-                                    {tab === 'loyalty' ? `Programa da ${storeDisplayName}` : customer.phone}
+                                    {tab === 'loyalty'
+                                        ? `Pontos, extrato e benefícios da ${storeDisplayName}`
+                                        : tab === 'messages'
+                                            ? 'Pedidos, fidelidade, perfil e sistema'
+                                            : tab === 'loyalty-settings'
+                                                ? 'Adesão e comunicações do programa'
+                                                : customer.phone}
                                 </p>
                             </div>
                             <button
@@ -1965,128 +2087,146 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             </div>
                                         )}
                                     </div>
-                                    <section className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5 dark:border-amber-900/40 dark:bg-amber-950/10">
-                                        <div className="flex items-start gap-3">
-                                            <Gift className="mt-0.5 h-6 w-6 shrink-0 text-amber-600" />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                    <div>
-                                                        <h3 className="font-black text-slate-900 dark:text-white">Adesão à fidelidade</h3>
-                                                        <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                            Aceite, participação e saída do programa ficam vinculados ao seu perfil. Pontos e extrato ficam na área Fidelidade do Menu.
-                                                        </p>
-                                                    </div>
-                                                    <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide ${customer.loyalty_opt_in
-                                                        ? 'bg-emerald-600 text-white'
-                                                        : loyaltyBlocked
-                                                            ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
-                                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'}`}>
-                                                        {customer.loyalty_opt_in ? 'Participando' : loyaltyBlocked ? 'Bloqueada' : 'Não aderiu'}
-                                                    </span>
-                                                </div>
-
-                                                {loyaltyBlocked && (
-                                                    <p className="mt-3 rounded-2xl bg-red-50 p-3 text-sm font-semibold text-red-700 dark:bg-red-950/20 dark:text-red-300">
-                                                        A loja bloqueou este CPF para o programa.{loyaltyBlockReason ? ` Motivo: ${loyaltyBlockReason}` : ''}
-                                                    </p>
-                                                )}
-
-                                                {!customer.loyalty_opt_in && !loyaltyBlocked && loyaltyMissingFields.length > 0 && (
-                                                    <p className="mt-3 rounded-2xl bg-white p-3 text-sm text-amber-800 dark:bg-slate-900 dark:text-amber-200">
-                                                        Para aderir, complete: {loyaltyMissingFields.join(', ')}.
-                                                    </p>
-                                                )}
-
-                                                <div className="mt-4">
-                                                    {customer.loyalty_opt_in ? (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setShowLoyaltyExitConfirm((current) => !current);
-                                                                setLoyaltyJoinOpen(false);
-                                                                clearFeedback();
-                                                            }}
-                                                            disabled={loyaltySaving}
-                                                            className="min-h-10 rounded-2xl border border-red-200 px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300"
-                                                        >
-                                                            Sair do programa
-                                                        </button>
-                                                    ) : !loyaltyBlocked && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                setLoyaltyJoinOpen((current) => !current);
-                                                                setLoyaltyDataResponsibilityAccepted(false);
-                                                                setShowLoyaltyExitConfirm(false);
-                                                                clearFeedback();
-                                                            }}
-                                                            disabled={loyaltySaving || loyaltyMissingFields.length > 0}
-                                                            className="min-h-10 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
-                                                        >
-                                                            {loyaltyJoinOpen ? 'Fechar adesão' : 'Quero participar'}
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                {!customer.loyalty_opt_in && loyaltyJoinOpen && !loyaltyBlocked && (
-                                                    <div className="mt-4 space-y-3 border-t border-amber-200 pt-4 dark:border-amber-900/40">
-                                                        <label className="flex items-start gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-900">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={loyaltyTermsAccepted}
-                                                                onChange={(event) => setLoyaltyTermsAccepted(event.target.checked)}
-                                                                className="mt-1"
-                                                            />
-                                                            <span className="text-slate-700 dark:text-slate-200">
-                                                                Li e aceito o <button type="button" onClick={() => setShowLoyaltyTerms((current) => !current)} className="font-black text-emerald-700 underline dark:text-emerald-300">regulamento do programa</button>.
-                                                            </span>
-                                                        </label>
-                                                        <label className="flex items-start gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-900">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={loyaltyDataResponsibilityAccepted}
-                                                                onChange={(event) => setLoyaltyDataResponsibilityAccepted(event.target.checked)}
-                                                                className="mt-1"
-                                                            />
-                                                            <span className="text-slate-700 dark:text-slate-200">
-                                                                Declaro que sou responsável pela veracidade e atualização das informações fornecidas à loja.
-                                                            </span>
-                                                        </label>
-                                                        {showLoyaltyTerms && (
-                                                            <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-white p-4 text-xs leading-5 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
-                                                                {loyaltyProgram?.program_terms || 'A loja ainda não publicou um regulamento para este programa.'}
-                                                            </div>
-                                                        )}
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => void joinLoyaltyProgram()}
-                                                            disabled={loyaltySaving || !loyaltyTermsAccepted || !loyaltyDataResponsibilityAccepted || loyaltyMissingFields.length > 0}
-                                                            className="min-h-11 w-full rounded-2xl bg-emerald-600 px-4 font-black text-white disabled:opacity-50"
-                                                        >
-                                                            {loyaltySaving ? 'Confirmando…' : 'Confirmar participação'}
-                                                        </button>
-                                                    </div>
-                                                )}
-
-                                                {customer.loyalty_opt_in && showLoyaltyExitConfirm && (
-                                                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
-                                                        <p className="text-sm font-black text-red-900 dark:text-red-100">Sair apaga os dados operacionais da fidelidade</p>
-                                                        <p className="mt-2 text-xs leading-5 text-red-800 dark:text-red-200">
-                                                            Saldo, extrato e dados operacionais do programa serão removidos permanentemente. Seu cadastro e histórico de compras permanecem.
-                                                        </p>
-                                                        <div className="mt-3 flex gap-2">
-                                                            <button type="button" onClick={() => setShowLoyaltyExitConfirm(false)} className="flex-1 rounded-xl border border-red-200 bg-white py-2 text-xs font-black text-red-700 dark:bg-slate-950">Cancelar</button>
-                                                            <button type="button" onClick={() => void leaveLoyaltyProgram()} disabled={loyaltySaving} className="flex-1 rounded-xl bg-red-600 py-2 text-xs font-black text-white disabled:opacity-50">Apagar e sair</button>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </section>
-
                                     <button type="button" onClick={saveProfile} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
                                         <Save className="h-4 w-4" /> Salvar dados
                                     </button>
+                                </div>
+                            )}
+
+                            {tab === 'loyalty-settings' && (
+                                <div className="mx-auto max-w-2xl space-y-4">
+                                    <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-900/40 dark:bg-amber-950/10">
+                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <Gift className="h-6 w-6 text-amber-600" />
+                                                    <h3 className="font-black text-slate-900 dark:text-white">Adesão ao programa</h3>
+                                                </div>
+                                                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Esta aba cuida da participação e das comunicações da fidelidade. Seus dados pessoais continuam em Meus dados.
+                                                </p>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wide ${customer.loyalty_opt_in
+                                                ? 'bg-emerald-600 text-white'
+                                                : loyaltyBlocked
+                                                    ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200'}`}>
+                                                {customer.loyalty_opt_in ? 'Participando' : loyaltyBlocked ? 'Bloqueada' : 'Não aderiu'}
+                                            </span>
+                                        </div>
+
+                                        {loyaltyBlocked && (
+                                            <p className="mt-4 rounded-2xl bg-red-50 p-3 text-sm font-semibold text-red-700 dark:bg-red-950/20 dark:text-red-300">
+                                                A loja bloqueou este CPF para o programa.{loyaltyBlockReason ? ` Motivo: ${loyaltyBlockReason}` : ''}
+                                            </p>
+                                        )}
+
+                                        {!customer.loyalty_opt_in && !loyaltyBlocked && loyaltyMissingFields.length > 0 && (
+                                            <p className="mt-4 rounded-2xl bg-white p-3 text-sm text-amber-800 dark:bg-slate-900 dark:text-amber-200">
+                                                Para aderir, complete em Meus dados: {loyaltyMissingFields.join(', ')}.
+                                            </p>
+                                        )}
+
+                                        {!customer.loyalty_opt_in && !loyaltyBlocked && (
+                                            <div className="mt-4">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setLoyaltyJoinOpen((current) => !current);
+                                                        setLoyaltyDataResponsibilityAccepted(false);
+                                                        setShowLoyaltyExitConfirm(false);
+                                                        clearFeedback();
+                                                    }}
+                                                    disabled={loyaltySaving || loyaltyMissingFields.length > 0}
+                                                    className="min-h-10 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
+                                                >
+                                                    {loyaltyJoinOpen ? 'Fechar adesão' : 'Quero participar'}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {!customer.loyalty_opt_in && loyaltyJoinOpen && !loyaltyBlocked && (
+                                            <div className="mt-4 space-y-3 border-t border-amber-200 pt-4 dark:border-amber-900/40">
+                                                <div className="flex items-center justify-between gap-3 rounded-2xl bg-white p-4 dark:bg-slate-900">
+                                                    <div>
+                                                        <p className="text-sm font-black text-slate-900 dark:text-white">Regulamento</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Termos e apresentação institucional ficam em Loja.</p>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => window.dispatchEvent(new CustomEvent('optmamenu:open-store-hub'))}
+                                                        className="shrink-0 rounded-xl border border-amber-200 px-3 py-2 text-xs font-black text-amber-700 dark:border-amber-900/50 dark:text-amber-300"
+                                                    >
+                                                        Abrir Loja
+                                                    </button>
+                                                </div>
+                                                <label className="flex items-start gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-900">
+                                                    <input type="checkbox" checked={loyaltyTermsAccepted} onChange={(event) => setLoyaltyTermsAccepted(event.target.checked)} className="mt-1" />
+                                                    <span className="text-slate-700 dark:text-slate-200">Li e aceito o regulamento publicado pela loja.</span>
+                                                </label>
+                                                <label className="flex items-start gap-3 rounded-2xl bg-white p-3 text-sm dark:bg-slate-900">
+                                                    <input type="checkbox" checked={loyaltyDataResponsibilityAccepted} onChange={(event) => setLoyaltyDataResponsibilityAccepted(event.target.checked)} className="mt-1" />
+                                                    <span className="text-slate-700 dark:text-slate-200">Declaro que sou responsável pela veracidade e atualização das informações fornecidas à loja.</span>
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => void joinLoyaltyProgram()}
+                                                    disabled={loyaltySaving || !loyaltyTermsAccepted || !loyaltyDataResponsibilityAccepted || loyaltyMissingFields.length > 0}
+                                                    className="min-h-11 w-full rounded-2xl bg-emerald-600 px-4 font-black text-white disabled:opacity-50"
+                                                >
+                                                    {loyaltySaving ? 'Confirmando…' : 'Confirmar participação'}
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {customer.loyalty_opt_in && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowLoyaltyExitConfirm((current) => !current)}
+                                                disabled={loyaltySaving}
+                                                className="mt-4 min-h-10 rounded-2xl border border-red-200 px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300"
+                                            >
+                                                Sair do programa
+                                            </button>
+                                        )}
+
+                                        {customer.loyalty_opt_in && showLoyaltyExitConfirm && (
+                                            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-950/20">
+                                                <p className="text-sm font-black text-red-900 dark:text-red-100">Sair apaga os dados operacionais da fidelidade</p>
+                                                <p className="mt-2 text-xs leading-5 text-red-800 dark:text-red-200">Saldo, extrato e vouchers do programa serão removidos permanentemente. Seu cadastro e histórico de compras permanecem.</p>
+                                                <div className="mt-3 flex gap-2">
+                                                    <button type="button" onClick={() => setShowLoyaltyExitConfirm(false)} className="flex-1 rounded-xl border border-red-200 bg-white py-2 text-xs font-black text-red-700 dark:bg-slate-950">Cancelar</button>
+                                                    <button type="button" onClick={() => void leaveLoyaltyProgram()} disabled={loyaltySaving} className="flex-1 rounded-xl bg-red-600 py-2 text-xs font-black text-white disabled:opacity-50">Apagar e sair</button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex items-start gap-3">
+                                            <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Comunicações da fidelidade</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Canais para pontos, benefícios, prêmios e assuntos do programa. Independentes do marketing geral.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">Web/App</span><input type="checkbox" checked={loyaltyWebApp} disabled /></label>
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">WhatsApp</span><input type="checkbox" checked={loyaltyWhatsapp} onChange={(event) => setLoyaltyWhatsapp(event.target.checked)} /></label>
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">E-mail</span><input type="checkbox" checked={loyaltyEmail} onChange={(event) => setLoyaltyEmail(event.target.checked)} /></label>
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">SMS</span><input type="checkbox" checked={loyaltySms} onChange={(event) => setLoyaltySms(event.target.checked)} /></label>
+                                        </div>
+                                        {customer.loyalty_opt_in ? (
+                                            <button type="button" onClick={() => void saveLoyaltyCommunicationPreferences()} disabled={loyaltyPreferencesSaving} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50">
+                                                {loyaltyPreferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                                {loyaltyPreferencesSaving ? 'Salvando…' : 'Salvar comunicações da fidelidade'}
+                                            </button>
+                                        ) : (
+                                            <p className="mt-4 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">Estas escolhas serão usadas quando você concluir a adesão.</p>
+                                        )}
+                                    </section>
                                 </div>
                             )}
 
@@ -2298,6 +2438,18 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         </div>
                                     </section>
 
+                                    <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/40 dark:bg-amber-950/10">
+                                        <div className="flex items-start gap-3">
+                                            <Star className="mt-0.5 h-5 w-5 shrink-0 fill-current text-amber-500" />
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Conte o que achou</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Avalie os produtos que você já comprou. Sua nota ajuda a formar os Favoritos da loja — apenas estrelas, sem comentários públicos.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </section>
+
                                     <div className="grid gap-2 rounded-3xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950 sm:grid-cols-[1fr_auto]">
                                         <label className="relative">
                                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2450,251 +2602,153 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
                             {tab === 'communications' && (
                                 <div className="mx-auto max-w-2xl space-y-4">
-                                    <section className="rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5 dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                                    <section className="rounded-3xl border border-fuchsia-200 bg-fuchsia-50/60 p-5 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/10">
                                         <div className="flex items-start gap-3">
-                                            <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                                            <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-fuchsia-600" />
                                             <div>
-                                                <h3 className="font-black text-slate-900 dark:text-white">Como a loja pode falar com você</h3>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Marketing e novidades da loja</h3>
                                                 <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Mensagens essenciais de pedido, conta e segurança não são publicidade e continuam disponíveis quando necessárias. As opções abaixo controlam apenas promoções e novidades enviadas para fora desta área.
+                                                    Promoções e campanhas comerciais gerais. Comunicações de fidelidade são configuradas separadamente na aba Fidelidade.
                                                 </p>
                                             </div>
                                         </div>
                                     </section>
-
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <h3 className="font-black text-slate-900 dark:text-white">{storeDisplayName}</h3>
-                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Canal interno da sua conta na {storeDisplayName} para status de pedidos, segurança, avisos do programa e outras informações do relacionamento com a loja.
-                                                </p>
-                                            </div>
-                                            <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">Sempre ativo</span>
+                                        <div className="grid gap-3 sm:grid-cols-3">
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">WhatsApp</span><input type="checkbox" checked={marketingWhatsapp} onChange={(event) => setMarketingWhatsapp(event.target.checked)} /></label>
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">E-mail</span><input type="checkbox" checked={marketingEmail} onChange={(event) => setMarketingEmail(event.target.checked)} /></label>
+                                            <label className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><span className="text-sm font-bold text-slate-700 dark:text-slate-200">SMS</span><input type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} /></label>
                                         </div>
-                                        <p className="mt-3 rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-                                            As mensagens desta área ficam dentro da {storeDisplayName}. Notificações que aparecem fora da página, na área de notificações do navegador ou do celular, dependem de uma autorização adicional do próprio dispositivo e não são ativadas automaticamente por esta opção.
-                                        </p>
-                                    </section>
-
-                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <h3 className="font-black text-slate-900 dark:text-white">Promoções e novidades</h3>
-                                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                            Você pode autorizar ou revogar estes canais a qualquer momento. Desativar todos não impede códigos de segurança, confirmação de e-mail ou mensagens operacionais indispensáveis ao pedido.
-                                        </p>
-                                        <div className="mt-4 grid gap-3">
-                                            <label className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-                                                <input className="mt-1" type="checkbox" checked={marketingWhatsapp} onChange={(event) => setMarketingWhatsapp(event.target.checked)} />
-                                                <span>
-                                                    <span className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp</span>
-                                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Promoções, campanhas e novidades quando a loja utilizar este canal.</span>
-                                                </span>
-                                            </label>
-
-                                            <label className={`flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900 ${customer.email_verified ? '' : 'cursor-not-allowed opacity-60'}`}>
-                                                <input className="mt-1" type="checkbox" checked={marketingEmail} disabled={!customer.email_verified} onChange={(event) => setMarketingEmail(event.target.checked)} />
-                                                <span>
-                                                    <span className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><Mail className="h-4 w-4 text-emerald-600" /> E-mail</span>
-                                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                                        {customer.email_verified ? 'Promoções e novidades no e-mail confirmado da sua conta.' : 'Confirme seu e-mail antes de habilitar comunicações promocionais por este canal.'}
-                                                    </span>
-                                                </span>
-                                            </label>
-
-                                            <label className="flex items-start gap-3 rounded-2xl bg-slate-50 p-4 dark:bg-slate-900">
-                                                <input className="mt-1" type="checkbox" checked={marketingSms} onChange={(event) => setMarketingSms(event.target.checked)} />
-                                                <span>
-                                                    <span className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-slate-100"><MessageCircle className="h-4 w-4 text-emerald-600" /> SMS</span>
-                                                    <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-400">Promoções e novidades por SMS. Códigos OTP de segurança não dependem desta permissão.</span>
-                                                </span>
-                                            </label>
-                                        </div>
-
-                                        <button
-                                            type="button"
-                                            onClick={() => void saveCommunicationPreferences()}
-                                            disabled={loyaltyPreferencesSaving}
-                                            className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 text-sm font-black text-white disabled:opacity-50"
-                                        >
-                                            {loyaltyPreferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                            {loyaltyPreferencesSaving ? 'Salvando…' : 'Salvar preferências'}
+                                        <button type="button" onClick={() => void saveCommunicationPreferences()} disabled={marketingPreferencesSaving} className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-fuchsia-600 px-4 text-sm font-black text-white disabled:opacity-50">
+                                            {marketingPreferencesSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                                            {marketingPreferencesSaving ? 'Salvando…' : 'Salvar preferências de marketing'}
                                         </button>
-                                    </section>
-
-                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <h3 className="font-black text-slate-900 dark:text-white">Mensagens na sua conta</h3>
-                                                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Histórico recente das mensagens da {storeDisplayName} nesta área.</p>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button type="button" onClick={() => void loadNotifications()} disabled={notificationsLoading} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">
-                                                    {notificationsLoading ? 'Atualizando…' : 'Atualizar'}
-                                                </button>
-                                                {notifications.some((notification) => !notification.read) && (
-                                                    <button type="button" onClick={() => void markAllNotificationsRead()} className="rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700 dark:border-emerald-900 dark:text-emerald-300">
-                                                        Marcar todas como lidas
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-
-                                        {notificationsLoading && notifications.length === 0 ? (
-                                            <div className="mt-4 flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>
-                                        ) : notifications.length === 0 ? (
-                                            <div className="mt-4 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500 dark:border-slate-700">
-                                                Nenhuma mensagem registrada ainda.
-                                            </div>
-                                        ) : (
-                                            <div className="mt-4 space-y-2">
-                                                {notifications.map((notification) => (
-                                                    <button
-                                                        key={notification.id}
-                                                        type="button"
-                                                        onClick={() => { if (!notification.read) void markNotificationRead(notification.id); }}
-                                                        className={`w-full rounded-2xl border p-4 text-left transition ${notification.read ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}
-                                                    >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="min-w-0">
-                                                                <p className="font-black text-slate-900 dark:text-white">{notification.title || 'Mensagem da loja'}</p>
-                                                                {notification.message && <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>}
-                                                            </div>
-                                                            {!notification.read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-label="Não lida" />}
-                                                        </div>
-                                                        <p className="mt-2 text-[11px] font-semibold text-slate-400">
-                                                            {notification.created_at ? new Date(notification.created_at).toLocaleString('pt-BR') : 'Data não disponível'}
-                                                        </p>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
+                                        <p className="mt-3 text-xs leading-5 text-slate-500 dark:text-slate-400">Mensagens essenciais de pedido, conta e segurança não dependem destas permissões.</p>
                                     </section>
                                 </div>
                             )}
 
+                            {tab === 'messages' && (
+                                <div className="mx-auto max-w-2xl space-y-4">
+                                    <section className="rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 dark:border-emerald-900/40 dark:bg-emerald-950/10">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex items-start gap-3">
+                                                <BellRing className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                                                <div>
+                                                    <h3 className="font-black text-slate-900 dark:text-white">Mensagens</h3>
+                                                    <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">Pedidos, fidelidade, sistema, perfil e segurança organizados por categoria.</p>
+                                                </div>
+                                            </div>
+                                            <span className="shrink-0 rounded-full bg-emerald-600 px-3 py-1 text-[10px] font-black uppercase tracking-wide text-white">{notifications.filter((item) => !item.read).length} não lida(s)</span>
+                                        </div>
+                                    </section>
+                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex flex-wrap gap-2">
+                                            {([
+                                                ['all', 'Todas'], ['orders', 'Pedidos'], ['loyalty', 'Fidelidade'], ['profile', 'Perfil'],
+                                                ['security', 'Segurança'], ['marketing', 'Marketing'], ['system', 'Sistema'], ['general', 'Geral'],
+                                            ] as Array<[NotificationCategoryFilter, string]>).map(([value, label]) => (
+                                                <button key={value} type="button" onClick={() => setNotificationCategoryFilter(value)} className={`rounded-full px-3 py-2 text-xs font-black transition ${notificationCategoryFilter === value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300'}`}>{label}</button>
+                                            ))}
+                                        </div>
+                                        <div className="mt-4 flex gap-2">
+                                            <button type="button" onClick={() => void loadNotifications()} disabled={notificationsLoading} className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300">{notificationsLoading ? 'Atualizando…' : 'Atualizar'}</button>
+                                            {notifications.some((item) => !item.read) && <button type="button" onClick={() => void markAllNotificationsRead()} className="flex-1 rounded-xl border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700 dark:border-emerald-900 dark:text-emerald-300">Marcar todas como lidas</button>}
+                                        </div>
+                                    </section>
+                                    {notificationsLoading && notifications.length === 0 ? (
+                                        <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-emerald-600" /></div>
+                                    ) : filteredNotifications.length === 0 ? (
+                                        <div className="rounded-3xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Nenhuma mensagem nesta categoria.</div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {filteredNotifications.map((notification) => (
+                                                <button key={notification.id} type="button" onClick={() => { if (!notification.read) void markNotificationRead(notification.id); }} className={`w-full rounded-3xl border p-4 text-left transition ${notification.read ? 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950' : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20'}`}>
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${notificationCategoryClass(notification.category)}`}>{notificationCategoryLabel(notification.category)}</span>
+                                                            <p className="mt-2 font-black text-slate-900 dark:text-white">{notification.title || 'Mensagem da loja'}</p>
+                                                            {notification.message && <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">{notification.message}</p>}
+                                                        </div>
+                                                        {!notification.read && <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-500" aria-label="Não lida" />}
+                                                    </div>
+                                                    <p className="mt-3 text-[11px] font-semibold text-slate-400">{notification.created_at ? new Date(notification.created_at).toLocaleString('pt-BR') : 'Data não disponível'}</p>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {tab === 'loyalty' && (
-                                <div ref={loyaltyTopRef} className="mx-auto max-w-2xl space-y-4">
-                                    <section className="rounded-3xl border border-emerald-200 bg-emerald-50/50 p-5 dark:border-emerald-900/40 dark:bg-emerald-950/10">
-                                        <div className="flex items-start gap-3">
-                                            <Gift className="mt-0.5 h-6 w-6 shrink-0 text-emerald-600" />
+                                <div ref={loyaltyTopRef} className="mx-auto max-w-3xl space-y-4">
+                                    <section className="rounded-3xl bg-slate-950 p-5 text-white shadow-xl dark:bg-slate-900 sm:p-6">
+                                        <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
                                             <div>
-                                                <h3 className="font-black text-slate-900 dark:text-white">Minha fidelidade</h3>
-                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Aqui ficam saldo, movimentações e informações de uso. Aceite e adesão são configurados em Perfil; campanhas e novidades ficam na área da loja.
-                                                </p>
-                                                {!customer.loyalty_opt_in && (
-                                                    <button type="button" onClick={() => setTab('profile')} className="mt-3 rounded-2xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">
-                                                        Configurar adesão no Perfil
-                                                    </button>
-                                                )}
+                                                <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">Minha fidelidade</p>
+                                                <div className="mt-2 flex items-end gap-3"><span className="text-5xl font-black">{customer.loyalty_points || 0}</span><span className="pb-1 text-sm font-bold text-slate-300">pontos</span></div>
+                                                <p className="mt-2 text-sm font-semibold text-slate-300">Nível {customer.loyalty_tier || 'Bronze'}</p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                <button type="button" onClick={() => setTab('loyalty-settings')} className="rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-black text-white">Configurar fidelidade</button>
+                                                <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('optmamenu:open-store-hub'))} className="rounded-2xl border border-white/20 bg-white/10 px-4 py-2 text-xs font-black text-white">Ver programa na Loja</button>
                                             </div>
                                         </div>
                                     </section>
 
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <section className="rounded-3xl bg-slate-950 p-5 text-white shadow-lg dark:bg-slate-900">
-                                            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Saldo de pontos</p>
-                                            <p className="mt-2 text-4xl font-black">{customer.loyalty_points || 0}</p>
-                                            <p className="mt-2 text-sm font-semibold text-slate-300">Nível {customer.loyalty_tier || 'Bronze'}</p>
-                                            {!customer.loyalty_opt_in && <p className="mt-3 text-xs leading-5 text-amber-300">Adesão inativa. Vá ao Perfil para participar novamente.</p>}
-                                        </section>
-
-                                        <section className="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Validade dos pontos</p>
-                                            <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
-                                                {loyaltyProgram?.points_validity_months
-                                                    ? `${loyaltyProgram.points_validity_months} meses`
-                                                    : 'Conforme regulamento'}
-                                            </p>
-                                            <p className="mt-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                                O extrato atual não possui vencimento individual por lote; por isso não exibimos uma quantidade “a expirar” sem dado autoritativo.
-                                            </p>
-                                        </section>
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                        <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/15"><p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Ganhos</p><p className="mt-2 text-2xl font-black text-emerald-800 dark:text-emerald-200">+{loyaltyTotals.earned}</p><p className="mt-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">créditos no extrato</p></section>
+                                        <section className="rounded-3xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-950/15"><p className="text-xs font-black uppercase tracking-wide text-red-700 dark:text-red-300">Usos e débitos</p><p className="mt-2 text-2xl font-black text-red-800 dark:text-red-200">-{loyaltyTotals.spent}</p><p className="mt-1 text-xs text-red-700/70 dark:text-red-300/70">resgates e ajustes</p></section>
+                                        <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><p className="text-xs font-black uppercase tracking-wide text-slate-400">Validade</p><p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{loyaltyProgram?.points_validity_months ? `${loyaltyProgram.points_validity_months} meses` : 'Regulamento'}</p><p className="mt-1 text-xs text-slate-500">política do programa</p></section>
                                     </div>
 
-                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <h3 className="font-black text-slate-900 dark:text-white">Itens para troca e prêmios</h3>
-                                        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                            {loyaltyProgram?.voucher_terms
-                                                ? loyaltyProgram.voucher_terms
-                                                : 'A loja ainda não publicou itens específicos para troca nesta área.'}
-                                        </p>
-                                    </section>
-
-                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <h3 className="font-black text-slate-900 dark:text-white">Termos e regras do programa</h3>
-                                                <p className="mt-1 text-xs text-slate-500">{loyaltyProgram?.name || 'Programa de fidelidade da loja'}</p>
-                                            </div>
-                                            <button type="button" onClick={() => setShowLoyaltyTerms((current) => !current)} className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200">
-                                                <FileText className="h-4 w-4" /> {showLoyaltyTerms ? 'Ocultar' : 'Ver regulamento'}
-                                            </button>
+                                    <section className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5 dark:border-amber-900/40 dark:bg-amber-950/10">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div><p className="text-xs font-black uppercase tracking-[0.15em] text-amber-700 dark:text-amber-300">Benefícios disponíveis</p><h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">O que seus pontos podem liberar</h3></div>
+                                            <button type="button" onClick={() => void loadLoyaltyRewards()} disabled={loyaltyRewardsLoading} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-amber-700 shadow-sm disabled:opacity-50 dark:bg-slate-900 dark:text-amber-300" aria-label="Atualizar benefícios"><RefreshCw className={`h-4 w-4 ${loyaltyRewardsLoading ? 'animate-spin' : ''}`} /></button>
                                         </div>
-                                        {showLoyaltyTerms && (
-                                            <div className="mt-4 max-h-96 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                                                {loyaltyProgram?.program_terms || 'A loja ainda não publicou um regulamento para este programa.'}
+                                        {loyaltyRewardsLoading && loyaltyRewards.length === 0 ? (
+                                            <div className="mt-4 flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-amber-600" /></div>
+                                        ) : loyaltyRewards.length === 0 ? (
+                                            <p className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-300">Não há benefício com vigência ativa neste momento.</p>
+                                        ) : (
+                                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                                                {loyaltyRewards.map((reward) => {
+                                                    const missing = Math.max(0, reward.pointsCost - Number(customer.loyalty_points || 0));
+                                                    return (
+                                                        <div key={reward.id} className="overflow-hidden rounded-2xl border border-amber-100 bg-white dark:border-amber-900/30 dark:bg-slate-900">
+                                                            <div className="flex gap-3 p-3">
+                                                                <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-amber-50 dark:bg-amber-950/20">{reward.imageUrl ? <img src={reward.imageUrl} alt="" className="h-full w-full object-cover" /> : <Gift className="h-7 w-7 text-amber-500" />}</div>
+                                                                <div className="min-w-0 flex-1"><p className="line-clamp-2 font-black text-slate-900 dark:text-white">{reward.title}</p>{reward.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{reward.description}</p>}<p className="mt-2 text-sm font-black text-amber-700 dark:text-amber-300">{reward.pointsCost} pts</p>{reward.additionalCashCost > 0 && <p className="text-[11px] text-slate-500">+ R$ {formatBRL(reward.additionalCashCost)}</p>}</div>
+                                                            </div>
+                                                            <div className={`border-t px-3 py-2 text-xs font-black ${reward.affordable ? 'border-emerald-100 bg-emerald-50 text-emerald-700 dark:border-emerald-900/30 dark:bg-emerald-950/20 dark:text-emerald-300' : 'border-slate-100 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-950 dark:text-slate-400'}`}>{reward.affordable ? 'Você já tem pontos para este benefício' : `Faltam ${missing} pontos`}</div>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </section>
 
-                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                        <h3 className="font-black text-slate-900 dark:text-white">Como funciona</h3>
-                                        <div className="mt-3 grid gap-3 text-sm text-slate-600 dark:text-slate-300 sm:grid-cols-3">
-                                            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><strong className="block text-slate-900 dark:text-white">1. Participe</strong>Confirme sua adesão ao programa.</div>
-                                            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><strong className="block text-slate-900 dark:text-white">2. Compre</strong>Pedidos elegíveis seguem as regras de pontuação da loja.</div>
-                                            <div className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><strong className="block text-slate-900 dark:text-white">3. Acompanhe</strong>Veja saldo, nível e futuras vantagens nesta área.</div>
-                                        </div>
-                                    </section>
-
-                                    {customer.loyalty_opt_in && (
-                                        <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div>
-                                                    <h3 className="font-black text-slate-900 dark:text-white">Extrato de pontos</h3>
-                                                    <p className="mt-1 text-xs text-slate-500">Ganhos, resgates e ajustes aparecem aqui e são atualizados em tempo real quando possível.</p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void loadLoyaltyTransactions()}
-                                                    disabled={loyaltyLoading}
-                                                    className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-700 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"
-                                                >
-                                                    <RefreshCw className={`h-3.5 w-3.5 ${loyaltyLoading ? 'animate-spin' : ''}`} />
-                                                    Atualizar
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-4 space-y-2">
-                                                {loyaltyLoading && loyaltyTransactions.length === 0 ? (
-                                                    <p className="text-sm text-slate-500">Carregando extrato…</p>
-                                                ) : loyaltyTransactions.length === 0 ? (
-                                                    <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">Ainda não há movimentações de pontos.</p>
-                                                ) : loyaltyTransactions.map((transaction) => (
-                                                    <div key={transaction.id} className="flex items-start justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
-                                                        <div className="min-w-0">
-                                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{transaction.description || 'Movimentação de fidelidade'}</p>
-                                                            <p className="mt-1 text-xs text-slate-500">
-                                                                {transaction.created_at ? new Date(transaction.created_at).toLocaleString('pt-BR') : ''}
-                                                                {transaction.order_code ? ` · ${transaction.order_code}` : ''}
-                                                            </p>
-                                                        </div>
-                                                        <span className={`shrink-0 text-sm font-black ${transaction.points >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                                            {transaction.points >= 0 ? '+' : ''}{transaction.points} pts
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={() => loyaltyTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                                                className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
-                                            >
-                                                <ChevronUp className="h-4 w-4" /> Voltar ao topo
-                                            </button>
+                                    {loyaltyVouchers.length > 0 && (
+                                        <section className="rounded-3xl border border-violet-200 bg-violet-50/50 p-5 dark:border-violet-900/40 dark:bg-violet-950/10">
+                                            <h3 className="font-black text-slate-900 dark:text-white">Meus vouchers ativos</h3>
+                                            <div className="mt-3 space-y-2">{loyaltyVouchers.map((voucher) => <div key={voucher.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900"><div className="min-w-0"><p className="truncate text-sm font-black text-slate-900 dark:text-white">{voucher.rewardTitle || 'Benefício'}</p><p className="mt-1 text-xs text-slate-500">{voucher.code ? `Código ${voucher.code}` : 'Voucher ativo'}</p></div><div className="shrink-0 text-right"><span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{voucher.status || 'active'}</span>{voucher.expiresAt && <p className="mt-1 text-[10px] text-slate-400">até {new Date(voucher.expiresAt).toLocaleDateString('pt-BR')}</p>}</div></div>)}</div>
                                         </section>
                                     )}
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                            <div><h3 className="font-black text-slate-900 dark:text-white">Extrato de pontos</h3><p className="mt-1 text-xs text-slate-500">Ganhos e usos em ordem cronológica.</p></div>
+                                            <button type="button" onClick={() => void loadLoyaltyTransactions()} disabled={loyaltyLoading} className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-slate-100 px-3 text-xs font-black text-slate-700 disabled:opacity-50 dark:bg-slate-800 dark:text-slate-200"><RefreshCw className={`h-3.5 w-3.5 ${loyaltyLoading ? 'animate-spin' : ''}`} />Atualizar</button>
+                                        </div>
+                                        <div className="mt-4 flex flex-wrap gap-2">{([['all','Todos'],['earned','Ganhos'],['spent','Usos e débitos']] as Array<[LoyaltyTransactionFilter,string]>).map(([value,label]) => <button key={value} type="button" onClick={() => setLoyaltyTransactionFilter(value)} className={`rounded-full px-3 py-2 text-xs font-black ${loyaltyTransactionFilter===value ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300'}`}>{label}</button>)}</div>
+                                        <div className="mt-4 space-y-2">
+                                            {loyaltyLoading && loyaltyTransactions.length === 0 ? <p className="text-sm text-slate-500">Carregando extrato…</p> : filteredLoyaltyTransactions.length === 0 ? <p className="rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900">Nenhuma movimentação neste filtro.</p> : filteredLoyaltyTransactions.map((transaction) => (
+                                                <div key={transaction.id} className="flex items-start justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900"><div className="min-w-0"><p className="text-sm font-bold text-slate-900 dark:text-white">{transaction.description || 'Movimentação de fidelidade'}</p><p className="mt-1 text-xs text-slate-500">{transaction.created_at ? new Date(transaction.created_at).toLocaleString('pt-BR') : ''}{transaction.order_code ? ` · ${transaction.order_code}` : ''}</p></div><span className={`shrink-0 rounded-full px-3 py-1 text-sm font-black ${transaction.points >= 0 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300'}`}>{transaction.points >= 0 ? '+' : ''}{transaction.points} pts</span></div>
+                                            ))}
+                                        </div>
+                                        <button type="button" onClick={() => loyaltyTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-600 dark:border-slate-700 dark:text-slate-300"><ChevronUp className="h-4 w-4" /> Voltar ao topo</button>
+                                    </section>
                                 </div>
                             )}
 
