@@ -39,6 +39,7 @@ type SummaryCard = {
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+const settlementDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'UTC' });
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Visão geral' },
@@ -640,7 +641,7 @@ export default function OnlinePaymentsPage() {
                         {item.status === 'settled' && item.settled_at
                           ? `Liquidado em ${dateTime.format(new Date(item.settled_at))}`
                           : item.expected_settlement_at
-                            ? `Previsão de liquidação: ${dateTime.format(new Date(item.expected_settlement_at))}`
+                            ? `Previsão de liquidação: ${settlementDate.format(new Date(item.expected_settlement_at))} · ${settlementPlanLabel(item.settlement_plan)}`
                             : 'Previsão de liquidação ainda não informada'}
                       </p>
                     </div>
