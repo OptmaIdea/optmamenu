@@ -1683,3 +1683,163 @@ O banco atual não possui vencimento individual por lote de pontos nem tabela cu
 - `2b9cefd3c46cdde42dca3e9c3d5d8a811efdf663` — correção final de TypeScript da rodada.
 
 O deploy funcional do commit `2b9cefd3c46cdde42dca3e9c3d5d8a811efdf663` foi validado como **READY** antes deste registro documental.
+
+
+---
+
+## Slug pública — mensagens, fidelidade e refinamentos de UX — 04/10/2026
+
+Feedback homologado pelo usuário antes desta rodada:
+- revogação remota de um dispositivo replicou o logout em tempo real;
+- desconectar todos os outros dispositivos preservou apenas o dispositivo atual;
+- novo login exigiu OTP e não reaproveitou sessão/apelido anterior;
+- cabeçalho foi aprovado em mobile, tablet e desktop, restando ajustes de estado anônimo;
+- faixas **Mais pedidos** e **Favoritos** foram aprovadas.
+
+### Estado anônimo e cabeçalho
+
+Na slug pública, quando não existe cliente autenticado:
+- o cabeçalho exibe **Entrar** em vez de **Olá**;
+- **Entrar** abre diretamente o fluxo cliente de login/cadastro;
+- em desktop e tablet paisagem a ação continua disponível no cabeçalho, além do Menu.
+
+Para cliente autenticado:
+- foi incluído um sino no cabeçalho;
+- o sino abre a nova central de **Mensagens**;
+- badge mostra mensagens não lidas com atualização periódica enquanto a página estiver ativa.
+
+### Busca
+
+O diálogo da lupa foi simplificado:
+- resultados são listados alfabeticamente por nome do produto;
+- o campo ganhou **X** interno para limpar imediatamente o filtro;
+- **Mais pedidos** e **Favoritos** permanecem independentes do diálogo de busca.
+
+### Tema
+
+A escolha de tema da slug passou a ter três modos:
+- **Claro**;
+- **Escuro**;
+- **Sistema**.
+
+O modo Sistema acompanha `prefers-color-scheme` e reage a mudanças do sistema operacional. A preferência é persistida localmente.
+
+A auditoria completa de contraste do modo escuro continua como frente visual separada; esta rodada não considera o dark mode integralmente encerrado.
+
+### Categorias em destaque
+
+A configuração manual foi tornada mais explícita em:
+
+**Configurações → Aparência da loja → Visual → Cabeçalho e Rodapé → Categorias em destaque (até 4)**.
+
+Sem seleção manual permanece o critério automático já implantado.
+
+### Avaliações em Meu consumo
+
+Foi adicionado um convite visível para avaliar compras concluídas:
+- apenas estrelas;
+- sem comentários públicos;
+- a avaliação continua condicionada no backend à compra concluída do produto.
+
+### Mensagens e categorias
+
+`customer_notifications` agora possui uma categoria independente da severidade visual.
+
+Categorias customer-facing:
+- pedidos;
+- fidelidade;
+- sistema;
+- perfil;
+- segurança;
+- marketing;
+- geral.
+
+Mensagens antigas foram classificadas por fallback semântico e novas mensagens recebem categoria automática quando o produtor ainda não informar uma explicitamente.
+
+A central de Mensagens saiu da área de configurações e passa a ser acessada pelo:
+- sino do cabeçalho;
+- item **Mensagens** no Menu.
+
+A tela permite filtro por categoria e mantém leitura individual / marcar todas como lidas.
+
+### Marketing geral x comunicações da fidelidade
+
+As permissões foram separadas no backend e no frontend.
+
+Marketing geral:
+- `marketing_whatsapp`;
+- `marketing_email`;
+- `marketing_sms`.
+
+Fidelidade:
+- `loyalty_whatsapp`;
+- `loyalty_email`;
+- `loyalty_sms`;
+- `loyalty_webapp` permanece canal interno obrigatório.
+
+A adesão futura ao programa deixa de sobrescrever as escolhas de marketing geral.
+
+### Conta do cliente
+
+**Meus dados** volta a conter apenas cadastro do cliente.
+
+Foi criada uma aba visível própria **Fidelidade** dentro da conta para:
+- adesão;
+- saída;
+- requisitos cadastrais;
+- bloqueio;
+- aceite;
+- canais específicos da fidelidade.
+
+A aba antes denominada **Comunicações** passa a ser **Marketing** e controla somente marketing geral.
+
+### Loja — fidelidade institucional
+
+A área **Loja** foi enriquecida com dados reais do programa ativo:
+- nome do programa;
+- validade dos pontos;
+- bônus de adesão e aniversário quando configurados;
+- referência de resgate;
+- benefícios/prêmios ativos dentro da vigência;
+- termos e regulamento;
+- termos de vouchers.
+
+Foi criada a RPC pública segura `get_public_loyalty_program_by_slug`, sem exposição de dados de cliente.
+
+### Menu → Fidelidade
+
+A área operacional de fidelidade foi reorganizada para priorizar uso diário:
+- saldo e nível;
+- total de ganhos;
+- total de usos/débitos;
+- validade;
+- benefícios atualmente disponíveis;
+- indicação de pontos suficientes ou quantos faltam;
+- vouchers ativos, quando existirem;
+- extrato com filtros **Todos / Ganhos / Usos e débitos**.
+
+Não foi exposto resgate direto nesta rodada porque a RPC existente `redeem_reward` é autoridade de backoffice e não permite cliente. Não foi criada uma abertura insegura apenas para disponibilizar o botão.
+
+### Backend aplicado
+
+Migration:
+- `20261004024500_customer_messages_loyalty_preferences_rewards.sql`.
+
+Ela adiciona:
+- categoria de notificações;
+- separação de consentimentos da fidelidade;
+- `get_customer_self_loyalty_rewards_safe()`;
+- `get_public_loyalty_program_by_slug(text)`.
+
+Smoke tests confirmaram a função pública da Gelinhares e ausência de categorias inválidas.
+
+### Commits desta rodada
+
+- `9c43bb0ba2876e2024fef1aa7a0ac80c94667c82` — backend de mensagens, comunicações de fidelidade e benefícios;
+- `42dca9fabe8734f257f2b36587e5fce8cdbb37bb` — services/types customer-facing;
+- `f1495a0f9fa92a09327fcff2a081e01192c572d9` — tema Sistema e Menu/Mensagens;
+- `f9e19aac2243044d1b9bddcc74c2de8c50dd6c2d` — enriquecimento institucional da Loja;
+- `00b75e5cd80aaa354d8b92a4f983a529440b5b03` — Entrar no cabeçalho, sino, busca alfabética e descoberta das categorias;
+- `fcad7b82735f3738f738150a1f0cddb3e28c9a60` — reorganização final da conta, mensagens e fidelidade.
+
+O deploy funcional de `fcad7b82735f3738f738150a1f0cddb3e28c9a60` foi confirmado **READY** antes deste registro.
