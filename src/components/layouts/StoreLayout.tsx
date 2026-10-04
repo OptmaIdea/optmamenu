@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
 import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
-import { FloatingCartDock } from '@/pages/store/components/FloatingCartDock';
 import { StorefrontBottomNavigation } from '@/pages/store/components/StorefrontBottomNavigation';
 import { StoreHubPortal } from '@/pages/store/components/StoreHubPortal';
 import { PublicStorefrontService, type PublicStorefrontStore } from '@/services/publicStorefrontService';
@@ -14,6 +13,7 @@ import {
     deactivateCustomerCart,
     prepareCustomerCartForSessionRestore,
     syncCustomerCartCatalog,
+    flushCustomerCartServerSync,
 } from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
@@ -194,18 +194,13 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
         setStoreHubOpen(true);
     };
 
-    const openStoreLoyalty = () => {
-        setStoreHubOpen(false);
-        window.setTimeout(() => {
-            window.dispatchEvent(new CustomEvent(
-                isAuthenticated ? 'optmamenu:open-customer-account' : 'optmamenu:open-customer-auth',
-                isAuthenticated ? { detail: { tab: 'loyalty' } } : undefined,
-            ));
-        }, 0);
+    const logoutCustomer = async () => {
+        await flushCustomerCartServerSync().catch(() => undefined);
+        await AuthService.logoutCustomer();
     };
 
     return (
-        <div className={`min-h-screen ${isStoreCatalogRoute ? 'pb-24 lg:pb-0' : ''}`}>
+        <div className={`min-h-screen ${isStoreCatalogRoute ? 'pb-24 md:pb-0' : ''}`}>
             <main className="transition-all duration-300">
                 {children}
             </main>
@@ -225,23 +220,19 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                     <StorefrontBottomNavigation
                         storeSlug={storeSlug}
                         storeName={publicStore.name}
-                        storeLogoUrl={publicStore.logo_url || publicStore.visual_config?.visual_icon_url || null}
                         isAuthenticated={isAuthenticated}
+                        checkoutPath={checkoutPath}
+                        cartCount={cartCount}
+                        cartTotal={cartTotal}
+                        cartLabel={isTableContext ? 'Comanda' : 'Carrinho'}
                         onOpenStore={() => setStoreHubOpen(true)}
                         onOpenContact={openStoreContact}
-                    />
-                    <FloatingCartDock
-                        checkoutPath={checkoutPath}
-                        count={cartCount}
-                        total={cartTotal}
-                        label={isTableContext ? 'Comanda' : 'Carrinho'}
+                        onLogout={logoutCustomer}
                     />
                     <StoreHubPortal
                         open={storeHubOpen}
                         onClose={() => setStoreHubOpen(false)}
                         store={publicStore}
-                        authenticated={isAuthenticated}
-                        onOpenLoyalty={openStoreLoyalty}
                     />
                 </>
             )}

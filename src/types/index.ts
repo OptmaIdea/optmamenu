@@ -138,6 +138,7 @@ export interface StoreConfig {
     loyalty_active?: boolean;
     visual_slogan?: string;
     catalog_search_placeholder?: string;
+    featured_category_ids?: string[];
     about_text?: string;
     about_image_url?: string;
     contact_phone?: string;

@@ -131,6 +131,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     });
 
     const [activeTab, setActiveTab] = useState<'visual' | 'institutional' | 'contact'>('visual');
+    const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 
     useEffect(() => {
         fetchConfig();
@@ -175,6 +176,24 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
 
             setStoreId(storeData.id);
             setStoreSlug(storeData.slug);
+
+            const { data: categoriesData, error: categoriesError } = await supabase
+                .from('categories')
+                .select('id, name, sort_order')
+                .eq('store_id', activeStoreId)
+                .eq('active', true)
+                .order('sort_order', { ascending: true })
+                .order('name', { ascending: true });
+
+            if (categoriesError) {
+                console.warn('[APPEARANCE] Não foi possível carregar categorias para destaque:', categoriesError);
+                setCategoryOptions([]);
+            } else {
+                setCategoryOptions((categoriesData || []).map((category) => ({
+                    id: String(category.id),
+                    name: String(category.name || 'Categoria'),
+                })));
+            }
 
             setConfig(prev => ({
                 ...prev,
@@ -540,6 +559,51 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                         <p className="mt-2 text-xs leading-5 text-gray-400">
                                             Use uma frase adequada ao seu negócio. Se ficar vazio, a loja exibirá “Buscar produtos”.
                                         </p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Categorias principais do catálogo</label>
+                                        <p className="mb-3 text-xs leading-5 text-gray-400">
+                                            Escolha até 4 categorias para os atalhos principais. Sem seleção manual, a loja prioriza automaticamente as categorias com mais itens vendidos em pedidos concluídos e usa a ordem do catálogo como desempate.
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {categoryOptions.length === 0 ? (
+                                                <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                                    Nenhuma categoria ativa encontrada.
+                                                </span>
+                                            ) : categoryOptions.map((category) => {
+                                                const selected = (config.featured_category_ids || []).includes(category.id);
+                                                const atLimit = !selected && (config.featured_category_ids || []).length >= 4;
+                                                return (
+                                                    <button
+                                                        key={category.id}
+                                                        type="button"
+                                                        disabled={disabled || atLimit}
+                                                        onClick={() => {
+                                                            if (disabled) return;
+                                                            const current = config.featured_category_ids || [];
+                                                            const next = selected
+                                                                ? current.filter((id) => id !== category.id)
+                                                                : [...current, category.id].slice(0, 4);
+                                                            setConfig({ ...config, featured_category_ids: next });
+                                                        }}
+                                                        className={`rounded-full border px-3 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${selected
+                                                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                            : 'border-gray-200 bg-white text-gray-600 hover:border-emerald-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+                                                    >
+                                                        {selected ? '✓ ' : ''}{category.name}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                        {(config.featured_category_ids || []).length > 0 && !disabled && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setConfig({ ...config, featured_category_ids: [] })}
+                                                className="mt-3 text-xs font-bold text-gray-500 underline-offset-2 hover:text-emerald-700 hover:underline dark:text-gray-400"
+                                            >
+                                                Usar seleção automática
+                                            </button>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Frase do Rodapé</label>
