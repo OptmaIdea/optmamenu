@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import {
     TrendingUp,
     TrendingDown,
@@ -16,10 +17,12 @@ import {
     Save,
     X,
     WalletCards,
+    Landmark,
 } from 'lucide-react';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import PageContainer from '@/components/common/PageContainer';
 import { CashbookService, type CashbookDirection, type CashbookEntry, type CashbookSummary } from '@/services/cashbookService';
+import { OnlinePaymentsService } from '@/services/onlinePaymentsService';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { formatCurrencyPtBr } from '@/utils/export/formatters';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -256,10 +259,17 @@ export default function CashbookPage() {
     const canCreateCashbookEntry = hasPermission('cashbook.create');
     const canCancelCashbookEntry = hasPermission('cashbook.cancel');
     const canExportReports = hasPermission('reports.export');
+    const canViewOnlinePayments = hasPermission('payments.online.view');
 
     const initialDates = getPeriodDates('current_month');
     const [entries, setEntries] = useState<CashbookEntry[]>([]);
     const [summary, setSummary] = useState<CashbookSummary | null>(null);
+    const [cardReceivables, setCardReceivables] = useState({
+        count: 0,
+        gross: 0,
+        fees: 0,
+        net: 0,
+    });
     const [accounts, setAccounts] = useState<FinancialAccountOption[]>([]);
     const [statement, setStatement] = useState<AccountStatementResult | null>(null);
     const [loading, setLoading] = useState(true);
@@ -378,7 +388,7 @@ export default function CashbookPage() {
             const absoluteStart = '1970-01-01';
             const absoluteEnd = getDateInputValue(today);
 
-            const [entriesData, summaryData, accountsResult] = await Promise.all([
+            const [entriesData, summaryData, accountsResult, onlinePaymentsResult] = await Promise.all([
                 CashbookService.listByStore(storeId, rangeStart, rangeEnd),
                 CashbookService.getSummary(storeId, rangeStart || absoluteStart, rangeEnd || absoluteEnd),
                 supabase
@@ -388,12 +398,28 @@ export default function CashbookPage() {
                     .order('active', { ascending: false })
                     .order('sort_order', { ascending: true })
                     .order('name', { ascending: true }),
+                canViewOnlinePayments
+                    ? OnlinePaymentsService.getWorkspace(storeId).catch(() => null)
+                    : Promise.resolve(null),
             ]);
 
             if (accountsResult.error) throw accountsResult.error;
 
+            const openCardReceivables = (onlinePaymentsResult?.receivables || []).filter(
+                (receivable) => receivable.status !== 'settled',
+            );
+
             setEntries(entriesData);
             setSummary(summaryData);
+            setCardReceivables({
+                count: openCardReceivables.length,
+                gross: openCardReceivables.reduce((total, receivable) => total + Number(receivable.gross_amount || 0), 0),
+                fees: openCardReceivables.reduce(
+                    (total, receivable) => total + Number(receivable.fee_amount || 0) + Number(receivable.anticipation_fee_amount || 0),
+                    0,
+                ),
+                net: openCardReceivables.reduce((total, receivable) => total + Number(receivable.net_amount || 0), 0),
+            });
             setAccounts((accountsResult.data || []) as FinancialAccountOption[]);
         } catch (err) {
             console.error('Erro ao carregar dados do livro de caixa:', err);
@@ -401,7 +427,7 @@ export default function CashbookPage() {
         } finally {
             setLoading(false);
         }
-    }, [storeId, periodFilter, startDate, endDate]);
+    }, [storeId, periodFilter, startDate, endDate, canViewOnlinePayments]);
 
     useEffect(() => {
         if (!loadingStore && storeId) {
@@ -567,7 +593,15 @@ export default function CashbookPage() {
             icon={<WalletCards size={28} className="text-[#19A999]" />}
             onRefresh={() => { void loadData(); void loadStatement(); }}
             action={
-                <div className="grid w-full max-w-full grid-cols-1 gap-2 min-[430px]:grid-cols-3 sm:flex sm:w-auto sm:items-center">
+                <div className="grid w-full max-w-full grid-cols-1 gap-2 min-[430px]:grid-cols-2 sm:flex sm:w-auto sm:items-center">
+                    {canViewOnlinePayments && (
+                        <Link
+                            to="/admin/online-payments?tab=receivables"
+                            className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-2 py-2 text-center text-sm font-bold text-violet-700 transition hover:bg-violet-100 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-200 sm:px-4"
+                        >
+                            <Landmark size={16} />Recebíveis
+                        </Link>
+                    )}
                     {canCreateCashbookEntry && (
                         <>
                             <button type="button" onClick={() => openCreateForm('in')} className="inline-flex min-w-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-2 py-2 text-center text-sm font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 sm:px-4"><Plus size={16} />Nova Entrada</button>
@@ -587,9 +621,33 @@ export default function CashbookPage() {
                 <div className="grid max-w-full grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-4">
                     <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6"><div className="mb-3 flex items-center gap-3 text-emerald-600 dark:text-emerald-400"><div className="rounded-xl bg-emerald-50 p-2 dark:bg-emerald-900/20"><TrendingUp size={20} /></div><span className="text-xs font-black uppercase tracking-widest">Entradas</span></div><div className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(summary?.total_in || 0)}</div><p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">No período: {periodLabel}</p></div>
                     <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6"><div className="mb-3 flex items-center gap-3 text-rose-600 dark:text-rose-400"><div className="rounded-xl bg-rose-50 p-2 dark:bg-rose-900/20"><TrendingDown size={20} /></div><span className="text-xs font-black uppercase tracking-widest">Saídas</span></div><div className="text-2xl font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(summary?.total_out || 0)}</div><p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">No período: {periodLabel}</p></div>
-                    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6"><div className="mb-3 flex items-center gap-3 text-[#19A999]"><div className="rounded-xl bg-[#19A999]/10 p-2"><Wallet size={20} /></div><span className="text-xs font-black uppercase tracking-widest">Resultado</span></div><div className={`text-2xl font-black ${(summary?.balance || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(summary?.balance || 0)}</div><p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">Entradas - saídas do período</p></div>
+                    <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6"><div className="mb-3 flex items-center gap-3 text-[#19A999]"><div className="rounded-xl bg-[#19A999]/10 p-2"><Wallet size={20} /></div><span className="text-xs font-black uppercase tracking-widest">Resultado operacional</span></div><div className={`text-2xl font-black ${(summary?.balance || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(summary?.balance || 0)}</div><p className="mt-1 text-[10px] font-bold uppercase tracking-tighter text-gray-400">Reconhecido no período · não é saldo bancário</p></div>
                     <div className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800 sm:rounded-3xl sm:p-6"><div className="mb-3 flex items-center gap-3 text-[#FAA832]"><div className="rounded-xl bg-[#FAA832]/10 p-2"><History size={20} /></div><span className="text-xs font-black uppercase tracking-widest">Não realizado</span></div><div className="space-y-1.5 text-sm font-black text-gray-900 dark:text-white"><div className="flex items-center justify-between text-amber-600 dark:text-amber-400"><span className="text-[10px] uppercase tracking-wide">Pendente</span><span>{formatCurrencyPtBr(pendingAndCancelledSums.pending)}</span></div><div className="flex items-center justify-between text-gray-400"><span className="text-[10px] uppercase tracking-wide">Cancelado</span><span className="line-through">{formatCurrencyPtBr(pendingAndCancelledSums.cancelled)}</span></div></div><p className="mt-2 text-[10px] font-bold uppercase tracking-tighter text-gray-400">Do período filtrado</p></div>
                 </div>
+                {canViewOnlinePayments && cardReceivables.count > 0 && (
+                    <div className="mt-4 rounded-2xl border border-violet-200 bg-violet-50/80 p-4 dark:border-violet-900/60 dark:bg-violet-950/20">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                                <div className="flex items-center gap-2 text-violet-800 dark:text-violet-200">
+                                    <Landmark size={18} />
+                                    <p className="font-black">Recebíveis de cartão ainda não liquidados</p>
+                                </div>
+                                <p className="mt-1 text-sm font-semibold text-violet-950/80 dark:text-violet-100/80">
+                                    {cardReceivables.count} recebível(is) · Bruto {formatCurrencyPtBr(cardReceivables.gross)} · Taxas {formatCurrencyPtBr(cardReceivables.fees)} · <strong>Líquido a receber {formatCurrencyPtBr(cardReceivables.net)}</strong>
+                                </p>
+                                <p className="mt-1 text-xs text-violet-800/75 dark:text-violet-200/75">
+                                    A venda já integra o resultado operacional, mas o líquido ainda está em “Valores a receber — OptmaPay”. Ele só entra na conta bancária/caixa após a liquidação do provedor.
+                                </p>
+                            </div>
+                            <Link
+                                to="/admin/online-payments?tab=receivables"
+                                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-black text-white transition hover:bg-violet-700"
+                            >
+                                Abrir recebíveis
+                            </Link>
+                        </div>
+                    </div>
+                )}
             ) : (
                 <div className="space-y-4">
                     <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Extrato financeiro</p><h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{statementScopeLabel}</h2><p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{statementScopeDetail} · {periodLabel}</p></div><label className="w-full max-w-md space-y-1"><span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Conta do extrato</span><select value={statementAccountId} onChange={(event) => setStatementAccountId(event.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"><option value="all">Todas as contas — consolidado</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.active ? '' : ' (inativa)'}{account.code ? ` · ${account.code}` : ''}</option>)}</select></label></div></div>
