@@ -1217,7 +1217,9 @@ export default function Catalog() {
                                 <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
                                 <input
                                     ref={searchDialogInputRef}
-                                    type="search"
+                                    type="text"
+                                    role="searchbox"
+                                    autoComplete="off"
                                     autoFocus
                                     placeholder={store.config?.catalog_search_placeholder?.trim() || 'Buscar produtos'}
                                     value={searchTerm}

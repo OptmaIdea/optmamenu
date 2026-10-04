@@ -1963,18 +1963,20 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                             </button>
                         </header>
 
-                        <nav className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 px-3 py-3 dark:border-slate-800 sm:px-6">
-                            {tabs.map(({ id, label, icon: Icon }) => (
-                                <button
-                                    key={id}
-                                    type="button"
-                                    onClick={() => { setTab(id); clearFeedback(); }}
-                                    className={`flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'}`}
-                                >
-                                    <Icon className="h-4 w-4" /> {label}
-                                </button>
-                            ))}
-                        </nav>
+                        {tab !== 'loyalty' && tab !== 'messages' && (
+                            <nav className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 px-3 py-3 dark:border-slate-800 sm:px-6">
+                                {tabs.map(({ id, label, icon: Icon }) => (
+                                    <button
+                                        key={id}
+                                        type="button"
+                                        onClick={() => { setTab(id); clearFeedback(); }}
+                                        className={`flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'}`}
+                                    >
+                                        <Icon className="h-4 w-4" /> {label}
+                                    </button>
+                                ))}
+                            </nav>
+                        )}
 
                         <div className="flex-1 overflow-y-auto p-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:p-6">
                             {loading && (
