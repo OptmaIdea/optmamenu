@@ -740,6 +740,47 @@ export const CustomerService = {
         };
     },
 
+    // --- Avaliações do próprio cliente ---
+    async getSelfProductRatings() {
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_product_ratings_safe');
+        if (error) throw new Error('Não foi possível carregar suas avaliações.');
+
+        const payload = data as (SelfRpcPayload & {
+            ratings?: Array<{ product_id?: string; rating?: number; updated_at?: string | null }>;
+        }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível carregar suas avaliações.');
+
+        return (Array.isArray(payload.ratings) ? payload.ratings : [])
+            .map((item) => ({
+                productId: String(item.product_id || ''),
+                rating: Number(item.rating || 0),
+                updatedAt: item.updated_at ? String(item.updated_at) : null,
+            }))
+            .filter((item) => item.productId && item.rating >= 1 && item.rating <= 5);
+    },
+
+    async rateSelfProduct(productId: string, rating: number) {
+        const normalizedRating = Math.max(1, Math.min(5, Math.trunc(Number(rating) || 0)));
+        const { data, error } = await supabaseCustomer.rpc('upsert_customer_self_product_rating_safe', {
+            p_product_id: productId,
+            p_rating: normalizedRating,
+        });
+        if (error) throw new Error('Não foi possível salvar sua avaliação.');
+
+        const payload = data as SelfRpcPayload | null;
+        if (!payload?.ok) {
+            if (payload?.error === 'purchase_required') {
+                throw new Error('A avaliação fica disponível somente depois de uma compra concluída deste produto.');
+            }
+            if (payload?.error === 'invalid_rating') {
+                throw new Error('Escolha de 1 a 5 estrelas.');
+            }
+            throw selfServiceError(payload, 'Não foi possível salvar sua avaliação.');
+        }
+
+        return normalizedRating;
+    },
+
     // --- Order History ---
     async getOrders(_customerId?: string): Promise<Order[]> {
         const { data, error } = await supabaseCustomer.rpc('get_customer_self_orders_safe', {

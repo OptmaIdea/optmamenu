@@ -7,6 +7,7 @@ import { FloatingCartDock } from '@/pages/store/components/FloatingCartDock';
 import { StorefrontBottomNavigation } from '@/pages/store/components/StorefrontBottomNavigation';
 import { StoreHubPortal } from '@/pages/store/components/StoreHubPortal';
 import { PublicStorefrontService, type PublicStorefrontStore } from '@/services/publicStorefrontService';
+import { AuthService } from '@/services/customerAuth';
 import {
     activateCustomerCart,
     configureCustomerCartRetention,
@@ -121,6 +122,32 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
 
         deactivateCustomerCart();
     }, [customer, isAuthenticated, sessionRestored]);
+
+    useEffect(() => {
+        if (!sessionRestored || !isAuthenticated || !customer) return;
+
+        let active = true;
+        let alreadyReported = false;
+
+        const checkSession = async () => {
+            if (!active || document.visibilityState !== 'visible') return;
+            const alive = await AuthService.checkSessionAlive();
+            if (!active || alive !== false || alreadyReported) return;
+            alreadyReported = true;
+            toast.info('Sua sessão foi encerrada neste dispositivo. Entre novamente para continuar.');
+        };
+
+        const intervalId = window.setInterval(() => void checkSession(), 8000);
+        window.addEventListener('focus', checkSession);
+        document.addEventListener('visibilitychange', checkSession);
+
+        return () => {
+            active = false;
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', checkSession);
+            document.removeEventListener('visibilitychange', checkSession);
+        };
+    }, [customer?.id, isAuthenticated, sessionRestored]);
 
     useEffect(() => {
         if (!storeSlug) {

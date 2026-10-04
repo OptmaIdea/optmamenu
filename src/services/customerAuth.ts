@@ -618,6 +618,37 @@ export const AuthService = {
         };
     },
 
+    async checkSessionAlive(): Promise<boolean | null> {
+        const token = getCustomerToken();
+        if (!token) return false;
+
+        try {
+            const deviceTokenHash = await getDeviceTokenHash();
+            const { data, error } = await supabasePublic.functions.invoke('customer-auth-session', {
+                headers: { Authorization: `Bearer ${token}` },
+                body: { action: 'me', deviceTokenHash },
+            });
+
+            if (error) return null;
+            if (data?.ok && data?.customer) return true;
+
+            if (
+                data?.error === 'session_expired'
+                || data?.error === 'reauth_required'
+                || data?.error === 'unauthorized'
+            ) {
+                clearPersistedCustomerSession();
+                await supabaseCustomerAuth.auth.signOut({ scope: 'local' }).catch(() => undefined);
+                useCustomerAuth.getState().logout?.();
+                return false;
+            }
+
+            return null;
+        } catch {
+            return null;
+        }
+    },
+
     async getRealtimeAccessToken() {
         return refreshCustomerSessionIfNeeded();
     },

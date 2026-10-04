@@ -24,6 +24,7 @@ import {
     ShoppingCart,
     Sparkles,
     ShieldCheck,
+    Star,
     Trash2,
     UserRound,
     X,
@@ -355,6 +356,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [editingTrustedDeviceLabel, setEditingTrustedDeviceLabel] = useState('');
     const [revokingTrustedDeviceId, setRevokingTrustedDeviceId] = useState<string | null>(null);
     const [targetDevicePassword, setTargetDevicePassword] = useState('');
+    const [revokeAllDevicesOpen, setRevokeAllDevicesOpen] = useState(false);
+    const [revokeAllDevicesPassword, setRevokeAllDevicesPassword] = useState('');
+    const [productRatings, setProductRatings] = useState<Record<string, number>>({});
+    const [ratingSavingProductId, setRatingSavingProductId] = useState<string | null>(null);
     const [exportingData, setExportingData] = useState(false);
     const [deletionOpen, setDeletionOpen] = useState(false);
     const [deletionPassword, setDeletionPassword] = useState('');
@@ -744,6 +749,12 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     }, [customer?.id]);
 
+    const loadProductRatings = useCallback(async () => {
+        if (!customer) return;
+        const ratings = await CustomerService.getSelfProductRatings();
+        setProductRatings(Object.fromEntries(ratings.map((item) => [item.productId, item.rating])));
+    }, [customer?.id]);
+
     useEffect(() => {
         ordersRef.current = [];
         setOrders([]);
@@ -848,6 +859,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             document.removeEventListener('visibilitychange', refreshAccount);
         };
     }, [open, customer?.id, refreshCustomerSnapshot]);
+
+    useEffect(() => {
+        if (!open || !customer || tab !== 'consumption') return;
+        void loadProductRatings().catch(() => undefined);
+    }, [open, customer?.id, tab, loadProductRatings]);
 
     useEffect(() => {
         if (!open || !customer || tab !== 'consumption') return;
@@ -1616,6 +1632,19 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         }
     };
 
+    const rateConsumedProduct = async (productId: string, rating: number) => {
+        setRatingSavingProductId(productId);
+        try {
+            const savedRating = await CustomerService.rateSelfProduct(productId, rating);
+            setProductRatings((current) => ({ ...current, [productId]: savedRating }));
+            toast.success('Sua avaliação foi salva.');
+        } catch (ratingError) {
+            toast.error(ratingError instanceof Error ? ratingError.message : 'Não foi possível salvar sua avaliação.');
+        } finally {
+            setRatingSavingProductId(null);
+        }
+    };
+
     const revokeTrustedDevice = async (device: TrustedCustomerDevice) => {
         clearFeedback();
         if (device.is_current) {
@@ -1640,6 +1669,35 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             const feedback = deviceError instanceof Error
                 ? deviceError.message
                 : 'Não foi possível desconectar o dispositivo.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setTrustedDevicesRevoking(false);
+        }
+    };
+
+    const revokeAllOtherTrustedDevices = async () => {
+        clearFeedback();
+        if (!revokeAllDevicesPassword) {
+            setError('Informe sua senha atual para desconectar os outros dispositivos.');
+            return;
+        }
+
+        setTrustedDevicesRevoking(true);
+        try {
+            const result = await AuthService.revokeOtherTrustedDevices(revokeAllDevicesPassword);
+            setTrustedDevices(result.devices);
+            setRevokeAllDevicesOpen(false);
+            setRevokeAllDevicesPassword('');
+            const feedback = result.revokedCount > 0
+                ? `${result.revokedCount} outro(s) dispositivo(s) foram desconectados.`
+                : 'Não havia outros dispositivos ativos para desconectar.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (deviceError) {
+            const feedback = deviceError instanceof Error
+                ? deviceError.message
+                : 'Não foi possível desconectar os outros dispositivos.';
             setError(feedback);
             toast.error(feedback);
         } finally {
@@ -2200,6 +2258,33 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                     </div>
                                                     </button>
                                                 </div>
+
+                                                {product.productId && (
+                                                    <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+                                                        <div>
+                                                            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Sua avaliação</p>
+                                                            <p className="mt-0.5 text-[11px] text-slate-400">Disponível porque esta compra foi concluída.</p>
+                                                        </div>
+                                                        <div className="flex items-center gap-1" aria-label={`Avaliar ${product.name}`}>
+                                                            {[1, 2, 3, 4, 5].map((rating) => {
+                                                                const selected = rating <= Number(productRatings[product.productId || ''] || 0);
+                                                                return (
+                                                                    <button
+                                                                        key={rating}
+                                                                        type="button"
+                                                                        onClick={() => void rateConsumedProduct(product.productId || '', rating)}
+                                                                        disabled={ratingSavingProductId === product.productId}
+                                                                        className="rounded-lg p-1 text-amber-500 transition hover:scale-110 disabled:opacity-50"
+                                                                        aria-label={`${rating} estrela${rating === 1 ? '' : 's'}`}
+                                                                        title={`${rating} estrela${rating === 1 ? '' : 's'}`}
+                                                                    >
+                                                                        <Star className={`h-5 w-5 ${selected ? 'fill-current' : ''}`} />
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
 
                                                 {expanded && (
                                                     <div className="space-y-2 border-t border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-900/50">
@@ -2799,6 +2884,61 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                                 )}
                                                             </div>
                                                         ))}
+                                                    </div>
+                                                )}
+
+                                                {trustedDevices.length > 1 && (
+                                                    <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
+                                                        {!revokeAllDevicesOpen ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setRevokeAllDevicesOpen(true);
+                                                                    setRevokeAllDevicesPassword('');
+                                                                    setRevokingTrustedDeviceId(null);
+                                                                    clearFeedback();
+                                                                }}
+                                                                disabled={trustedDevicesRevoking}
+                                                                className="inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-red-200 px-4 text-sm font-black text-red-600 hover:bg-red-50 disabled:opacity-50 dark:border-red-900/50 dark:text-red-300 dark:hover:bg-red-950/20"
+                                                            >
+                                                                <LogOut className="h-4 w-4" />
+                                                                Desconectar todos os outros dispositivos
+                                                            </button>
+                                                        ) : (
+                                                            <div className="rounded-2xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900/50 dark:bg-red-950/15">
+                                                                <p className="text-sm font-black text-red-800 dark:text-red-200">Desconectar todos os outros dispositivos?</p>
+                                                                <p className="mt-1 text-xs leading-5 text-red-700 dark:text-red-300">Eles precisarão confirmar o telefone por SMS para entrar novamente. Este dispositivo permanecerá conectado.</p>
+                                                                <div className="mt-3">
+                                                                    <PasswordField
+                                                                        label="Senha atual"
+                                                                        value={revokeAllDevicesPassword}
+                                                                        onChange={setRevokeAllDevicesPassword}
+                                                                        placeholder="Sua senha atual"
+                                                                        autoComplete="current-password"
+                                                                    />
+                                                                </div>
+                                                                <div className="mt-3 flex gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            setRevokeAllDevicesOpen(false);
+                                                                            setRevokeAllDevicesPassword('');
+                                                                        }}
+                                                                        className="flex-1 rounded-xl border border-slate-200 bg-white py-2 text-xs font-black text-slate-600 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300"
+                                                                    >
+                                                                        Cancelar
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => void revokeAllOtherTrustedDevices()}
+                                                                        disabled={trustedDevicesRevoking || !revokeAllDevicesPassword}
+                                                                        className="flex-1 rounded-xl bg-red-600 py-2 text-xs font-black text-white disabled:opacity-50"
+                                                                    >
+                                                                        {trustedDevicesRevoking ? 'Desconectando…' : 'Desconectar todos'}
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 )}
 
