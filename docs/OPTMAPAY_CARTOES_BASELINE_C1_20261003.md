@@ -237,3 +237,56 @@ O gate público continua deliberadamente fechado:
 O motor autoritativo, o Vault, o domínio publicado, o HMAC, a confirmação financeira e a liquidação já foram validados.
 
 O único passo que não foi automatizado nesta sessão é a submissão do PAN/CVV do cartão fictício através do formulário público, porque a camada de segurança da ferramenta impede o envio programático desses campos mesmo sendo Sandbox. Esse teste deve ser executado manualmente no navegador após a abertura controlada do gate de homologação.
+
+
+## Atualização 2026-10-04 — E2E manual aprovado e liberação Sandbox
+
+Os dois cenários públicos de cartão foram executados manualmente na loja Gelinhares com cartões fictícios do OptmaPay Sandbox.
+
+### Débito
+
+Pedido `PED-20261004-001552-00FC`.
+
+- A primeira tentativa com CVV incorreto foi recusada com HTTP 422, sem criar venda paga ou recebível.
+- Após correção do CVV, o pagamento foi confirmado.
+- OptmaPay registrou saída de R$ 3,75 na conta pagadora.
+- OptmaMenu registrou venda bruta de R$ 3,75 e taxa de R$ 0,03 em lançamentos separados.
+- Recebível líquido de R$ 3,72 ficou agendado para liquidação D+1.
+- Reserva permaneceu ativa com `expires_at=infinity` após o pagamento, sem baixa física prematura.
+
+### Crédito
+
+Pedido `PED-20261004-001552-2CE5`.
+
+- Pagamento autorizado e confirmado via webhook.
+- Limite do cartão foi consumido em R$ 3,75.
+- Fatura autoritativa criada para vencimento em 10/11/2026, com fechamento em 03/11/2026.
+- A conta corrente do portador não é debitada no motor no momento da compra.
+- Recebível do lojista: bruto R$ 3,75, taxa R$ 0,11, líquido R$ 3,64, agendado para D+1.
+- Reserva permaneceu ativa com `expires_at=infinity`.
+
+O Golden harness foi executado novamente após o E2E e continuou retornando `checkingNotDebitedAtPurchase=true` para crédito, além das invariantes de débito, idempotência, fatura e liquidação.
+
+### Correções de interface decorrentes da homologação
+
+1. O Dashboard do OptmaPay tratava a linha informativa de compra no cartão de crédito como se fosse saída da conta corrente ao reconstruir o extrato. O motor financeiro estava correto; a classificação visual estava errada. A linha de compra a crédito foi retirada do cálculo/extrato da conta corrente e permanece na fatura/cartão.
+2. O Dashboard do merchant OptmaPay passou a mostrar, para recebíveis futuros de cartão, os valores de venda bruta, taxa e líquido, mantendo o valor líquido como montante futuro de caixa.
+3. O OptmaMenu já persistia `online_payment_receivables`, mas o cliente do workspace descartava o campo retornado pela RPC. Foi adicionada a aba **Recebíveis** em Financeiro → Pagamentos online, com bruto, taxa, líquido, plano e previsão de liquidação.
+4. A recusa por CVV incorreto continua usando HTTP 422, mas o frontend agora extrai a mensagem da Edge Function e apresenta erro amigável em vez de apenas `Edge Function returned a non-2xx status code`.
+5. A exibição da data de liquidação foi protegida contra deslocamento de fuso na interface.
+
+### Release gate
+
+Após Golden Debit, Golden Credit e E2E manual de débito/crédito aprovados, foi aplicada a migration:
+
+- `20261004020821_optmapay_card_sandbox_e2e_release`.
+
+Para a Gelinhares:
+
+- `debit_card.checkout.pay_now=true`;
+- `credit_card.checkout.pay_now=true`;
+- estado `e2e_approved_sandbox`;
+- PIX permanece habilitado;
+- o método legado `debit_card_debito_infinitepay` permanece oculto/bloqueado.
+
+A liberação é exclusivamente Sandbox. `realMoney=false` continua obrigatório em toda a fronteira OptmaMenu ↔ OptmaPay.
