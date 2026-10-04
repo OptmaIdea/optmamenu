@@ -127,6 +127,40 @@ export interface PublicProductRankingsResponse {
     rankings: PublicProductRanking[];
 }
 
+export interface PublicLoyaltyReward {
+    id: string;
+    title: string;
+    description?: string | null;
+    points_cost: number;
+    type?: string | null;
+    image_url?: string | null;
+    additional_cash_cost?: number;
+    offer_valid_until?: string | null;
+}
+
+export interface PublicLoyaltyProgram {
+    id: string;
+    name: string;
+    points_per_currency?: number;
+    min_order_value?: number;
+    enable_join_bonus?: boolean;
+    join_bonus_points?: number;
+    enable_birthday_bonus?: boolean;
+    birthday_bonus_points?: number;
+    points_validity_months?: number;
+    min_points_redemption?: number;
+    program_terms?: string;
+    voucher_terms?: string;
+    updated_at?: string;
+}
+
+export interface PublicLoyaltyResponse {
+    ok: boolean;
+    error?: string;
+    program: PublicLoyaltyProgram | null;
+    rewards: PublicLoyaltyReward[];
+}
+
 type Rgb = { r: number; g: number; b: number };
 
 function parseHexColor(value: unknown): Rgb | null {
@@ -384,6 +418,29 @@ export const PublicStorefrontService = {
                 sales_count: Number(item.sales_count || 0),
                 rating_avg: Number(item.rating_avg || 0),
                 rating_count: Number(item.rating_count || 0),
+            })),
+        };
+    },
+
+    async getPublicLoyaltyProgramBySlug(slug: string): Promise<PublicLoyaltyResponse> {
+        const { data, error } = await supabasePublic.rpc(
+            'get_public_loyalty_program_by_slug',
+            { p_slug: slug }
+        );
+
+        if (error) {
+            console.error('get_public_loyalty_program_by_slug error:', error);
+            throw error;
+        }
+
+        const payload = data as PublicLoyaltyResponse;
+        return {
+            ...payload,
+            program: payload?.program || null,
+            rewards: (payload?.rewards || []).map((reward) => ({
+                ...reward,
+                points_cost: Number(reward.points_cost || 0),
+                additional_cash_cost: Number(reward.additional_cash_cost || 0),
             })),
         };
     },

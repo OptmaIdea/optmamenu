@@ -7,7 +7,37 @@ export type CustomerConsentType =
     | 'marketing_whatsapp'
     | 'marketing_email'
     | 'marketing_sms'
+    | 'loyalty_whatsapp'
+    | 'loyalty_email'
+    | 'loyalty_sms'
     | 'loyalty_webapp';
+
+export interface CustomerLoyaltyReward {
+    id: string;
+    title: string;
+    description: string | null;
+    pointsCost: number;
+    type: string | null;
+    imageUrl: string | null;
+    additionalCashCost: number;
+    stockQuantity: number | null;
+    voucherValidityDays: number | null;
+    offerValidUntil: string | null;
+    productId: string | null;
+    affordable: boolean;
+}
+
+export interface CustomerLoyaltyVoucher {
+    id: string;
+    rewardId: string | null;
+    code: string | null;
+    status: string | null;
+    expiresAt: string | null;
+    usedAt: string | null;
+    createdAt: string | null;
+    rewardTitle: string | null;
+    rewardType: string | null;
+}
 
 export type CustomerConsentAction = 'granted' | 'revoked';
 
@@ -288,6 +318,7 @@ export const CustomerService = {
         title: string;
         message: string;
         type?: 'info' | 'success' | 'warning' | 'error';
+        category?: 'orders' | 'loyalty' | 'system' | 'profile' | 'security' | 'marketing' | 'general';
     }) {
         const { error } = await supabase.from('customer_notifications').insert(notification);
         if (error) console.error('[CUSTOMER_SERVICE] ERRO em addNotification:', error);
@@ -402,6 +433,51 @@ export const CustomerService = {
         };
     },
 
+    async getSelfLoyaltyRewards(): Promise<{
+        points: number;
+        rewards: CustomerLoyaltyReward[];
+        vouchers: CustomerLoyaltyVoucher[];
+    }> {
+        const { data, error } = await supabaseCustomer.rpc('get_customer_self_loyalty_rewards_safe');
+        if (error) throw new Error('Não foi possível carregar os benefícios da fidelidade.');
+
+        const payload = data as (SelfRpcPayload & {
+            points?: number | string;
+            rewards?: Array<Record<string, unknown>>;
+            vouchers?: Array<Record<string, unknown>>;
+        }) | null;
+        if (!payload?.ok) throw selfServiceError(payload, 'Não foi possível carregar os benefícios da fidelidade.');
+
+        const rewards = (Array.isArray(payload.rewards) ? payload.rewards : []).map((reward) => ({
+            id: String(reward.id || ''),
+            title: String(reward.title || 'Benefício'),
+            description: reward.description ? String(reward.description) : null,
+            pointsCost: Number(reward.points_cost || 0),
+            type: reward.type ? String(reward.type) : null,
+            imageUrl: reward.image_url ? String(reward.image_url) : null,
+            additionalCashCost: Number(reward.additional_cash_cost || 0),
+            stockQuantity: reward.stock_quantity === null || reward.stock_quantity === undefined ? null : Number(reward.stock_quantity),
+            voucherValidityDays: reward.voucher_validity_days === null || reward.voucher_validity_days === undefined ? null : Number(reward.voucher_validity_days),
+            offerValidUntil: reward.offer_valid_until ? String(reward.offer_valid_until) : null,
+            productId: reward.product_id ? String(reward.product_id) : null,
+            affordable: Boolean(reward.affordable),
+        })).filter((reward) => reward.id);
+
+        const vouchers = (Array.isArray(payload.vouchers) ? payload.vouchers : []).map((voucher) => ({
+            id: String(voucher.id || ''),
+            rewardId: voucher.reward_id ? String(voucher.reward_id) : null,
+            code: voucher.code ? String(voucher.code) : null,
+            status: voucher.status ? String(voucher.status) : null,
+            expiresAt: voucher.expires_at ? String(voucher.expires_at) : null,
+            usedAt: voucher.used_at ? String(voucher.used_at) : null,
+            createdAt: voucher.created_at ? String(voucher.created_at) : null,
+            rewardTitle: voucher.reward_title ? String(voucher.reward_title) : null,
+            rewardType: voucher.reward_type ? String(voucher.reward_type) : null,
+        })).filter((voucher) => voucher.id);
+
+        return { points: Number(payload.points || 0), rewards, vouchers };
+    },
+
     async leaveSelfLoyalty() {
         const { data, error } = await supabaseCustomer.rpc('leave_customer_self_loyalty_safe');
         if (error) throw new Error('Não foi possível encerrar sua participação no programa.');
@@ -413,16 +489,16 @@ export const CustomerService = {
     async joinSelfLoyalty(options: {
         acceptTerms: boolean;
         dataResponsibility: boolean;
-        marketingWhatsapp: boolean;
-        marketingEmail: boolean;
-        marketingSms: boolean;
+        loyaltyWhatsapp: boolean;
+        loyaltyEmail: boolean;
+        loyaltySms: boolean;
     }) {
         const { data, error } = await supabaseCustomer.rpc('join_customer_self_loyalty_safe', {
             p_accept_terms: options.acceptTerms,
             p_data_responsibility: options.dataResponsibility,
-            p_marketing_whatsapp: options.marketingWhatsapp,
-            p_marketing_email: options.marketingEmail,
-            p_marketing_sms: options.marketingSms,
+            p_marketing_whatsapp: options.loyaltyWhatsapp,
+            p_marketing_email: options.loyaltyEmail,
+            p_marketing_sms: options.loyaltySms,
         });
 
         if (error) throw new Error('Não foi possível concluir sua adesão ao programa.');
