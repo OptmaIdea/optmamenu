@@ -330,11 +330,6 @@ export function StorefrontBottomNavigation({
                                 onClick={() => {
                                     setMenuOpen(false);
                                     onOpenContact();
-                                }}                            <button
-                                type="button"
-                                onClick={() => {
-                                    setMenuOpen(false);
-                                    onOpenContact();
                                 }}
                                 className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-slate-200 px-4 text-left font-black text-slate-700 dark:border-slate-800 dark:text-slate-200"
                             >
