@@ -6,7 +6,6 @@ import {
   Clock3,
   CreditCard,
   ExternalLink,
-  FileCheck2,
   FlaskConical,
   KeyRound,
   Landmark,
