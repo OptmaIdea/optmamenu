@@ -4,6 +4,7 @@ import {
     BellRing,
     ChevronDown,
     ChevronUp,
+    CreditCard,
     Eye,
     EyeOff,
     FileText,
@@ -73,6 +74,8 @@ interface CustomerOrderSummary {
     status?: string | null;
     status_reason?: string | null;
     payment_status?: string | null;
+    payment_method_code?: string | null;
+    public_order_token?: string | null;
     total?: number | string | null;
     created_at?: string | null;
     status_changed_at?: string | null;
@@ -190,6 +193,8 @@ function normalizeOrder(order: Record<string, unknown>): CustomerOrderSummary {
         status: order.status ? String(order.status) : null,
         status_reason: order.status_reason ? String(order.status_reason) : null,
         payment_status: order.payment_status ? String(order.payment_status) : null,
+        payment_method_code: order.payment_method_code ? String(order.payment_method_code) : null,
+        public_order_token: order.public_order_token ? String(order.public_order_token) : null,
         total: typeof order.total === 'number' || typeof order.total === 'string' ? order.total : null,
         created_at: order.created_at ? String(order.created_at) : null,
         status_changed_at: order.status_changed_at ? String(order.status_changed_at) : null,
@@ -2452,6 +2457,23 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                                 </button>
                                                                 <p className="mt-2 text-center text-xs text-slate-500">A recompra usa catálogo, preço e estoque atuais. Itens indisponíveis não são adicionados.</p>
                                                             </>
+                                                        )}
+
+                                                        {order.status === 'reserved'
+                                                            && order.payment_status === 'pending'
+                                                            && Boolean(order.public_order_token)
+                                                            && ['pix', 'debit_card', 'credit_card'].includes(order.payment_method_code || '') && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setOpen(false);
+                                                                    navigate(`/p/${encodeURIComponent(order.public_order_token as string)}`);
+                                                                }}
+                                                                className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-violet-600 px-4 text-sm font-black text-white transition hover:bg-violet-700"
+                                                            >
+                                                                <CreditCard className="h-4 w-4" />
+                                                                Continuar pagamento
+                                                            </button>
                                                         )}
 
                                                         {order.status === 'reserved' && order.payment_status !== 'paid' && (
