@@ -279,6 +279,40 @@ interface PublicPaymentProofTicket {
 const PROOF_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
 const PROOF_MAX_SIZE = 8 * 1024 * 1024;
 
+async function readFunctionHttpError(error: unknown, fallback: string) {
+    const typed = error as {
+        message?: string;
+        context?: Response;
+    };
+
+    let payload: {
+        error?: string | { code?: string; message?: string };
+        message?: string;
+        retryable?: boolean;
+    } | null = null;
+
+    try {
+        const response = typed?.context;
+        if (response && typeof response.clone === 'function') {
+            const raw = await response.clone().text();
+            if (raw) payload = JSON.parse(raw);
+        }
+    } catch {
+        payload = null;
+    }
+
+    const nestedError = typeof payload?.error === 'object' ? payload.error : null;
+    const code = typeof payload?.error === 'string'
+        ? payload.error
+        : nestedError?.code;
+
+    return {
+        message: String(payload?.message || nestedError?.message || typed?.message || fallback),
+        code: code ? String(code) : undefined,
+        retryable: Boolean(payload?.retryable),
+    };
+}
+
 function proofError(code?: string) {
     const messages: Record<string, string> = {
         invalid_token: 'O link deste pedido não é válido para envio de comprovante.',
@@ -413,7 +447,13 @@ export const PublicOrderService = {
                 installments: params.installments || 1,
             },
         });
-        if (error) throw error;
+        if (error) {
+            const details = await readFunctionHttpError(error, 'Não foi possível autorizar este cartão.');
+            const err = new Error(details.message) as Error & { code?: string; retryable?: boolean };
+            err.code = details.code || 'card_not_authorized';
+            err.retryable = details.retryable;
+            throw err;
+        }
         if (!data?.ok) {
             const message = String(data?.message || 'Não foi possível autorizar este cartão.');
             const err = new Error(message) as Error & { code?: string; retryable?: boolean };
