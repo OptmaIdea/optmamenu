@@ -57,19 +57,51 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
     useLayoutEffect(() => {
         const root = document.documentElement;
         const previousDark = root.classList.contains('dark');
+        const previousStorefrontTheme = root.dataset.storefrontTheme;
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        let themeMode: 'light' | 'dark' | 'system' = (() => {
+            try {
+                const stored = window.localStorage.getItem('optmamenu-storefront-theme');
+                return stored === 'dark' || stored === 'system' ? stored : 'light';
+            } catch {
+                return 'light';
+            }
+        })();
 
-        // A loja pública tem fronteira visual própria. Ela inicia em modo claro para
-        // não herdar inadvertidamente o tema do painel administrativo ou do sistema.
-        root.classList.remove('dark');
-        root.dataset.storefrontTheme = 'light';
+        const applyThemeMode = () => {
+            const dark = themeMode === 'dark' || (themeMode === 'system' && media.matches);
+            root.classList.toggle('dark', dark);
+            root.dataset.storefrontTheme = themeMode;
+        };
 
-        // Se havia um carrinho pertencente a um cliente autenticado, não o exibe
-        // até a sessão ser revalidada pelo backend.
+        const onSystemThemeChange = () => {
+            if (themeMode === 'system') applyThemeMode();
+        };
+
+        const onThemeModeChange = (event: Event) => {
+            const next = (event as CustomEvent<{ mode?: 'light' | 'dark' | 'system' }>).detail?.mode;
+            if (next !== 'light' && next !== 'dark' && next !== 'system') return;
+            themeMode = next;
+            try {
+                window.localStorage.setItem('optmamenu-storefront-theme', next);
+            } catch {
+                // Preferência fica válida apenas nesta sessão.
+            }
+            applyThemeMode();
+        };
+
+        applyThemeMode();
+        media.addEventListener('change', onSystemThemeChange);
+        window.addEventListener('optmamenu:storefront-theme-mode', onThemeModeChange);
+
         prepareCustomerCartForSessionRestore();
 
         return () => {
+            media.removeEventListener('change', onSystemThemeChange);
+            window.removeEventListener('optmamenu:storefront-theme-mode', onThemeModeChange);
             root.classList.toggle('dark', previousDark);
-            delete root.dataset.storefrontTheme;
+            if (previousStorefrontTheme) root.dataset.storefrontTheme = previousStorefrontTheme;
+            else delete root.dataset.storefrontTheme;
         };
     }, []);
 
@@ -189,6 +221,12 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
             active = false;
         };
     }, [context?.storeId, storeSlug]);
+
+    useEffect(() => {
+        const openStoreHub = () => setStoreHubOpen(true);
+        window.addEventListener('optmamenu:open-store-hub', openStoreHub);
+        return () => window.removeEventListener('optmamenu:open-store-hub', openStoreHub);
+    }, []);
 
     const openStoreContact = () => {
         setStoreHubOpen(true);
