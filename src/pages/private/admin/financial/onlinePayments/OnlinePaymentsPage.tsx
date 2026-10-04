@@ -38,7 +38,11 @@ type SummaryCard = {
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateTime = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-const settlementDate = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeZone: 'UTC' });
+const settlementDateTime = new Intl.DateTimeFormat('pt-BR', {
+  dateStyle: 'short',
+  timeStyle: 'short',
+  timeZone: 'America/Sao_Paulo',
+});
 
 const tabs: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Visão geral' },
@@ -626,7 +630,7 @@ export default function OnlinePaymentsPage() {
               <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-950 dark:border-violet-900 dark:bg-violet-950/30 dark:text-violet-100">
                 <p className="font-black">Conciliação de cartão</p>
                 <p className="mt-1 text-xs opacity-85">
-                  A venda bruta e a taxa aparecem separadamente no Livro Diário. Este painel acompanha o valor líquido que ainda será liquidado pelo OptmaPay. A liquidação futura é uma transferência entre contas financeiras, não uma nova receita.
+                  A venda bruta e a taxa aparecem separadamente no Livro Diário. O OptmaPay liquida automaticamente o valor líquido na data prevista e, somente depois da liquidação, envia o webhook assinado ao OptmaMenu. A baixa futura é uma transferência entre contas financeiras, não uma nova receita.
                 </p>
               </div>
 
@@ -650,7 +654,7 @@ export default function OnlinePaymentsPage() {
                         {item.status === 'settled' && item.settled_at
                           ? `Liquidado em ${dateTime.format(new Date(item.settled_at))}`
                           : item.expected_settlement_at
-                            ? `Previsão de liquidação: ${settlementDate.format(new Date(item.expected_settlement_at))} · ${settlementPlanLabel(item.settlement_plan)}`
+                            ? `Liquidação automática prevista: ${settlementDateTime.format(new Date(item.expected_settlement_at))} · ${settlementPlanLabel(item.settlement_plan)}`
                             : 'Previsão de liquidação ainda não informada'}
                       </p>
                     </div>
