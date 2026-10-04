@@ -123,3 +123,63 @@ Só depois disso deve ser ligado `pay_now=true` para débito/crédito no checkou
 **OptmaPay/OptmaMenu — Boletos e cobranças B2B**
 
 Escopo futuro: emissão, vencimento, juros/multa, baixa, fornecedores, contas a pagar/receber e conciliação. Nenhuma implementação de boleto foi aberta neste bloco.
+
+
+## Atualização 2026-10-04 — C2/C3 executado no OptmaPay
+
+Os bloqueios externos descritos acima foram removidos. O projeto Supabase OptmaPay `wertmoquxdrucdbobuie`, o repositório canônico `OptmaIdea/optmapay`, o repositório de deploy `EduSouza-OptmaIdea/optmapay` e o projeto Vercel do OptmaPay passaram a estar acessíveis operacionalmente.
+
+Foi aplicada no Supabase OptmaPay a migration `20261004020711_card_ledger_and_settlement_authority`, que introduziu:
+
+- ledger autoritativo de recebíveis de cartão em `card_receivables`;
+- faturas e itens de fatura persistidos no banco;
+- pagamentos e alocações de fatura;
+- cálculo de vencimento de parcelas;
+- liquidação idempotente de recebíveis;
+- evento `receivable.settled`;
+- separação entre obrigação do pagador e recebível do merchant;
+- validação de escopo `cards:charge`;
+- endurecimento das permissões de RPC.
+
+Também foi removido do cliente OptmaPay o fallback que fazia crédito direto de saldo quando a RPC `release_d1_settlement` falhava. A liquidação passou a falhar fechada e permanecer sob autoridade do servidor.
+
+Durante a primeira execução do Golden Test foi encontrado um defeito real no contrato de resposta da RPC `process_card_payment`: uma chamada única de `jsonb_build_object` ultrapassava o limite de 100 argumentos do PostgreSQL. A correção foi aplicada em `20261004024451_card_response_payload_argument_limit_fix`.
+
+Em seguida foi aplicado e executado o harness `20261004024651_card_golden_regression_harness_v2`.
+
+### Golden Debit — aprovado
+
+O teste transacional validou:
+
+- débito do saldo do pagador exatamente uma vez;
+- merchant sem crédito antes do vencimento D+1;
+- recebível bruto R$ 10,00;
+- taxa R$ 0,09;
+- líquido R$ 9,91;
+- replay da cobrança idempotente;
+- bloqueio de liquidação antecipada;
+- replay da liquidação idempotente.
+
+### Golden Credit — aprovado
+
+O teste transacional validou:
+
+- conta corrente não debitada no momento da compra;
+- limite consumido exatamente uma vez;
+- fatura autoritativa criada;
+- replay da cobrança idempotente;
+- pagamento da fatura debitando a conta corrente;
+- pagamento restaurando o limite;
+- liquidação do merchant independente da obrigação do pagador.
+
+O próprio harness executa os cenários em subtransações e reverte as alterações de validação, sem deixar efeitos financeiros de teste.
+
+### Estado de release no OptmaMenu
+
+O gate público foi atualizado para `card_public_release_state=golden_passed_pending_e2e`, mantendo `pay_now=false`.
+
+Portanto o motor autoritativo do OptmaPay já passou Golden Debit/Credit, mas cartão ainda não foi liberado ao cliente final. Falta somente a validação E2E real da ponte:
+
+`OptmaMenu → API OptmaPay → Supabase OptmaPay → webhook assinado → OptmaMenu`.
+
+O PIX permanece inalterado e habilitado.
