@@ -183,3 +183,57 @@ Portanto o motor autoritativo do OptmaPay já passou Golden Debit/Credit, mas ca
 `OptmaMenu → API OptmaPay → Supabase OptmaPay → webhook assinado → OptmaMenu`.
 
 O PIX permanece inalterado e habilitado.
+
+
+## Atualização 2026-10-04 — E2E de webhook e endurecimento final
+
+Foi executada uma validação HTTP real entre o ambiente do OptmaMenu e a Edge Function `optmapay-sandbox-webhook`, usando assinatura HMAC válida calculada a partir do segredo armazenado no Vault.
+
+O cenário de débito homologado utilizou um pedido sintético de R$ 3,75 e validou:
+
+- `card.paid` aceito pela Edge Function com HTTP 200;
+- intent alterada para `paid`;
+- pedido marcado como pago;
+- timer/reserva suspenso após confirmação;
+- recebível criado como `scheduled`;
+- bruto R$ 3,75;
+- taxa R$ 0,03;
+- líquido R$ 3,72;
+- dois lançamentos financeiros na confirmação: venda + taxa;
+- `receivable.settled` aceito via HTTP 200;
+- liquidação de R$ 3,72;
+- criação de uma única transferência financeira de liquidação;
+- ausência de duplicação de receita.
+
+Todos os pedidos, intents, eventos, recebíveis, lançamentos e reservas sintéticos usados nessa validação foram removidos ao final. A limpeza confirmou zero pedidos, intents, lançamentos e reservas ativas remanescentes do teste.
+
+Também foi executada uma chamada HTTP real do OptmaMenu para `https://optmapay.optmaidea.com.br/api/sandbox/v1/account` utilizando a API key armazenada no Vault. O OptmaPay respondeu HTTP 200, com `environment=sandbox` e `realMoney=false`, confirmando que a credencial, a conta merchant e o domínio publicado estão operacionais.
+
+### Falha encontrada durante a homologação de liquidação
+
+A configuração de webhook do merchant principal recebia `pix.paid` e `card.paid`, porém não estava inscrita nos eventos de liquidação. Isso impediria que o D+1 real notificasse o OptmaMenu.
+
+Foi aplicada no OptmaPay a migration:
+
+- `20261004030915_optmamenu_webhook_settlement_subscription_hardening`.
+
+Ela:
+
+- adiciona `receivable.settled` e `payment.settled` ao webhook oficial do OptmaMenu;
+- mantém o endpoint oficial da Edge Function ativo;
+- desativa dois endpoints antigos de teste (`webhook.site` e uma URL de tela administrativa que não é endpoint de webhook).
+
+A migration foi gravada nos repositórios `OptmaIdea/optmapay` e `EduSouza-OptmaIdea/optmapay` e o espelho de deploy obteve status Vercel `success`.
+
+### Estado atual do gate
+
+O gate público continua deliberadamente fechado:
+
+- `debit_card.pay_now=false`;
+- `credit_card.pay_now=false`;
+- estado `golden_passed_pending_e2e`;
+- PIX permanece `pay_now=true`.
+
+O motor autoritativo, o Vault, o domínio publicado, o HMAC, a confirmação financeira e a liquidação já foram validados.
+
+O único passo que não foi automatizado nesta sessão é a submissão do PAN/CVV do cartão fictício através do formulário público, porque a camada de segurança da ferramenta impede o envio programático desses campos mesmo sendo Sandbox. Esse teste deve ser executado manualmente no navegador após a abertura controlada do gate de homologação.
