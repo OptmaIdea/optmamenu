@@ -1843,3 +1843,48 @@ Smoke tests confirmaram a função pública da Gelinhares e ausência de categor
 - `fcad7b82735f3738f738150a1f0cddb3e28c9a60` — reorganização final da conta, mensagens e fidelidade.
 
 O deploy funcional de `fcad7b82735f3738f738150a1f0cddb3e28c9a60` foi confirmado **READY** antes deste registro.
+
+
+---
+
+## Slug pública — refinamentos após homologação visual — 04/10/2026 19h
+
+Feedback confirmado pelo usuário:
+- **Entrar** no cabeçalho aprovado;
+- temas Claro / Escuro / Sistema aprovados funcionalmente;
+- permanece pendente uma **auditoria ampla de contraste do modo escuro**, a executar depois de concluir a frente da slug pública;
+- busca alfabética aprovada, mas o input exibia dois botões de limpeza;
+- convite de avaliação por estrelas em **Meu consumo** aprovado;
+- Mensagens não recebiam os eventos recentes de pedidos e fidelidade;
+- navegação de Fidelidade ainda parecia misturar área operacional e configurações;
+- configuração manual das quatro categorias não estava encontrável na tela usada pelo usuário.
+
+Ajustes executados:
+- busca pública passou a usar apenas o **X customizado**, eliminando o botão nativo duplicado do browser;
+- a navegação do Menu foi dividida visualmente em **Loja / Minha área / Preferências**;
+- telas operacionais **Fidelidade** e **Mensagens**, quando abertas pelo Menu, não exibem mais a barra de abas de configurações da conta;
+- **Fidelidade** no Menu continua significando saldo, benefícios e extrato; **Configurar fidelidade** permanece dentro da área de conta;
+- **Categorias em destaque** foi movida para **Configurações da Loja → Aparência da Loja → Personalizar catálogo**, com contador 0/4 e seleção automática disponível;
+- foram criados produtores reais de `customer_notifications` para mudanças de status/pagamento de pedidos e para novas movimentações de `loyalty_transactions`;
+- foi realizado backfill apenas das últimas 24 horas para preservar a homologação em andamento.
+
+Diagnóstico dos benefícios da Gelinhares:
+- existem recompensas cadastradas e marcadas como ativas;
+- porém todas as recompensas existentes estão com `offer_valid_until` já vencido em 04/10/2026;
+- por isso a tela customer-facing mostrar **“Não há benefício com vigência ativa neste momento”** está correta e não representa falha de renderização.
+
+Backend:
+- migration `20261004193000_customer_order_and_loyalty_notifications.sql`;
+- aplicada no Supabase como `customer_order_and_loyalty_notifications`;
+- triggers ativos:
+  - `trg_customer_order_notification_after_write`;
+  - `trg_customer_loyalty_notification_after_insert`.
+
+Commits:
+- `7dd06570cd95f96e4147d1da791adaa08052d111` — correções de navegação, categorias, busca e produtores de mensagens;
+- `29e3bbe871efb4fe0987a4b22934d2f2e94fd598` — correção de markup do Menu após validação do build.
+
+Validação anterior ao registro:
+- GitHub Actions `Verify`: success;
+- Vercel do commit `29e3bbe871efb4fe0987a4b22934d2f2e94fd598`: READY e sem alias error;
+- Supabase: migration aplicada, triggers presentes e mensagens recentes de pedido/fidelidade materializadas.
