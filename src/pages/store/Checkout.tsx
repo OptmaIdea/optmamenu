@@ -708,6 +708,10 @@ export default function Checkout() {
             const usesIntegratedOptmaPayPix = paymentTiming === 'pay_now'
                 && selectedPayNowMethod?.base_code === 'pix'
                 && selectedPayNowMethod.confirmation_mode === 'api';
+            const usesIntegratedOptmaPayCard = paymentTiming === 'pay_now'
+                && ['debit_card', 'credit_card'].includes(selectedPayNowMethod?.base_code || '')
+                && selectedPayNowMethod?.confirmation_mode === 'api';
+            const usesIntegratedOptmaPayPayment = usesIntegratedOptmaPayPix || usesIntegratedOptmaPayCard;
 
             let paymentInitiationError = false;
             if (usesIntegratedOptmaPayPix) {
@@ -727,12 +731,12 @@ export default function Checkout() {
             }
             clearCart();
 
-            if (usesIntegratedOptmaPayPix) {
+            if (usesIntegratedOptmaPayPayment) {
                 navigate(`/p/${encodeURIComponent(result.order.public_order_token)}`, {
                     replace: true,
-                    state: {
-                        paymentInitiationError,
-                    },
+                    state: usesIntegratedOptmaPayPix
+                        ? { paymentInitiationError }
+                        : undefined,
                 });
                 return;
             }
