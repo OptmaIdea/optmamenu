@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import type { LucideIcon } from 'lucide-react';
 import {
   CheckCircle2,
@@ -159,7 +159,11 @@ function settlementPlanLabel(plan?: string | null) {
 
 export default function OnlinePaymentsPage() {
   const storeId = getActiveStoreId();
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState<Tab>(() => (
+    tabs.some((tab) => tab.id === requestedTab) ? requestedTab as Tab : 'overview'
+  ));
   const [workspace, setWorkspace] = useState<OnlinePaymentsWorkspace | null>(null);
   const [optmaStatus, setOptmaStatus] = useState<OptmaPaySandboxStatus | null>(null);
   const [optmaCredential, setOptmaCredential] = useState<OptmaPayCredentialStatus | null>(null);
@@ -208,6 +212,12 @@ export default function OnlinePaymentsPage() {
   }, [storeId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (requestedTab && tabs.some((tab) => tab.id === requestedTab)) {
+      setActiveTab(requestedTab as Tab);
+    }
+  }, [requestedTab]);
 
   const optmaProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'optma_sandbox' && item.environment === 'sandbox') || null, [workspace]);
   const asaasProvider = useMemo(() => workspace?.providers.find((item) => item.provider_code === 'asaas' && item.environment === 'sandbox') || null, [workspace]);
