@@ -6,6 +6,12 @@ import {
   type PublicOptmaPayPaymentState,
 } from '@/services/publicOrderService';
 
+function formatCardExpiryInput(value: string) {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
 function formatCurrency(value?: number | null) {
   return Number(value || 0).toLocaleString('pt-BR', {
     style: 'currency',
@@ -337,8 +343,9 @@ export default function PublicOrderOptmaPayCard({ token }: { token: string }) {
                   inputMode="numeric"
                   autoComplete="cc-exp"
                   value={expirationDate}
-                  onChange={(event) => setExpirationDate(event.target.value)}
+                  onChange={(event) => setExpirationDate(formatCardExpiryInput(event.target.value))}
                   placeholder="MM/AA"
+                  maxLength={5}
                   disabled={working}
                   className="rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-violet-500"
                 />
