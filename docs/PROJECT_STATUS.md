@@ -1538,3 +1538,26 @@ Cards informativos:
 - validar ausência de ruído 401/403/423 para os cenários esperados já tratados;
 - finalizar a frente Fidelidade;
 - executar apenas depois o reteste conjunto com OptmaPay, cuja evolução ocorre em frente separada.
+
+
+---
+
+## Fechamento de Trusted Devices e sessão revogada — 03/10/2026
+
+Baseline reconciliado antes da alteração na branch compartilhada `agent/homologacao-geral-20260820`:
+- HEAD remoto de entrada: `bf27bf920f1e41e5ce4027a2b80b440ae05df068`;
+- Supabase com `20261003203500_customer_targeted_trusted_device_sessions` aplicado;
+- Edge Function `customer-auth-session` ativa;
+- Vercel apontando para a mesma branch, sem reset/reversão das frentes paralelas de OptmaPay/Fidelidade.
+
+A frente CLIENTES corrigiu o fechamento de dispositivos confiáveis sem abrir acesso direto à tabela:
+- `persistDeviceMetadata` continua atualizando User-Agent/atividade, mas só preenche `device_label` automaticamente quando o campo estiver vazio; apelidos definidos pelo cliente deixam de ser sobrescritos;
+- renomear com valor vazio restaura o nome automático derivado do User-Agent já conhecido daquele dispositivo;
+- a tela de Segurança atualiza a lista de dispositivos por polling customer-scoped a cada 8 segundos, além de foco/visibilidade, sem expor `customer_auth_trusted_devices` ao navegador;
+- edição do apelido passa a usar toda a largura útil, o badge **Este dispositivo** não comprime mais o input e o texto atual é selecionado ao focar;
+- foi incluída a ação explícita **Remover apelido e usar nome automático**;
+- restauração de sessão valida primeiro uma sessão ainda vigente pela Edge Function com resposta funcional HTTP 200; revogação esperada é convertida em estado deslogado antes de insistir no GoTrue;
+- renovação normal usa `refreshSession` e o cliente deixou de forçar refresh em qualquer HTTP 401, evitando loops quando o 401 representa revogação intencional da sessão/dispositivo;
+- lock de senha e demais recusas esperadas permanecem como respostas funcionais tratadas pela aplicação.
+
+Não houve migration nova neste bloco: a correção reutiliza as colunas e RPCs seguras já existentes. A Edge Function é a única implantação Supabase necessária.

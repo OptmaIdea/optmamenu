@@ -119,8 +119,7 @@ async function ensureCustomerAccessToken(forceRefresh = false): Promise<string |
 
     if (!customerRefreshPromise) {
         customerRefreshPromise = (async () => {
-            const { data, error } = await supabaseCustomerAuth.auth.setSession({
-                access_token: token || '',
+            const { data, error } = await supabaseCustomerAuth.auth.refreshSession({
                 refresh_token: refreshToken || '',
             });
 
@@ -195,19 +194,11 @@ export const supabaseCustomer = createClient(supabaseUrl, supabaseAnonKey, {
                 return headers;
             };
 
-            let response = await fetch(url, { ...options, headers: buildHeaders(token) });
-
-            // Uma sessão pode vencer entre a renderização e uma consulta REST/RPC.
-            // Tenta renovar uma única vez antes de devolver 401 para a interface.
-            if (response.status === 401 && shouldAttachCustomerJwt) {
-                const refreshedToken = await ensureCustomerAccessToken(true);
-                if (refreshedToken) {
-                    token = refreshedToken;
-                    response = await fetch(url, { ...options, headers: buildHeaders(token) });
-                }
-            }
-
-            return response;
+            // O token é renovado preventivamente antes da requisição. Não fazemos
+            // refresh automático em qualquer 401: no portal do cliente, 401 também
+            // pode significar revogação intencional de uma sessão/dispositivo.
+            // Repetir nesse caso apenas gera ruído e loops desnecessários.
+            return fetch(url, { ...options, headers: buildHeaders(token) });
         },
     },
 });

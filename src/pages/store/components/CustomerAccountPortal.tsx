@@ -115,6 +115,7 @@ interface LoyaltyProgramSummary {
 type AccountTab = 'profile' | 'addresses' | 'orders' | 'consumption' | 'communications' | 'loyalty' | 'security';
 
 const CUSTOMER_ORDERS_REFRESH_MS = 12000;
+const CUSTOMER_SECURITY_REFRESH_MS = 8000;
 
 const EMPTY_ADDRESS: CustomerAddress = {
     zip_code: '',
@@ -1002,9 +1003,22 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     useEffect(() => {
         if (!open || !customer || tab !== 'security') return;
-        void loadTrustedDevices().catch((deviceError) => {
-            console.error('[CUSTOMER_SECURITY] Falha ao carregar dispositivos:', deviceError);
-        });
+
+        const refreshTrustedDevices = () => {
+            if (document.visibilityState !== 'visible') return;
+            void loadTrustedDevices({ silent: true }).catch(() => undefined);
+        };
+
+        void loadTrustedDevices().catch(() => undefined);
+        const intervalId = window.setInterval(refreshTrustedDevices, CUSTOMER_SECURITY_REFRESH_MS);
+        window.addEventListener('focus', refreshTrustedDevices);
+        document.addEventListener('visibilitychange', refreshTrustedDevices);
+
+        return () => {
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', refreshTrustedDevices);
+            document.removeEventListener('visibilitychange', refreshTrustedDevices);
+        };
     }, [open, customer?.id, tab, loadTrustedDevices]);
 
     if (!customer) return null;
@@ -1574,11 +1588,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         clearFeedback();
     };
 
-    const saveTrustedDeviceLabel = async (deviceId: string) => {
+    const saveTrustedDeviceLabel = async (deviceId: string, nextLabel = editingTrustedDeviceLabel) => {
         clearFeedback();
-        const label = editingTrustedDeviceLabel.trim();
-        if (!label || label.length > 40) {
-            setError('Use um apelido de 1 a 40 caracteres.');
+        const label = nextLabel.trim();
+        if (label.length > 40) {
+            setError('Use um apelido de até 40 caracteres.');
             return;
         }
 
@@ -1590,7 +1604,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             )));
             setEditingTrustedDeviceId(null);
             setEditingTrustedDeviceLabel('');
-            toast.success('Apelido do dispositivo atualizado.');
+            toast.success(label ? 'Apelido do dispositivo atualizado.' : 'Nome automático do dispositivo restaurado.');
         } catch (deviceError) {
             const feedback = deviceError instanceof Error
                 ? deviceError.message
@@ -2649,68 +2663,81 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                     <div className="mt-4 space-y-2">
                                                         {trustedDevices.map((device) => (
                                                             <div key={device.id} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
-                                                                <div className="flex items-start justify-between gap-3">
-                                                                    <div className="min-w-0 flex-1">
-                                                                        {editingTrustedDeviceId === device.id ? (
-                                                                            <div className="flex gap-2">
+                                                                <div className="min-w-0">
+                                                                    {device.is_current && (
+                                                                        <div className="mb-2">
+                                                                            <span className="inline-flex rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">
+                                                                                Este dispositivo
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+                                                                    {editingTrustedDeviceId === device.id ? (
+                                                                        <div className="space-y-2">
+                                                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                                                                 <input
                                                                                     type="text"
                                                                                     value={editingTrustedDeviceLabel}
                                                                                     maxLength={40}
                                                                                     onChange={(event) => setEditingTrustedDeviceLabel(event.target.value)}
-                                                                                    className="min-h-10 min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                                                                                    onFocus={(event) => event.currentTarget.select()}
+                                                                                    className="min-h-10 w-full min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
                                                                                     aria-label="Apelido do dispositivo"
                                                                                     autoFocus
                                                                                 />
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => void saveTrustedDeviceLabel(device.id)}
-                                                                                    disabled={trustedDevicesLoading}
-                                                                                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white disabled:opacity-50"
-                                                                                    aria-label="Salvar apelido"
-                                                                                    title="Salvar apelido"
-                                                                                >
-                                                                                    <Save className="h-4 w-4" />
-                                                                                </button>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => {
-                                                                                        setEditingTrustedDeviceId(null);
-                                                                                        setEditingTrustedDeviceLabel('');
-                                                                                    }}
-                                                                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 dark:border-slate-700"
-                                                                                    aria-label="Cancelar edição"
-                                                                                    title="Cancelar"
-                                                                                >
-                                                                                    <X className="h-4 w-4" />
-                                                                                </button>
+                                                                                <div className="flex shrink-0 gap-2">
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => void saveTrustedDeviceLabel(device.id)}
+                                                                                        disabled={trustedDevicesLoading}
+                                                                                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white disabled:opacity-50"
+                                                                                        aria-label="Salvar apelido"
+                                                                                        title="Salvar apelido"
+                                                                                    >
+                                                                                        <Save className="h-4 w-4" />
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => {
+                                                                                            setEditingTrustedDeviceId(null);
+                                                                                            setEditingTrustedDeviceLabel('');
+                                                                                        }}
+                                                                                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 text-slate-500 dark:border-slate-700"
+                                                                                        aria-label="Cancelar edição"
+                                                                                        title="Cancelar"
+                                                                                    >
+                                                                                        <X className="h-4 w-4" />
+                                                                                    </button>
+                                                                                </div>
                                                                             </div>
-                                                                        ) : (
-                                                                            <div className="flex items-center gap-2">
-                                                                                <p className="truncate font-black text-slate-900 dark:text-white">{device.label}</p>
-                                                                                <button
-                                                                                    type="button"
-                                                                                    onClick={() => startRenameTrustedDevice(device)}
-                                                                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-emerald-600 dark:hover:bg-slate-800"
-                                                                                    aria-label={`Dar apelido para ${device.label}`}
-                                                                                    title="Renomear dispositivo"
-                                                                                >
-                                                                                    <Pencil className="h-3.5 w-3.5" />
-                                                                                </button>
-                                                                            </div>
-                                                                        )}
-                                                                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                                                            Última atividade: {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('pt-BR') : 'não informada'}
-                                                                        </p>
-                                                                        <p className="text-xs leading-5 text-slate-400">
-                                                                            Última confirmação por SMS: {device.last_otp_verified_at ? new Date(device.last_otp_verified_at).toLocaleString('pt-BR') : 'não informada'}
-                                                                        </p>
-                                                                    </div>
-                                                                    {device.is_current && (
-                                                                        <span className="shrink-0 rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">
-                                                                            Este dispositivo
-                                                                        </span>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => void saveTrustedDeviceLabel(device.id, '')}
+                                                                                disabled={trustedDevicesLoading}
+                                                                                className="text-left text-xs font-black text-slate-500 underline-offset-2 hover:text-emerald-700 hover:underline disabled:opacity-50 dark:text-slate-400 dark:hover:text-emerald-300"
+                                                                            >
+                                                                                Remover apelido e usar nome automático
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="flex min-w-0 items-center gap-2">
+                                                                            <p className="truncate font-black text-slate-900 dark:text-white">{device.label}</p>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => startRenameTrustedDevice(device)}
+                                                                                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-white hover:text-emerald-600 dark:hover:bg-slate-800"
+                                                                                aria-label={`Dar apelido para ${device.label}`}
+                                                                                title="Renomear dispositivo"
+                                                                            >
+                                                                                <Pencil className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                        </div>
                                                                     )}
+                                                                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                                        Última atividade: {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('pt-BR') : 'não informada'}
+                                                                    </p>
+                                                                    <p className="text-xs leading-5 text-slate-400">
+                                                                        Última confirmação por SMS: {device.last_otp_verified_at ? new Date(device.last_otp_verified_at).toLocaleString('pt-BR') : 'não informada'}
+                                                                    </p>
                                                                 </div>
 
                                                                 {revokingTrustedDeviceId === device.id && !device.is_current ? (

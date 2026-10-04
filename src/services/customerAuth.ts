@@ -136,8 +136,7 @@ async function refreshCustomerSessionIfNeeded() {
     if (token && (!expiresAt || expiresAt > nowSeconds + 60)) return token;
     if (!refreshToken) return token;
 
-    const { data, error } = await supabaseCustomerAuth.auth.setSession({
-        access_token: token || '',
+    const { data, error } = await supabaseCustomerAuth.auth.refreshSession({
         refresh_token: refreshToken,
     });
 
@@ -430,8 +429,8 @@ export const AuthService = {
         if (!token) throw new Error('Sua sessão expirou. Entre novamente para renomear o dispositivo.');
 
         const cleanLabel = label.trim();
-        if (!cleanLabel || cleanLabel.length > 40) {
-            throw new Error('Use um apelido de 1 a 40 caracteres.');
+        if (cleanLabel.length > 40) {
+            throw new Error('Use um apelido de até 40 caracteres.');
         }
 
         const deviceTokenHash = await getDeviceTokenHash();
@@ -453,8 +452,8 @@ export const AuthService = {
         if (payload?.error === 'reauth_required' || payload?.error === 'session_expired') {
             throw new Error('Sua sessão de segurança expirou. Entre novamente para continuar.');
         }
-        if (payload?.error === 'invalid_label') {
-            throw new Error('Use um apelido de 1 a 40 caracteres.');
+        if (payload?.error === 'invalid_label' || payload?.error === 'invalid_request') {
+            throw new Error('Use um apelido de até 40 caracteres.');
         }
         if (payload?.error === 'device_not_found') {
             throw new Error('Este dispositivo não está mais ativo.');
@@ -463,7 +462,7 @@ export const AuthService = {
             throw new Error('Não foi possível renomear o dispositivo agora.');
         }
 
-        return String(payload.label || cleanLabel);
+        return String(payload.label || cleanLabel || 'Dispositivo confiável');
     },
 
     async revokeTrustedDevice(deviceId: string, currentPassword: string) {
@@ -559,13 +558,47 @@ export const AuthService = {
     },
 
     async restoreSession() {
+        const currentToken = getCustomerToken();
+        const deviceTokenHash = await getDeviceTokenHash();
+        const expiresAt = Number(localStorage.getItem(CUSTOMER_EXPIRES_AT_KEY) || 0);
+        const nowSeconds = Math.floor(Date.now() / 1000);
+
+        // Antes de tocar no GoTrue, valida uma sessão ainda vigente pela própria
+        // fronteira customer-scoped. Revogação esperada vira estado deslogado sem
+        // insistir em /auth/v1/user ou em loops de refresh.
+        if (currentToken && (!expiresAt || expiresAt > nowSeconds + 30)) {
+            const { data: preflight, error: preflightError } = await supabasePublic.functions.invoke('customer-auth-session', {
+                headers: { Authorization: `Bearer ${currentToken}` },
+                body: { action: 'me', deviceTokenHash },
+            });
+
+            if (!preflightError && preflight?.ok && preflight?.customer) {
+                const customer = toCustomer(preflight.customer);
+                useCustomerAuth.getState().login(customer);
+                return {
+                    customer,
+                    passwordConfigured: Boolean(preflight.passwordConfigured),
+                };
+            }
+
+            if (!preflightError && (
+                preflight?.error === 'session_expired'
+                || preflight?.error === 'reauth_required'
+                || preflight?.error === 'unauthorized'
+            )) {
+                clearPersistedCustomerSession();
+                await supabaseCustomerAuth.auth.signOut({ scope: 'local' }).catch(() => undefined);
+                useCustomerAuth.getState().logout?.();
+                return null;
+            }
+        }
+
         const token = await refreshCustomerSessionIfNeeded();
         if (!token) {
             useCustomerAuth.getState().logout?.();
             return null;
         }
 
-        const deviceTokenHash = await getDeviceTokenHash();
         const { data, error } = await supabaseCustomer.functions.invoke('customer-auth-session', {
             body: { action: 'me', deviceTokenHash },
         });

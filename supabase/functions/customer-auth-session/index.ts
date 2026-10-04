@@ -82,17 +82,46 @@ async function persistDeviceMetadata(
   if (!validDeviceHash(deviceTokenHash)) return;
 
   const userAgent = String(req.headers.get("user-agent") || "").slice(0, 500);
+  const updatedAt = new Date().toISOString();
+  const automaticLabel = deviceLabelFromUserAgent(userAgent);
+
+  // User-Agent continua sendo metadado técnico, mas um apelido escolhido pelo
+  // cliente nunca deve ser sobrescrito pelo heartbeat da sessão.
   await service
     .from("customer_auth_trusted_devices")
     .update({
-      device_label: deviceLabelFromUserAgent(userAgent),
       user_agent: userAgent || null,
-      updated_at: new Date().toISOString(),
+      updated_at: updatedAt,
     })
     .eq("customer_id", customerId)
     .eq("store_id", storeId)
     .eq("device_token_hash", deviceTokenHash)
     .is("revoked_at", null);
+
+  // Preenche o nome automático somente enquanto não existir nome persistido.
+  await service
+    .from("customer_auth_trusted_devices")
+    .update({
+      device_label: automaticLabel,
+      updated_at: updatedAt,
+    })
+    .eq("customer_id", customerId)
+    .eq("store_id", storeId)
+    .eq("device_token_hash", deviceTokenHash)
+    .is("revoked_at", null)
+    .is("device_label", null);
+
+  await service
+    .from("customer_auth_trusted_devices")
+    .update({
+      device_label: automaticLabel,
+      updated_at: updatedAt,
+    })
+    .eq("customer_id", customerId)
+    .eq("store_id", storeId)
+    .eq("device_token_hash", deviceTokenHash)
+    .is("revoked_at", null)
+    .eq("device_label", "");
 }
 
 async function waitForRotatedSessionBoundary(validAfter: unknown) {
@@ -386,9 +415,30 @@ Deno.serve(async (req: Request) => {
     }
 
     const targetDeviceId = String(input.deviceId || "");
-    const label = String(input.label || "").trim();
-    if (!validUuid(targetDeviceId) || !label) {
+    const requestedLabel = String(input.label || "").trim();
+    if (!validUuid(targetDeviceId) || requestedLabel.length > 40) {
       return json({ ok: false, error: "invalid_request" }, 200, origin);
+    }
+
+    let label = requestedLabel;
+    let resetToAutomatic = false;
+
+    if (!label) {
+      const { data: targetDevice, error: targetDeviceError } = await service
+        .from("customer_auth_trusted_devices")
+        .select("user_agent")
+        .eq("id", targetDeviceId)
+        .eq("customer_id", identity.customer_id)
+        .eq("store_id", identity.store_id)
+        .is("revoked_at", null)
+        .maybeSingle();
+
+      if (targetDeviceError || !targetDevice) {
+        return json({ ok: false, error: "device_not_found" }, 200, origin);
+      }
+
+      label = deviceLabelFromUserAgent(String(targetDevice.user_agent || ""));
+      resetToAutomatic = true;
     }
 
     const { data: result, error } = await service.rpc("customer_rename_trusted_device_service_safe", {
@@ -401,7 +451,7 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ ok: false, error: "device_rename_failed" }, 500, origin);
     if (!result?.ok) return json({ ok: false, error: result?.error || "device_rename_failed" }, 200, origin);
 
-    return json({ ok: true, label: result.label }, 200, origin);
+    return json({ ok: true, label: result.label, resetToAutomatic }, 200, origin);
   }
 
   if (action === "revoke_device") {
