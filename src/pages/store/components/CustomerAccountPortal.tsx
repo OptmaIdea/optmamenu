@@ -478,6 +478,12 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [phoneChangeOtp, setPhoneChangeOtp] = useState('');
     const [phoneChangeOtpSent, setPhoneChangeOtpSent] = useState(false);
     const [phoneChangeSubmitting, setPhoneChangeSubmitting] = useState(false);
+    const [protectedProfileOpen, setProtectedProfileOpen] = useState(false);
+    const [protectedCpf, setProtectedCpf] = useState('');
+    const [protectedBirthDate, setProtectedBirthDate] = useState('');
+    const [protectedProfileOtp, setProtectedProfileOtp] = useState('');
+    const [protectedProfileOtpSent, setProtectedProfileOtpSent] = useState(false);
+    const [protectedProfileSubmitting, setProtectedProfileSubmitting] = useState(false);
 
     const displayName = useMemo(
         () => customer?.nickname || customer?.full_name || 'cliente',
@@ -1261,6 +1267,87 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             toast.error(feedback);
         } finally {
             setExportingData(false);
+        }
+    };
+
+    const openProtectedProfileCorrection = () => {
+        setProtectedProfileOpen((current) => {
+            const next = !current;
+            if (next) {
+                setProtectedCpf(onlyDigits(customer.cpf || ''));
+                setProtectedBirthDate(customer.birth_date || '');
+                setProtectedProfileOtp('');
+                setProtectedProfileOtpSent(false);
+                clearFeedback();
+            }
+            return next;
+        });
+    };
+
+    const requestProtectedProfileOtp = async () => {
+        clearFeedback();
+        setProtectedProfileSubmitting(true);
+        try {
+            await AuthService.sendOtp(customer.phone, customer.store_id, 'profile_change');
+            setProtectedProfileOtpSent(true);
+            const feedback = 'Enviamos um código por SMS ao seu telefone confirmado. Ele expira em 5 minutos.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (otpError) {
+            const feedback = otpError instanceof Error
+                ? otpError.message
+                : 'Não foi possível enviar o código de confirmação agora.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setProtectedProfileSubmitting(false);
+        }
+    };
+
+    const confirmProtectedProfileCorrection = async () => {
+        clearFeedback();
+        if (onlyDigits(protectedProfileOtp).length !== 6) {
+            setError('Informe o código de 6 dígitos recebido por SMS.');
+            return;
+        }
+
+        const currentCpf = onlyDigits(customer.cpf || '');
+        const nextCpf = onlyDigits(protectedCpf);
+        const currentBirth = customer.birth_date || '';
+        const cpfChanged = Boolean(nextCpf) && nextCpf !== currentCpf;
+        const birthChanged = Boolean(protectedBirthDate) && protectedBirthDate !== currentBirth;
+
+        if (!cpfChanged && !birthChanged) {
+            setError('Altere o CPF ou a data de nascimento antes de confirmar.');
+            return;
+        }
+
+        setProtectedProfileSubmitting(true);
+        try {
+            const result = await CustomerService.changeSelfSensitiveProfile({
+                otp: onlyDigits(protectedProfileOtp),
+                cpf: cpfChanged ? nextCpf : null,
+                birthDate: birthChanged ? protectedBirthDate : null,
+            });
+
+            await refreshCustomerSnapshot();
+            setCpf(result.cpf || nextCpf || currentCpf);
+            setBirthDate(result.birthDate || protectedBirthDate || currentBirth);
+            setProfileDirty(false);
+            setProtectedProfileOpen(false);
+            setProtectedProfileOtp('');
+            setProtectedProfileOtpSent(false);
+            const feedback = 'Dados protegidos atualizados com confirmação por SMS.';
+            setMessage(feedback);
+            toast.success(feedback);
+        } catch (profileError) {
+            const feedback = profileError instanceof Error
+                ? profileError.message
+                : 'Não foi possível corrigir seus dados protegidos.';
+            setError(feedback);
+            toast.error(feedback);
+        } finally {
+            setProtectedProfileSubmitting(false);
         }
     };
 
