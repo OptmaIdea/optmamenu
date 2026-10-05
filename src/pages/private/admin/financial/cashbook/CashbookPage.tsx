@@ -89,6 +89,7 @@ function isCancelledStatus(status?: string | null) {
 type CashbookFormMode = 'create' | 'edit';
 type CashbookStatusFilter = 'active' | 'cancelled' | 'all';
 type ViewMode = 'libro' | 'extrato';
+type StatementDetailMode = 'simple' | 'full';
 
 interface CashbookFormState {
     mode: CashbookFormMode;
@@ -130,12 +131,15 @@ interface AccountStatementItem {
     payment_method?: string | null;
     payment_method_code?: string | null;
     source?: string | null;
+    source_id?: string | null;
     order_id?: string | null;
     order_code?: string | null;
     order_customer_name?: string | null;
     customer_id?: string | null;
     type?: string | null;
-    account_direction: 'in' | 'out';
+    is_transfer?: boolean | null;
+    amount?: number;
+    account_direction: 'in' | 'out' | 'transfer';
     signed_amount: number;
     running_balance_after: number;
     counterpart_account_name?: string | null;
@@ -244,7 +248,12 @@ function normalizeStatement(raw: Record<string, unknown>): AccountStatementResul
                 const row = item as Record<string, unknown>;
                 return {
                     ...row,
-                    account_direction: row.account_direction === 'out' ? 'out' : 'in',
+                    account_direction: row.account_direction === 'out'
+                        ? 'out'
+                        : row.account_direction === 'transfer'
+                            ? 'transfer'
+                            : 'in',
+                    amount: Number(row.amount || 0),
                     signed_amount: Number(row.signed_amount || 0),
                     running_balance_after: Number(row.running_balance_after || 0),
                 } as AccountStatementItem;
@@ -271,6 +280,12 @@ export default function CashbookPage() {
         fees: 0,
         net: 0,
     });
+    const [receivableByOrderId, setReceivableByOrderId] = useState<Record<string, {
+        status: string;
+        settledAt: string | null;
+        expectedSettlementAt: string | null;
+        netAmount: number;
+    }>>({});
     const [accounts, setAccounts] = useState<FinancialAccountOption[]>([]);
     const [statement, setStatement] = useState<AccountStatementResult | null>(null);
     const [loading, setLoading] = useState(true);
@@ -279,6 +294,7 @@ export default function CashbookPage() {
     const [endDate, setEndDate] = useState(initialDates.end);
     const [periodFilter, setPeriodFilter] = useState('current_month');
     const [viewMode, setViewMode] = useState<ViewMode>('libro');
+    const [statementDetailMode, setStatementDetailMode] = useState<StatementDetailMode>('simple');
     const [statementAccountId, setStatementAccountId] = useState('all');
     const [customerFilter, setCustomerFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState<CashbookStatusFilter>('active');
@@ -292,6 +308,19 @@ export default function CashbookPage() {
         () => accounts.find((account) => account.id === statementAccountId) || null,
         [accounts, statementAccountId],
     );
+
+    const accountNameById = useMemo(
+        () => Object.fromEntries(accounts.map((account) => [account.id, account.name])),
+        [accounts],
+    );
+
+    const displayedStatementItems = useMemo(() => {
+        const items = statement?.items || [];
+        if (statementDetailMode === 'full') return items;
+        if (statementAccountId !== 'all') return items;
+
+        return items.filter((item) => item.source !== 'online_payment_settlement');
+    }, [statement?.items, statementAccountId, statementDetailMode]);
 
     const filteredEntries = useMemo(() => {
         const customerTerm = customerFilter.trim().toLowerCase();
@@ -393,7 +422,7 @@ export default function CashbookPage() {
             const absoluteStart = '1970-01-01';
             const absoluteEnd = getDateInputValue(today);
 
-            const [entriesData, summaryData, accountsResult, onlinePaymentsResult] = await Promise.all([
+            const [entriesData, summaryData, accountsResult, onlineReceivablesResult] = await Promise.all([
                 CashbookService.listByStore(storeId, rangeStart, rangeEnd),
                 CashbookService.getSummary(storeId, rangeStart || absoluteStart, rangeEnd || absoluteEnd),
                 supabase
@@ -404,13 +433,14 @@ export default function CashbookPage() {
                     .order('sort_order', { ascending: true })
                     .order('name', { ascending: true }),
                 canViewOnlinePayments
-                    ? OnlinePaymentsService.getWorkspace(storeId).catch(() => null)
+                    ? OnlinePaymentsService.listReceivables(storeId, { limit: 500 }).catch(() => null)
                     : Promise.resolve(null),
             ]);
 
             if (accountsResult.error) throw accountsResult.error;
 
-            const openCardReceivables = (onlinePaymentsResult?.receivables || []).filter(
+            const allCardReceivables = onlineReceivablesResult?.items || [];
+            const openCardReceivables = allCardReceivables.filter(
                 (receivable) => receivable.status !== 'settled',
             );
 
@@ -425,6 +455,19 @@ export default function CashbookPage() {
                 ),
                 net: openCardReceivables.reduce((total, receivable) => total + Number(receivable.net_amount || 0), 0),
             });
+            setReceivableByOrderId(Object.fromEntries(
+                allCardReceivables
+                    .filter((receivable) => Boolean(receivable.order_id))
+                    .map((receivable) => [
+                        receivable.order_id as string,
+                        {
+                            status: receivable.status,
+                            settledAt: receivable.settled_at || null,
+                            expectedSettlementAt: receivable.expected_settlement_at || null,
+                            netAmount: Number(receivable.net_amount || 0),
+                        },
+                    ]),
+            ));
             setAccounts((accountsResult.data || []) as FinancialAccountOption[]);
         } catch (err) {
             console.error('Erro ao carregar dados do livro de caixa:', err);
@@ -657,7 +700,7 @@ export default function CashbookPage() {
                 </>
             ) : (
                 <div className="space-y-4">
-                    <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Extrato financeiro</p><h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{statementScopeLabel}</h2><p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{statementScopeDetail} · {periodLabel}</p></div><label className="w-full max-w-md space-y-1"><span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Conta do extrato</span><select value={statementAccountId} onChange={(event) => setStatementAccountId(event.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"><option value="all">Todas as contas — consolidado</option>{accounts.map((account) => <option key={account.id} value={account.id}>{formatFinancialAccountOptionLabel(account)}{account.active ? '' : ' (inativa)'}</option>)}</select></label></div></div>
+                    <div className="rounded-3xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-xs font-black uppercase tracking-widest text-[#19A999]">Extrato financeiro</p><h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">{statementScopeLabel}</h2><p className="text-sm font-semibold text-gray-500 dark:text-gray-400">{statementScopeDetail} · {periodLabel}</p><div className="mt-3 inline-flex rounded-xl bg-gray-100 p-1 dark:bg-gray-950"><button type="button" onClick={() => setStatementDetailMode('simple')} className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${statementDetailMode === 'simple' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white' : 'text-gray-500'}`}>Simplificado</button><button type="button" onClick={() => setStatementDetailMode('full')} className={`rounded-lg px-3 py-1.5 text-xs font-black transition ${statementDetailMode === 'full' ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-800 dark:text-white' : 'text-gray-500'}`}>Completo</button></div><p className="mt-2 max-w-xl text-xs font-semibold text-gray-400">{statementDetailMode === 'simple' ? 'No consolidado, liquidações técnicas são incorporadas ao status da venda original.' : 'Mostra também cada transferência e liquidação técnica entre contas.'}</p></div><label className="w-full max-w-md space-y-1"><span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Conta do extrato</span><select value={statementAccountId} onChange={(event) => setStatementAccountId(event.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-bold text-gray-700 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"><option value="all">Todas as contas — consolidado</option>{accounts.map((account) => <option key={account.id} value={account.id}>{formatFinancialAccountOptionLabel(account)}{account.active ? '' : ' (inativa)'}</option>)}</select></label></div></div>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                         <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"><p className="text-xs font-black uppercase tracking-widest text-gray-400">Saldo inicial</p><p className="mt-2 text-2xl font-black text-gray-900 dark:text-white">{formatCurrencyPtBr(statement?.opening_balance || 0)}</p><p className="mt-1 text-[10px] font-bold uppercase text-gray-400">Antes do período</p></div>
                         <div className="rounded-2xl border border-emerald-100 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900"><p className="text-xs font-black uppercase tracking-widest text-emerald-600">Entradas</p><p className="mt-2 text-2xl font-black text-emerald-600">{formatCurrencyPtBr(statement?.period_inflows || 0)}</p><p className="mt-1 text-[10px] font-bold uppercase text-gray-400">Neste período</p></div>
@@ -683,7 +726,14 @@ export default function CashbookPage() {
                 {viewMode === 'libro' ? (
                     <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0"><table className="w-full min-w-[660px] text-sm"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:bg-gray-900/40"><tr><th className="px-6 py-4 text-left">Data</th><th className="px-6 py-4 text-left">Descrição</th><th className="px-6 py-4 text-left">Tipo</th><th className="px-6 py-4 text-right">Valor</th><th className="px-6 py-4 text-right">Ações</th></tr></thead><tbody className="divide-y divide-gray-50 dark:divide-gray-700">{filteredEntries.length > 0 ? filteredEntries.map((entry) => { const isCancelled = isCancelledStatus(entry.status); const cancelledClass = isCancelled ? 'text-gray-400 line-through dark:text-gray-500' : ''; return <tr key={entry.id} className={`transition ${isCancelled ? 'bg-gray-50/70 opacity-75 dark:bg-gray-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'}`}><td className={`whitespace-nowrap px-6 py-4 font-medium ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>{formatDate(entry.occurred_at)}</td><td className="px-6 py-4"><div className={`font-bold tracking-tight ${isCancelled ? cancelledClass : 'text-gray-900 dark:text-white'}`}>{entry.type === 'sale' ? <>Venda concluída: {entry.description.replace('Venda concluída pelo pedido ', '')}</> : entry.description}</div>{entry.type === 'sale' && <div className={`mt-1 text-xs font-bold ${isCancelled ? cancelledClass : 'text-gray-500 dark:text-gray-400'}`}>Cliente: {getCustomerLabel(entry) || entry.customer_id || 'Não informado'}</div>}{(entry.payment_method_code || entry.payment_method) && <div className={`text-[10px] font-black uppercase tracking-tighter ${isCancelled ? cancelledClass : 'text-gray-400'}`}>{getPaymentMethodLabel(entry.payment_method_code || entry.payment_method)}</div>}</td><td className="whitespace-nowrap px-6 py-4"><div className="flex items-center gap-2">{entry.direction === 'in' ? <ArrowUpCircle size={16} className="text-emerald-500" /> : <ArrowDownCircle size={16} className="text-rose-500" />}<span className={`text-[10px] font-black uppercase tracking-widest ${entry.direction === 'in' ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>{entry.direction === 'in' ? 'Entrada' : 'Saída'}</span></div></td><td className="whitespace-nowrap px-6 py-4 text-right font-black tracking-tighter"><div className={isCancelled ? cancelledClass : entry.direction === 'in' ? 'text-emerald-600' : 'text-rose-600'}>{entry.direction === 'in' ? '+' : '-'} {formatCurrencyPtBr(entry.amount)}</div></td><td className="px-6 py-4 text-right"><div className="flex justify-end gap-2"><button type="button" onClick={() => setSelectedEntry(entry)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title="Ver detalhes" aria-label="Ver detalhes"><Eye size={15} /></button>{canCreateCashbookEntry && <button type="button" onClick={() => openEditForm(entry)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'} aria-label={entry.type === 'sale' ? 'Editar descrição' : 'Editar lançamento'}><Edit2 size={15} /></button>}{entry.type !== 'sale' && !isCancelled && canCancelCashbookEntry && <button type="button" onClick={() => handleCancelEntry(entry)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-rose-200 text-rose-600 transition hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/30" title="Cancelar lançamento" aria-label="Cancelar lançamento"><Ban size={15} /></button>}</div></td></tr>; }) : <tr><td colSpan={5} className="px-6 py-16 text-center italic text-gray-400">Nenhum lançamento encontrado.</td></tr>}</tbody></table></div>
                 ) : (
-                    <div className="overflow-x-auto"><table className="w-full min-w-[840px] text-sm"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:bg-gray-900/40"><tr><th className="px-6 py-4 text-left">Data</th><th className="px-6 py-4 text-left">Lançamento</th><th className="px-6 py-4 text-left">Forma</th><th className="px-6 py-4 text-right">Entrada</th><th className="px-6 py-4 text-right">Saída</th><th className="px-6 py-4 text-right">Saldo após</th><th className="px-6 py-4 text-right">Ações</th></tr></thead><tbody className="divide-y divide-gray-50 dark:divide-gray-700">{statementLoading ? <tr><td colSpan={7} className="px-6 py-16 text-center font-bold text-gray-400">Carregando extrato financeiro...</td></tr> : statement && statement.items.length > 0 ? statement.items.map((item) => <tr key={item.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="whitespace-nowrap px-6 py-4 font-medium text-gray-500 dark:text-gray-400">{formatDate(item.occurred_at)}</td><td className="px-6 py-4"><div className="font-bold tracking-tight text-gray-900 dark:text-white">{item.description}</div><div className="mt-1 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-tighter text-gray-400">{item.order_code && <span>{item.order_code}</span>}{item.order_customer_name && <span>Cliente: {item.order_customer_name}</span>}{item.counterpart_account_name && <span>Contrapartida: {item.counterpart_account_name}</span>}</div></td><td className="whitespace-nowrap px-6 py-4 text-xs font-black uppercase text-gray-500 dark:text-gray-400">{getPaymentMethodLabel(item.payment_method_code || item.payment_method)}</td><td className="whitespace-nowrap px-6 py-4 text-right font-black text-emerald-600">{item.signed_amount > 0 ? `+ ${formatCurrencyPtBr(item.signed_amount)}` : '—'}</td><td className="whitespace-nowrap px-6 py-4 text-right font-black text-rose-600">{item.signed_amount < 0 ? `- ${formatCurrencyPtBr(Math.abs(item.signed_amount))}` : '—'}</td><td className={`whitespace-nowrap px-6 py-4 text-right font-black ${(item.running_balance_after || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(item.running_balance_after || 0)}</td><td className="px-6 py-4 text-right"><button type="button" onClick={() => setSelectedStatementItem(item)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title="Ver detalhes"><Eye size={15} /></button></td></tr>) : <tr><td colSpan={7} className="px-6 py-16 text-center italic text-gray-400">Nenhum movimento financeiro encontrado para este escopo.</td></tr>}</tbody></table></div>
+                    <div className="overflow-x-auto"><table className="w-full min-w-[840px] text-sm"><thead className="bg-gray-50 text-[10px] font-black uppercase tracking-widest text-gray-400 dark:bg-gray-900/40"><tr><th className="px-6 py-4 text-left">Data</th><th className="px-6 py-4 text-left">Lançamento</th><th className="px-6 py-4 text-left">Forma</th><th className="px-6 py-4 text-right">Entrada</th><th className="px-6 py-4 text-right">Saída</th><th className="px-6 py-4 text-right">Saldo após</th><th className="px-6 py-4 text-right">Ações</th></tr></thead><tbody className="divide-y divide-gray-50 dark:divide-gray-700">{statementLoading ? <tr><td colSpan={7} className="px-6 py-16 text-center font-bold text-gray-400">Carregando extrato financeiro...</td></tr> : statement && displayedStatementItems.length > 0 ? displayedStatementItems.map((item) => {
+                        const receivable = item.order_id ? receivableByOrderId[item.order_id] : null;
+                        const isSettlement = item.source === 'online_payment_settlement';
+                        const sourceAccountName = item.source_financial_account_id ? accountNameById[item.source_financial_account_id] : null;
+                        const destinationAccountName = item.destination_financial_account_id ? accountNameById[item.destination_financial_account_id] : null;
+                        const title = isSettlement ? 'Liquidação de recebível OptmaPay' : item.description;
+                        return <tr key={item.id} className="transition hover:bg-gray-50 dark:hover:bg-gray-700/50"><td className="whitespace-nowrap px-6 py-4 font-medium text-gray-500 dark:text-gray-400">{formatDate(item.occurred_at)}</td><td className="px-6 py-4"><div className="flex flex-wrap items-center gap-2"><div className="font-bold tracking-tight text-gray-900 dark:text-white">{title}</div>{!isSettlement && item.type === 'sale' && receivable && <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${receivable.status === 'settled' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>{receivable.status === 'settled' ? `Liquidado${receivable.settledAt ? ` · ${formatDate(receivable.settledAt)}` : ''}` : 'A receber'}</span>}</div><div className="mt-1 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-tighter text-gray-400">{item.order_code && <span>{item.order_code}</span>}{item.order_customer_name && <span>Cliente: {item.order_customer_name}</span>}{item.counterpart_account_name && <span>Contrapartida: {item.counterpart_account_name}</span>}{isSettlement && <span>Transferência interna · {formatCurrencyPtBr(item.amount || 0)}{sourceAccountName && destinationAccountName ? ` · ${sourceAccountName} → ${destinationAccountName}` : ''}</span>}{!isSettlement && item.type === 'sale' && receivable?.status !== 'settled' && receivable?.expectedSettlementAt && <span>Previsto: {formatDate(receivable.expectedSettlementAt)}</span>}</div></td><td className="whitespace-nowrap px-6 py-4 text-xs font-black uppercase text-gray-500 dark:text-gray-400">{getPaymentMethodLabel(item.payment_method_code || item.payment_method)}</td><td className="whitespace-nowrap px-6 py-4 text-right font-black text-emerald-600">{item.signed_amount > 0 ? `+ ${formatCurrencyPtBr(item.signed_amount)}` : '—'}</td><td className="whitespace-nowrap px-6 py-4 text-right font-black text-rose-600">{item.signed_amount < 0 ? `- ${formatCurrencyPtBr(Math.abs(item.signed_amount))}` : '—'}</td><td className={`whitespace-nowrap px-6 py-4 text-right font-black ${(item.running_balance_after || 0) >= 0 ? 'text-gray-900 dark:text-white' : 'text-rose-600'}`}>{formatCurrencyPtBr(item.running_balance_after || 0)}</td><td className="px-6 py-4 text-right"><button type="button" onClick={() => setSelectedStatementItem(item)} className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-700" title="Ver detalhes"><Eye size={15} /></button></td></tr>;
+                    }) : <tr><td colSpan={7} className="px-6 py-16 text-center italic text-gray-400">Nenhum movimento financeiro encontrado para este escopo.</td></tr>}</tbody></table></div>
                 )}
             </div>
 
