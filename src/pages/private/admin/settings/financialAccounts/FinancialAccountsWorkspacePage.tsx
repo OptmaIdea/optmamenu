@@ -33,7 +33,11 @@ import {
   type UnallocatedCashbookEntry,
 } from '@/services/financialAccountsService';
 import { FinancialAccountReassignmentService } from '@/services/financialAccountReassignmentService';
-import { getFinancialAccountCodeLabel, getFinancialAccountTypeLabel } from '@/utils/finance/ptBrFinancialLabels';
+import {
+  formatFinancialAccountOptionLabel,
+  getFinancialAccountCodeLabel,
+  getFinancialAccountTypeLabel,
+} from '@/utils/finance/ptBrFinancialLabels';
 
 const ACCOUNT_TYPES: Array<{ value: FinancialAccountType; label: string }> = [
   { value: 'cash_drawer', label: getFinancialAccountTypeLabel('cash_drawer') },
@@ -717,7 +721,7 @@ export default function FinancialAccountsWorkspacePage() {
                         <option value="all">Todas as contas do filtro</option>
                         {balanceAccountsByStatus.map((account) => (
                           <option key={account.id} value={account.id}>
-                            {account.name}{account.active ? '' : ' (inativa)'} · {formatMoney(account.balance)}
+                            {formatFinancialAccountOptionLabel(account)}{account.active ? '' : ' (inativa)'} · {formatMoney(account.balance)}
                           </option>
                         ))}
                       </select>
@@ -733,7 +737,7 @@ export default function FinancialAccountsWorkspacePage() {
                   {visibleBalanceAccounts.map((account) => (
                     <div key={account.id} className={`rounded-2xl border p-4 ${account.active ? 'border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-950/50' : 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/10'}`}>
                       <div className="flex items-start justify-between gap-3">
-                        <div><p className="font-black dark:text-white">{account.name}</p><p className="text-xs font-semibold text-gray-400">{accountCodeLabel(account.code)} · {accountTypeLabel(account.account_type)}</p></div>
+                        <div><p className="font-black dark:text-white">{account.name}</p><p className="text-xs font-semibold text-gray-400">{accountTypeLabel(account.account_type)}</p></div>
                         <div className="flex flex-wrap justify-end gap-1">{!account.active && <span className="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-black uppercase text-amber-800">Inativa</span>}{account.is_sales_clearing_default && <span className="rounded-full bg-blue-100 px-2 py-1 text-[10px] font-black uppercase text-blue-700">Entrada das vendas</span>}{account.is_default && <span className="rounded-full bg-teal-100 px-2 py-1 text-[10px] font-black uppercase text-teal-700">Padrão</span>}</div>
                       </div>
                       {!account.active && <p className="mt-2 rounded-lg bg-amber-100/70 px-2 py-1 text-[11px] font-bold text-amber-800">Conta inativa · não recebe novos lançamentos; histórico preservado.</p>}
