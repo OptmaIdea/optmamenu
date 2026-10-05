@@ -692,6 +692,12 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             : notifications.filter((item) => (item.category || 'system') === notificationCategoryFilter)
     ), [notificationCategoryFilter, notifications]);
 
+    const securityActivity = useMemo(() => (
+        notifications
+            .filter((item) => item.category === 'security' || item.category === 'profile')
+            .slice(0, 12)
+    ), [notifications]);
+
     const latestConsentEvents = useMemo(() => {
         const latest = new Map<string, CustomerSelfConsentEvent>();
         [...consentEvents]
@@ -1212,7 +1218,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             void loadTrustedDevices({ silent: true }).catch(() => undefined);
         };
 
-        void loadTrustedDevices().catch(() => undefined);
+        void Promise.all([
+            loadTrustedDevices(),
+            loadNotifications({ silent: true }),
+        ]).catch(() => undefined);
         const intervalId = window.setInterval(refreshTrustedDevices, CUSTOMER_SECURITY_REFRESH_MS);
         window.addEventListener('focus', refreshTrustedDevices);
         document.addEventListener('visibilitychange', refreshTrustedDevices);
@@ -1222,7 +1231,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             window.removeEventListener('focus', refreshTrustedDevices);
             document.removeEventListener('visibilitychange', refreshTrustedDevices);
         };
-    }, [open, customer?.id, tab, loadTrustedDevices]);
+    }, [open, customer?.id, tab, loadNotifications, loadTrustedDevices]);
 
     if (!customer) return null;
 
@@ -3321,6 +3330,48 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                     <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
                                         Sua conta na {storeDisplayName} é protegida pelo telefone confirmado por SMS e pela senha criada por você. Alterações sensíveis exigem reautenticação e podem encerrar acessos em outros dispositivos.
                                     </div>
+
+                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Atividades de segurança</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Mostramos apenas eventos relevantes para você, sem nomes técnicos de sessão ou heartbeat.
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void loadNotifications()}
+                                                disabled={notificationsLoading}
+                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 disabled:opacity-50 dark:bg-slate-900 dark:text-slate-300"
+                                                aria-label="Atualizar atividades de segurança"
+                                            >
+                                                <RefreshCw className={`h-4 w-4 ${notificationsLoading ? 'animate-spin' : ''}`} />
+                                            </button>
+                                        </div>
+
+                                        {securityActivity.length === 0 ? (
+                                            <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                                                Nenhuma atividade relevante registrada recentemente.
+                                            </p>
+                                        ) : (
+                                            <div className="mt-4 space-y-2">
+                                                {securityActivity.map((activity) => (
+                                                    <div key={activity.id} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+                                                        <div className="flex items-start gap-3">
+                                                            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-black text-slate-900 dark:text-white">{activity.title || 'Atualização de segurança'}</p>
+                                                                {activity.message && <p className="mt-1 text-xs leading-5 text-slate-600 dark:text-slate-300">{activity.message}</p>}
+                                                                <p className="mt-1 text-[11px] text-slate-400">{activity.created_at ? new Date(activity.created_at).toLocaleString('pt-BR') : 'Data não disponível'}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </section>
+
                                     <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
                                         <div className="flex items-start gap-3">
                                             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
