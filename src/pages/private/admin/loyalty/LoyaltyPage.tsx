@@ -943,9 +943,35 @@ export default function LoyaltyPage() {
                                 <div><label className={labelClass}>Estoque (vazio = ilimitado)</label><input type="number" className={fieldClass} disabled={!canManage} value={rewardForm.stockQuantity} onChange={(e) => setRewardForm({ ...rewardForm, stockQuantity: e.target.value })} /></div>
                                 <div><label className={labelClass}>Validade do voucher após emissão (dias)</label><input type="number" min="1" className={fieldClass} disabled={!canManage} value={rewardForm.voucherValidityDays} onChange={(e) => setRewardForm({ ...rewardForm, voucherValidityDays: e.target.value })} /></div>
                                 <div>
-                                    <label className={labelClass}>Oferta visível até</label>
-                                    <input type="datetime-local" className={fieldClass} disabled={!canManage} value={rewardForm.offerValidUntil} onChange={(e) => setRewardForm({ ...rewardForm, offerValidUntil: e.target.value })} />
-                                    <p className="mt-1 text-[11px] leading-4 text-gray-500">Vazio = sem data final. Se esta data vencer, o prêmio deixa de aparecer ao cliente mesmo marcado como ativo.</p>
+                                    <label className={labelClass}>Oferta disponível até</label>
+                                    <div className="flex flex-col gap-2 sm:flex-row">
+                                        <input
+                                            type="date"
+                                            className={fieldClass + ' min-h-12 flex-1 cursor-pointer'}
+                                            disabled={!canManage}
+                                            value={rewardForm.offerValidUntil ? rewardForm.offerValidUntil.slice(0, 10) : ''}
+                                            onChange={(e) => setRewardForm({
+                                                ...rewardForm,
+                                                offerValidUntil: e.target.value ? `${e.target.value}T23:59` : '',
+                                            })}
+                                            onClick={(e) => {
+                                                try {
+                                                    e.currentTarget.showPicker?.();
+                                                } catch {
+                                                    // Alguns navegadores já abrem o seletor nativo pelo próprio toque.
+                                                }
+                                            }}
+                                        />
+                                        <button
+                                            type="button"
+                                            disabled={!canManage || !rewardForm.offerValidUntil}
+                                            onClick={() => setRewardForm({ ...rewardForm, offerValidUntil: '' })}
+                                            className="min-h-11 shrink-0 rounded-xl border border-gray-200 px-3 text-xs font-bold text-gray-600 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+                                        >
+                                            Sem data final
+                                        </button>
+                                    </div>
+                                    <p className="mt-1 text-[11px] leading-4 text-gray-500">No celular, toque no campo para abrir o calendário. A oferta fica disponível até o fim do dia escolhido. Use “Sem data final” para manter o prêmio publicado sem vencimento.</p>
                                 </div>
                                 <div>
                                     <label className={labelClass}>Máximo de resgates por cliente</label>
