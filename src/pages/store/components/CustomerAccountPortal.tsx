@@ -2201,6 +2201,107 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             {customer.birth_date && <p className="mt-1 text-xs text-slate-500">Após o primeiro preenchimento, a alteração exige fluxo seguro específico.</p>}
                                         </div>
                                     </div>
+                                    {(customer.cpf || customer.birth_date) && (
+                                        <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <h3 className="text-sm font-black text-slate-900 dark:text-white">CPF e data de nascimento protegidos</h3>
+                                                    <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                        Depois do primeiro preenchimento, uma correção exige esta sessão confiável e um código SMS enviado ao celular confirmado.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={openProtectedProfileCorrection}
+                                                    disabled={protectedProfileSubmitting}
+                                                    className="shrink-0 rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-600 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-900"
+                                                    aria-expanded={protectedProfileOpen}
+                                                >
+                                                    {protectedProfileOpen ? 'Fechar' : 'Corrigir'}
+                                                </button>
+                                            </div>
+
+                                            {protectedProfileOpen && (
+                                                <div className="mt-4 space-y-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+                                                    <div className="grid gap-3 sm:grid-cols-2">
+                                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                            CPF corrigido
+                                                            <input
+                                                                inputMode="numeric"
+                                                                value={protectedCpf}
+                                                                onChange={(event) => {
+                                                                    setProtectedCpf(onlyDigits(event.target.value).slice(0, 11));
+                                                                    if (protectedProfileOtpSent) {
+                                                                        setProtectedProfileOtpSent(false);
+                                                                        setProtectedProfileOtp('');
+                                                                    }
+                                                                }}
+                                                                className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                                placeholder="Somente números"
+                                                            />
+                                                        </label>
+                                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                            Data de nascimento corrigida
+                                                            <input
+                                                                type="date"
+                                                                value={protectedBirthDate}
+                                                                onChange={(event) => {
+                                                                    setProtectedBirthDate(event.target.value);
+                                                                    if (protectedProfileOtpSent) {
+                                                                        setProtectedProfileOtpSent(false);
+                                                                        setProtectedProfileOtp('');
+                                                                    }
+                                                                }}
+                                                                className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                            />
+                                                        </label>
+                                                    </div>
+
+                                                    <p className="rounded-2xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                                                        O código é enviado somente ao celular já confirmado da conta. Alterar os valores depois do envio invalida esta etapa e exige um novo código.
+                                                    </p>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void requestProtectedProfileOtp()}
+                                                        disabled={protectedProfileSubmitting}
+                                                        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                                                    >
+                                                        {protectedProfileSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                                                        {protectedProfileOtpSent ? 'Reenviar código SMS' : 'Enviar código SMS'}
+                                                    </button>
+
+                                                    {protectedProfileOtpSent && (
+                                                        <>
+                                                            <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                Código SMS
+                                                                <input
+                                                                    type="text"
+                                                                    inputMode="numeric"
+                                                                    autoComplete="one-time-code"
+                                                                    value={protectedProfileOtp}
+                                                                    onChange={(event) => setProtectedProfileOtp(onlyDigits(event.target.value).slice(0, 6))}
+                                                                    maxLength={6}
+                                                                    placeholder="000000"
+                                                                    className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-center text-base tracking-[0.3em] text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                                />
+                                                            </label>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => void confirmProtectedProfileCorrection()}
+                                                                disabled={protectedProfileSubmitting || onlyDigits(protectedProfileOtp).length !== 6}
+                                                                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                                                            >
+                                                                {protectedProfileSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                                                                Confirmar correção
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </section>
+                                    )}
+
                                     <div className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="min-w-0">
