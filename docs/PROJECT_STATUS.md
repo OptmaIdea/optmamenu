@@ -1888,3 +1888,101 @@ Validação anterior ao registro:
 - GitHub Actions `Verify`: success;
 - Vercel do commit `29e3bbe871efb4fe0987a4b22934d2f2e94fd598`: READY e sem alias error;
 - Supabase: migration aplicada, triggers presentes e mensagens recentes de pedido/fidelidade materializadas.
+
+
+---
+
+## Slug pública — fidelidade, validade de prêmios e ligação com Loja — 05/10/2026
+
+Feedback homologado pelo usuário antes desta rodada:
+- sino/Mensagens funcionando para pedidos e fidelidade;
+- área operacional **Minha fidelidade** aprovada;
+- Menu reorganizado aprovado;
+- configuração manual das quatro categorias encontrada e funcionando;
+- pendência explícita: auditoria de contraste do modo escuro somente após concluir a frente funcional da slug.
+
+### Cliente — Configurar fidelidade ↔ Minha fidelidade
+
+A tela **Configurar fidelidade** ganhou retorno explícito para **Minha fidelidade**.
+
+O botão **Ir para Minha fidelidade** abre diretamente:
+- saldo;
+- benefícios;
+- vouchers;
+- extrato.
+
+Assim, configuração e operação permanecem separadas, mas navegáveis nos dois sentidos.
+
+### Administração — Regras e pontuação
+
+A aba administrativa unificada **Fidelidade → Regras e pontuação** passou a expor a vigência real das regras processadas pelo motor:
+- Pedido concluído;
+- Primeiro pedido concluído;
+- início opcional;
+- término opcional;
+- prioridade;
+- acumulável;
+- ativo/inativo.
+
+Regras legadas com eventos que não são processados pelo motor de fechamento de pedido permanecem visíveis com aviso, em vez de serem apresentadas como se estivessem operacionais.
+
+### Administração — Prêmios para troca
+
+A aba **Fidelidade → Benefícios e prêmios** foi clarificada.
+
+**Prêmios para troca** são os registros de `fidelity_rewards` que alimentam **Minha fidelidade** e a área **Loja**.
+
+O editor passou a controlar e explicar os critérios realmente aplicados:
+- ativo/inativo;
+- custo em pontos;
+- estoque;
+- validade da oferta (`offer_valid_until`);
+- validade do voucher após emissão;
+- máximo de resgates por cliente.
+
+A listagem administrativa mostra estado customer-facing:
+- VISÍVEL AO CLIENTE;
+- EXPIRADO;
+- ESGOTADO;
+- INATIVO.
+
+Ao abrir um prêmio cuja data já venceu, a tela avisa explicitamente que marcar como ativo não é suficiente para publicá-lo.
+
+Campos existentes no banco que ainda não são aplicados pela rotina efetiva de resgate não foram apresentados como regra funcional.
+
+### Caso Tentação
+
+Foi confirmado no banco que **Tentação** estava:
+- `is_active = true`;
+- porém com `offer_valid_until` vencido em 30/08/2026.
+
+A RPC pública e a RPC do cliente filtram prêmio vencido. Portanto, o não aparecimento era comportamento correto do backend; o problema era a ausência da validade no editor unificado.
+
+Com o novo editor, basta editar **Oferta visível até** para uma data futura, ou remover a data final, e manter os demais critérios válidos para que o prêmio volte a ser elegível à vitrine.
+
+### Benefícios automáticos
+
+Os registros de `customer_benefit_rules` foram diferenciados visualmente de prêmios.
+
+Eles não são apresentados como a vitrine de recompensas do cliente. A tela avisa que não devem ser usados para publicar um prêmio em **Minha fidelidade**.
+
+### Loja — evolução incremental
+
+A área **Loja** recebeu mais uma evolução:
+- exibe como o cliente acumula pontos;
+- mostra compra mínima para pontuar;
+- mantém validade, adesão, campanhas e prêmios vigentes;
+- autenticado: CTA **Ver meus pontos e benefícios** abre Minha fidelidade;
+- anônimo: CTA direciona ao login/cadastro.
+
+Esta frente continuará sendo enriquecida à medida que a slug for sendo concluída, sem misturar a área institucional/marketing com configuração da conta.
+
+### Commits
+
+- `09dbfe9da52e77637d5e7de63d73e7375f547446` — validade de prêmios, regras de concessão e retorno da configuração para Minha fidelidade;
+- `22aea88b767b87220c1e24560f194478eaee86d1` — integração incremental da fidelidade com a área Loja;
+- `0a252dbb36d4e579825728229d8c85dea4e7edb0` — restringe o editor às regras de recompensa efetivamente aplicadas pelo backend.
+
+Validação do código:
+- Vercel do commit `0a252dbb36d4e579825728229d8c85dea4e7edb0`: READY e sem alias error;
+- GitHub Verify: testes e build concluídos com sucesso.
