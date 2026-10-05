@@ -198,14 +198,16 @@ export const AuthService = {
     },
 
     async sendOtp(phone: string, storeId: string, purpose: CustomerOtpPurpose = 'login') {
-        const requiresAuthenticatedDevice = purpose === 'account_delete' || purpose === 'phone_change';
+        const requiresAuthenticatedDevice = ['account_delete', 'phone_change', 'profile_change'].includes(purpose);
         if (requiresAuthenticatedDevice) {
             const token = await refreshCustomerSessionIfNeeded();
             if (!token) {
                 throw new Error(
                     purpose === 'account_delete'
                         ? 'Sua sessão expirou. Entre novamente antes de excluir a conta.'
-                        : 'Sua sessão expirou. Entre novamente antes de alterar o telefone.',
+                        : purpose === 'phone_change'
+                            ? 'Sua sessão expirou. Entre novamente antes de alterar o telefone.'
+                            : 'Sua sessão expirou. Entre novamente antes de corrigir seus dados protegidos.',
                 );
             }
         }

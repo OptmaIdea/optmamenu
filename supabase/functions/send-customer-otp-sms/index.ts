@@ -91,10 +91,10 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  // A exclusão de conta é uma ação autenticada. O endpoint de SMS continua
-  // público para login/cadastro, mas não aceita disparar OTP de exclusão apenas
-  // com conhecimento do telefone.
-  if (purpose === "account_delete") {
+  // Exclusão e correção de dados protegidos são ações autenticadas. O endpoint
+  // continua público para login/cadastro, mas não aceita disparar esses OTPs
+  // apenas com conhecimento do telefone.
+  if (purpose === "account_delete" || purpose === "profile_change") {
     const bearer = req.headers.get("authorization") || "";
     const accessToken = bearer.replace(/^Bearer\s+/i, "").trim();
     if (!accessToken || !/^[0-9a-f]{64}$/i.test(deviceTokenHash)) {
