@@ -35,6 +35,7 @@ import {
     CustomerService,
     type CustomerLoyaltyReward,
     type CustomerLoyaltyVoucher,
+    type CustomerSelfConsentEvent,
 } from '@/services/customerService';
 import { PublicStorefrontService } from '@/services/publicStorefrontService';
 import { flushCustomerCartServerSync } from '@/services/customerCartPersistence';
@@ -131,6 +132,7 @@ type AccountTab =
     | 'communications'
     | 'messages'
     | 'loyalty'
+    | 'privacy'
     | 'security';
 
 type NotificationCategoryFilter =
@@ -246,6 +248,45 @@ function orderPickupDeadlineLabel(order: CustomerOrderSummary) {
     const deadline = new Date(order.available_until);
     if (Number.isNaN(deadline.getTime())) return null;
     return `Retire até ${deadline.toLocaleString('pt-BR')}`;
+}
+
+function consentTypeLabel(value?: string | null) {
+    switch (value) {
+        case 'loyalty_program': return 'Participação na fidelidade';
+        case 'loyalty_data_responsibility': return 'Responsabilidade pelos dados da fidelidade';
+        case 'marketing_whatsapp': return 'Marketing por WhatsApp';
+        case 'marketing_email': return 'Marketing por e-mail';
+        case 'marketing_sms': return 'Marketing por SMS';
+        case 'loyalty_whatsapp': return 'Fidelidade por WhatsApp';
+        case 'loyalty_email': return 'Fidelidade por e-mail';
+        case 'loyalty_sms': return 'Fidelidade por SMS';
+        case 'loyalty_webapp': return 'Mensagens da fidelidade no site/app';
+        case 'terms': return 'Termos de uso';
+        case 'privacy': return 'Política de privacidade';
+        default:
+            return String(value || 'Consentimento')
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    }
+}
+
+function consentSourceLabel(value?: string | null) {
+    switch (value) {
+        case 'customer_portal':
+        case 'customer_marketing_preferences':
+        case 'customer_loyalty_preferences':
+        case 'customer_loyalty_join':
+        case 'customer_portal_profile':
+            return 'Área do cliente';
+        case 'registration':
+        case 'self_signup':
+            return 'Cadastro';
+        case 'admin':
+        case 'backoffice':
+            return 'Loja';
+        default:
+            return value ? String(value).replace(/_/g, ' ') : 'Não informado';
+    }
 }
 
 function notificationCategoryLabel(value?: string | null) {
@@ -391,6 +432,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [notifications, setNotifications] = useState<CustomerNotificationSummary[]>([]);
     const [notificationCategoryFilter, setNotificationCategoryFilter] = useState<NotificationCategoryFilter>('all');
     const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [consentEvents, setConsentEvents] = useState<CustomerSelfConsentEvent[]>([]);
     const [profileDirty, setProfileDirty] = useState(false);
     const [emailVerificationSending, setEmailVerificationSending] = useState(false);
     const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
@@ -644,6 +686,22 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             : notifications.filter((item) => (item.category || 'system') === notificationCategoryFilter)
     ), [notificationCategoryFilter, notifications]);
 
+    const latestConsentEvents = useMemo(() => {
+        const latest = new Map<string, CustomerSelfConsentEvent>();
+        [...consentEvents]
+            .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+            .forEach((event) => {
+                if (!latest.has(event.consent_type)) latest.set(event.consent_type, event);
+            });
+        return Array.from(latest.values());
+    }, [consentEvents]);
+
+    const recentConsentEvents = useMemo(() => (
+        [...consentEvents]
+            .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+            .slice(0, 16)
+    ), [consentEvents]);
+
     useEffect(() => {
         if (profileDirty) return;
         setNickname(customer?.nickname || '');
@@ -654,7 +712,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     }, [customer?.birth_date, customer?.cpf, customer?.email, customer?.full_name, customer?.nickname, profileDirty]);
 
     useEffect(() => {
-        if (!open || tab !== 'security' || !customer?.id) return;
+        if (!open || tab !== 'privacy' || !customer?.id) return;
 
         let active = true;
         void CustomerService.getSelfAccountDeletionRequest()
@@ -663,7 +721,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 setDeletionRequestStatus(request?.status || null);
             })
             .catch(() => {
-                // O status não deve impedir o restante da área de segurança.
+                // O status não deve impedir o restante da área de privacidade.
             });
 
         return () => {
@@ -790,6 +848,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const loadMarketingConsents = useCallback(async () => {
         if (!customer) return;
         const consents = await CustomerService.getSelfConsents();
+        setConsentEvents(consents);
         const latest = new Map<string, string>();
         consents.forEach((consent) => {
             if (!latest.has(consent.consent_type)) latest.set(consent.consent_type, consent.action);
@@ -1115,6 +1174,13 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         if (!open || !customer || tab !== 'communications') return;
         void loadMarketingConsents().catch((communicationError) => {
             console.error('[CUSTOMER_MARKETING] Falha ao atualizar preferências:', communicationError);
+        });
+    }, [open, customer?.id, tab, loadMarketingConsents]);
+
+    useEffect(() => {
+        if (!open || !customer || tab !== 'privacy') return;
+        void loadMarketingConsents().catch((privacyError) => {
+            console.error('[CUSTOMER_PRIVACY] Falha ao atualizar histórico de consentimentos:', privacyError);
         });
     }, [open, customer?.id, tab, loadMarketingConsents]);
 
@@ -1875,6 +1941,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         { id: 'orders', label: 'Pedidos', icon: PackageCheck },
         { id: 'consumption', label: 'Meu consumo', icon: History },
         { id: 'communications', label: 'Marketing', icon: MessageCircle },
+        { id: 'privacy', label: 'Privacidade', icon: FileText },
         { id: 'security', label: 'Segurança', icon: KeyRound },
     ];
 
@@ -1940,7 +2007,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             ? 'Mensagens'
                                             : tab === 'loyalty-settings'
                                                 ? 'Configurar fidelidade'
-                                                : displayName}
+                                                : tab === 'privacy'
+                                                    ? 'Privacidade e dados'
+                                                    : displayName}
                                 </h2>
                                 <p className="text-xs text-slate-500">
                                     {tab === 'loyalty'
@@ -1949,7 +2018,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             ? 'Pedidos, fidelidade, perfil e sistema'
                                             : tab === 'loyalty-settings'
                                                 ? 'Adesão e comunicações do programa'
-                                                : customer.phone}
+                                                : tab === 'privacy'
+                                                    ? 'Consentimentos, cópia e exclusão dos dados'
+                                                    : customer.phone}
                                 </p>
                             </div>
                             <button
@@ -2842,6 +2913,221 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                 </div>
                             )}
 
+                            {tab === 'privacy' && (
+                                <div className="mx-auto max-w-2xl space-y-4">
+                                    <section className="rounded-3xl border border-sky-200 bg-sky-50/70 p-5 dark:border-sky-900/50 dark:bg-sky-950/15">
+                                        <div className="flex items-start gap-3">
+                                            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-sky-600" />
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Privacidade e controle dos seus dados</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Consulte os consentimentos registrados nesta loja, baixe uma cópia dos seus dados e solicite a exclusão da conta quando quiser.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <h3 className="font-black text-slate-900 dark:text-white">Consentimentos atuais</h3>
+                                                <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                    Marketing e fidelidade continuam sendo configurados em suas abas próprias.
+                                                </p>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => void loadMarketingConsents()}
+                                                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300"
+                                                aria-label="Atualizar consentimentos"
+                                            >
+                                                <RefreshCw className="h-4 w-4" />
+                                            </button>
+                                        </div>
+
+                                        {latestConsentEvents.length === 0 ? (
+                                            <p className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+                                                Ainda não há registros de consentimento para mostrar.
+                                            </p>
+                                        ) : (
+                                            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                                                {latestConsentEvents.map((event) => (
+                                                    <div key={event.consent_type} className="rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <p className="text-sm font-black text-slate-900 dark:text-white">{consentTypeLabel(event.consent_type)}</p>
+                                                            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${event.action === 'granted'
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                                                {event.action === 'granted' ? 'Permitido' : 'Revogado'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                                                            {new Date(event.created_at).toLocaleString('pt-BR')} · {consentSourceLabel(event.source)}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setTab('communications'); clearFeedback(); }}
+                                                className="min-h-11 rounded-2xl border border-fuchsia-200 px-4 text-sm font-black text-fuchsia-700 dark:border-fuchsia-900/50 dark:text-fuchsia-300"
+                                            >
+                                                Gerenciar marketing
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setTab('loyalty-settings'); clearFeedback(); }}
+                                                className="min-h-11 rounded-2xl border border-amber-200 px-4 text-sm font-black text-amber-700 dark:border-amber-900/50 dark:text-amber-300"
+                                            >
+                                                Gerenciar fidelidade
+                                            </button>
+                                        </div>
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
+                                        <h3 className="font-black text-slate-900 dark:text-white">Histórico recente de consentimentos</h3>
+                                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                            Este histórico é somente leitura e registra concessões e revogações.
+                                        </p>
+                                        {recentConsentEvents.length === 0 ? (
+                                            <p className="mt-4 text-sm text-slate-500">Nenhum evento registrado.</p>
+                                        ) : (
+                                            <div className="mt-4 space-y-2">
+                                                {recentConsentEvents.map((event, index) => (
+                                                    <div key={`${event.consent_type}-${event.created_at}-${index}`} className="flex items-start justify-between gap-3 rounded-2xl bg-slate-50 p-3 dark:bg-slate-900">
+                                                        <div className="min-w-0">
+                                                            <p className="text-sm font-bold text-slate-900 dark:text-white">{consentTypeLabel(event.consent_type)}</p>
+                                                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                                                                {consentSourceLabel(event.source)}
+                                                                {event.terms_version ? ` · termos ${event.terms_version}` : ''}
+                                                                {event.privacy_version ? ` · privacidade ${event.privacy_version}` : ''}
+                                                            </p>
+                                                        </div>
+                                                        <div className="shrink-0 text-right">
+                                                            <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${event.action === 'granted'
+                                                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                                                : 'bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                                                                {event.action === 'granted' ? 'Permitido' : 'Revogado'}
+                                                            </span>
+                                                            <p className="mt-1 text-[10px] text-slate-400">{new Date(event.created_at).toLocaleString('pt-BR')}</p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </section>
+
+                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
+                                        <div className="flex items-start gap-3">
+                                            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="font-black text-slate-900 dark:text-white">Cópia dos meus dados</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Baixe uma cópia estruturada dos dados vinculados à sua conta nesta loja, incluindo cadastro, endereços, consentimentos, pedidos e histórico de segurança sem segredos de autenticação.
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    onClick={downloadSelfData}
+                                                    disabled={exportingData || loading}
+                                                    className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                                                >
+                                                    {exportingData ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
+                                                    {exportingData ? 'Preparando arquivo…' : 'Exportar meus dados'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </section>
+
+                                    <section className="rounded-3xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900/50 dark:bg-red-950/10">
+                                        <div className="flex items-start gap-3">
+                                            <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" aria-hidden="true" />
+                                            <div className="min-w-0 flex-1">
+                                                <h3 className="font-black text-slate-900 dark:text-white">Exclusão da conta</h3>
+                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Você pode solicitar a exclusão dos dados pessoais da sua conta. Registros que precisem ser preservados por obrigação comercial, fiscal, contábil ou legal serão mantidos de forma isolada e, quando possível, sem vínculo direto com sua identidade.
+                                                </p>
+                                                <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                                    Recomendamos exportar seus dados acima antes de continuar.
+                                                </p>
+
+                                                {deletionRequestStatus === 'pending' ? (
+                                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200" role="status">
+                                                        Sua solicitação de exclusão está registrada e aguardando processamento.
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setDeletionOpen((current) => !current)}
+                                                            className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-red-300 px-4 py-2.5 text-sm font-black text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
+                                                            aria-expanded={deletionOpen}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                                                            {deletionOpen ? 'Fechar solicitação' : 'Solicitar exclusão da conta'}
+                                                        </button>
+
+                                                        {deletionOpen && (
+                                                            <div className="mt-4 space-y-3 rounded-2xl bg-white p-4 dark:bg-slate-950">
+                                                                <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                                    Por segurança, exigimos sua senha atual e um código enviado por SMS ao telefone confirmado.
+                                                                </p>
+                                                                <PasswordField
+                                                                    label="Senha atual"
+                                                                    value={deletionPassword}
+                                                                    onChange={setDeletionPassword}
+                                                                    placeholder="Sua senha atual"
+                                                                    autoComplete="current-password"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={requestDeletionOtp}
+                                                                    disabled={deletionSubmitting}
+                                                                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
+                                                                >
+                                                                    {deletionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+                                                                    {deletionOtpSent ? 'Reenviar código SMS' : 'Enviar código SMS'}
+                                                                </button>
+                                                                {deletionOtpSent && (
+                                                                    <>
+                                                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
+                                                                            Código SMS
+                                                                            <input
+                                                                                type="text"
+                                                                                inputMode="numeric"
+                                                                                autoComplete="one-time-code"
+                                                                                value={deletionOtp}
+                                                                                onChange={(event) => setDeletionOtp(onlyDigits(event.target.value).slice(0, 6))}
+                                                                                className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base tracking-[0.3em] text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                                                aria-describedby="delete-account-otp-help"
+                                                                            />
+                                                                        </label>
+                                                                        <p id="delete-account-otp-help" className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+                                                                            O código é exclusivo para esta solicitação e expira conforme a política de segurança da loja.
+                                                                        </p>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={submitDeletionRequest}
+                                                                            disabled={deletionSubmitting || !deletionPassword || onlyDigits(deletionOtp).length !== 6}
+                                                                            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-50"
+                                                                        >
+                                                                            {deletionSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
+                                                                            Confirmar solicitação de exclusão
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </section>
+                                </div>
+                            )}
+
                             {tab === 'security' && (
                                 <div className="mx-auto max-w-xl space-y-4">
                                     <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-200">
@@ -3079,111 +3365,6 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         </div>
                                     </section>
 
-                                    <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
-                                        <div className="flex items-start gap-3">
-                                            <FileText className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
-                                            <div className="min-w-0 flex-1">
-                                                <h3 className="font-black text-slate-900 dark:text-white">Cópia dos meus dados</h3>
-                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Baixe uma cópia estruturada dos dados vinculados à sua conta nesta loja, incluindo cadastro, endereços, consentimentos, pedidos e histórico de segurança sem segredos de autenticação.
-                                                </p>
-                                                <button
-                                                    type="button"
-                                                    onClick={downloadSelfData}
-                                                    disabled={exportingData || loading}
-                                                    className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
-                                                >
-                                                    {exportingData ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileText className="h-4 w-4" aria-hidden="true" />}
-                                                    {exportingData ? 'Preparando arquivo…' : 'Exportar meus dados'}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </section>
-
-                                    <section className="rounded-3xl border border-red-200 bg-red-50/50 p-4 dark:border-red-900/50 dark:bg-red-950/10">
-                                        <div className="flex items-start gap-3">
-                                            <Trash2 className="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-300" aria-hidden="true" />
-                                            <div className="min-w-0 flex-1">
-                                                <h3 className="font-black text-slate-900 dark:text-white">Exclusão da conta</h3>
-                                                <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                    Você pode solicitar a exclusão dos dados pessoais da sua conta. Registros que precisem ser preservados por obrigação comercial, fiscal, contábil ou legal serão mantidos de forma isolada e, quando possível, sem vínculo direto com sua identidade.
-                                                </p>
-                                                <p className="mt-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
-                                                    Recomendamos exportar seus dados acima antes de continuar.
-                                                </p>
-
-                                                {deletionRequestStatus === 'pending' ? (
-                                                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200" role="status">
-                                                        Sua solicitação de exclusão está registrada e aguardando processamento.
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setDeletionOpen((current) => !current)}
-                                                            className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-red-300 px-4 py-2.5 text-sm font-black text-red-700 transition hover:bg-red-100 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950/30"
-                                                            aria-expanded={deletionOpen}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                                                            {deletionOpen ? 'Fechar solicitação' : 'Solicitar exclusão da conta'}
-                                                        </button>
-
-                                                        {deletionOpen && (
-                                                            <div className="mt-4 space-y-3 rounded-2xl bg-white p-4 dark:bg-slate-950">
-                                                                <p className="text-sm leading-6 text-slate-600 dark:text-slate-300">
-                                                                    Por segurança, exigimos sua senha atual e um código enviado por SMS ao telefone confirmado.
-                                                                </p>
-                                                                <PasswordField
-                                                                    label="Senha atual"
-                                                                    value={deletionPassword}
-                                                                    onChange={setDeletionPassword}
-                                                                    placeholder="Sua senha atual"
-                                                                    autoComplete="current-password"
-                                                                />
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={requestDeletionOtp}
-                                                                    disabled={deletionSubmitting}
-                                                                    className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
-                                                                >
-                                                                    {deletionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-                                                                    {deletionOtpSent ? 'Reenviar código SMS' : 'Enviar código SMS'}
-                                                                </button>
-                                                                {deletionOtpSent && (
-                                                                    <>
-                                                                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">
-                                                                            Código SMS
-                                                                            <input
-                                                                                type="text"
-                                                                                inputMode="numeric"
-                                                                                autoComplete="one-time-code"
-                                                                                value={deletionOtp}
-                                                                                onChange={(event) => setDeletionOtp(onlyDigits(event.target.value).slice(0, 6))}
-                                                                                className="mt-1.5 min-h-11 w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-base tracking-[0.3em] text-slate-900 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                                                                                aria-describedby="delete-account-otp-help"
-                                                                            />
-                                                                        </label>
-                                                                        <p id="delete-account-otp-help" className="text-xs leading-5 text-slate-500 dark:text-slate-400">
-                                                                            O código é exclusivo para esta solicitação e expira conforme a política de segurança da loja.
-                                                                        </p>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={submitDeletionRequest}
-                                                                            disabled={deletionSubmitting || !deletionPassword || onlyDigits(deletionOtp).length !== 6}
-                                                                            className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-red-600 px-4 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:opacity-50"
-                                                                        >
-                                                                            {deletionSubmitting && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
-                                                                            Confirmar solicitação de exclusão
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </section>
                                     <section className="rounded-3xl border border-slate-200 p-4 dark:border-slate-800">
                                         <div className="flex items-start gap-3">
                                             <KeyRound className="mt-0.5 h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
