@@ -76,6 +76,42 @@ function formatDate(value?: string | null) {
         : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
+function toDatetimeLocal(value?: string | null) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 16);
+}
+
+function toIsoOrNull(value?: string | null) {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function pointTriggerLabel(value: string) {
+    if (value === 'order_completed') return 'Pedido concluído';
+    if (value === 'first_order') return 'Primeiro pedido concluído';
+    if (value === 'loyalty_join') return 'Adesão ao programa (legado)';
+    if (value === 'birthday') return 'Aniversário (legado)';
+    return value;
+}
+
+function rewardVisibility(reward: LoyaltyReward) {
+    if (!reward.is_active) return { label: 'INATIVO', className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' };
+    if (reward.stock_quantity !== null && reward.stock_quantity !== undefined && reward.stock_quantity <= 0) {
+        return { label: 'ESGOTADO', className: 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300' };
+    }
+    if (reward.offer_valid_until) {
+        const expires = new Date(reward.offer_valid_until);
+        if (!Number.isNaN(expires.getTime()) && expires.getTime() <= Date.now()) {
+            return { label: 'EXPIRADO', className: 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300' };
+        }
+    }
+    return { label: 'VISÍVEL AO CLIENTE', className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' };
+}
+
 function displayCustomer(customer: LoyaltyCustomer) {
     return customer.full_name || customer.nickname || customer.phone_e164 || customer.phone || 'Cliente';
 }
@@ -142,6 +178,8 @@ export default function LoyaltyPage() {
         pointsMode: 'per_currency',
         pointsValue: '1',
         priority: '100',
+        startsAt: '',
+        endsAt: '',
         stackable: true,
         active: true,
     });
@@ -177,6 +215,9 @@ export default function LoyaltyPage() {
         type: 'product',
         stockQuantity: '',
         voucherValidityDays: '15',
+        offerValidUntil: '',
+        maxRedemptionsPerCustomer: '',
+        minOrderValue: '',
         active: true,
     });
 
@@ -285,11 +326,13 @@ export default function LoyaltyPage() {
                 priority: Math.max(0, Math.trunc(number(pointForm.priority, 100))),
                 stackable: pointForm.stackable,
                 active: pointForm.active,
+                startsAt: toIsoOrNull(pointForm.startsAt),
+                endsAt: toIsoOrNull(pointForm.endsAt),
                 conditions: {},
                 metadata: { source: 'unified_loyalty' },
             });
             toast.success(pointForm.id ? 'Regra atualizada.' : 'Regra criada.');
-            setPointForm({ id: '', name: '', code: '', triggerEvent: 'order_completed', pointsMode: 'per_currency', pointsValue: '1', priority: '100', stackable: true, active: true });
+            setPointForm({ id: '', name: '', code: '', triggerEvent: 'order_completed', pointsMode: 'per_currency', pointsValue: '1', priority: '100', startsAt: '', endsAt: '', stackable: true, active: true });
             await loadAll();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao salvar regra.');
@@ -307,6 +350,8 @@ export default function LoyaltyPage() {
             pointsMode: rule.points_mode,
             pointsValue: String(rule.points_value),
             priority: String(rule.priority),
+            startsAt: toDatetimeLocal(rule.starts_at),
+            endsAt: toDatetimeLocal(rule.ends_at),
             stackable: rule.stackable,
             active: rule.active,
         });
@@ -393,10 +438,13 @@ export default function LoyaltyPage() {
                 type: rewardForm.type,
                 stock_quantity: rewardForm.stockQuantity === '' ? null : Math.max(0, Math.trunc(number(rewardForm.stockQuantity))),
                 voucher_validity_days: Math.max(1, Math.trunc(number(rewardForm.voucherValidityDays, 15))),
+                offer_valid_until: toIsoOrNull(rewardForm.offerValidUntil),
+                max_redemptions_per_customer: rewardForm.maxRedemptionsPerCustomer === '' ? null : Math.max(1, Math.trunc(number(rewardForm.maxRedemptionsPerCustomer, 1))),
+                min_order_value: rewardForm.minOrderValue === '' ? null : Math.max(0, number(rewardForm.minOrderValue)),
                 is_active: rewardForm.active,
             });
             toast.success(rewardForm.id ? 'Prêmio atualizado.' : 'Prêmio criado.');
-            setRewardForm({ id: '', title: '', description: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', active: true });
+            setRewardForm({ id: '', title: '', description: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', minOrderValue: '', active: true });
             await loadAll();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao salvar prêmio.');
@@ -678,8 +726,10 @@ export default function LoyaltyPage() {
                                     <label className={labelClass}>Evento</label>
                                     <select className={fieldClass} disabled={!canManage} value={pointForm.triggerEvent} onChange={(e) => setPointForm({ ...pointForm, triggerEvent: e.target.value })}>
                                         <option value="order_completed">Pedido concluído</option>
-                                        <option value="loyalty_join">Adesão ao programa</option>
-                                        <option value="birthday">Aniversário</option>
+                                        <option value="first_order">Primeiro pedido concluído</option>
+                                        {!['order_completed', 'first_order'].includes(pointForm.triggerEvent) && (
+                                            <option value={pointForm.triggerEvent}>{pointTriggerLabel(pointForm.triggerEvent)}</option>
+                                        )}
                                     </select>
                                 </div>
                                 <div>
@@ -698,6 +748,19 @@ export default function LoyaltyPage() {
                                     <label className={labelClass}>Prioridade</label>
                                     <input type="number" className={fieldClass} disabled={!canManage} value={pointForm.priority} onChange={(e) => setPointForm({ ...pointForm, priority: e.target.value })} />
                                 </div>
+                                <div>
+                                    <label className={labelClass}>Válida a partir de</label>
+                                    <input type="datetime-local" className={fieldClass} disabled={!canManage} value={pointForm.startsAt} onChange={(e) => setPointForm({ ...pointForm, startsAt: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Válida até</label>
+                                    <input type="datetime-local" className={fieldClass} disabled={!canManage} value={pointForm.endsAt} onChange={(e) => setPointForm({ ...pointForm, endsAt: e.target.value })} />
+                                </div>
+                                {!['order_completed', 'first_order'].includes(pointForm.triggerEvent) && (
+                                    <div className="md:col-span-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+                                        Esta é uma regra legada. O motor atual de concessão por pedido processa somente Pedido concluído e Primeiro pedido concluído. Bônus de adesão é configurado no Programa e pontuação base.
+                                    </div>
+                                )}
                                 <label className="flex items-center gap-2 text-sm font-bold text-gray-700 dark:text-gray-200">
                                     <input type="checkbox" disabled={!canManage} checked={pointForm.stackable} onChange={(e) => setPointForm({ ...pointForm, stackable: e.target.checked })} /> Acumulável
                                 </label>
@@ -709,7 +772,7 @@ export default function LoyaltyPage() {
                                 <button type="button" disabled={!canManage || saving || !pointForm.name.trim()} onClick={() => void savePointRule()} className="rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
                                     {pointForm.id ? 'Atualizar regra' : 'Criar regra'}
                                 </button>
-                                {pointForm.id && <button type="button" onClick={() => setPointForm({ id: '', name: '', code: '', triggerEvent: 'order_completed', pointsMode: 'per_currency', pointsValue: '1', priority: '100', stackable: true, active: true })} className="rounded-xl border px-4 py-2 text-sm font-bold dark:border-gray-700">Cancelar</button>}
+                                {pointForm.id && <button type="button" onClick={() => setPointForm({ id: '', name: '', code: '', triggerEvent: 'order_completed', pointsMode: 'per_currency', pointsValue: '1', priority: '100', startsAt: '', endsAt: '', stackable: true, active: true })} className="rounded-xl border px-4 py-2 text-sm font-bold dark:border-gray-700">Cancelar</button>}
                             </div>
                         </div>
 
@@ -721,7 +784,12 @@ export default function LoyaltyPage() {
                                         <div className="flex items-start justify-between gap-3">
                                             <div>
                                                 <div className="font-bold text-gray-900 dark:text-white">{rule.name}</div>
-                                                <div className="text-xs text-gray-500">{rule.trigger_event} · {ruleDescription(rule)}</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {pointTriggerLabel(rule.trigger_event)} · {ruleDescription(rule)}
+                                                    {(rule.starts_at || rule.ends_at) && (
+                                                        <> · {rule.starts_at ? 'de ' + formatDate(rule.starts_at) : 'sem início'} até {rule.ends_at ? formatDate(rule.ends_at) : 'sem fim'}</>
+                                                    )}
+                                                </div>
                                             </div>
                                             <span className={'rounded-full px-2 py-1 text-[10px] font-bold ' + (rule.active ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500')}>{rule.active ? 'ATIVA' : 'INATIVA'}</span>
                                         </div>
@@ -832,9 +900,15 @@ export default function LoyaltyPage() {
 
             {activeTab === 'benefits' && (
                 <div className="space-y-6">
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/20 dark:text-blue-100">
+                        <strong>Prêmios para troca</strong> são os itens que aparecem para o cliente em Minha fidelidade e na área Loja.
+                        Para aparecerem, precisam estar ativos, com estoque disponível e dentro da validade da oferta.
+                        <strong className="ml-1">Benefícios automáticos</strong> são regras administrativas separadas e não são a vitrine de prêmios.
+                    </div>
                     <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                         <div className={cardClass}>
-                            <h2 className="font-black text-gray-900 dark:text-white">{benefitForm.id ? 'Editar benefício' : 'Novo benefício'}</h2>
+                            <h2 className="font-black text-gray-900 dark:text-white">{benefitForm.id ? 'Editar benefício automático' : 'Novo benefício automático'}</h2>
+                            <p className="mt-1 text-xs leading-5 text-gray-500">Regra comercial interna por público/nível. Não é um prêmio exibido na área do cliente.</p>
                             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div className="md:col-span-2"><label className={labelClass}>Nome</label><input className={fieldClass} disabled={!canManage} value={benefitForm.name} onChange={(e) => setBenefitForm({ ...benefitForm, name: e.target.value })} /></div>
                                 <div><label className={labelClass}>Tipo</label><select className={fieldClass} disabled={!canManage} value={benefitForm.benefitType} onChange={(e) => setBenefitForm({ ...benefitForm, benefitType: e.target.value })}><option value="discount_percent">Desconto %</option><option value="discount_amount">Desconto R$</option><option value="bonus_points">Pontos extras</option><option value="free_delivery">Entrega grátis</option><option value="custom">Personalizado</option></select></div>
@@ -862,26 +936,57 @@ export default function LoyaltyPage() {
                         </div>
 
                         <div className={cardClass}>
-                            <h2 className="font-black text-gray-900 dark:text-white">{rewardForm.id ? 'Editar prêmio' : 'Novo prêmio'}</h2>
+                            <h2 className="font-black text-gray-900 dark:text-white">{rewardForm.id ? 'Editar prêmio para troca' : 'Novo prêmio para troca'}</h2>
+                            <p className="mt-1 text-xs leading-5 text-gray-500">Esta é a área que controla o que o cliente pode ver em Minha fidelidade e Loja.</p>
                             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div className="md:col-span-2"><label className={labelClass}>Título</label><input className={fieldClass} disabled={!canManage} value={rewardForm.title} onChange={(e) => setRewardForm({ ...rewardForm, title: e.target.value })} /></div>
                                 <div className="md:col-span-2"><label className={labelClass}>Descrição</label><textarea className={fieldClass} disabled={!canManage} value={rewardForm.description} onChange={(e) => setRewardForm({ ...rewardForm, description: e.target.value })} /></div>
                                 <div><label className={labelClass}>Custo em pontos</label><input type="number" className={fieldClass} disabled={!canManage} value={rewardForm.pointsCost} onChange={(e) => setRewardForm({ ...rewardForm, pointsCost: e.target.value })} /></div>
                                 <div><label className={labelClass}>Estoque (vazio = ilimitado)</label><input type="number" className={fieldClass} disabled={!canManage} value={rewardForm.stockQuantity} onChange={(e) => setRewardForm({ ...rewardForm, stockQuantity: e.target.value })} /></div>
-                                <div><label className={labelClass}>Validade voucher (dias)</label><input type="number" className={fieldClass} disabled={!canManage} value={rewardForm.voucherValidityDays} onChange={(e) => setRewardForm({ ...rewardForm, voucherValidityDays: e.target.value })} /></div>
+                                <div><label className={labelClass}>Validade do voucher após emissão (dias)</label><input type="number" min="1" className={fieldClass} disabled={!canManage} value={rewardForm.voucherValidityDays} onChange={(e) => setRewardForm({ ...rewardForm, voucherValidityDays: e.target.value })} /></div>
+                                <div>
+                                    <label className={labelClass}>Oferta visível até</label>
+                                    <input type="datetime-local" className={fieldClass} disabled={!canManage} value={rewardForm.offerValidUntil} onChange={(e) => setRewardForm({ ...rewardForm, offerValidUntil: e.target.value })} />
+                                    <p className="mt-1 text-[11px] leading-4 text-gray-500">Vazio = sem data final. Se esta data vencer, o prêmio deixa de aparecer ao cliente mesmo marcado como ativo.</p>
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Máximo de resgates por cliente</label>
+                                    <input type="number" min="1" className={fieldClass} disabled={!canManage} value={rewardForm.maxRedemptionsPerCustomer} onChange={(e) => setRewardForm({ ...rewardForm, maxRedemptionsPerCustomer: e.target.value })} placeholder="Vazio = sem limite" />
+                                </div>
+                                <div>
+                                    <label className={labelClass}>Compra mínima para usar (R$)</label>
+                                    <input type="number" min="0" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.minOrderValue} onChange={(e) => setRewardForm({ ...rewardForm, minOrderValue: e.target.value })} placeholder="Vazio = sem mínimo" />
+                                </div>
                                 <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" disabled={!canManage} checked={rewardForm.active} onChange={(e) => setRewardForm({ ...rewardForm, active: e.target.checked })} /> Ativo</label>
                             </div>
                             <button type="button" disabled={!canManage || saving || !rewardForm.title.trim()} onClick={() => void saveReward()} className="mt-4 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{rewardForm.id ? 'Atualizar prêmio' : 'Criar prêmio'}</button>
                             <div className="mt-5 space-y-2">
-                                {settings.rewards.map((reward: LoyaltyReward) => (
+                                {settings.rewards.map((reward: LoyaltyReward) => {
+                                    const visibility = rewardVisibility(reward);
+                                    return (
                                     <div key={reward.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3 dark:border-gray-800">
-                                        <button type="button" className="flex-1 text-left" onClick={() => setRewardForm({
-                                            id: reward.id, title: reward.title, description: reward.description || '', pointsCost: String(reward.points_cost || 0),
-                                            type: reward.type || 'product', stockQuantity: reward.stock_quantity == null ? '' : String(reward.stock_quantity),
-                                            voucherValidityDays: String(reward.voucher_validity_days || 15), active: reward.is_active,
+                                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setRewardForm({
+                                            id: reward.id,
+                                            title: reward.title,
+                                            description: reward.description || '',
+                                            pointsCost: String(reward.points_cost || 0),
+                                            type: reward.type || 'product',
+                                            stockQuantity: reward.stock_quantity == null ? '' : String(reward.stock_quantity),
+                                            voucherValidityDays: String(reward.voucher_validity_days || 15),
+                                            offerValidUntil: toDatetimeLocal(reward.offer_valid_until),
+                                            maxRedemptionsPerCustomer: reward.max_redemptions_per_customer == null ? '' : String(reward.max_redemptions_per_customer),
+                                            minOrderValue: reward.min_order_value == null ? '' : String(reward.min_order_value),
+                                            active: reward.is_active,
                                         })}>
-                                            <div className="font-bold text-gray-900 dark:text-white">{reward.title}</div>
-                                            <div className="text-xs text-gray-500">{formatPoints(reward.points_cost)} pts · {reward.is_active ? 'ativo' : 'inativo'}</div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <div className="font-bold text-gray-900 dark:text-white">{reward.title}</div>
+                                                <span className={`rounded-full px-2 py-1 text-[10px] font-black ${visibility.className}`}>{visibility.label}</span>
+                                            </div>
+                                            <div className="mt-1 text-xs text-gray-500">
+                                                {formatPoints(reward.points_cost)} pts
+                                                {' · '}oferta {reward.offer_valid_until ? 'até ' + formatDate(reward.offer_valid_until) : 'sem data final'}
+                                                {' · '}estoque {reward.stock_quantity == null ? 'ilimitado' : reward.stock_quantity}
+                                            </div>
                                         </button>
                                         <button type="button" disabled={!canManage || saving} onClick={async () => {
                                             if (!storeId || !window.confirm('Excluir o prêmio "' + reward.title + '"?')) return;
@@ -891,7 +996,8 @@ export default function LoyaltyPage() {
                                             finally { setSaving(false); }
                                         }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-bold text-red-600 disabled:opacity-50 dark:border-red-900">Excluir</button>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>

@@ -2135,6 +2135,21 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
                             {tab === 'loyalty-settings' && (
                                 <div className="mx-auto max-w-2xl space-y-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setTab('loyalty');
+                                            clearFeedback();
+                                        }}
+                                        className="flex min-h-12 w-full items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 text-left transition hover:bg-emerald-100 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/30"
+                                    >
+                                        <span>
+                                            <span className="block text-sm font-black text-emerald-800 dark:text-emerald-200">Ir para Minha fidelidade</span>
+                                            <span className="mt-1 block text-xs font-semibold text-emerald-700/70 dark:text-emerald-300/70">Saldo, benefícios, vouchers e extrato de pontos</span>
+                                        </span>
+                                        <Gift className="h-5 w-5 shrink-0 text-emerald-600" />
+                                    </button>
+
                                     <section className="rounded-3xl border border-amber-200 bg-amber-50/60 p-5 dark:border-amber-900/40 dark:bg-amber-950/10">
                                         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                             <div className="min-w-0">
