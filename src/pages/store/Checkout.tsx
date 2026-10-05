@@ -281,6 +281,8 @@ export default function Checkout() {
     const [notes, setNotes] = useState('');
     const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddressState>(EMPTY_ADDRESS);
     const [savedAddresses, setSavedAddresses] = useState<SavedCustomerAddress[]>([]);
+    const [saveDeliveryAddressToAccount, setSaveDeliveryAddressToAccount] = useState(false);
+    const [savingDeliveryAddress, setSavingDeliveryAddress] = useState(false);
     const [cepLoading, setCepLoading] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [addressError, setAddressError] = useState<string | null>(null);
@@ -321,6 +323,16 @@ export default function Checkout() {
         && deliveryAddress.state.trim().length === 2
         && (!withoutNumber || Boolean(deliveryAddress.complement.trim()))
     );
+
+    const deliveryAddressMatchesSaved = savedAddresses.some((address) => (
+        onlyDigits(address.zip_code) === onlyDigits(deliveryAddress.zipCode)
+        && address.street.trim().toLocaleLowerCase('pt-BR') === deliveryAddress.street.trim().toLocaleLowerCase('pt-BR')
+        && address.number.trim().toLocaleLowerCase('pt-BR') === deliveryAddress.number.trim().toLocaleLowerCase('pt-BR')
+        && (address.complement || '').trim().toLocaleLowerCase('pt-BR') === deliveryAddress.complement.trim().toLocaleLowerCase('pt-BR')
+        && address.district.trim().toLocaleLowerCase('pt-BR') === deliveryAddress.district.trim().toLocaleLowerCase('pt-BR')
+        && address.city.trim().toLocaleLowerCase('pt-BR') === deliveryAddress.city.trim().toLocaleLowerCase('pt-BR')
+        && address.state.trim().toUpperCase() === deliveryAddress.state.trim().toUpperCase()
+    ));
 
     const selectedPayNowMethod = paymentOptions.pay_now.find((method) => method.code === paymentMethodCode) || null;
     const selectedPayLaterMethod = paymentOptions.pay_on_fulfillment.methods.find((method) => method.code === promisedPaymentMethodCode) || null;
@@ -517,6 +529,7 @@ export default function Checkout() {
 
     const useSavedAddress = (address: SavedCustomerAddress) => {
         setAddressError(null);
+        setSaveDeliveryAddressToAccount(false);
         setDeliveryAddress((current) => ({
             ...current,
             zipCode: formatCep(address.zip_code),
@@ -918,7 +931,12 @@ export default function Checkout() {
 
                     {effectiveFulfillment === 'delivery' && (
                         <section className="mt-4 space-y-3 rounded-2xl bg-white p-4 shadow-sm">
-                            <h2 className="font-black">Endereço de entrega</h2>
+                            <div>
+                                <h2 className="font-black">Endereço de entrega</h2>
+                                <p className="mt-1 text-xs leading-5 text-slate-500">
+                                    Você pode usar um endereço só neste pedido. Se estiver conectado, também pode optar por salvá-lo em Minha conta.
+                                </p>
+                            </div>
                             {isAuthenticated && savedAddresses.length > 0 && (
                                 <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/60 p-3">
                                     <p className="text-sm font-black text-emerald-900">Seus endereços salvos</p>
@@ -965,19 +983,105 @@ export default function Checkout() {
                                 {deliveryAddress.latitude ? 'Localização adicionada' : locationLoading ? 'Obtendo localização…' : 'Usar minha localização atual'}
                             </button>
                             {addressError && <p className="text-sm font-bold text-red-600">{addressError}</p>}
+                            {isAuthenticated && customer && (
+                                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                                    {deliveryAddressMatchesSaved ? (
+                                        <p className="text-sm font-bold text-emerald-700">
+                                            Este endereço já está salvo em Minha conta.
+                                        </p>
+                                    ) : savedAddresses.length < 3 ? (
+                                        <label className="flex items-start gap-3 text-sm font-bold text-slate-700">
+                                            <input
+                                                type="checkbox"
+                                                checked={saveDeliveryAddressToAccount}
+                                                onChange={(event) => setSaveDeliveryAddressToAccount(event.target.checked)}
+                                                className="mt-0.5 h-5 w-5 rounded border-slate-300 text-emerald-600"
+                                            />
+                                            <span>
+                                                Salvar também em Minha conta
+                                                <span className="mt-1 block text-xs font-medium text-slate-500">
+                                                    {savedAddresses.length}/3 endereços salvos. O ponto de referência continua exclusivo deste pedido.
+                                                </span>
+                                            </span>
+                                        </label>
+                                    ) : (
+                                        <p className="text-sm leading-6 text-slate-600">
+                                            Você já possui 3 endereços salvos. Este endereço será usado somente neste pedido; gerencie os endereços em Minha conta se quiser substituir algum.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                             <button
                                 type="button"
-                                onClick={() => {
+                                disabled={savingDeliveryAddress}
+                                onClick={async () => {
                                     if (!addressValid) {
                                         setAddressError('Preencha corretamente CEP, logradouro, número, bairro, cidade e UF. Para endereço sem número, informe o complemento.');
                                         return;
                                     }
+
                                     setAddressError(null);
+
+                                    if (
+                                        isAuthenticated
+                                        && customer
+                                        && saveDeliveryAddressToAccount
+                                        && !deliveryAddressMatchesSaved
+                                    ) {
+                                        if (savedAddresses.length >= 3) {
+                                            setAddressError('Você já possui 3 endereços salvos. Este endereço ainda pode ser usado somente neste pedido.');
+                                            setSaveDeliveryAddressToAccount(false);
+                                            return;
+                                        }
+
+                                        setSavingDeliveryAddress(true);
+                                        try {
+                                            const payload = {
+                                                customer_id: customer.id,
+                                                zip_code: onlyDigits(deliveryAddress.zipCode),
+                                                street: deliveryAddress.street.trim(),
+                                                number: deliveryAddress.number.trim(),
+                                                complement: deliveryAddress.complement.trim(),
+                                                district: deliveryAddress.district.trim(),
+                                                city: deliveryAddress.city.trim(),
+                                                state: deliveryAddress.state.trim().toUpperCase(),
+                                                is_default: savedAddresses.length === 0,
+                                            };
+                                            const created = await CustomerService.addAddress(payload);
+                                            setSavedAddresses((current) => [
+                                                ...current,
+                                                {
+                                                    id: created.id ? String(created.id) : undefined,
+                                                    zip_code: payload.zip_code,
+                                                    street: payload.street,
+                                                    number: payload.number,
+                                                    complement: payload.complement,
+                                                    district: payload.district,
+                                                    city: payload.city,
+                                                    state: payload.state,
+                                                    is_default: payload.is_default,
+                                                },
+                                            ]);
+                                            setSaveDeliveryAddressToAccount(false);
+                                        } catch (saveError) {
+                                            setAddressError(saveError instanceof Error
+                                                ? saveError.message
+                                                : 'Não foi possível salvar este endereço na sua conta.');
+                                            return;
+                                        } finally {
+                                            setSavingDeliveryAddress(false);
+                                        }
+                                    }
+
                                     setView('review');
                                 }}
-                                className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white"
+                                className="w-full rounded-2xl bg-emerald-600 p-4 font-black text-white disabled:opacity-50"
                             >
-                                Salvar endereço
+                                {savingDeliveryAddress
+                                    ? 'Salvando endereço…'
+                                    : saveDeliveryAddressToAccount && !deliveryAddressMatchesSaved
+                                        ? 'Salvar e usar neste pedido'
+                                        : 'Usar este endereço neste pedido'}
                             </button>
                         </section>
                     )}
