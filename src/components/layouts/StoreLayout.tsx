@@ -271,6 +271,7 @@ export function StoreLayout({ children }: { children: React.ReactNode }) {
                         open={storeHubOpen}
                         onClose={() => setStoreHubOpen(false)}
                         store={publicStore}
+                        isAuthenticated={isAuthenticated}
                     />
                 </>
             )}

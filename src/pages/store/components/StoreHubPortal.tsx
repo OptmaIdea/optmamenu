@@ -34,9 +34,10 @@ interface StoreHubPortalProps {
     open: boolean;
     onClose: () => void;
     store: PublicStorefrontStore | null;
+    isAuthenticated?: boolean;
 }
 
-export function StoreHubPortal({ open, onClose, store }: StoreHubPortalProps) {
+export function StoreHubPortal({ open, onClose, store, isAuthenticated = false }: StoreHubPortalProps) {
     const [loyaltyInfo, setLoyaltyInfo] = useState<PublicLoyaltyResponse | null>(null);
     const [loyaltyLoading, setLoyaltyLoading] = useState(false);
     const [showLoyaltyRules, setShowLoyaltyRules] = useState(false);
@@ -185,14 +186,32 @@ export function StoreHubPortal({ open, onClose, store }: StoreHubPortalProps) {
                                     </p>
                                 ) : loyaltyProgram ? (
                                     <>
-                                        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                                        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                                             <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
                                                 <CalendarClock className="h-5 w-5 text-amber-600" />
-                                                <p className="mt-3 text-xs font-black uppercase tracking-wide text-slate-400">Validade</p>
+                                                <p className="mt-3 text-xs font-black uppercase tracking-wide text-slate-400">Validade dos pontos</p>
                                                 <p className="mt-1 font-black text-slate-900 dark:text-white">
                                                     {loyaltyProgram.points_validity_months
                                                         ? `${loyaltyProgram.points_validity_months} meses`
                                                         : 'Conforme regra'}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
+                                                <Sparkles className="h-5 w-5 text-emerald-600" />
+                                                <p className="mt-3 text-xs font-black uppercase tracking-wide text-slate-400">Como ganha</p>
+                                                <p className="mt-1 font-black text-slate-900 dark:text-white">
+                                                    {Number(loyaltyProgram.points_per_currency || 0) > 0
+                                                        ? `${Number(loyaltyProgram.points_per_currency || 0).toLocaleString('pt-BR')} pt(s) por R$ 1`
+                                                        : 'Conforme campanha'}
+                                                </p>
+                                            </div>
+                                            <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
+                                                <Award className="h-5 w-5 text-blue-600" />
+                                                <p className="mt-3 text-xs font-black uppercase tracking-wide text-slate-400">Compra mínima para pontuar</p>
+                                                <p className="mt-1 font-black text-slate-900 dark:text-white">
+                                                    {Number(loyaltyProgram.min_order_value || 0) > 0
+                                                        ? `R$ ${Number(loyaltyProgram.min_order_value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                                                        : 'Sem mínimo'}
                                                 </p>
                                             </div>
                                             <div className="rounded-2xl bg-white p-4 shadow-sm dark:bg-slate-900">
@@ -265,8 +284,28 @@ export function StoreHubPortal({ open, onClose, store }: StoreHubPortalProps) {
 
                                         <button
                                             type="button"
+                                            onClick={() => {
+                                                onClose();
+                                                window.setTimeout(() => {
+                                                    if (isAuthenticated) {
+                                                        window.dispatchEvent(new CustomEvent('optmamenu:open-customer-account', {
+                                                            detail: { tab: 'loyalty' },
+                                                        }));
+                                                    } else {
+                                                        window.dispatchEvent(new CustomEvent('optmamenu:open-customer-auth'));
+                                                    }
+                                                }, 0);
+                                            }}
+                                            className="mt-5 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 text-sm font-black text-white transition hover:bg-amber-600"
+                                        >
+                                            <Gift className="h-4 w-4" />
+                                            {isAuthenticated ? 'Ver meus pontos e benefícios' : 'Entrar para participar e acompanhar'}
+                                        </button>
+
+                                        <button
+                                            type="button"
                                             onClick={() => setShowLoyaltyRules((current) => !current)}
-                                            className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-white px-4 text-sm font-black text-amber-800 transition hover:bg-amber-50 dark:border-amber-900/50 dark:bg-slate-900 dark:text-amber-200"
+                                            className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-amber-200 bg-white px-4 text-sm font-black text-amber-800 transition hover:bg-amber-50 dark:border-amber-900/50 dark:bg-slate-900 dark:text-amber-200"
                                         >
                                             <FileText className="h-4 w-4" />
                                             {showLoyaltyRules ? 'Ocultar termos e regulamento' : 'Ver termos e regulamento'}
