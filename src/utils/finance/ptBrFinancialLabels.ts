@@ -4,9 +4,38 @@ function normalizeCode(value?: string | null): string {
   return String(value || '').trim().toLowerCase();
 }
 
+export function humanizeFinancialIdentifier(value?: string | null): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const known: Record<string, string> = {
+    optmapay: 'OptmaPay',
+    asaas: 'Asaas',
+    infinitepay: 'InfinitePay',
+    pix: 'Pix',
+    qr: 'QR',
+    api: 'API',
+    cvv: 'CVV',
+    pos: 'POS',
+  };
+
+  return raw
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .map((part) => {
+      const normalized = part.toLowerCase();
+      if (known[normalized]) return known[normalized];
+      if (/^\d+$/.test(part)) return part;
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
 function fallbackLabel(value?: string | null, mode: FinancialLabelFallbackMode = 'dash'): string {
   if (!value) return mode === 'dash' ? '—' : '';
-  return mode === 'raw' ? value : '—';
+  return mode === 'raw' ? humanizeFinancialIdentifier(value) : '—';
 }
 
 const CASHBOOK_ACCOUNT_PLAN_LABELS: Record<string, string> = {
@@ -56,6 +85,11 @@ const FINANCIAL_ACCOUNT_CODE_LABELS: Record<string, string> = {
   card_acquirer: 'Maquininha',
   card_receivable: 'Recebíveis de cartão',
   owner: 'Proprietário',
+  optmapay_receivable: 'Valores a receber — OptmaPay',
+  optmapay_sandbox: 'OptmaPay Sandbox',
+  asaas_pix: 'Asaas Pix',
+  infinitepay: 'InfinitePay',
+  clc: 'Caixa Loja Centro',
 };
 
 const CASHBOOK_KIND_LABELS: Record<string, string> = {
@@ -80,6 +114,11 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   credit_card: 'Cartão de crédito',
   pending: 'Pendente',
   other: 'Outro',
+  pix_manual_qr: 'Pix por QR Code',
+  asaas_pix: 'Asaas Pix',
+  payment_link: 'Link de pagamento',
+  bank_transfer: 'Transferência bancária',
+  voucher: 'Voucher / benefício',
 };
 
 const CASHBOOK_ENTRY_TYPE_LABELS: Record<string, string> = {
@@ -157,7 +196,19 @@ export function formatFinancialAccountOptionLabel(input: {
   const typeLabel = getFinancialAccountTypeLabel(input.account_type, 'dash');
   const codeLabel = getFinancialAccountCodeLabel(input.code, 'dash');
 
-  if (name && typeLabel !== '—') return `${name} · ${typeLabel}`;
+  if (name && typeLabel !== '—') {
+    const normalizedName = name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const normalizedType = typeLabel
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+
+    if (normalizedName === normalizedType) return name;
+    return `${name} · ${typeLabel}`;
+  }
   if (name) return name;
   if (codeLabel !== '—') return codeLabel;
   return 'Conta sem nome';
