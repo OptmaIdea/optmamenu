@@ -217,7 +217,6 @@ export default function LoyaltyPage() {
         voucherValidityDays: '15',
         offerValidUntil: '',
         maxRedemptionsPerCustomer: '',
-        minOrderValue: '',
         active: true,
     });
 
@@ -440,11 +439,10 @@ export default function LoyaltyPage() {
                 voucher_validity_days: Math.max(1, Math.trunc(number(rewardForm.voucherValidityDays, 15))),
                 offer_valid_until: toIsoOrNull(rewardForm.offerValidUntil),
                 max_redemptions_per_customer: rewardForm.maxRedemptionsPerCustomer === '' ? null : Math.max(1, Math.trunc(number(rewardForm.maxRedemptionsPerCustomer, 1))),
-                min_order_value: rewardForm.minOrderValue === '' ? null : Math.max(0, number(rewardForm.minOrderValue)),
                 is_active: rewardForm.active,
             });
             toast.success(rewardForm.id ? 'Prêmio atualizado.' : 'Prêmio criado.');
-            setRewardForm({ id: '', title: '', description: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', minOrderValue: '', active: true });
+            setRewardForm({ id: '', title: '', description: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', active: true });
             await loadAll();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao salvar prêmio.');
@@ -908,7 +906,7 @@ export default function LoyaltyPage() {
                     <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                         <div className={cardClass}>
                             <h2 className="font-black text-gray-900 dark:text-white">{benefitForm.id ? 'Editar benefício automático' : 'Novo benefício automático'}</h2>
-                            <p className="mt-1 text-xs leading-5 text-gray-500">Regra comercial interna por público/nível. Não é um prêmio exibido na área do cliente.</p>
+                            <p className="mt-1 text-xs leading-5 text-gray-500">Cadastro separado dos prêmios. Nesta fase ele não publica itens para o cliente e não deve ser usado para disponibilizar recompensas na vitrine.</p>
                             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div className="md:col-span-2"><label className={labelClass}>Nome</label><input className={fieldClass} disabled={!canManage} value={benefitForm.name} onChange={(e) => setBenefitForm({ ...benefitForm, name: e.target.value })} /></div>
                                 <div><label className={labelClass}>Tipo</label><select className={fieldClass} disabled={!canManage} value={benefitForm.benefitType} onChange={(e) => setBenefitForm({ ...benefitForm, benefitType: e.target.value })}><option value="discount_percent">Desconto %</option><option value="discount_amount">Desconto R$</option><option value="bonus_points">Pontos extras</option><option value="free_delivery">Entrega grátis</option><option value="custom">Personalizado</option></select></div>
@@ -952,12 +950,14 @@ export default function LoyaltyPage() {
                                 <div>
                                     <label className={labelClass}>Máximo de resgates por cliente</label>
                                     <input type="number" min="1" className={fieldClass} disabled={!canManage} value={rewardForm.maxRedemptionsPerCustomer} onChange={(e) => setRewardForm({ ...rewardForm, maxRedemptionsPerCustomer: e.target.value })} placeholder="Vazio = sem limite" />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>Compra mínima para usar (R$)</label>
-                                    <input type="number" min="0" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.minOrderValue} onChange={(e) => setRewardForm({ ...rewardForm, minOrderValue: e.target.value })} placeholder="Vazio = sem mínimo" />
+                                    <p className="mt-1 text-[11px] leading-4 text-gray-500">Limite já validado pela rotina de resgate administrativa.</p>
                                 </div>
                                 <label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" disabled={!canManage} checked={rewardForm.active} onChange={(e) => setRewardForm({ ...rewardForm, active: e.target.checked })} /> Ativo</label>
+                                {rewardForm.offerValidUntil && new Date(rewardForm.offerValidUntil).getTime() <= Date.now() && (
+                                    <div className="md:col-span-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300">
+                                        Esta oferta está expirada. Mesmo marcada como ativa, não aparecerá para o cliente até que a validade seja renovada ou removida.
+                                    </div>
+                                )}
                             </div>
                             <button type="button" disabled={!canManage || saving || !rewardForm.title.trim()} onClick={() => void saveReward()} className="mt-4 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{rewardForm.id ? 'Atualizar prêmio' : 'Criar prêmio'}</button>
                             <div className="mt-5 space-y-2">
@@ -975,7 +975,6 @@ export default function LoyaltyPage() {
                                             voucherValidityDays: String(reward.voucher_validity_days || 15),
                                             offerValidUntil: toDatetimeLocal(reward.offer_valid_until),
                                             maxRedemptionsPerCustomer: reward.max_redemptions_per_customer == null ? '' : String(reward.max_redemptions_per_customer),
-                                            minOrderValue: reward.min_order_value == null ? '' : String(reward.min_order_value),
                                             active: reward.is_active,
                                         })}>
                                             <div className="flex flex-wrap items-center gap-2">
