@@ -215,6 +215,48 @@ export const CustomerService = {
         return payload.customer ?? null;
     },
 
+    async changeSelfSensitiveProfile(options: {
+        otp: string;
+        cpf?: string | null;
+        birthDate?: string | null;
+    }) {
+        const { data, error } = await supabaseCustomer.rpc('change_customer_self_sensitive_profile_safe', {
+            p_otp: options.otp,
+            p_cpf: options.cpf || null,
+            p_birth_date: options.birthDate || null,
+        });
+        if (error) throw new Error('Não foi possível corrigir seus dados protegidos agora.');
+
+        const payload = data as (SelfRpcPayload & {
+            cpf?: string | null;
+            birth_date?: string | null;
+            fields_changed?: string[];
+            unchanged?: boolean;
+        }) | null;
+
+        if (!payload?.ok) {
+            const labels: Record<string, string> = {
+                access_denied: 'Sua sessão expirou. Entre novamente antes de corrigir seus dados.',
+                customer_not_found: 'Não foi possível localizar sua conta ativa.',
+                strong_reauth_required: 'Confirme a correção usando o código SMS.',
+                invalid_or_expired_otp: 'Código SMS inválido ou expirado. Solicite um novo código.',
+                otp_locked: 'Muitas tentativas de código. Solicite um novo SMS.',
+                invalid_cpf: 'Informe um CPF válido com 11 dígitos.',
+                cpf_already_registered: 'Este CPF já está vinculado a outro cadastro ativo nesta loja.',
+                invalid_birth_date: 'Informe uma data de nascimento válida.',
+                loyalty_age_restricted_profile_change: 'Esta correção deixaria a conta abaixo da idade mínima da fidelidade. Saia do programa antes de corrigir a data de nascimento.',
+            };
+            throw new Error(labels[payload?.error || ''] || payload?.message || 'Não foi possível corrigir seus dados protegidos.');
+        }
+
+        return {
+            cpf: payload.cpf ? String(payload.cpf) : null,
+            birthDate: payload.birth_date ? String(payload.birth_date) : null,
+            fieldsChanged: Array.isArray(payload.fields_changed) ? payload.fields_changed.map(String) : [],
+            unchanged: Boolean(payload.unchanged),
+        };
+    },
+
     async changeSelfPhone(newPhone: string, otp: string) {
         const { data, error } = await supabaseCustomer.rpc('change_customer_self_phone_safe', {
             p_new_phone: newPhone,
