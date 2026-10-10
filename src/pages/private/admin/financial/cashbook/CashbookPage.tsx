@@ -442,7 +442,7 @@ export default function CashbookPage() {
                 CashbookService.getSummary(storeId, rangeStart || absoluteStart, rangeEnd || absoluteEnd),
                 supabase
                     .from('store_financial_accounts')
-                    .select('id, name, code, account_type, active, sort_order')
+                    .select('id, name, code, account_type, active, sort_order, created_at, metadata')
                     .eq('store_id', storeId)
                     .order('active', { ascending: false })
                     .order('sort_order', { ascending: true })
