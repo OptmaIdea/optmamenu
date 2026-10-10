@@ -465,7 +465,7 @@ export default function FinancialAccountsWorkspacePage() {
         p_notes: 'Correção auditável pelo cadastro da conta: ' + correctionReason.trim(),
       });
       if (error || !data?.ok) throw error || new Error(data?.error || 'Não foi possível corrigir.');
-      toast.success(data.changed ? 'Correção de saldo registrada no extrato com histórico auditável.' : 'O saldo já corresponde ao valor informado.');
+      toast.success(data.changed ? `Saldo corrigido: diferença de ${formatMoney(Math.abs(Number(data.delta || 0)))} registrada no Modo Extrato.` : 'Saldo conferido sem divergência. Nenhum lançamento financeiro foi criado, pois a diferença é R$ 0,00.');
       setCorrectionBalance('');
       setCorrectionReason('');
       closeForm();
