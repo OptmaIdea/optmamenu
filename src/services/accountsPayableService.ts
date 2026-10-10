@@ -295,8 +295,11 @@ export const AccountsPayableService = {
     paidAt?: string | null
     reference?: string | null
     notes?: string | null
+    interest?: number
+    penalty?: number
   }): Promise<AccountsPayableDetail> {
-    const { data, error } = await supabase.rpc('register_accounts_payable_payment_safe', {
+    const withCharges = Number(input.interest || 0) > 0 || Number(input.penalty || 0) > 0
+    const { data, error } = await supabase.rpc(withCharges ? 'register_accounts_payable_payment_with_charges_safe' : 'register_accounts_payable_payment_safe', {
       p_installment_id: input.installmentId,
       p_amount: input.amount,
       p_financial_account_id: input.financialAccountId,
@@ -304,6 +307,7 @@ export const AccountsPayableService = {
       p_paid_at: input.paidAt || new Date().toISOString(),
       p_reference: input.reference || null,
       p_notes: input.notes || null,
+      ...(withCharges ? { p_interest: input.interest || 0, p_penalty: input.penalty || 0 } : {}),
     })
     if (error) throw rpcError(error, 'Não foi possível registrar o pagamento.')
     return data as AccountsPayableDetail
