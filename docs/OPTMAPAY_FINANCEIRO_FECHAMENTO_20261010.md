@@ -143,6 +143,7 @@ O balancete operacional não mistura mais transferências internas com despesas.
 - conciliação de saldo acumulado: RPC testada com identidade proprietária.
 - transferências internas fora do resultado operacional: aprovado.
 - taxas em Despesas financeiras: aprovado.
+- limite de conta PJ: teste transacional com rollback aprovou saldo negativo dentro do limite e bloqueio acima de R$ 5.000,00.
 
 ## Estado de encerramento
 
@@ -181,7 +182,7 @@ A tarifa PJ do OptmaPay Sandbox foi configurada em **R$ 12,99 por mês**, com co
 
 A conta PJ recebeu limite Sandbox de **R$ 5.000,00**. O motor de saldo permite saldo negativo apenas até o limite configurado e esse limite passou a participar das validações de Pix, débito, boleto, devolução Pix e pagamento de fatura.
 
-Para simulação de custo de limite, foi adotada a referência mensal de **13,45% a.m.** da série SGS 25446 (BCB, agosto/2026). O IOF Sandbox permanece parametrizado, neste baseline, em **0,0082% ao dia + adicional de 0,38%**, deixando explícito que eventual produto real deverá validar enquadramento fiscal e regra vigente por perfil do tomador.
+Para simulação de custo de limite, foi adotada a referência mensal de **13,45% a.m.** da série SGS 25446 (BCB, agosto/2026). O IOF Sandbox permanece parametrizado, neste baseline PJ geral, em **0,0082% ao dia + adicional de 0,95%**, conforme a redação compilada vigente consultada do Decreto nº 6.306/2007. O produto continua marcado como simulação Sandbox; eventual produto real deverá validar enquadramento fiscal e regra vigente por perfil do tomador.
 
 O extrato do OptmaPay passou a aceitar janela de até **90 dias** e ganhou exportação CSV do período exibido.
 
