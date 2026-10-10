@@ -172,10 +172,18 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
     }
   }
   const [result, setResult] = useState<CashbookAccountPlanTrialBalanceResult | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense']));
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['grp_revenue', 'grp_expense', 'grp_expense_financial']));
   const [hideEmpty, setHideEmpty] = useState(false);
 
-  const childrenMap = useMemo(() => getChildrenMap(result?.items || []), [result?.items]);
+  const operationalItems = useMemo(
+    () => (result?.items || []).filter((item) => item.kind !== 'transfer'),
+    [result?.items],
+  );
+  const childrenMap = useMemo(() => getChildrenMap(operationalItems), [operationalItems]);
+  const paymentFees = useMemo(
+    () => Number((result?.items || []).find((item) => item.code === 'payment_processing_fees')?.total_out || 0),
+    [result?.items],
+  );
 
   async function loadTrialBalance() {
     const storeId = getActiveStoreId();
@@ -275,9 +283,9 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
             <BarChart3 size={20} />
             <span className="text-sm font-black uppercase tracking-widest">Balancete gerencial</span>
           </div>
-          <h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">Entradas, saídas e resultado por conta</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Acompanhe para onde o dinheiro está indo e quais contas concentram receitas e custos no período.
+          <h2 className="mt-1 text-2xl font-black text-gray-900 dark:text-white">Receitas, custos e resultado operacional</h2>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-300">
+            Veja o que gerou receita e despesa no período. Transferências entre suas próprias contas ficam no Extrato e não reduzem o resultado.
           </p>
         </div>
 
@@ -342,26 +350,35 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-4">
-        <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 dark:border-emerald-900/50 dark:bg-emerald-950/35">
           <p className="text-xs font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300">Entradas</p>
           <strong className="mt-1 block text-xl text-emerald-700 dark:text-emerald-200">{formatCurrency(result?.totals.total_in || 0)}</strong>
         </div>
-        <div className="rounded-2xl bg-rose-50 p-4 dark:bg-rose-950/30">
+        <div className="rounded-2xl border border-rose-100 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/35">
           <p className="text-xs font-black uppercase tracking-widest text-rose-700 dark:text-rose-300">Saídas</p>
           <strong className="mt-1 block text-xl text-rose-700 dark:text-rose-200">{formatCurrency(result?.totals.total_out || 0)}</strong>
         </div>
-        <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950/40">
-          <p className="text-xs font-black uppercase tracking-widest text-gray-500">Resultado</p>
-          <strong className="mt-1 block text-xl text-gray-900 dark:text-white">{formatCurrency(result?.totals.balance || 0)}</strong>
+        <div className="rounded-2xl border border-amber-100 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/35">
+          <p className="text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-300">Taxas de pagamentos</p>
+          <strong className="mt-1 block text-xl text-amber-800 dark:text-amber-200">{formatCurrency(paymentFees)}</strong>
+          <p className="mt-1 text-[11px] font-semibold text-amber-700/80 dark:text-amber-300/80">Operadora, cartão e antecipação</p>
         </div>
-        <div className="rounded-2xl bg-gray-50 p-4 dark:bg-gray-950/40">
-          <p className="text-xs font-black uppercase tracking-widest text-gray-500">Lançamentos</p>
+        <div className="rounded-2xl border border-cyan-100 bg-cyan-50 p-4 dark:border-cyan-900/50 dark:bg-cyan-950/35">
+          <p className="text-xs font-black uppercase tracking-widest text-cyan-800 dark:text-cyan-300">Resultado operacional</p>
+          <strong className="mt-1 block text-xl text-cyan-900 dark:text-cyan-100">{formatCurrency(result?.totals.balance || 0)}</strong>
+        </div>
+        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-slate-950/60">
+          <p className="text-xs font-black uppercase tracking-widest text-gray-600 dark:text-gray-300">Lançamentos</p>
           <strong className="mt-1 block text-xl text-gray-900 dark:text-white">{result?.totals.entries_count || 0}</strong>
         </div>
       </div>
 
-      <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-800">
+      <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-xs font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-950/50 dark:text-slate-300">
+        Taxas cobradas pelos meios de pagamento ficam em <strong>Despesas financeiras → Taxas de meios de pagamento</strong>. Transferências de recebíveis para banco não aparecem aqui porque apenas mudam o dinheiro de uma conta para outra.
+      </div>
+
+      <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
         {loading ? (
           <div className="flex justify-center py-12"><LoadingSpinner /></div>
         ) : result?.items?.length ? (
