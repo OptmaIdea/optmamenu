@@ -392,6 +392,7 @@ export default function FinancialAccountsWorkspacePage() {
   async function saveAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!storeId) return;
+    if (form.id && (correctionBalance.trim() || correctionReason.trim())) return toast.warning('Para registrar a correção do saldo, use o botão laranja: Registrar correção auditável. Salvar altera apenas o cadastro.');
     if (!form.name.trim()) return toast.error('Informe o nome da conta financeira.');
     const overdraftLimit = Number(form.overdraftLimit.replace(',', '.'));
     if (!Number.isFinite(overdraftLimit) || overdraftLimit < 0) return toast.error('Informe um limite de crédito válido (zero ou maior).');
