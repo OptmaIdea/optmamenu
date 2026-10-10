@@ -7,6 +7,7 @@ import PageContainer from '@/components/common/PageContainer';
 import StatsCard from '@/components/common/StatsCard';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { useStockAlerts } from '@/hooks/stock/useStockAlerts';
+import { useAccountsPayableDueAlerts } from '@/hooks/financial/useAccountsPayableDueAlerts';
 
 function StockList({
   title,
@@ -53,6 +54,7 @@ function StockList({
 
 export default function Alerts() {
   const { store, storeId, loading: storeLoading } = useCurrentStore();
+  const financialAlerts = useAccountsPayableDueAlerts(storeId || undefined);
   const { loading, error, summary, lists } = useStockAlerts(storeId || undefined, {
     autoRefreshMs: 5 * 60 * 1000,
     limitPerList: 12,
@@ -68,7 +70,7 @@ export default function Alerts() {
   return (
     <PageContainer
       title={title}
-      subtitle={store?.name ? `Alertas de estoque para a loja ${store.name}` : "Acompanhe alertas de estoque crítico, baixo e excessos"}
+      subtitle={store?.name ? `Avisos financeiros e de estoque — ${store.name}` : "Acompanhe vencimentos e alertas de estoque"}
       category="Dashboard"
       icon={<AlertCircle size={28} className="text-[#19A999]" />}
       action={
@@ -88,6 +90,25 @@ export default function Alerts() {
           {error}
         </div>
       )}
+
+      <section className="mb-6 rounded-2xl border border-amber-200 bg-white p-4 dark:border-amber-900/50 dark:bg-gray-900" aria-label="Vencimentos de contas a pagar">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div><h2 className="font-black text-gray-900 dark:text-white">Contas a pagar · vencidas e próximos 5 dias</h2>
+          <p className="text-xs text-gray-500">Dias corridos até o vencimento contratual. Feriados e prorrogações dependem da configuração do calendário da unidade.</p></div>
+          <Link to="/admin/accounts-payable" className="text-sm font-bold text-teal-700 hover:underline dark:text-teal-300">Ver todas as contas</Link>
+        </div>
+        {financialAlerts.error && <p className="mb-2 text-xs text-amber-700">Avisos indisponíveis: {financialAlerts.error}</p>}
+        {financialAlerts.loading ? <p className="text-sm text-gray-500">Consultando vencimentos...</p> : financialAlerts.items.length === 0 ? <p className="text-sm text-gray-500">Nenhuma parcela vencida ou com vencimento nos próximos cinco dias.</p> : (
+          <div className="space-y-2">{financialAlerts.items.map((item) => (
+            <Link key={item.installment_id} to={`/admin/accounts-payable?payable=${encodeURIComponent(item.payable_id)}`} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3 hover:border-teal-400 dark:border-gray-700">
+              <div className="min-w-0"><p className="font-bold text-gray-900 dark:text-white">{item.description || item.payable_code} · parcela {item.installment_number}</p>
+                <p className="text-xs text-gray-500">{item.payable_code} · vencimento {item.due_date.split('-').reverse().join('/')}</p></div>
+              <div className="text-right"><p className={`text-sm font-black ${item.days_until_due < 0 ? 'text-red-600' : item.days_until_due === 0 ? 'text-orange-600' : 'text-amber-600'}`}>{item.days_until_due < 0 ? `${Math.abs(item.days_until_due)} dia(s) em atraso` : item.days_until_due === 0 ? 'Vence hoje' : `Vence em ${item.days_until_due} dia(s)`}</p>
+              <p className="text-xs font-bold text-gray-600 dark:text-gray-300">{Number(item.open_amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p></div>
+            </Link>
+          ))}</div>
+        )}
+      </section>
 
       {/* Cards (sem badges) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
