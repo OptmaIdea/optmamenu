@@ -381,7 +381,7 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
       <div className="mt-5 overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700">
         {loading ? (
           <div className="flex justify-center py-12"><LoadingSpinner /></div>
-        ) : result?.items?.length ? (
+        ) : operationalItems.length ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm dark:divide-gray-800">
               <thead className="bg-gray-50 text-xs uppercase tracking-widest text-gray-500 dark:bg-gray-950/60">
@@ -400,7 +400,7 @@ export default function AccountPlanTrialBalancePanel({ includeInactive = false }
           </div>
         ) : (
           <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-            Nenhum lançamento classificado encontrado para o período selecionado.
+            Nenhuma receita ou despesa classificada encontrada para o período selecionado.
           </div>
         )}
       </div>
