@@ -161,3 +161,36 @@ Na fase de testes gerais para entrega do OptmaMenu, revisar novamente:
 - relatórios e impressão.
 
 Mudanças futuras de produto financeiro devem partir deste modelo, evitando reintroduzir códigos técnicos na interface ou tratar transferências internas como receita/despesa.
+
+
+## Adendo de encerramento — simplificação das contas e conta PJ
+
+A Gelinhares foi simplificada para três contas visíveis ao usuário:
+
+- **Caixa Loja Centro** — conta geral e padrão dos lançamentos manuais; recebe todas as formas ativas e concentra o saldo em espécie por forma de pagamento;
+- **OptmaPay** — conta bancária externa Sandbox;
+- **Retaguarda do caixa** — destino operacional para sangrias e guarda de numerário.
+
+A conta **Compensação OptmaPay (interno)** continua ativa apenas como infraestrutura contábil dos recebíveis D+1. Ela fica oculta da interface comum e não deve ser confundida com uma quarta conta operacional.
+
+Foram consolidados e ocultados os cadastros legados Caixa físico, CEF, Carteira Pix, Maquininha, Recebíveis de cartão, Proprietário e InfinitePay. O legado Asaas foi removido da Gelinhares, incluindo provider, conta financeira, referências e metadados específicos.
+
+O saldo reconstruído da conta OptmaPay na data em que a conta foi cadastrada no OptmaMenu (27/09/2026 21:21:51 -03) é **R$ 14.798,71**. Esse valor foi registrado como saldo acumulado inicial sem afetar o resultado operacional.
+
+A tarifa PJ do OptmaPay Sandbox foi configurada em **R$ 12,99 por mês**, com cobrança no dia 1 e retroativos de setembro e outubro/2026. A tarifa de outubro foi sincronizada no OptmaMenu como despesa bancária, pois ocorreu depois da abertura da conta financeira. Após a conciliação, o saldo do OptmaPay e o saldo da conta OptmaPay no OptmaMenu ficaram ambos em **R$ 14.844,01**.
+
+A conta PJ recebeu limite Sandbox de **R$ 5.000,00**. O motor de saldo permite saldo negativo apenas até o limite configurado e esse limite passou a participar das validações de Pix, débito, boleto, devolução Pix e pagamento de fatura.
+
+Para simulação de custo de limite, foi adotada a referência mensal de **13,45% a.m.** da série SGS 25446 (BCB, agosto/2026). O IOF Sandbox permanece parametrizado, neste baseline, em **0,0082% ao dia + adicional de 0,38%**, deixando explícito que eventual produto real deverá validar enquadramento fiscal e regra vigente por perfil do tomador.
+
+O extrato do OptmaPay passou a aceitar janela de até **90 dias** e ganhou exportação CSV do período exibido.
+
+O workspace financeiro do OptmaMenu passa a exibir:
+- data de cadastro da conta;
+- limite e uso de limite quando aplicável;
+- saldo devedor em contas que admitem negativo;
+- cartão visual **Em espécie no caixa**, calculado a partir dos movimentos em dinheiro do Caixa Loja Centro;
+- nomenclatura **A conferir** em vez de “Não distribuído”;
+- papéis de conta e textos mais simples, com contraste reforçado no modo escuro.
+
+Este adendo encerra a simplificação financeira da Gelinhares para o ciclo atual. A próxima revisão ampla desta frente deve ocorrer na regressão geral de entrega do OptmaMenu.
