@@ -10,6 +10,8 @@ export interface AccountsPayableDueAlert {
   due_date: string;
   open_amount: number;
   days_until_due: number;
+  is_non_business_due_date?: boolean;
+  next_business_date?: string | null;
   urgency: 'overdue' | 'today' | 'upcoming';
 }
 
