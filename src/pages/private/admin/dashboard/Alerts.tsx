@@ -59,10 +59,13 @@ export default function Alerts() {
   const { store, storeId, loading: storeLoading } = useCurrentStore();
   const financialAlerts = useAccountsPayableDueAlerts(storeId || undefined);
   const { hasPermission } = usePermissions(storeId || null);
-  const [holidays, setHolidays] = useState<Array<{ id: string | null; date: string; name: string; automatic?: boolean; category?: string }>>([]);
+  const [holidays, setHolidays] = useState<Array<{ id: string | null; date: string; name: string; automatic?: boolean; category?: string; exception_status?: string | null; exception_reason?: string | null }>>([]);
   const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
   const [holidayDate, setHolidayDate] = useState('');
   const [holidayName, setHolidayName] = useState('');
+  const [exceptionDate, setExceptionDate] = useState('');
+  const [exceptionStatus, setExceptionStatus] = useState<'open' | 'closed' | 'optional' | 'special_hours'>('open');
+  const [exceptionReason, setExceptionReason] = useState('');
   const [savingHoliday, setSavingHoliday] = useState(false);
   const canManageHolidays = hasPermission('accounts_payable.manage');
 
@@ -97,6 +100,44 @@ export default function Alerts() {
       toast.success('Feriado cadastrado para esta unidade.');
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Erro ao salvar feriado.'); }
     finally { setSavingHoliday(false); }
+  };
+
+  const reloadHolidays = async (year: number) => {
+    if (!storeId) return;
+    const { data, error } = await supabase.rpc('list_store_financial_holidays_safe', {
+      p_store_id: storeId, p_year: year,
+    });
+    if (error || !data?.ok) throw error || new Error(data?.error || 'Erro ao atualizar calendário.');
+    setHolidays(data.items || []);
+  };
+  const saveException = async () => {
+    if (!storeId || !exceptionDate || exceptionReason.trim().length < 8) {
+      toast.warning('Informe data e motivo com pelo menos oito caracteres.');
+      return;
+    }
+    setSavingHoliday(true);
+    try {
+      const { data, error } = await supabase.rpc('save_store_financial_calendar_exception_safe', {
+        p_store_id: storeId, p_date: exceptionDate, p_status: exceptionStatus, p_reason: exceptionReason.trim(),
+      });
+      if (error || !data?.ok) throw error || new Error(data?.error || 'Falha ao configurar exceção.');
+      const year = Number(exceptionDate.slice(0, 4));
+      setHolidayYear(year);
+      await reloadHolidays(year);
+      setExceptionDate('');
+      setExceptionReason('');
+      toast.success('Exceção da unidade registrada. O vencimento contratual não foi alterado.');
+    } catch (error) { toast.error(error instanceof Error ? error.message : 'Erro ao salvar exceção.'); }
+    finally { setSavingHoliday(false); }
+  };
+  const removeException = async (date: string) => {
+    if (!storeId) return;
+    const { data, error } = await supabase.rpc('delete_store_financial_calendar_exception_safe', {
+      p_store_id: storeId, p_date: date,
+    });
+    if (error || !data?.ok) return toast.error(error?.message || data?.error || 'Erro ao remover exceção.');
+    await reloadHolidays(holidayYear);
+    toast.success('Exceção removida. Vale novamente a regra automática.');
   };
 
   const removeHoliday = async (date: string) => {
@@ -169,7 +210,22 @@ export default function Alerts() {
           <label className="text-xs font-bold text-gray-500">Ano <input aria-label="Ano do calendário financeiro" type="number" min="1900" max="2199" step="1" value={holidayYear} onChange={(e) => { const year = Number(e.target.value); if (Number.isInteger(year) && year >= 1900 && year <= 2199) setHolidayYear(year); }} className="ml-2 w-24 rounded-lg border px-2 py-1 dark:bg-gray-950" /></label>
         </div>
         {canManageHolidays && <div className="mb-3 grid gap-2 sm:grid-cols-[160px_1fr_auto]"><input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950"/><input placeholder="Nome do feriado" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950"/><button type="button" onClick={() => void saveHoliday()} disabled={savingHoliday} className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Adicionar</button></div>}
-        {holidays.length===0 ? <p className="text-sm text-gray-500">Nenhum feriado disponível para {holidayYear}.</p> : <div className="grid gap-2 sm:grid-cols-2">{holidays.map(h => <div key={h.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm dark:border-gray-700"><span>{h.date.split('-').reverse().join('/')} · {h.name}{h.automatic ? ' (automático)' : ' (local)'}</span>{canManageHolidays && !h.automatic && <button type="button" onClick={() => void removeHoliday(h.date)} className="text-xs font-bold text-rose-600">Remover</button>}</div>)}</div>}
+        {holidays.length===0 ? <p className="text-sm text-gray-500">Nenhum feriado disponível para {holidayYear}.</p> : <div className="grid gap-2 sm:grid-cols-2">{holidays.map(h => <div key={h.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm dark:border-gray-700"><span>{h.date.split('-').reverse().join('/')} · {h.name}{h.automatic ? ' (automático)' : h.category === 'excecao' ? ' (exceção)' : ' (local)'}{h.exception_status && <span className="ml-2 font-bold text-amber-600">[{({open:'Com atendimento',closed:'Sem atendimento',optional:'Ponto facultativo',special_hours:'Expediente especial'} as Record<string,string>)[h.exception_status] || h.exception_status}]</span>}{h.exception_reason && <span className="ml-2 text-xs opacity-70">Motivo: {h.exception_reason}</span>}</span>{canManageHolidays && h.exception_status && <button type="button" onClick={() => void removeException(h.date)} className="text-xs font-bold text-amber-600">Restaurar regra</button>}{canManageHolidays && !h.automatic && h.category === 'local' && <button type="button" onClick={() => void removeHoliday(h.date)} className="text-xs font-bold text-rose-600">Remover</button>}</div>)}</div>}
+        {canManageHolidays && <div className="mt-4 space-y-2 border-t pt-3 dark:border-gray-700">
+          <p className="text-sm font-black dark:text-white">Exceção ao calendário — somente esta unidade</p>
+          <p className="text-xs text-gray-500">Use após verificar a norma ou comunicado bancário. 'Ponto facultativo' e 'expediente especial' são informativos e não bloqueiam automaticamente a data. 'Com atendimento' substitui o feriado automático somente nesta unidade e não altera fins de semana.</p>
+          <div className="grid gap-2 sm:grid-cols-[150px_1fr]">
+            <input type="date" aria-label="Data da exceção" value={exceptionDate} onChange={e=>setExceptionDate(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950" />
+            <select aria-label="Tipo de exceção bancária" value={exceptionStatus} onChange={e=>setExceptionStatus(e.target.value as typeof exceptionStatus)} className="rounded-xl border px-3 py-2 dark:bg-gray-950">
+              <option value="open">Com atendimento bancário</option>
+              <option value="closed">Sem atendimento bancário</option>
+              <option value="optional">Ponto facultativo (informativo)</option>
+              <option value="special_hours">Expediente especial (informativo)</option>
+            </select>
+            <input value={exceptionReason} onChange={e=>setExceptionReason(e.target.value)} placeholder="Fundamento da exceção (norma, comunicado, motivo)" className="rounded-xl border px-3 py-2 dark:bg-gray-950 sm:col-span-2" />
+          </div>
+          <button type="button" onClick={() => void saveException()} disabled={savingHoliday} className="rounded-xl bg-amber-700 px-4 py-2 text-xs font-bold text-white disabled:opacity-50">Salvar exceção da unidade</button>
+        </div>}
       </section>
 
       {/* Cards (sem badges) */}
