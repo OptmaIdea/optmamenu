@@ -263,13 +263,13 @@ export default function AccountsPayablePage() {
     void loadWorkspace()
   }, [loadWorkspace])
 
+  const linkedPayableId = searchParams.get('payable');
   useEffect(() => {
-    const linkedPayableId = searchParams.get('payable');
-    if (linkedPayableId && linkedPayableId !== selectedPayableId) {
+    if (linkedPayableId) {
       setSelectedPayableId(linkedPayableId);
       void loadDetail(linkedPayableId);
     }
-  }, [searchParams, selectedPayableId, loadDetail]);
+  }, [linkedPayableId, loadDetail]);
 
   const refreshPayables = useCallback(async (preferredDetail?: AccountsPayableDetail | null) => {
     if (!storeId) return
