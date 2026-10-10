@@ -140,6 +140,7 @@ export default function OnlinePaymentRoutesPanel({ storeId, canManage }: OnlineP
   const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const groups = useMemo(() => buildGroups(routes), [routes]);
+  const activeAccounts = useMemo(() => accounts.filter((account) => account.active), [accounts]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -206,6 +207,11 @@ export default function OnlinePaymentRoutesPanel({ storeId, canManage }: OnlineP
       return;
     }
 
+    if (!accounts.some((account) => account.id === draft.destination_financial_account_id && account.active)) {
+      toast.error('A conta escolhida está inativa. Selecione uma conta ativa para receber os pagamentos.');
+      return;
+    }
+
     setSavingKey(group.key);
     try {
       const { error } = await supabase
@@ -237,6 +243,7 @@ export default function OnlinePaymentRoutesPanel({ storeId, canManage }: OnlineP
     const currentAccount = defaultGroupAccount(group);
     const changed = draft.destination_financial_account_id !== currentAccount || draft.active !== group.rows.every((row) => row.active);
     const mixedAccounts = !currentAccount;
+    const currentInactive = Boolean(currentAccount && !accounts.some((account) => account.id === currentAccount && account.active));
 
     return (
       <div key={group.key} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -266,12 +273,13 @@ export default function OnlinePaymentRoutesPanel({ storeId, canManage }: OnlineP
               className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base font-bold text-gray-800 outline-none transition focus:border-[#19A999] disabled:cursor-not-allowed disabled:opacity-70 dark:border-gray-700 dark:bg-gray-950 dark:text-white sm:py-2 sm:text-sm"
             >
               <option value="">{mixedAccounts ? 'Contas diferentes nas variações' : 'Selecione uma conta'}</option>
-              {accounts.map((account) => (
-                <option key={account.id} value={account.id}>{account.name}{account.active ? '' : ' (inativa)'}</option>
+              {currentInactive && <option value={currentAccount} disabled>{accountName(currentAccount, accounts)} (inativa — substitua)</option>}
+              {activeAccounts.map((account) => (
+                <option key={account.id} value={account.id}>{account.name}</option>
               ))}
             </select>
             <span className="block text-xs font-semibold text-gray-500 dark:text-gray-400">
-              Atual: {mixedAccounts ? 'contas diferentes nas variações internas' : accountName(currentAccount, accounts)}
+              Atual: {mixedAccounts ? 'contas diferentes nas variações internas' : accountName(currentAccount, accounts)}{currentInactive ? ' — INATIVA, selecione outra conta e salve' : ''}
             </span>
           </label>
 
@@ -316,7 +324,7 @@ export default function OnlinePaymentRoutesPanel({ storeId, canManage }: OnlineP
           <div>
             <p className="font-black">Recebimentos da loja online</p>
             <p className="mt-1 font-semibold opacity-90">
-              Configure por forma de pagamento e conta destino padrão. Banco ou adquirente ficam na conta financeira; a forma de pagamento é Pix, cartão, dinheiro, link ou outra forma aceita.
+              Configure por forma de pagamento e conta destino padrão. Apenas contas ativas podem ser escolhidas; vínculos antigos com contas inativas devem ser substituídos.
             </p>
           </div>
         </div>
