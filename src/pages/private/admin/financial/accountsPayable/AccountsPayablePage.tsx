@@ -261,6 +261,14 @@ export default function AccountsPayablePage() {
     void loadWorkspace()
   }, [loadWorkspace])
 
+  useEffect(() => {
+    const linkedPayableId = searchParams.get('payable');
+    if (linkedPayableId && linkedPayableId !== selectedPayableId) {
+      setSelectedPayableId(linkedPayableId);
+      void loadDetail(linkedPayableId);
+    }
+  }, [searchParams, selectedPayableId, loadDetail]);
+
   const refreshPayables = useCallback(async (preferredDetail?: AccountsPayableDetail | null) => {
     if (!storeId) return
     const result = await AccountsPayableService.list({ storeId, limit: 500 })
@@ -318,6 +326,11 @@ export default function AccountsPayablePage() {
   const closeDetail = () => {
     setSelectedPayableId(null)
     setDetail(null)
+    if (searchParams.has('payable')) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('payable')
+      setSearchParams(next, { replace: true })
+    }
   }
 
   const openPayment = (installment: AccountsPayableInstallment) => {
