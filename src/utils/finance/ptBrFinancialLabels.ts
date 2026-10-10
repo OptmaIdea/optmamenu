@@ -55,8 +55,8 @@ const CASHBOOK_ACCOUNT_PLAN_LABELS: Record<string, string> = {
   refund: 'Estorno',
   negative_adjustment: 'Ajuste negativo',
   assumed_loss: 'Perda assumida',
-  transfer_cash_to_safe: 'Transferência do caixa para o cofre',
-  transfer_safe_to_cash: 'Transferência do cofre para o caixa',
+  transfer_cash_to_safe: 'Sangria do caixa para a retaguarda',
+  transfer_safe_to_cash: 'Retorno da retaguarda para o caixa',
   transfer_cash_to_bank: 'Depósito do caixa no banco',
   transfer_bank_to_cash: 'Saque do banco para o caixa',
   transfer_owner_to_cash: 'Aporte do proprietário para o caixa',
@@ -67,13 +67,13 @@ const CASHBOOK_ACCOUNT_PLAN_LABELS: Record<string, string> = {
 };
 
 const FINANCIAL_ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  cash_drawer: 'Caixa físico',
-  safe: 'Cofre',
+  cash_drawer: 'Caixa da loja',
+  safe: 'Retaguarda do caixa',
   bank: 'Banco',
   pix_wallet: 'Carteira Pix',
   card_acquirer: 'Maquininha',
-  card_receivable: 'Recebíveis de cartão',
-  owner: 'Proprietário',
+  card_receivable: 'Compensação de cartão',
+  owner: 'Conta do proprietário',
   other: 'Outra conta',
 };
 
@@ -85,8 +85,8 @@ const FINANCIAL_ACCOUNT_CODE_LABELS: Record<string, string> = {
   card_acquirer: 'Maquininha',
   card_receivable: 'Recebíveis de cartão',
   owner: 'Proprietário',
-  optmapay_receivable: 'Valores a receber — OptmaPay',
-  optmapay_sandbox: 'OptmaPay Sandbox',
+  optmapay_receivable: 'Compensação OptmaPay',
+  optmapay_sandbox: 'OptmaPay',
   asaas_pix: 'Asaas Pix',
   infinitepay: 'InfinitePay',
   clc: 'Caixa Loja Centro',
