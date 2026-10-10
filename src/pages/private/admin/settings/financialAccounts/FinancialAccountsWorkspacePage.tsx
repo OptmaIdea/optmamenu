@@ -578,6 +578,12 @@ export default function FinancialAccountsWorkspacePage() {
     });
   }
 
+  function openAccountTransfer(account: FinancialAccountBalance) {
+    const usable = account.payment_breakdown.filter((item) => item.balance > 0 && accountsForPayment(item.payment_method_code).some((other) => other.id !== account.id));
+    if (!usable.length) return toast.warning('Não há saldo com uma forma de pagamento aceita por outra conta. Confira as formas aceitas pelo destino.');
+    openTransfer(account, usable[0].payment_method_code, usable[0].balance);
+  }
+
   const transferSource = transferForm
     ? accounts.find((account) => account.id === transferForm.sourceAccountId) || null
     : null;
@@ -842,7 +848,8 @@ export default function FinancialAccountsWorkspacePage() {
                         return <div key={item.payment_method_code} className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs dark:bg-gray-900"><button type="button" onClick={() => void openReconciliation(account, item.payment_method_code)} className="min-w-0 flex-1 text-left"><p className="font-black text-gray-700 dark:text-gray-200">{paymentName(item.payment_method_code)}</p><p className="font-semibold text-gray-400">{item.movement_count} movimento(s) · conferir</p></button><div className="flex items-center gap-2"><span className="font-black dark:text-white">{formatMoney(item.balance)}</span>{canManage && <button type="button" onClick={() => openTransfer(account, item.payment_method_code, item.balance)} disabled={!canTransfer} className="inline-flex h-8 w-8 items-center justify-center rounded-lg border text-teal-700 disabled:opacity-30" title={canTransfer ? 'Transferir para conta compatível' : account.active ? 'Sem destino compatível' : 'Conta inativa: use reatribuição de lançamentos'}><ArrowRightLeft size={14} /></button>}</div></div>;
                       })}</div>}
                       <div className="mt-3 space-y-1 text-[11px] font-semibold text-gray-500 dark:text-gray-300"><p>{account.movement_count} movimentação(ões) · última {formatDate(account.last_movement_at)}</p><p>Cadastrada em {formatDate(account.created_at)}</p>{accountOverdraftLimit(account) > 0 && <p className={account.balance < 0 ? 'font-black text-amber-600 dark:text-amber-300' : 'text-cyan-700 dark:text-cyan-300'}>Limite de conta: {formatMoney(accountOverdraftLimit(account))}{account.balance < 0 ? ` · usado ${formatMoney(Math.abs(account.balance))} · disponível ${formatMoney(Math.max(0, accountOverdraftLimit(account) + account.balance))}` : ''}</p>}</div>
-                      {canManage && <button type="button" onClick={() => startEdit(account)} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-400 bg-slate-100 px-3 py-2 text-xs font-black text-slate-900 hover:bg-slate-200 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"><Edit3 size={15} />Editar conta</button>}
+                      {canManage && account.active && <button type="button" onClick={() => openAccountTransfer(account)} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-teal-700 px-3 py-2 text-xs font-black text-white hover:bg-teal-800 dark:bg-teal-600 dark:hover:bg-teal-500"><ArrowRightLeft size={15} />Transferir entre contas</button>}
+                       {canManage && <button type="button" onClick={() => startEdit(account)} className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-400 bg-slate-100 px-3 py-2 text-xs font-black text-slate-900 hover:bg-slate-200 dark:border-slate-500 dark:bg-slate-800 dark:text-white dark:hover:bg-slate-700"><Edit3 size={15} />Editar conta</button>}
                        {account.movement_count > 0 && <button type="button" onClick={() => void openReconciliation(account, '')} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 hover:border-blue-300"><ArrowRightLeft size={14} />{canManage ? 'Ver / reatribuir movimentos' : 'Ver movimentos'}</button>}
                     </div>
                   ))}
