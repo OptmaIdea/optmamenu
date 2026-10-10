@@ -111,6 +111,8 @@ interface FinancialAccountOption {
     account_type: string | null;
     active: boolean;
     sort_order?: number | null;
+    created_at?: string | null;
+    metadata?: { hidden_from_workspace?: boolean; [key: string]: unknown } | null;
 }
 
 interface AccountStatementAccount {
