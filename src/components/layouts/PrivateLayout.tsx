@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import PendingOrdersFloatingAlert from '@/components/orders/PendingOrdersFloatingAlert';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
+import { useAccountsPayableDueAlerts } from '@/hooks/financial/useAccountsPayableDueAlerts';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
@@ -179,6 +180,8 @@ export default function PrivateLayout() {
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
+    const financialDueAlerts = useAccountsPayableDueAlerts(storeId);
+    const centralAttentionCount = attentionCount + financialDueAlerts.count;
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [isPublicStoreEnabled, setIsPublicStoreEnabled] = useState(false);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -1549,16 +1552,17 @@ export default function PrivateLayout() {
                             {/* Alerts Icon */}
                             <button
                                 type="button"
-                                title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
-                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${attentionCount > 0
+                                onClick={() => navigate("/admin/alerts")}
+                                title={centralAttentionCount > 0 ? `${financialDueAlerts.count} avisos financeiros e ${attentionCount} alertas de estoque` : "Abrir central de avisos"}
+                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${centralAttentionCount > 0
                                     ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
                                     : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                             >
-                                <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
-                                {attentionCount > 0 && (
+                                <Bell size={19} className={centralAttentionCount > 0 ? 'animate-pulse' : ''} />
+                                {centralAttentionCount > 0 && (
                                     <span className="absolute -top-0.5 -right-0.5 bg-brand-light text-gray-900 text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center border border-white dark:border-gray-800">
-                                        {attentionCount}
+                                        {centralAttentionCount}
                                     </span>
                                 )}
                             </button>
