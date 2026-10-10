@@ -59,7 +59,7 @@ export default function Alerts() {
   const { store, storeId, loading: storeLoading } = useCurrentStore();
   const financialAlerts = useAccountsPayableDueAlerts(storeId || undefined);
   const { hasPermission } = usePermissions(storeId || null);
-  const [holidays, setHolidays] = useState<Array<{ id: string; date: string; name: string }>>([]);
+  const [holidays, setHolidays] = useState<Array<{ id: string | null; date: string; name: string; automatic?: boolean; category?: string }>>([]);
   const [holidayYear, setHolidayYear] = useState(new Date().getFullYear());
   const [holidayDate, setHolidayDate] = useState('');
   const [holidayName, setHolidayName] = useState('');
@@ -165,11 +165,11 @@ export default function Alerts() {
 
       <section className="mb-6 rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div><h2 className="font-black dark:text-white">Calendário financeiro de feriados</h2><p className="text-xs text-gray-500">Feriados específicos desta unidade; finais de semana são detectados automaticamente.</p></div>
+          <div><h2 className="font-black dark:text-white">Calendário financeiro de feriados</h2><p className="text-xs text-gray-500">Feriados nacionais e bancários recorrentes são gerados automaticamente; cadastre abaixo apenas feriados estaduais e municipais. Datas de expediente especial não alteram o vencimento contratual.</p></div>
           <label className="text-xs font-bold text-gray-500">Ano <select value={holidayYear} onChange={(e) => setHolidayYear(Number(e.target.value))} className="ml-2 rounded-lg border px-2 py-1 dark:bg-gray-950">{[new Date().getFullYear()-1,new Date().getFullYear(),new Date().getFullYear()+1].map(y=><option key={y} value={y}>{y}</option>)}</select></label>
         </div>
         {canManageHolidays && <div className="mb-3 grid gap-2 sm:grid-cols-[160px_1fr_auto]"><input type="date" value={holidayDate} onChange={(e) => setHolidayDate(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950"/><input placeholder="Nome do feriado" value={holidayName} onChange={(e) => setHolidayName(e.target.value)} className="rounded-xl border px-3 py-2 dark:bg-gray-950"/><button type="button" onClick={() => void saveHoliday()} disabled={savingHoliday} className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Adicionar</button></div>}
-        {holidays.length===0 ? <p className="text-sm text-gray-500">Nenhum feriado configurado para {holidayYear}.</p> : <div className="grid gap-2 sm:grid-cols-2">{holidays.map(h => <div key={h.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm dark:border-gray-700"><span>{h.date.split('-').reverse().join('/')} · {h.name}</span>{canManageHolidays && <button type="button" onClick={() => void removeHoliday(h.date)} className="text-xs font-bold text-rose-600">Remover</button>}</div>)}</div>}
+        {holidays.length===0 ? <p className="text-sm text-gray-500">Nenhum feriado disponível para {holidayYear}.</p> : <div className="grid gap-2 sm:grid-cols-2">{holidays.map(h => <div key={h.id} className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm dark:border-gray-700"><span>{h.date.split('-').reverse().join('/')} · {h.name}{h.automatic ? ' (automático)' : ' (local)'}</span>{canManageHolidays && !h.automatic && <button type="button" onClick={() => void removeHoliday(h.date)} className="text-xs font-bold text-rose-600">Remover</button>}</div>)}</div>}
       </section>
 
       {/* Cards (sem badges) */}
