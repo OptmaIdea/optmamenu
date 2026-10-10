@@ -375,6 +375,27 @@ export const FinancialAccountsService = {
     return data.account as StoreFinancialAccount;
   },
 
+  async createWithOpening(input: SaveFinancialAccountInput, openingBalance: number): Promise<StoreFinancialAccount> {
+    if (input.accountId) throw new Error('Saldo inicial só pode ser informado na criação.');
+    const { data, error } = await supabase.rpc('create_store_financial_account_with_opening_safe', {
+      p_store_id: input.storeId,
+      p_code: input.code || null,
+      p_name: input.name,
+      p_account_type: input.accountType,
+      p_description: input.description || null,
+      p_is_default: input.isDefault || false,
+      p_active: input.active ?? true,
+      p_sort_order: input.sortOrder || 0,
+      p_metadata: input.metadata || {},
+      p_opening_balance: openingBalance,
+    });
+    if (error) throw error;
+    if (!data?.ok) throw financialError(data, 'Erro ao criar a conta e registrar o saldo inicial.', {
+      account_code_already_exists: 'Já existe uma conta com esse código.',
+    });
+    return data.account as StoreFinancialAccount;
+  },
+
   async saveRouting(input: SaveFinancialRoutingInput): Promise<void> {
     const { data, error } = await supabase.rpc('set_financial_account_routing_safe', {
       p_store_id: input.storeId,
