@@ -488,7 +488,9 @@ export default function CashbookPage() {
                         },
                     ]),
             ));
-            setAccounts((accountsResult.data || []) as FinancialAccountOption[]);
+            setAccounts(((accountsResult.data || []) as FinancialAccountOption[]).filter(
+                (account) => account.active && account.metadata?.hidden_from_workspace !== true,
+            ));
         } catch (err) {
             console.error('Erro ao carregar dados do livro de caixa:', err);
             toast.error(err instanceof Error ? err.message : 'Erro ao carregar dados do livro de caixa.');
