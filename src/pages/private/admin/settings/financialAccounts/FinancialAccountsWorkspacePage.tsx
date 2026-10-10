@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
+import { supabase } from '@/lib/supabase';
 import { getActiveStoreId } from '@/utils/activeStore';
 import {
   FinancialAccountsService,
@@ -57,6 +58,7 @@ const EMPTY_FORM = {
   accountType: 'cash_drawer' as FinancialAccountType,
   description: '',
   overdraftLimit: '',
+  openingBalance: '',
   allowNegativeBalance: false,
   isDefault: false,
   isSalesClearingDefault: false,
@@ -366,6 +368,7 @@ export default function FinancialAccountsWorkspacePage() {
       accountType: account.account_type,
       description: account.description || '',
       overdraftLimit: String(account.metadata?.overdraft_limit ?? 0),
+      openingBalance: '',
       allowNegativeBalance: account.metadata?.allow_negative_balance === true,
       isDefault: account.is_default,
       isSalesClearingDefault: Boolean(account.is_sales_clearing_default),
@@ -386,6 +389,15 @@ export default function FinancialAccountsWorkspacePage() {
     if (!form.name.trim()) return toast.error('Informe o nome da conta financeira.');
     const overdraftLimit = Number(form.overdraftLimit.replace(',', '.'));
     if (!Number.isFinite(overdraftLimit) || overdraftLimit < 0) return toast.error('Informe um limite de crédito válido (zero ou maior).');
+    const openingBalance = Number(form.openingBalance.replace(',', '.') || 0);
+    if (!form.id && (!Number.isFinite(openingBalance) || openingBalance < 0 || Math.round(openingBalance * 100) !== openingBalance * 100)) {
+      return toast.error('Informe um saldo inicial válido, com até duas casas decimais.');
+    }
+    if (!form.id && openingBalance > 0 && !form.active) return toast.error('Ative a conta antes de lançar o saldo inicial.');
+    const accountCode = form.code.trim() || slugifyCode(form.name);
+    if (!form.id && accounts.some((account) => account.code === accountCode)) {
+      return toast.error('Já existe uma conta com este código. Edite a conta existente.');
+    }
     if (form.isSalesClearingDefault && form.acceptedPaymentMethods.length === 0) {
       return toast.error('A conta de entrada das vendas precisa aceitar ao menos uma forma de pagamento.');
     }
@@ -393,17 +405,18 @@ export default function FinancialAccountsWorkspacePage() {
     try {
       setSaving(true);
       const current = accounts.find((account) => account.id === form.id);
+      const isNewAccount = !form.id;
       const saved = await FinancialAccountsService.save({
         storeId,
         accountId: form.id,
-        code: form.code.trim() || slugifyCode(form.name),
+        code: accountCode,
         name: form.name.trim(),
         accountType: form.accountType,
         description: form.description.trim() || null,
         isDefault: form.isDefault,
         active: form.active,
         sortOrder: current?.sort_order ?? 500,
-        metadata: { ...(current?.metadata || {}), source: 'saldos_por_conta', overdraft_limit: overdraftLimit, allow_negative_balance: form.allowNegativeBalance && overdraftLimit > 0 },
+        metadata: { ...(current?.metadata || {}), source: 'saldos_por_conta', overdraft_limit: form.accountType === 'bank' ? overdraftLimit : 0, allow_negative_balance: form.accountType === 'bank' && form.allowNegativeBalance && overdraftLimit > 0 },
       });
       await FinancialAccountsService.saveRouting({
         storeId,
@@ -411,7 +424,21 @@ export default function FinancialAccountsWorkspacePage() {
         paymentMethodCodes: form.acceptedPaymentMethods,
         isSalesClearingDefault: form.isSalesClearingDefault,
       });
-      toast.success('Conta financeira e regras de recebimento salvas.');
+      if (isNewAccount && openingBalance > 0) {
+        const { data: openingResult, error: openingError } = await supabase.rpc('adjust_financial_account_balance_safe', {
+          p_store_id: storeId,
+          p_account_id: saved.id,
+          p_effective_at: new Date().toISOString(),
+          p_target_balance: openingBalance,
+          p_notes: 'Abertura de conta — saldo inicial informado no cadastro',
+        });
+        if (openingError || !openingResult?.ok) {
+          toast.error('A conta foi criada, mas o lançamento de abertura falhou. Verifique a conta antes de tentar novamente.');
+          await loadData();
+          return;
+        }
+      }
+      toast.success(isNewAccount && openingBalance > 0 ? 'Conta criada com lançamento auditável do saldo inicial.' : 'Conta financeira e regras de recebimento salvas.');
       closeForm();
       await loadData();
     } catch (error) {
@@ -851,7 +878,7 @@ export default function FinancialAccountsWorkspacePage() {
       </div>
 
       {formOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><form onSubmit={saveAccount} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900"><div className="flex items-start justify-between border-b p-5 dark:border-gray-800"><div><h3 className="font-black dark:text-white">{form.id ? 'Editar conta financeira' : 'Nova conta financeira'}</h3><p className="text-xs font-semibold text-gray-500 dark:text-gray-300">Defina também quais formas de pagamento esta conta pode receber.{form.id ? ` Cadastrada em ${formatDate(workspaceAccounts.find((account) => account.id === form.id)?.created_at)}.` : ''}</p></div><button type="button" onClick={closeForm} className="rounded-xl border p-2 text-gray-500"><X size={16} /></button></div><div className="grid gap-4 p-5 md:grid-cols-2"><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Nome</span><input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white" required /></label><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Tipo</span><select value={form.accountType} onChange={(event) => setForm((current) => ({ ...current, accountType: event.target.value as FinancialAccountType }))} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white">{ACCOUNT_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Código</span><input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} placeholder="Gerado automaticamente" className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-gray-950" /></label><label className="space-y-1 md:col-span-2"><span className="text-xs font-black uppercase text-gray-400">Descrição</span><textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-gray-950" /></label><div className="md:col-span-2 grid gap-3 rounded-2xl border p-4 dark:border-gray-700 sm:grid-cols-2"><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Limite de crédito (R$)</span><input type="number" min="0" step="0.01" value={form.overdraftLimit} onChange={(event) => setForm((current) => ({ ...current, overdraftLimit: event.target.value }))} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white" /></label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={form.allowNegativeBalance} onChange={(event) => setForm((current) => ({ ...current, allowNegativeBalance: event.target.checked }))} disabled={Number(form.overdraftLimit || 0) <= 0} />Permitir saldo negativo até o limite</label><p className="sm:col-span-2 text-xs text-gray-500">O limite é uma configuração da conta, não altera seu saldo. O saldo inicial de contas novas exige lançamento de abertura auditável e será configurado em fluxo próprio.</p></div><div className="md:col-span-2 rounded-2xl border p-4 dark:border-gray-700"><p className="text-xs font-black uppercase tracking-widest text-gray-400">Formas aceitas nesta conta</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{paymentMethods.map((method) => { const checked = form.acceptedPaymentMethods.includes(method.code); return <label key={method.code} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-bold ${checked ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" checked={checked} onChange={(event) => setForm((current) => ({ ...current, acceptedPaymentMethods: event.target.checked ? Array.from(new Set([...current.acceptedPaymentMethods, method.code])) : current.acceptedPaymentMethods.filter((code) => code !== method.code) }))} />{method.name}</label>; })}</div></div><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))} />Conta padrão do tipo</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} />Conta ativa</label><label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-bold text-blue-900"><input type="checkbox" className="mt-1" checked={form.isSalesClearingDefault} onChange={(event) => setForm((current) => ({ ...current, isSalesClearingDefault: event.target.checked }))} /><span><strong>Conta de entrada das vendas.</strong><br /><span className="font-semibold opacity-80">Vendas novas entram primeiro aqui e depois são transferidas para contas compatíveis por forma de recebimento.</span></span></label></div><div className="flex justify-end gap-2 border-t p-5 dark:border-gray-800"><button type="button" onClick={closeForm} className="rounded-xl border px-4 py-2 text-sm font-black text-gray-600">Cancelar</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white disabled:opacity-60">{saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}Salvar</button></div></form></div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"><form onSubmit={saveAccount} className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white shadow-2xl dark:bg-gray-900"><div className="flex items-start justify-between border-b p-5 dark:border-gray-800"><div><h3 className="font-black dark:text-white">{form.id ? 'Editar conta financeira' : 'Nova conta financeira'}</h3><p className="text-xs font-semibold text-gray-500 dark:text-gray-300">Defina também quais formas de pagamento esta conta pode receber.{form.id ? ` Cadastrada em ${formatDate(workspaceAccounts.find((account) => account.id === form.id)?.created_at)}.` : ''}</p></div><button type="button" onClick={closeForm} className="rounded-xl border p-2 text-gray-500"><X size={16} /></button></div><div className="grid gap-4 p-5 md:grid-cols-2"><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Nome</span><input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white" required /></label><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Tipo</span><select value={form.accountType} onChange={(event) => setForm((current) => ({ ...current, accountType: event.target.value as FinancialAccountType }))} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white">{ACCOUNT_TYPES.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Código</span><input value={form.code} onChange={(event) => setForm((current) => ({ ...current, code: event.target.value }))} placeholder="Gerado automaticamente" className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-gray-950" /></label><label className="space-y-1 md:col-span-2"><span className="text-xs font-black uppercase text-gray-400">Descrição</span><textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-gray-950" /></label>{!form.id && <label className="space-y-1 md:col-span-2"><span className="text-xs font-black uppercase text-gray-400">Saldo inicial na abertura (R$)</span><input type="number" min="0" step="0.01" inputMode="decimal" value={form.openingBalance} onChange={(event) => setForm((current) => ({ ...current, openingBalance: event.target.value }))} placeholder="0,00" className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white" /><span className="block text-xs text-gray-500">Registrado por lançamento financeiro auditável na criação. Após movimentações, correções exigem ajuste, nunca edição do saldo inicial.</span></label>}{form.accountType === "bank" && <div className="md:col-span-2 grid gap-3 rounded-2xl border p-4 dark:border-gray-700 sm:grid-cols-2"><label className="space-y-1"><span className="text-xs font-black uppercase text-gray-400">Limite bancário (R$)</span><input type="number" min="0" step="0.01" value={form.overdraftLimit} onChange={(event) => setForm((current) => ({ ...current, overdraftLimit: event.target.value }))} className="w-full rounded-xl border px-3 py-2 dark:border-gray-700 dark:bg-slate-950 dark:text-white" /></label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={form.allowNegativeBalance} onChange={(event) => setForm((current) => ({ ...current, allowNegativeBalance: event.target.checked }))} disabled={Number(form.overdraftLimit || 0) <= 0} />Permitir saldo negativo até o limite</label><p className="sm:col-span-2 text-xs text-gray-500">O limite é uma configuração da conta, não altera seu saldo nem produz lançamentos.</p></div>}<div className="md:col-span-2 rounded-2xl border p-4 dark:border-gray-700"><p className="text-xs font-black uppercase tracking-widest text-gray-400">Formas aceitas nesta conta</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{paymentMethods.map((method) => { const checked = form.acceptedPaymentMethods.includes(method.code); return <label key={method.code} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-bold ${checked ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-gray-200 text-gray-600'}`}><input type="checkbox" checked={checked} onChange={(event) => setForm((current) => ({ ...current, acceptedPaymentMethods: event.target.checked ? Array.from(new Set([...current.acceptedPaymentMethods, method.code])) : current.acceptedPaymentMethods.filter((code) => code !== method.code) }))} />{method.name}</label>; })}</div></div><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={form.isDefault} onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))} />Conta padrão do tipo</label><label className="flex items-center gap-2 text-sm font-bold"><input type="checkbox" checked={form.active} onChange={(event) => setForm((current) => ({ ...current, active: event.target.checked }))} />Conta ativa</label><label className="md:col-span-2 flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-bold text-blue-900"><input type="checkbox" className="mt-1" checked={form.isSalesClearingDefault} onChange={(event) => setForm((current) => ({ ...current, isSalesClearingDefault: event.target.checked }))} /><span><strong>Conta de entrada das vendas.</strong><br /><span className="font-semibold opacity-80">Vendas novas entram primeiro aqui e depois são transferidas para contas compatíveis por forma de recebimento.</span></span></label></div><div className="flex justify-end gap-2 border-t p-5 dark:border-gray-800"><button type="button" onClick={closeForm} className="rounded-xl border px-4 py-2 text-sm font-black text-gray-600">Cancelar</button><button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-teal-600 px-4 py-2 text-sm font-black text-white disabled:opacity-60">{saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}Salvar</button></div></form></div>
       )}
 
       {transferForm && transferSource && (
