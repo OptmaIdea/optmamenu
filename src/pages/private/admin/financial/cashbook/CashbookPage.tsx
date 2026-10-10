@@ -206,7 +206,7 @@ function getPaymentMethodLabel(value?: string | null) {
 
 function getAccountTypeLabel(value?: string | null) {
     const labels: Record<string, string> = {
-        cash_drawer: 'Caixa físico',
+        cash_drawer: 'Caixa da loja',
         bank: 'Conta bancária',
         pix_wallet: 'Carteira Pix',
         card_acquirer: 'Adquirente',
