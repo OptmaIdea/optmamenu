@@ -260,7 +260,10 @@ export default function FinancialAccountsWorkspacePage() {
 
   const paymentName = (code?: string | null) => {
     if (!code) return 'Não informado';
-    return paymentMethods.find((method) => method.code === code)?.name || fallbackPaymentLabel(code);
+    const method = paymentMethods.find((item) => item.code === code);
+    if (code === 'debit_card_debito_infinitepay') return 'Cartão de débito · InfinitePay (histórico)';
+    if (method) return method.active ? method.name : `${method.name} (histórico · inativa)`;
+    return fallbackPaymentLabel(code);
   };
 
   function paymentBaseCode(code: string) {
