@@ -1,6 +1,22 @@
-import { Link, useLocation } from 'react-router-dom';
-import { ShoppingCart } from 'lucide-react';
+import { useEffect, useLayoutEffect, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+import { CustomerAccountPortal } from '@/pages/store/components/CustomerAccountPortal';
+import { CustomerAuthPortal } from '@/pages/store/components/CustomerAuthPortal';
+import { StorefrontBottomNavigation } from '@/pages/store/components/StorefrontBottomNavigation';
+import { StoreHubPortal } from '@/pages/store/components/StoreHubPortal';
+import { PublicStorefrontService, type PublicStorefrontStore } from '@/services/publicStorefrontService';
+import { AuthService } from '@/services/customerAuth';
+import {
+    activateCustomerCart,
+    configureCustomerCartRetention,
+    deactivateCustomerCart,
+    prepareCustomerCartForSessionRestore,
+    syncCustomerCartCatalog,
+    flushCustomerCartServerSync,
+} from '@/services/customerCartPersistence';
 import { useCartStore } from '@/store/useCartStore';
+import { useCustomerAuth } from '@/store/useCustomerAuth';
 
 function getStoreSlugFromPath(pathname: string): string | null {
     const segments = pathname.split('/').filter(Boolean);
@@ -16,57 +32,249 @@ function getStoreSlugFromPath(pathname: string): string | null {
 
 export function StoreLayout({ children }: { children: React.ReactNode }) {
     const location = useLocation();
-    const { items } = useCartStore();
+    const navigate = useNavigate();
+    const items = useCartStore((state) => state.items);
+    const context = useCartStore((state) => state.context);
+    const customer = useCustomerAuth((state) => state.customer);
+    const isAuthenticated = useCustomerAuth((state) => state.isAuthenticated);
+    const sessionRestored = useCustomerAuth((state) => state.sessionRestored);
     const cartCount = items.reduce((acc, item) => acc + item.quantity, 0);
-    const storeSlug = getStoreSlugFromPath(location.pathname);
+    const cartTotal = items.reduce(
+        (acc, item) => acc + Number(item.price || 0) * item.quantity,
+        0,
+    );
+    const storeSlug = context?.canonicalSlug || getStoreSlugFromPath(location.pathname);
     const checkoutPath = storeSlug
         ? `/checkout?store=${encodeURIComponent(storeSlug)}`
         : '/checkout';
+    const isTableContext = context?.type === 'table';
+    const isCheckoutRoute = location.pathname === '/checkout';
+
+    const isStoreCatalogRoute = Boolean(getStoreSlugFromPath(location.pathname));
+    const [publicStore, setPublicStore] = useState<PublicStorefrontStore | null>(null);
+    const [storeHubOpen, setStoreHubOpen] = useState(false);
+
+    useLayoutEffect(() => {
+        const root = document.documentElement;
+        const previousDark = root.classList.contains('dark');
+        const previousStorefrontTheme = root.dataset.storefrontTheme;
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        let themeMode: 'light' | 'dark' | 'system' = (() => {
+            try {
+                const stored = window.localStorage.getItem('optmamenu-storefront-theme');
+                return stored === 'dark' || stored === 'system' ? stored : 'light';
+            } catch {
+                return 'light';
+            }
+        })();
+
+        const applyThemeMode = () => {
+            const dark = themeMode === 'dark' || (themeMode === 'system' && media.matches);
+            root.classList.toggle('dark', dark);
+            root.dataset.storefrontTheme = themeMode;
+        };
+
+        const onSystemThemeChange = () => {
+            if (themeMode === 'system') applyThemeMode();
+        };
+
+        const onThemeModeChange = (event: Event) => {
+            const next = (event as CustomEvent<{ mode?: 'light' | 'dark' | 'system' }>).detail?.mode;
+            if (next !== 'light' && next !== 'dark' && next !== 'system') return;
+            themeMode = next;
+            try {
+                window.localStorage.setItem('optmamenu-storefront-theme', next);
+            } catch {
+                // Preferência fica válida apenas nesta sessão.
+            }
+            applyThemeMode();
+        };
+
+        applyThemeMode();
+        media.addEventListener('change', onSystemThemeChange);
+        window.addEventListener('optmamenu:storefront-theme-mode', onThemeModeChange);
+
+        prepareCustomerCartForSessionRestore();
+
+        return () => {
+            media.removeEventListener('change', onSystemThemeChange);
+            window.removeEventListener('optmamenu:storefront-theme-mode', onThemeModeChange);
+            root.classList.toggle('dark', previousDark);
+            if (previousStorefrontTheme) root.dataset.storefrontTheme = previousStorefrontTheme;
+            else delete root.dataset.storefrontTheme;
+        };
+    }, []);
+
+    useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [location.pathname, location.search]);
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const verification =
+            params.get('emailVerificationResult')
+            || params.get('emailVerification');
+        if (!verification) return;
+
+        if (verification === 'success') {
+            toast.success(
+                isAuthenticated
+                    ? 'E-mail confirmado com sucesso. Atualize seus dados para refletir a confirmação.'
+                    : 'E-mail confirmado com sucesso. Você já pode voltar à sua conta.',
+            );
+        } else if (verification === 'used') {
+            toast.info('Este link de confirmação já foi utilizado.');
+        } else if (verification === 'expired') {
+            toast.error('Este link de confirmação expirou. Solicite um novo e-mail.');
+        } else if (verification === 'invalid') {
+            toast.error('O link de confirmação de e-mail é inválido.');
+        } else {
+            toast.error('Não foi possível concluir a confirmação de e-mail. Solicite um novo link.');
+        }
+
+        params.delete('emailVerificationResult');
+        params.delete('emailVerification');
+        const nextSearch = params.toString();
+        navigate(
+            {
+                pathname: location.pathname,
+                search: nextSearch ? `?${nextSearch}` : '',
+            },
+            { replace: true },
+        );
+    }, [isAuthenticated, location.pathname, location.search, navigate]);
+
+    useEffect(() => {
+        if (!sessionRestored) return;
+
+        if (isAuthenticated && customer) {
+            activateCustomerCart(customer.id, customer.store_id);
+            return;
+        }
+
+        deactivateCustomerCart();
+    }, [customer, isAuthenticated, sessionRestored]);
+
+    useEffect(() => {
+        if (!sessionRestored || !isAuthenticated || !customer) return;
+
+        let active = true;
+        let alreadyReported = false;
+
+        const checkSession = async () => {
+            if (!active || document.visibilityState !== 'visible') return;
+            const alive = await AuthService.checkSessionAlive();
+            if (!active || alive !== false || alreadyReported) return;
+            alreadyReported = true;
+            toast.info('Sua sessão foi encerrada neste dispositivo. Entre novamente para continuar.');
+        };
+
+        const intervalId = window.setInterval(() => void checkSession(), 8000);
+        window.addEventListener('focus', checkSession);
+        document.addEventListener('visibilitychange', checkSession);
+
+        return () => {
+            active = false;
+            window.clearInterval(intervalId);
+            window.removeEventListener('focus', checkSession);
+            document.removeEventListener('visibilitychange', checkSession);
+        };
+    }, [customer?.id, isAuthenticated, sessionRestored]);
+
+    useEffect(() => {
+        if (!storeSlug) {
+            setPublicStore(null);
+            return;
+        }
+
+        let active = true;
+
+        void Promise.all([
+            PublicStorefrontService.getStorefrontBySlug(storeSlug),
+            PublicStorefrontService.getCatalogBySlug(storeSlug),
+        ])
+            .then(([storefront, catalog]) => {
+                if (!active) return;
+
+                setPublicStore(storefront.store || null);
+
+                if (!context?.storeId) return;
+
+                configureCustomerCartRetention(
+                    context.storeId,
+                    storefront.store?.visual_config?.customer_cart_retention_hours,
+                );
+
+                const products = (catalog.categories || []).flatMap((category) =>
+                    (category.products || []).map((product) => ({
+                        ...product,
+                        category_id: product.category_id || category.id,
+                    })),
+                );
+                syncCustomerCartCatalog(context.storeId, products);
+            })
+            .catch((error) => {
+                console.error('Não foi possível aplicar a política do carrinho público:', error);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, [context?.storeId, storeSlug]);
+
+    useEffect(() => {
+        const openStoreHub = () => setStoreHubOpen(true);
+        window.addEventListener('optmamenu:open-store-hub', openStoreHub);
+        return () => window.removeEventListener('optmamenu:open-store-hub', openStoreHub);
+    }, []);
+
+    const openStoreContact = () => {
+        setStoreHubOpen(true);
+    };
+
+    const logoutCustomer = async () => {
+        await flushCustomerCartServerSync().catch(() => undefined);
+        await AuthService.logoutCustomer();
+    };
 
     return (
-        <div className="min-h-screen">
-            {/* StoreLayout now only provides the floating actions (WhatsApp, Cart)
-                The specific store header and content width are handled by the page components */}
-
-            {/* Main Content Area */}
+        <div className={`min-h-screen ${isStoreCatalogRoute ? 'pb-24 md:pb-0' : ''}`}>
             <main className="transition-all duration-300">
                 {children}
             </main>
 
-            {/* Floating Action Buttons */}
-            <div className="fixed bottom-6 right-4 z-40 flex flex-col gap-4 items-end">
-                {/* WhatsApp Button */}
-                <a
-                    href="https://wa.me/5532999999999"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="bg-green-500 text-white p-3 rounded-full shadow-lg hover:bg-green-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center w-12 h-12"
-                    aria-label="Fale Conosco no WhatsApp"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M3 21l1.65-3.8a9 9 0 1 1 3.4 2.9L3 21" />
-                    </svg>
-                </a>
+            {sessionRestored && isAuthenticated && customer ? (
+                <CustomerAccountPortal hideTrigger={!isCheckoutRoute} />
+            ) : (
+                <CustomerAuthPortal
+                    storeSlug={storeSlug}
+                    storeId={context?.storeId || null}
+                    hideTrigger={!isCheckoutRoute}
+                />
+            )}
 
-                {/* Cart FAB */}
-                <Link
-                    to={checkoutPath}
-                    className="bg-orange-500 text-white p-4 rounded-full shadow-2xl hover:bg-orange-600 transition-transform hover:scale-110 active:scale-95 flex items-center justify-center relative"
-                    aria-label="Abrir Carrinho"
-                >
-                    <ShoppingCart size={28} />
-                    {cartCount > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-red-600 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center border-2 border-white animate-bounce">
-                            {cartCount}
-                        </span>
-                    )}
-                </Link>
-            </div>
-
-            {/* Desktop Footer */}
-            <footer className="hidden sm:block mt-12 text-center text-gray-400 text-sm pb-8">
-                <p>© {new Date().getFullYear()} <a href="https://www.optmaidea.com.br/" target="_blank" rel="noopener noreferrer" className="hover:underline">OptmaIdea</a>. Todos os direitos reservados.</p>
-            </footer>
+            {isStoreCatalogRoute && publicStore && (
+                <>
+                    <StorefrontBottomNavigation
+                        storeSlug={storeSlug}
+                        storeName={publicStore.name}
+                        isAuthenticated={isAuthenticated}
+                        checkoutPath={checkoutPath}
+                        cartCount={cartCount}
+                        cartTotal={cartTotal}
+                        cartLabel={isTableContext ? 'Comanda' : 'Carrinho'}
+                        onOpenStore={() => setStoreHubOpen(true)}
+                        onOpenContact={openStoreContact}
+                        onLogout={logoutCustomer}
+                    />
+                    <StoreHubPortal
+                        open={storeHubOpen}
+                        onClose={() => setStoreHubOpen(false)}
+                        store={publicStore}
+                        isAuthenticated={isAuthenticated}
+                    />
+                </>
+            )}
         </div>
     );
 }

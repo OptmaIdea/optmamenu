@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import BackToTopButton from '@/components/common/navigation/BackToTopButton';
 import PendingOrdersFloatingAlert from '@/components/orders/PendingOrdersFloatingAlert';
 import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttentionCount';
+import { useAccountsPayableDueAlerts } from '@/hooks/financial/useAccountsPayableDueAlerts';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
@@ -49,13 +50,13 @@ import {
     UserCircle,
     Clock,
     BookOpen,
+    CreditCard,
     MessageSquare,
     Truck,
     RadioTower,
     Activity,
     ArrowRightLeft,
     WalletCards,
-    Sparkles,
     FileStack,
     Megaphone,
     Store as StoreIcon,
@@ -179,6 +180,8 @@ export default function PrivateLayout() {
     const [storeId, setStoreId] = useState<string | null>(null);
     const { permissions, refreshing: refreshingPermissions } = usePermissions(storeId ?? null);
     const attentionCount = useInventoryAttentionCount();
+    const financialDueAlerts = useAccountsPayableDueAlerts(storeId);
+    const centralAttentionCount = attentionCount + financialDueAlerts.count;
     const [storeSlug, setStoreSlug] = useState<string | null>(null);
     const [isPublicStoreEnabled, setIsPublicStoreEnabled] = useState(false);
     const [loadingStore, setLoadingStore] = useState(true);
@@ -350,10 +353,6 @@ export default function PrivateLayout() {
         return true;
     }, [isOnboardingPending, isOwner, hasPermission, hasRootPermission, can, canShowSecurityMenu, canShowSettingsMenu]);
 
-    const [isNewSession] = useState(() => {
-        const stored = sessionStorage.getItem('optmamenu.session.start');
-        return !stored;
-    });
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [sessionStartTime] = useState<Date>(() => {
         const stored = sessionStorage.getItem('optmamenu.session.start');
@@ -381,7 +380,6 @@ export default function PrivateLayout() {
             { path: '/admin/customers', icon: Users, label: 'Clientes', permission: 'customers.view' },
             { path: '/admin/commercial-dashboard', icon: BarChart3, label: 'Dashboard comercial', permission: 'commercial.dashboard.view' },
             { path: '/admin/loyalty', icon: Heart, label: 'Fidelidade', permission: 'loyalty.view' },
-            { path: '/admin/loyalty/advanced', icon: Sparkles, label: 'Fidelidade avançada', permission: 'loyalty.view' },
             { path: '/admin/messages-admin', icon: MessageSquare, label: 'Mensagens', permission: 'messages.view' },
             { path: '/admin/orders', icon: ShoppingBag, label: 'Pedidos', permission: 'orders.view' },
             { path: '/admin/marketing', icon: Megaphone, label: 'Promoções', permission: 'marketing.view' },
@@ -393,6 +391,7 @@ export default function PrivateLayout() {
             { path: '/admin/cashbook', icon: WalletCards, label: 'Livro diário', permission: 'cashbook.view' },
             { path: '/admin/account-plan', icon: FolderTree, label: 'Plano de contas', permission: 'financial.account_plan.view' },
             { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'financial.accounts.view' },
+            { path: '/admin/online-payments', icon: CreditCard, label: 'Pagamentos online', permission: 'payments.online.view' },
         ],
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
@@ -922,12 +921,6 @@ export default function PrivateLayout() {
     };
 
     useEffect(() => {
-        if (isNewSession && pathname !== '/admin') {
-            navigate('/admin', { replace: true });
-        }
-    }, [isNewSession, pathname, navigate]);
-
-    useEffect(() => {
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
@@ -1034,6 +1027,15 @@ export default function PrivateLayout() {
         }
         return null;
     }, [navigationItems, pathname, location.search]);
+
+    useEffect(() => {
+        const label = currentItem?.item?.label || 'Início';
+        document.title = `OptmaMenu | ${label}`;
+
+        return () => {
+            document.title = 'OptmaMenu';
+        };
+    }, [currentItem?.item?.label]);
 
     // Helper para verificar se um item de menu está ativo no contexto atual
     const isMenuItemActive = useCallback(
@@ -1550,16 +1552,17 @@ export default function PrivateLayout() {
                             {/* Alerts Icon */}
                             <button
                                 type="button"
-                                title={attentionCount > 0 ? `${attentionCount} alertas de estoque pendentes` : "Sem novos alertas"}
-                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${attentionCount > 0
+                                onClick={() => navigate("/admin/alerts")}
+                                title={centralAttentionCount > 0 ? `${financialDueAlerts.count} avisos financeiros e ${attentionCount} alertas de estoque` : "Abrir central de avisos"}
+                                className={`inline-flex h-11 w-11 items-center justify-center rounded-lg transition relative shrink-0 ${centralAttentionCount > 0
                                     ? 'text-brand-light bg-brand-light/10 hover:bg-brand-light/20'
                                     : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
                                     }`}
                             >
-                                <Bell size={19} className={attentionCount > 0 ? 'animate-pulse' : ''} />
-                                {attentionCount > 0 && (
+                                <Bell size={19} className={centralAttentionCount > 0 ? 'animate-pulse' : ''} />
+                                {centralAttentionCount > 0 && (
                                     <span className="absolute -top-0.5 -right-0.5 bg-brand-light text-gray-900 text-[10px] font-black rounded-full h-4 min-w-4 px-1 flex items-center justify-center border border-white dark:border-gray-800">
-                                        {attentionCount}
+                                        {centralAttentionCount}
                                     </span>
                                 )}
                             </button>

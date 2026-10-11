@@ -110,6 +110,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
         visual_color_highlight: '#fbbf24',
         visual_banner_url: '',
         visual_slogan: '',
+        catalog_search_placeholder: '',
         about_text: '',
         about_image_url: '',
         contact_phone: '',
@@ -130,6 +131,7 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
     });
 
     const [activeTab, setActiveTab] = useState<'visual' | 'institutional' | 'contact'>('visual');
+    const [categoryOptions, setCategoryOptions] = useState<Array<{ id: string; name: string }>>([]);
 
     useEffect(() => {
         fetchConfig();
@@ -174,6 +176,24 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
 
             setStoreId(storeData.id);
             setStoreSlug(storeData.slug);
+
+            const { data: categoriesData, error: categoriesError } = await supabase
+                .from('categories')
+                .select('id, name, sort_order')
+                .eq('store_id', activeStoreId)
+                .eq('active', true)
+                .order('sort_order', { ascending: true })
+                .order('name', { ascending: true });
+
+            if (categoriesError) {
+                console.warn('[APPEARANCE] Não foi possível carregar categorias para destaque:', categoriesError);
+                setCategoryOptions([]);
+            } else {
+                setCategoryOptions((categoriesData || []).map((category) => ({
+                    id: String(category.id),
+                    name: String(category.name || 'Categoria'),
+                })));
+            }
 
             setConfig(prev => ({
                 ...prev,
@@ -503,6 +523,60 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                     </div>
                                 </div>
                             </section>
+
+                            <section className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-sm border border-emerald-100 dark:border-emerald-900/40">
+                                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-2 flex items-center gap-2">
+                                    <LayoutTemplate className="text-emerald-500" size={20} /> Categorias em destaque
+                                </h2>
+                                <p className="mb-5 text-sm leading-6 text-gray-500 dark:text-gray-400">
+                                    Escolha manualmente até 4 categorias para os atalhos principais da loja pública. Sem seleção, a loja usa automaticamente as categorias com mais vendas.
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                    {categoryOptions.length === 0 ? (
+                                        <span className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-500 dark:bg-gray-700 dark:text-gray-300">
+                                            Nenhuma categoria ativa encontrada.
+                                        </span>
+                                    ) : categoryOptions.map((category) => {
+                                        const selected = (config.featured_category_ids || []).includes(category.id);
+                                        const atLimit = !selected && (config.featured_category_ids || []).length >= 4;
+                                        return (
+                                            <button
+                                                key={category.id}
+                                                type="button"
+                                                disabled={disabled || atLimit}
+                                                onClick={() => {
+                                                    if (disabled) return;
+                                                    const current = config.featured_category_ids || [];
+                                                    const next = selected
+                                                        ? current.filter((id) => id !== category.id)
+                                                        : [...current, category.id].slice(0, 4);
+                                                    setConfig({ ...config, featured_category_ids: next });
+                                                }}
+                                                className={`rounded-full border px-3 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40 ${selected
+                                                    ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300'
+                                                    : 'border-gray-200 bg-white text-gray-600 hover:border-emerald-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300'}`}
+                                            >
+                                                {selected ? '✓ ' : ''}{category.name}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-4 flex flex-wrap items-center gap-3">
+                                    <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                                        {(config.featured_category_ids || []).length}/4 selecionadas
+                                    </span>
+                                    {(config.featured_category_ids || []).length > 0 && !disabled && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setConfig({ ...config, featured_category_ids: [] })}
+                                            className="text-xs font-bold text-gray-500 underline-offset-2 hover:text-emerald-700 hover:underline dark:text-gray-400"
+                                        >
+                                            Usar seleção automática
+                                        </button>
+                                    )}
+                                </div>
+                            </section>
+
                         </div>
                     )}
 
@@ -524,6 +598,21 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                             className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
                                             disabled={disabled}
                                         />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Texto da busca no catálogo</label>
+                                        <input
+                                            type="text"
+                                            value={config.catalog_search_placeholder || ''}
+                                            onChange={(e) => setConfig({ ...config, catalog_search_placeholder: e.target.value.slice(0, 80) })}
+                                            placeholder="Ex: Qual produto você procura?"
+                                            maxLength={80}
+                                            className="w-full p-4 text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-xl font-medium focus:ring-2 focus:ring-blue-400 outline-none transition"
+                                            disabled={disabled}
+                                        />
+                                        <p className="mt-2 text-xs leading-5 text-gray-400">
+                                            Use uma frase adequada ao seu negócio. Se ficar vazio, a loja exibirá “Buscar produtos”.
+                                        </p>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Frase do Rodapé</label>
@@ -621,10 +710,10 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-1">Aparecerá no botão flutuante.</p>
+                                        <p className="text-xs text-gray-400 mt-1">Usado na área “Fale com a loja” e nos canais de atendimento da página pública.</p>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Email de Contato</label>
+                                        <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">E-mail de atendimento ao cliente</label>
                                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 p-2 rounded-xl border border-gray-200 dark:border-gray-600">
                                             <Mail size={20} className="text-gray-400 ml-2" />
                                             <input
@@ -636,6 +725,9 @@ export default function Config({ withoutHeader = false, disabled = false }: { wi
                                                 disabled={disabled}
                                             />
                                         </div>
+                                        <p className="text-xs text-gray-400 mt-1">
+                                            Pedidos, entrega, retirada, produtos e dúvidas comerciais devem chegar ao próprio lojista. A OptmaIdea fica restrita às questões da infraestrutura da plataforma.
+                                        </p>
                                     </div>
                                     <div className="md:col-span-2">
                                         <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Endereço Completo</label>

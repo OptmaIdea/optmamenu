@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>OptmaMenu · Homologação OTP Cliente</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, system-ui, sans-serif; }
+    body { margin:0; min-height:100vh; background:#0b1220; color:#e5eef9; display:grid; place-items:center; padding:24px; box-sizing:border-box; }
+    main { width:min(560px,100%); background:#111c2e; border:1px solid #26354d; border-radius:20px; padding:24px; box-shadow:0 24px 80px #0007; }
+    h1 { margin:0 0 8px; font-size:1.35rem; }
+    p { color:#a9b8cd; line-height:1.5; }
+    label { display:block; margin:14px 0 6px; font-weight:700; font-size:.9rem; }
+    input { width:100%; box-sizing:border-box; border:1px solid #344762; background:#0b1424; color:white; padding:12px 14px; border-radius:12px; font-size:1rem; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    button { width:100%; margin-top:16px; border:0; border-radius:12px; padding:13px 16px; font-weight:800; cursor:pointer; background:#19a999; color:#061613; }
+    button.secondary { background:#f85e33; color:white; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .check { display:flex; gap:10px; align-items:flex-start; margin-top:16px; font-size:.9rem; color:#c6d2e3; }
+    .check input { width:auto; margin-top:3px; }
+    .status { margin-top:18px; padding:14px; border-radius:12px; background:#0b1424; white-space:pre-wrap; overflow-wrap:anywhere; min-height:44px; }
+    .ok { border:1px solid #1b8e73; }
+    .err { border:1px solid #b84e4e; }
+    small { color:#8091aa; }
+    a { color:#6ce1d5; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Homologação de autenticação OTP</h1>
+  <p>Fluxo de teste da Gelinhares: OptmaMenu → OptmaSMSGate → SMS → sessão Supabase Auth. Esta tela é temporária e não exibe tokens.</p>
+
+  <label for="phone">Telefone com DDD</label>
+  <input id="phone" inputmode="tel" autocomplete="tel" placeholder="62999999999" />
+
+  <div class="row">
+    <div>
+      <label for="nickname">Nome/apelido</label>
+      <input id="nickname" autocomplete="name" placeholder="Cliente teste" />
+    </div>
+    <div>
+      <label for="birth">Nascimento (opcional)</label>
+      <input id="birth" type="date" />
+    </div>
+  </div>
+
+  <label class="check">
+    <input id="terms" type="checkbox" />
+    <span>Li e concordo com os <a href="/terms" target="_blank">Termos de Uso</a> e a <a href="/politica-privacidade" target="_blank">Política de Privacidade</a>.</span>
+  </label>
+
+  <button id="send">1. Enviar código por SMS</button>
+
+  <label for="otp">Código recebido</label>
+  <input id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000" />
+  <button id="verify" class="secondary">2. Validar código e criar sessão</button>
+
+  <div id="status" class="status">Aguardando teste.</div>
+  <p><small>Não compartilhe o código OTP nem os dados de sessão no chat. Basta informar se o teste concluiu ou qual erro apareceu.</small></p>
+</main>
+<script>
+(() => {
+  const SUPABASE_URL = 'https://lgkkfmqzaorrutuoqeax.supabase.co';
+  const PUBLISHABLE_KEY = 'sb_publishable_8Rmb1cfmYZmHLp8uTBdnBw_0ZzemBzt';
+  const STORE_ID = '0abba741-0f77-4783-8cf8-58811cf7343b';
+  const $ = (id) => document.getElementById(id);
+  const status = $('status');
+  const setStatus = (text, ok = null) => {
+    status.textContent = text;
+    status.className = 'status' + (ok === true ? ' ok' : ok === false ? ' err' : '');
+  };
+  const invoke = async (name, body, token) => {
+    const headers = { 'Content-Type':'application/json', 'apikey':PUBLISHABLE_KEY };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
+      method:'POST', headers, body:JSON.stringify(body)
+    });
+    let data = null;
+    try { data = await response.json(); } catch { data = {}; }
+    if (!response.ok) throw new Error(`${response.status} ${data?.error || 'request_failed'}`);
+    return data;
+  };
+
+  $('send').addEventListener('click', async () => {
+    const phone = $('phone').value.trim();
+    if (!phone) return setStatus('Informe o telefone.', false);
+    $('send').disabled = true;
+    setStatus('Enviando código...');
+    try {
+      const result = await invoke('send-customer-otp-sms', { phone, storeId:STORE_ID, purpose:'registration' });
+      setStatus(`SMS enfileirado com sucesso.\nStatus: ${result.status || 'queued'}\nAgora digite o código recebido.`, true);
+    } catch (error) {
+      setStatus(`Falha ao enviar: ${error.message}`, false);
+    } finally {
+      $('send').disabled = false;
+    }
+  });
+
+  $('verify').addEventListener('click', async () => {
+    const phone = $('phone').value.trim();
+    const otp = $('otp').value.replace(/\D/g,'');
+    const termsAccepted = $('terms').checked;
+    if (!phone || otp.length !== 6) return setStatus('Informe telefone e código de 6 dígitos.', false);
+    if (!termsAccepted) return setStatus('Aceite os Termos e a Política de Privacidade para concluir o cadastro.', false);
+    $('verify').disabled = true;
+    setStatus('Validando OTP e emitindo sessão segura...');
+    try {
+      const bridge = await invoke('customer-auth-session', {
+        action:'otp', phone, otp, storeId:STORE_ID, purpose:'registration',
+        registration:{
+          nickname:$('nickname').value.trim() || null,
+          birthDate:$('birth').value || null,
+          termsAccepted:true,
+          marketingConsent:false,
+          loyaltyOptIn:false
+        }
+      });
+      if (!bridge?.tokenHash) throw new Error('session_proof_missing');
+
+      const verifyResponse = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'apikey':PUBLISHABLE_KEY },
+        body:JSON.stringify({ type:'magiclink', token_hash:bridge.tokenHash })
+      });
+      const session = await verifyResponse.json();
+      if (!verifyResponse.ok || !session?.access_token) throw new Error(session?.msg || session?.error_description || 'auth_session_failed');
+
+      const me = await invoke('customer-auth-session', { action:'me' }, session.access_token);
+      const customer = me?.customer || {};
+      setStatus(
+        `E2E CONCLUÍDO.\nSessão Supabase Auth: OK\nIdentidade customer/store: OK\nCliente: ${customer.nickname || customer.full_name || 'sem nome'}\nTelefone final: ****${String(customer.phone || '').slice(-4)}`,
+        true
+      );
+    } catch (error) {
+      setStatus(`Falha na validação/sessão: ${error.message}`, false);
+    } finally {
+      $('verify').disabled = false;
+      $('otp').value = '';
+    }
+  });
+})();
+</script>
+</body>
+</html>
