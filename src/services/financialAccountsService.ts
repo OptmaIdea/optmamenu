@@ -14,6 +14,7 @@ export interface FinancialPaymentMethod {
   code: string;
   base_code: string;
   name: string;
+  active: boolean;
   affects_cashbook: boolean;
   preferred_financial_account_id?: string | null;
 }
@@ -216,6 +217,7 @@ export const FinancialAccountsService = {
         code: String(method.code || ''),
         base_code: String(method.base_code || method.code || ''),
         name: String(method.name || method.code || ''),
+        active: method.active !== false,
         affects_cashbook: Boolean(method.affects_cashbook),
         preferred_financial_account_id: typeof method.preferred_financial_account_id === 'string'
           ? method.preferred_financial_account_id
