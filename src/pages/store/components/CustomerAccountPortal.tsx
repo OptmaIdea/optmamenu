@@ -261,8 +261,12 @@ function consentTypeLabel(value?: string | null) {
         case 'loyalty_email': return 'Fidelidade por e-mail';
         case 'loyalty_sms': return 'Fidelidade por SMS';
         case 'loyalty_webapp': return 'Mensagens da fidelidade no site/app';
-        case 'terms': return 'Termos de uso';
-        case 'privacy': return 'Política de privacidade';
+        case 'terms':
+        case 'terms_of_use':
+            return 'Termos de uso';
+        case 'privacy':
+        case 'privacy_policy':
+            return 'Política de privacidade';
         default:
             return String(value || 'Consentimento')
                 .replace(/_/g, ' ')
@@ -283,9 +287,18 @@ function consentSourceLabel(value?: string | null) {
             return 'Cadastro';
         case 'admin':
         case 'backoffice':
-            return 'Loja';
+        case 'admin_recorded':
+            return 'Registrado pela loja';
+        case 'public_store':
+            return 'Loja pública';
+        case 'system_required_webapp':
+            return 'Obrigatório para avisos no site/app';
+        case 'system':
+            return 'Sistema';
         default:
-            return value ? String(value).replace(/_/g, ' ') : 'Não informado';
+            return value
+                ? String(value).replace(/_/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+                : 'Não informado';
     }
 }
 
@@ -451,6 +464,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const ordersRef = useRef<CustomerOrderSummary[]>([]);
     const ordersRequestInFlightRef = useRef(false);
     const loyaltyTopRef = useRef<HTMLDivElement | null>(null);
+    const accountTabsNavRef = useRef<HTMLElement | null>(null);
     const [storeDisplayName, setStoreDisplayName] = useState('esta loja');
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
@@ -484,11 +498,45 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [protectedProfileOtp, setProtectedProfileOtp] = useState('');
     const [protectedProfileOtpSent, setProtectedProfileOtpSent] = useState(false);
     const [protectedProfileSubmitting, setProtectedProfileSubmitting] = useState(false);
+    const [protectedDataAttested, setProtectedDataAttested] = useState(false);
 
     const displayName = useMemo(
         () => customer?.nickname || customer?.full_name || 'cliente',
         [customer?.full_name, customer?.nickname],
     );
+
+    const hasProfileChanges = useMemo(() => {
+        const clean = (value?: string | null) => String(value || '').trim();
+        const cleanEmail = (value?: string | null) => clean(value).toLocaleLowerCase('pt-BR');
+        return (
+            clean(nickname) !== clean(customer?.nickname)
+            || clean(fullName) !== clean(customer?.full_name)
+            || cleanEmail(email) !== cleanEmail(customer?.email)
+            || (!customer?.cpf && onlyDigits(cpf) !== onlyDigits(customer?.cpf || ''))
+            || (!customer?.birth_date && birthDate !== (customer?.birth_date || ''))
+        );
+    }, [
+        birthDate,
+        cpf,
+        customer?.birth_date,
+        customer?.cpf,
+        customer?.email,
+        customer?.full_name,
+        customer?.nickname,
+        email,
+        fullName,
+        nickname,
+    ]);
+
+    const protectedProfileHasChanges = useMemo(() => {
+        const currentCpf = onlyDigits(customer?.cpf || '');
+        const nextCpf = onlyDigits(protectedCpf);
+        const currentBirth = customer?.birth_date || '';
+        return (
+            (Boolean(nextCpf) && nextCpf !== currentCpf)
+            || (Boolean(protectedBirthDate) && protectedBirthDate !== currentBirth)
+        );
+    }, [customer?.birth_date, customer?.cpf, protectedBirthDate, protectedCpf]);
 
     useEffect(() => {
         const slug = cartContext?.canonicalSlug || cartContext?.requestedSlug;
@@ -512,6 +560,23 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             active = false;
         };
     }, [cartContext?.canonicalSlug, cartContext?.requestedSlug]);
+
+    useEffect(() => {
+        if (!open) return;
+
+        const frame = window.requestAnimationFrame(() => {
+            const activeTabButton = accountTabsNavRef.current?.querySelector<HTMLElement>(
+                `[data-account-tab="${tab}"]`,
+            );
+            activeTabButton?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'nearest',
+                inline: 'center',
+            });
+        });
+
+        return () => window.cancelAnimationFrame(frame);
+    }, [open, tab]);
 
     useEffect(() => {
         if (!open) return;
@@ -1287,6 +1352,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 setProtectedBirthDate(customer.birth_date || '');
                 setProtectedProfileOtp('');
                 setProtectedProfileOtpSent(false);
+                setProtectedDataAttested(false);
                 clearFeedback();
             }
             return next;
@@ -1295,6 +1361,14 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const requestProtectedProfileOtp = async () => {
         clearFeedback();
+        if (!protectedProfileHasChanges) {
+            setError('Altere o CPF ou a data de nascimento antes de solicitar o código.');
+            return;
+        }
+        if (!protectedDataAttested) {
+            setError('Confirme a responsabilidade pelas informações corrigidas antes de solicitar o código.');
+            return;
+        }
         setProtectedProfileSubmitting(true);
         try {
             await AuthService.sendOtp(customer.phone, customer.store_id, 'profile_change');
@@ -1330,6 +1404,10 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setError('Altere o CPF ou a data de nascimento antes de confirmar.');
             return;
         }
+        if (!protectedDataAttested) {
+            setError('Confirme a responsabilidade pelas informações corrigidas.');
+            return;
+        }
 
         setProtectedProfileSubmitting(true);
         try {
@@ -1337,6 +1415,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 otp: onlyDigits(protectedProfileOtp),
                 cpf: cpfChanged ? nextCpf : null,
                 birthDate: birthChanged ? protectedBirthDate : null,
+                dataAttested: true,
             });
 
             await refreshCustomerSnapshot();
@@ -1346,7 +1425,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
             setProtectedProfileOpen(false);
             setProtectedProfileOtp('');
             setProtectedProfileOtpSent(false);
-            const feedback = 'Dados protegidos atualizados com confirmação por SMS.';
+            setProtectedDataAttested(false);
+            const changedLabels = result.fieldsChanged.map((field) => (
+                field === 'cpf' ? 'CPF' : field === 'birth_date' ? 'data de nascimento' : field
+            ));
+            const feedback = `${changedLabels.join(' e ') || 'Dados protegidos'} atualizados com confirmação por SMS.${result.securityEmailSent ? ' Enviamos também um aviso ao seu e-mail confirmado.' : ''}`;
             setMessage(feedback);
             toast.success(feedback);
         } catch (profileError) {
@@ -1494,19 +1577,40 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const saveProfile = async () => {
         clearFeedback();
+        if (!hasProfileChanges) {
+            setProfileDirty(false);
+            return;
+        }
         if (!fullName.trim()) {
             setError('Informe seu nome.');
             return;
         }
+
+        const changes: Parameters<typeof CustomerService.updateProfile>[1] = {};
+        if (nickname.trim() !== String(customer.nickname || '').trim()) {
+            changes.nickname = nickname.trim();
+        }
+        if (fullName.trim() !== String(customer.full_name || '').trim()) {
+            changes.full_name = fullName.trim();
+        }
+        if (email.trim().toLocaleLowerCase('pt-BR') !== String(customer.email || '').trim().toLocaleLowerCase('pt-BR')) {
+            changes.email = email.trim();
+        }
+        if (!customer.cpf && onlyDigits(cpf) !== onlyDigits(customer.cpf || '')) {
+            changes.cpf = onlyDigits(cpf);
+        }
+        if (!customer.birth_date && birthDate !== (customer.birth_date || '')) {
+            changes.birth_date = birthDate;
+        }
+
+        if (Object.keys(changes).length === 0) {
+            setProfileDirty(false);
+            return;
+        }
+
         setLoading(true);
         try {
-            await CustomerService.updateProfile(customer.id, {
-                nickname: nickname.trim() || undefined,
-                full_name: fullName.trim(),
-                email: email.trim() || undefined,
-                cpf: cpf.trim() || undefined,
-                birth_date: birthDate || undefined,
-            });
+            await CustomerService.updateProfile(customer.id, changes);
             await AuthService.restoreSession();
             setProfileDirty(false);
             setMessage('Dados atualizados com sucesso.');
@@ -1519,7 +1623,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const requestEmailVerification = async () => {
         clearFeedback();
-        if (profileDirty || email.trim().toLowerCase() !== String(customer.email || '').trim().toLowerCase()) {
+        if (hasProfileChanges || email.trim().toLowerCase() !== String(customer.email || '').trim().toLowerCase()) {
             setError('Salve seus dados antes de solicitar a confirmação deste e-mail.');
             return;
         }
@@ -2082,7 +2186,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                             <div className="min-w-0">
                                 <div className="flex items-center gap-2">
                                     <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-600">
-                                        {tab === 'loyalty' ? storeDisplayName : tab === 'messages' ? 'Central da loja' : 'Minha conta'}
+                                        Minha conta
                                     </p>
                                     <button
                                         type="button"
@@ -2097,27 +2201,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                     </button>
                                 </div>
                                 <h2 id="customer-account-title" className="mt-1 truncate text-xl font-black text-slate-900 dark:text-white">
-                                    {tab === 'loyalty'
-                                        ? 'Minha fidelidade'
-                                        : tab === 'messages'
-                                            ? 'Mensagens'
-                                            : tab === 'loyalty-settings'
-                                                ? 'Configurar fidelidade'
-                                                : tab === 'privacy'
-                                                    ? 'Privacidade e dados'
-                                                    : displayName}
+                                    {displayName}
                                 </h2>
-                                <p className="text-xs text-slate-500">
-                                    {tab === 'loyalty'
-                                        ? `Pontos, extrato e benefícios da ${storeDisplayName}`
-                                        : tab === 'messages'
-                                            ? 'Pedidos, fidelidade, perfil e sistema'
-                                            : tab === 'loyalty-settings'
-                                                ? 'Adesão e comunicações do programa'
-                                                : tab === 'privacy'
-                                                    ? 'Consentimentos, cópia e exclusão dos dados'
-                                                    : customer.phone}
-                                </p>
+                                <p className="text-xs text-slate-500">{customer.phone}</p>
                             </div>
                             <button
                                 type="button"
@@ -2131,11 +2217,12 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                         </header>
 
                         {tab !== 'loyalty' && tab !== 'messages' && (
-                            <nav className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 px-3 py-3 dark:border-slate-800 sm:px-6">
+                            <nav ref={accountTabsNavRef} className="flex shrink-0 gap-2 overflow-x-auto border-b border-slate-200 px-3 py-3 dark:border-slate-800 sm:px-6">
                                 {tabs.map(({ id, label, icon: Icon }) => (
                                     <button
                                         key={id}
                                         type="button"
+                                        data-account-tab={id}
                                         onClick={() => { setTab(id); clearFeedback(); }}
                                         className={`flex min-h-10 shrink-0 items-center gap-2 rounded-xl px-3 text-sm font-bold transition ${tab === id ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300'}`}
                                     >
@@ -2177,7 +2264,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             <button
                                                 type="button"
                                                 onClick={() => void requestEmailVerification()}
-                                                disabled={emailVerificationSending || profileDirty}
+                                                disabled={emailVerificationSending || hasProfileChanges}
                                                 className="mt-2 inline-flex min-h-9 items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 text-xs font-black text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300"
                                             >
                                                 <Mail className="h-4 w-4" />
@@ -2270,10 +2357,22 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                         O código é enviado somente ao celular já confirmado da conta. Alterar os valores depois do envio invalida esta etapa e exige um novo código.
                                                     </p>
 
+                                                    <label className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-900/40 dark:bg-amber-950/10">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={protectedDataAttested}
+                                                            onChange={(event) => setProtectedDataAttested(event.target.checked)}
+                                                            className="mt-1 h-4 w-4 shrink-0"
+                                                        />
+                                                        <span className="leading-6 text-amber-900 dark:text-amber-200">
+                                                            Declaro que esta correção é verdadeira e de minha responsabilidade. Alterações protegidas ficam registradas por segurança e podem afetar temporariamente a elegibilidade da fidelidade.
+                                                        </span>
+                                                    </label>
+
                                                     <button
                                                         type="button"
                                                         onClick={() => void requestProtectedProfileOtp()}
-                                                        disabled={protectedProfileSubmitting}
+                                                        disabled={protectedProfileSubmitting || !protectedProfileHasChanges || !protectedDataAttested}
                                                         className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-300 px-4 py-2.5 text-sm font-black text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-900"
                                                     >
                                                         {protectedProfileSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
@@ -2298,7 +2397,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                             <button
                                                                 type="button"
                                                                 onClick={() => void confirmProtectedProfileCorrection()}
-                                                                disabled={protectedProfileSubmitting || onlyDigits(protectedProfileOtp).length !== 6}
+                                                                disabled={protectedProfileSubmitting || onlyDigits(protectedProfileOtp).length !== 6 || !protectedDataAttested}
                                                                 className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white transition hover:bg-emerald-700 disabled:opacity-50"
                                                             >
                                                                 {protectedProfileSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -2395,9 +2494,11 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                             </div>
                                         )}
                                     </div>
-                                    <button type="button" onClick={saveProfile} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
-                                        <Save className="h-4 w-4" /> Salvar dados
-                                    </button>
+                                    {hasProfileChanges && (
+                                        <button type="button" onClick={saveProfile} disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-black text-white hover:bg-emerald-700 disabled:opacity-50">
+                                            <Save className="h-4 w-4" /> Salvar alterações
+                                        </button>
+                                    )}
                                 </div>
                             )}
 
