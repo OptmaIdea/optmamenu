@@ -98,7 +98,7 @@ function selfServiceError(payload: SelfRpcPayload | null | undefined, fallback: 
         case 'birth_date_locked':
             return new Error('A data de nascimento já confirmada não pode ser alterada por aqui.');
         case 'invalid_cpf':
-            return new Error('Informe um CPF com 11 dígitos.');
+            return new Error('Informe um CPF válido.');
         case 'invalid_email':
             return new Error('Informe um e-mail válido.');
         case 'invalid_birth_date':
