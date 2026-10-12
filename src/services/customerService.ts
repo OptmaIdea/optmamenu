@@ -219,11 +219,13 @@ export const CustomerService = {
         otp: string;
         cpf?: string | null;
         birthDate?: string | null;
+        dataAttested: boolean;
     }) {
         const { data, error } = await supabaseCustomer.rpc('change_customer_self_sensitive_profile_safe', {
             p_otp: options.otp,
             p_cpf: options.cpf || null,
             p_birth_date: options.birthDate || null,
+            p_data_attested: options.dataAttested,
         });
         if (error) throw new Error('Não foi possível corrigir seus dados protegidos agora.');
 
@@ -232,6 +234,8 @@ export const CustomerService = {
             birth_date?: string | null;
             fields_changed?: string[];
             unchanged?: boolean;
+            audit_id?: string | null;
+            age_eligibility_changed?: boolean;
         }) | null;
 
         if (!payload?.ok) {
@@ -241,19 +245,53 @@ export const CustomerService = {
                 strong_reauth_required: 'Confirme a correção usando o código SMS.',
                 invalid_or_expired_otp: 'Código SMS inválido ou expirado. Solicite um novo código.',
                 otp_locked: 'Muitas tentativas de código. Solicite um novo SMS.',
-                invalid_cpf: 'Informe um CPF válido com 11 dígitos.',
+                invalid_cpf: 'Informe um CPF válido.',
                 cpf_already_registered: 'Este CPF já está vinculado a outro cadastro ativo nesta loja.',
                 invalid_birth_date: 'Informe uma data de nascimento válida.',
+                data_attestation_required: 'Confirme que as informações corrigidas são verdadeiras e de sua responsabilidade.',
+                sensitive_change_rate_limited: 'O limite de correções protegidas foi atingido neste período. Fale com a loja para uma revisão assistida.',
                 loyalty_age_restricted_profile_change: 'Esta correção deixaria a conta abaixo da idade mínima da fidelidade. Saia do programa antes de corrigir a data de nascimento.',
             };
             throw new Error(labels[payload?.error || ''] || payload?.message || 'Não foi possível corrigir seus dados protegidos.');
         }
 
+        const fieldsChanged = Array.isArray(payload.fields_changed)
+            ? payload.fields_changed.map(String)
+            : [];
+        const auditId = payload.audit_id ? String(payload.audit_id) : null;
+        let securityEmailSent = false;
+
+        if (auditId && fieldsChanged.length > 0) {
+            try {
+                const token = getCustomerToken();
+                if (token) {
+                    const response = await fetch('/api/customer-profile-change-notification', {
+                        method: 'POST',
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ auditId }),
+                    });
+                    const notice = await response.json().catch(() => null) as {
+                        ok?: boolean;
+                        sent?: boolean;
+                    } | null;
+                    securityEmailSent = Boolean(response.ok && notice?.ok && notice.sent);
+                }
+            } catch (noticeError) {
+                console.warn('[CUSTOMER_PROFILE] Alteração concluída, mas o aviso por e-mail não pôde ser enviado:', noticeError);
+            }
+        }
+
         return {
             cpf: payload.cpf ? String(payload.cpf) : null,
             birthDate: payload.birth_date ? String(payload.birth_date) : null,
-            fieldsChanged: Array.isArray(payload.fields_changed) ? payload.fields_changed.map(String) : [],
+            fieldsChanged,
             unchanged: Boolean(payload.unchanged),
+            auditId,
+            ageEligibilityChanged: Boolean(payload.age_eligibility_changed),
+            securityEmailSent,
         };
     },
 
