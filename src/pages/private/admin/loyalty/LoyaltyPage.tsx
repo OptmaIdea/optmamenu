@@ -1022,7 +1022,7 @@ export default function LoyaltyPage() {
                                     return (
                                     <div key={reward.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3 dark:border-gray-800">
                                         <img src={reward.image_url || '/fallbacks/reward.svg'} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-                                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setRewardForm({
+                                        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => { setRewardForm({
                                             id: reward.id,
                                             title: reward.title,
                                             description: reward.description || '',
