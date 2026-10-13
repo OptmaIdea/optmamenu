@@ -106,6 +106,7 @@ export interface LoyaltyReward {
     stock_quantity?: number | null;
     voucher_validity_days?: number | null;
     image_url?: string | null;
+    media_asset_id?: string | null;
     additional_cash_cost?: number | null;
     offer_valid_until?: string | null;
     product_id?: string | null;
