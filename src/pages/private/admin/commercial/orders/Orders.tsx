@@ -13,6 +13,7 @@ import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { OrderCommunicationService, type OrderMessageEventCode } from '@/services/orderCommunicationService';
 import OrderPaymentModal, { type FinalPaymentMethodCode } from '@/components/orders/OrderPaymentModal';
 import OrderPaymentProofPanel from './OrderPaymentProofPanel';
+import { getActiveStoreId } from '@/utils/activeStore';
 
 function getAutomaticExpirationAt(order: Order): string | null {
     const metadata = (order as Order & { commercial_metadata?: Record<string, unknown> }).commercial_metadata;
@@ -50,7 +51,7 @@ export default function Orders() {
     const [startDate, setStartDate] = useState<string>(initialDates.start);
     const [endDate, setEndDate] = useState<string>(initialDates.end);
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-    const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
+    const [storeData, setStoreData] = useState<{ id: string, name: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
     const [finalizingOrder, setFinalizingOrder] = useState<Order | null>(null);
     const [finalizationLoading, setFinalizationLoading] = useState(false);
@@ -112,22 +113,31 @@ export default function Orders() {
     const fetchOrders = useCallback(async () => {
         setLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { data: storeRpcData, error: storeRpcError } = await supabase.rpc('get_user_store_by_id', { p_user_id: user.id });
-            if (storeRpcError) throw storeRpcError;
-            const store = Array.isArray(storeRpcData) ? storeRpcData[0] : storeRpcData;
-
-            if (!store) {
-                setLoading(false);
-                return;
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) {
+                setOrders([]);
+                setStoreData(null);
+                throw new Error('Nenhuma loja ativa selecionada.');
             }
 
-            setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
+            const { data: store, error: storeError } = await supabase
+                .from('stores')
+                .select('id, name, config')
+                .eq('id', activeStoreId)
+                .maybeSingle();
+
+            if (storeError) throw storeError;
+            if (!store) throw new Error('Loja ativa não encontrada ou sem permissão.');
+
+            setStoreData({
+                id: store.id,
+                name: store.name,
+                config: (store.config || {}) as StoreConfig,
+            });
+
             const rpcStatus = focusedOrderId || filterStatus === 'all' || filterStatus === 'current' ? 'all' : filterStatus;
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
-                p_store_id: store.id,
+                p_store_id: activeStoreId,
                 p_status: rpcStatus,
                 p_limit: 500,
             });
