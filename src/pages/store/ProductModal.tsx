@@ -1,4 +1,5 @@
-import { AlertTriangle, BadgePercent, ImageIcon, X } from 'lucide-react';
+import { AlertTriangle, BadgePercent, ImageIcon, X, ZoomIn } from 'lucide-react';
+import { ImageLightbox } from './components/ImageLightbox';
 import { useEffect, useMemo, useState } from 'react';
 import type { PriceRule, Product } from '@/types';
 import { useCartStore } from '@/store/useCartStore';
@@ -23,6 +24,7 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
     const [isVisible, setIsVisible] = useState(false);
     const [quantity, setQuantity] = useState(1);
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [zoomOpen, setZoomOpen] = useState(false);
 
     const categoryRules = useCartStore((state) => state.categoryRules);
     const cartItems = useCartStore((state) => state.items);
@@ -40,9 +42,11 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
             setIsVisible(true);
             setQuantity(1);
             setCurrentImageIndex(0);
+            setZoomOpen(false);
             return;
         }
 
+        setZoomOpen(false);
         const timer = window.setTimeout(() => setIsVisible(false), 300);
         return () => window.clearTimeout(timer);
     }, [isOpen]);
@@ -248,7 +252,10 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                             {images.length > 1 && (
                                 <button type="button" onClick={() => setCurrentImageIndex((previous) => previous === 0 ? images.length - 1 : previous - 1)} className="absolute left-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm" aria-label="Imagem anterior">‹</button>
                             )}
-                            <img src={images[currentImageIndex]} alt={product.name} className="h-full max-w-full object-contain drop-shadow-xl" />
+                            <button type="button" onClick={() => setZoomOpen(true)} aria-label={`Ampliar imagem de ${product.name}`} className="group relative flex h-full max-w-[calc(100%-5rem)] items-center justify-center">
+                                <img src={images[currentImageIndex]} alt={product.name} className="max-h-full max-w-full object-contain drop-shadow-xl" />
+                                <span className="absolute bottom-0 right-0 flex items-center gap-1.5 rounded-full bg-slate-950/75 px-3 py-2 text-xs font-bold text-white"><ZoomIn className="h-4 w-4" /> Ampliar</span>
+                            </button>
                             {images.length > 1 && (
                                 <button type="button" onClick={() => setCurrentImageIndex((previous) => (previous + 1) % images.length)} className="absolute right-0 rounded-full bg-white/80 px-3 py-2 text-xl text-gray-700 shadow-sm" aria-label="Próxima imagem">›</button>
                             )}
@@ -349,6 +356,9 @@ export function ProductModal({ product, isOpen, onClose, onAddToCart }: ProductM
                     <p className="text-[11px] text-gray-500 dark:text-gray-400">O valor final será confirmado pelo sistema ao adicionar e novamente antes de concluir o pedido.</p>
                 </div>
             </section>
+            {zoomOpen && product && images.length > 0 && (
+                <ImageLightbox images={images} currentIndex={currentImageIndex} onIndexChange={setCurrentImageIndex} onClose={() => setZoomOpen(false)} alt={product.name} />
+            )}
         </div>
     );
 }
