@@ -101,6 +101,24 @@ function pointTriggerLabel(value: string) {
     return value;
 }
 
+function rewardUiType(reward: Pick<LoyaltyReward, 'type' | 'additional_cash_cost'>) {
+    if (reward.type === 'discount') return 'discount';
+    if (reward.type === 'other') return Number(reward.additional_cash_cost || 0) > 0 ? 'gift_plus' : 'gift';
+    if (reward.type === 'product') return Number(reward.additional_cash_cost || 0) > 0 ? 'product_plus' : 'product';
+    return 'gift';
+}
+
+function rewardTypeLabel(reward: Pick<LoyaltyReward, 'type' | 'additional_cash_cost'>) {
+    const labels: Record<string, string> = {
+        discount: 'Voucher de desconto',
+        product: 'Produto por pontos',
+        product_plus: 'Produto: pontos + dinheiro',
+        gift: 'Brinde ou prêmio',
+        gift_plus: 'Brinde: pontos + dinheiro',
+    };
+    return labels[rewardUiType(reward)];
+}
+
 function rewardVisibility(reward: LoyaltyReward) {
     if (!reward.is_active) return { label: 'INATIVO', className: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300' };
     if (reward.stock_quantity !== null && reward.stock_quantity !== undefined && reward.stock_quantity <= 0) {
@@ -212,6 +230,9 @@ export default function LoyaltyPage() {
 
     const [rewardImageLibraryOpen, setRewardImageLibraryOpen] = useState(false);
     const [rewardImageChanged, setRewardImageChanged] = useState(false);
+    const [showUnavailableRewards, setShowUnavailableRewards] = useState(false);
+    const [rewardProducts, setRewardProducts] = useState<Array<{ id: string; name: string; price: number }>>([]);
+
     const [rewardForm, setRewardForm] = useState({
         id: '',
         title: '',
@@ -220,6 +241,13 @@ export default function LoyaltyPage() {
         mediaAssetId: '',
         pointsCost: '0',
         type: 'product',
+        additionalCashCost: '0',
+        productId: '',
+        productQuantity: '1',
+        discountPercentage: '',
+        discountAmount: '',
+        maxDiscountValue: '',
+        minOrderValue: '',
         stockQuantity: '',
         voucherValidityDays: '15',
         offerValidUntil: '',
@@ -277,6 +305,21 @@ export default function LoyaltyPage() {
     useEffect(() => {
         if (!loadingStore && storeId) void loadAll();
     }, [loadingStore, storeId, loadAll]);
+
+    useEffect(() => {
+        if (!storeId) return;
+        let cancelled = false;
+        void supabase.rpc('get_loyalty_reward_products_safe', { p_store_id: storeId, p_limit: 500 })
+            .then(({ data, error }) => {
+                if (cancelled) return;
+                if (error || !data?.ok) {
+                    console.error('[LOYALTY] reward products', error || data?.error);
+                    return;
+                }
+                setRewardProducts((data.products || []) as Array<{ id: string; name: string; price: number }>);
+            });
+        return () => { cancelled = true; };
+    }, [storeId]);
 
     const filteredCustomers = useMemo(() => {
         const needle = search.trim().toLocaleLowerCase('pt-BR');
@@ -435,13 +478,32 @@ export default function LoyaltyPage() {
 
     async function saveReward() {
         if (!storeId || !canManage || !rewardForm.title.trim()) return;
+        if (rewardForm.type.startsWith('product') && !rewardForm.productId) {
+            toast.error('Selecione o produto que será entregue como prêmio.');
+            return;
+        }
+        if ((rewardForm.type === 'discount') && !number(rewardForm.discountPercentage) && !number(rewardForm.discountAmount)) {
+            toast.error('Informe um percentual ou valor de desconto.');
+            return;
+        }
+        if (rewardForm.type.endsWith('_plus') && number(rewardForm.additionalCashCost) <= 0) {
+            toast.error('Informe o valor adicional em dinheiro para essa modalidade.');
+            return;
+        }
         setSaving(true);
         try {
             const savedReward = await LoyaltyAdvancedService.upsertReward(storeId, rewardForm.id || null, {
                 title: rewardForm.title.trim(),
                 description: rewardForm.description || null,
                 points_cost: Math.max(0, Math.trunc(number(rewardForm.pointsCost))),
-                type: rewardForm.type,
+                type: rewardForm.type.startsWith('product') ? 'product' : rewardForm.type.startsWith('gift') ? 'other' : rewardForm.type,
+                product_id: rewardForm.type.startsWith('product') ? rewardForm.productId : null,
+                product_quantity: rewardForm.type.startsWith('product') ? Math.max(1,Math.trunc(number(rewardForm.productQuantity,1))) : 1,
+                additional_cash_cost: rewardForm.type.endsWith('_plus') ? Math.max(0,number(rewardForm.additionalCashCost)) : 0,
+                discount_percentage: rewardForm.type === 'discount' && rewardForm.discountPercentage !== '' ? number(rewardForm.discountPercentage) : null,
+                discount_amount: rewardForm.type === 'discount' && rewardForm.discountAmount !== '' ? number(rewardForm.discountAmount) : null,
+                max_discount_value: rewardForm.type === 'discount' && rewardForm.maxDiscountValue !== '' ? number(rewardForm.maxDiscountValue) : null,
+                min_order_value: rewardForm.type === 'discount' && rewardForm.minOrderValue !== '' ? number(rewardForm.minOrderValue) : null,
                 stock_quantity: rewardForm.stockQuantity === '' ? null : Math.max(0, Math.trunc(number(rewardForm.stockQuantity))),
                 voucher_validity_days: Math.max(1, Math.trunc(number(rewardForm.voucherValidityDays, 15))),
                 offer_valid_until: toIsoOrNull(rewardForm.offerValidUntil),
@@ -457,7 +519,7 @@ export default function LoyaltyPage() {
             }
             toast.success(rewardForm.id ? 'Prêmio atualizado.' : 'Prêmio criado.');
             setRewardImageChanged(false);
-            setRewardForm({ id: '', title: '', description: '', imageUrl: '', mediaAssetId: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', active: true });
+            setRewardForm({ id: '', title: '', description: '', imageUrl: '', mediaAssetId: '', pointsCost: '0', type: 'gift', additionalCashCost: '0', productId: '', productQuantity: '1', discountPercentage: '', discountAmount: '', maxDiscountValue: '', minOrderValue: '', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', active: true });
             await loadAll();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao salvar prêmio.');
@@ -960,6 +1022,37 @@ export default function LoyaltyPage() {
                                         <button type="button" disabled={!canManage || !rewardForm.imageUrl} onClick={() => { setRewardForm({ ...rewardForm, imageUrl: '', mediaAssetId: '' }); setRewardImageChanged(true); }} className="rounded-lg border px-3 py-2 text-xs text-red-600">Remover imagem</button>
                                     </div>
                                 </div>
+                                <div className="md:col-span-2">
+                                    <label className={labelClass}>Tipo de prêmio</label>
+                                    <select className={fieldClass} disabled={!canManage} value={rewardForm.type} onChange={(e) => setRewardForm({ ...rewardForm, type: e.target.value })}>
+                                        <option value="discount">Voucher de desconto</option>
+                                        <option value="product">Produto por pontos</option>
+                                        <option value="product_plus">Produto: pontos + dinheiro</option>
+                                        <option value="gift">Brinde ou outro prêmio</option>
+                                        <option value="gift_plus">Brinde: pontos + dinheiro</option>
+                                    </select>
+                                    <p className="mt-1 text-xs text-gray-500">O custo em pontos é debitado no resgate. Valores em dinheiro e descontos serão validados no uso do voucher.</p>
+                                </div>
+                                {rewardForm.type.startsWith('product') && (
+                                    <>
+                                        <div><label className={labelClass}>Produto vinculado</label>
+                                            <select className={fieldClass} disabled={!canManage} value={rewardForm.productId} onChange={e => setRewardForm({ ...rewardForm, productId: e.target.value })}>
+                                                <option value="">Selecione o produto...</option>
+                                                {rewardProducts.map(product => <option key={product.id} value={product.id}>{product.name} — R$ {Number(product.price).toFixed(2)}</option>)}
+                                            </select>
+                                        </div>
+                                        <div><label className={labelClass}>Quantidade do produto</label><input type="number" min="1" step="1" className={fieldClass} disabled={!canManage} value={rewardForm.productQuantity} onChange={e => setRewardForm({ ...rewardForm, productQuantity: e.target.value })} /></div>
+                                    </>
+                                )}
+                                {rewardForm.type === 'discount' && (
+                                    <>
+                                        <div><label className={labelClass}>Desconto (%)</label><input type="number" min="0" max="100" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.discountPercentage} onChange={e => setRewardForm({ ...rewardForm, discountPercentage: e.target.value })} placeholder="Ex.: 10" /></div>
+                                        <div><label className={labelClass}>Desconto fixo (R$)</label><input type="number" min="0" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.discountAmount} onChange={e => setRewardForm({ ...rewardForm, discountAmount: e.target.value })} placeholder="Ex.: 5,00" /></div>
+                                        <div><label className={labelClass}>Teto do desconto (R$)</label><input type="number" min="0" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.maxDiscountValue} onChange={e => setRewardForm({ ...rewardForm, maxDiscountValue: e.target.value })} placeholder="Sem limite" /></div>
+                                        <div><label className={labelClass}>Compra mínima para usar (R$)</label><input type="number" min="0" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.minOrderValue} onChange={e => setRewardForm({ ...rewardForm, minOrderValue: e.target.value })} placeholder="Sem mínimo" /></div>
+                                    </>
+                                )}
+                                {rewardForm.type.endsWith('_plus') && <div className="md:col-span-2"><label className={labelClass}>Valor adicional em dinheiro (R$)</label><input type="number" min="0" step="0.01" className={fieldClass} disabled={!canManage} value={rewardForm.additionalCashCost} onChange={e => setRewardForm({ ...rewardForm, additionalCashCost: e.target.value })} /></div>}
                                 <div className="md:col-span-2"><label className={labelClass}>Título</label><input className={fieldClass} disabled={!canManage} value={rewardForm.title} onChange={(e) => setRewardForm({ ...rewardForm, title: e.target.value })} /></div>
                                 <div className="md:col-span-2"><label className={labelClass}>Descrição</label><textarea className={fieldClass} disabled={!canManage} value={rewardForm.description} onChange={(e) => setRewardForm({ ...rewardForm, description: e.target.value })} /></div>
                                 <div><label className={labelClass}>Custo em pontos</label><input type="number" className={fieldClass} disabled={!canManage} value={rewardForm.pointsCost} onChange={(e) => setRewardForm({ ...rewardForm, pointsCost: e.target.value })} /></div>
@@ -1016,8 +1109,12 @@ export default function LoyaltyPage() {
                                     setRewardImageChanged(true); setRewardImageLibraryOpen(false);
                                 }}
                                 onClose={() => setRewardImageLibraryOpen(false)} />
-                            <div className="mt-5 space-y-2">
-                                {settings.rewards.map((reward: LoyaltyReward) => {
+                            <div className="mt-5 space-y-3">
+                                <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+                                    <input type="checkbox" checked={showUnavailableRewards} onChange={e => setShowUnavailableRewards(e.target.checked)} />
+                                    Mostrar prêmios inativos, expirados e esgotados
+                                </label>
+                                {settings.rewards.filter(reward => showUnavailableRewards || rewardVisibility(reward).label === 'VISÍVEL AO CLIENTE').map((reward: LoyaltyReward) => {
                                     const visibility = rewardVisibility(reward);
                                     return (
                                     <div key={reward.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3 dark:border-gray-800">
@@ -1029,7 +1126,14 @@ export default function LoyaltyPage() {
                                             imageUrl: reward.image_url || '',
                                             mediaAssetId: reward.media_asset_id || '',
                                             pointsCost: String(reward.points_cost || 0),
-                                            type: reward.type || 'product',
+                                            type: rewardUiType(reward),
+                                            additionalCashCost: String(reward.additional_cash_cost || 0),
+                                            productId: reward.product_id || '',
+                                            productQuantity: String(reward.product_quantity || 1),
+                                            discountPercentage: reward.discount_percentage == null ? '' : String(reward.discount_percentage),
+                                            discountAmount: reward.discount_amount == null ? '' : String(reward.discount_amount),
+                                            maxDiscountValue: reward.max_discount_value == null ? '' : String(reward.max_discount_value),
+                                            minOrderValue: reward.min_order_value == null ? '' : String(reward.min_order_value),
                                             stockQuantity: reward.stock_quantity == null ? '' : String(reward.stock_quantity),
                                             voucherValidityDays: String(reward.voucher_validity_days || 15),
                                             offerValidUntil: toDatetimeLocal(reward.offer_valid_until),
@@ -1041,7 +1145,8 @@ export default function LoyaltyPage() {
                                                 <span className={`rounded-full px-2 py-1 text-[10px] font-black ${visibility.className}`}>{visibility.label}</span>
                                             </div>
                                             <div className="mt-1 text-xs text-gray-500">
-                                                {formatPoints(reward.points_cost)} pts
+                                                {rewardTypeLabel(reward)} · {formatPoints(reward.points_cost)} pts
+                                                {Number(reward.additional_cash_cost || 0) > 0 ? ' + R$ ' + Number(reward.additional_cash_cost).toFixed(2) : ''}
                                                 {' · '}oferta {reward.offer_valid_until ? 'até ' + formatDate(reward.offer_valid_until) : 'sem data final'}
                                                 {' · '}estoque {reward.stock_quantity == null ? 'ilimitado' : reward.stock_quantity}
                                             </div>
