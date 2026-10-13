@@ -28,6 +28,7 @@ export interface CustomerLoyaltyReward {
     voucherValidityDays: number | null;
     offerValidUntil: string | null;
     productId: string | null;
+    productQuantity: number | null;
     affordable: boolean;
 }
 
@@ -548,6 +549,7 @@ export const CustomerService = {
             voucherValidityDays: reward.voucher_validity_days === null || reward.voucher_validity_days === undefined ? null : Number(reward.voucher_validity_days),
             offerValidUntil: reward.offer_valid_until ? String(reward.offer_valid_until) : null,
             productId: reward.product_id ? String(reward.product_id) : null,
+            productQuantity: reward.product_quantity == null ? null : Number(reward.product_quantity),
             affordable: Boolean(reward.affordable),
         })).filter((reward) => reward.id);
 
