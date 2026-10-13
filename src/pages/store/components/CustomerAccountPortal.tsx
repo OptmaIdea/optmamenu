@@ -45,6 +45,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { formatBRL } from '@/utils/pricing';
 import { toast } from 'sonner';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
+import { CUSTOMER_LOYALTY_SECTIONS, getStampCampaignSummary, type CustomerLoyaltySection } from './customerLoyaltySections';
 
 interface CustomerAddress {
     id?: string;
@@ -117,6 +118,10 @@ interface LoyaltyProgramSummary {
     enable_birthday_bonus?: boolean;
     birthday_bonus_points?: number;
     points_validity_months?: number;
+    enable_stamps?: boolean;
+    min_order_for_stamp?: number | string | null;
+    stamps_target?: number | null;
+    points_per_stamp_block?: number | null;
     min_points_redemption?: number;
     program_terms?: string;
     voucher_terms?: string;
@@ -400,6 +405,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const openCart = useCartStore((state) => state.openCart);
     const [open, setOpen] = useState(false);
     const [tab, setTab] = useState<AccountTab>('profile');
+    const [loyaltySection, setLoyaltySection] = useState<CustomerLoyaltySection>('overview');
     const [loading, setLoading] = useState(false);
     const [cepLoading, setCepLoading] = useState(false);
     const [message, setMessage] = useState('');
@@ -3155,12 +3161,91 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         </div>
                                     </section>
 
+                                    <nav role="tablist" aria-label="Seções da minha fidelidade" className="-mx-1 flex snap-x gap-2 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]">
+                                        {CUSTOMER_LOYALTY_SECTIONS.map((section) => (
+                                            <button
+                                                key={section.id}
+                                                type="button"
+                                                role="tab"
+                                                id={`loyalty-tab-${section.id}`}
+                                                aria-selected={loyaltySection === section.id}
+                                                aria-controls={`loyalty-panel-${section.id}`}
+                                                tabIndex={loyaltySection === section.id ? 0 : -1}
+                                                onClick={() => setLoyaltySection(section.id)}
+                                                className={`min-h-11 shrink-0 snap-start rounded-2xl border px-4 py-2.5 text-sm font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500 ${loyaltySection === section.id
+                                                    ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
+                                                    : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}
+                                            >
+                                                {section.label}{section.id === 'vouchers' && loyaltyVouchers.length > 0 ? ` (${loyaltyVouchers.length})` : ''}
+                                            </button>
+                                        ))}
+                                    </nav>
+
+                                    <div id="loyalty-panel-overview" role="tabpanel" aria-labelledby="loyalty-tab-overview" hidden={loyaltySection !== 'overview'} className="space-y-4">
                                     <div className="grid gap-3 sm:grid-cols-3">
                                         <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900/40 dark:bg-emerald-950/15"><p className="text-xs font-black uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Ganhos</p><p className="mt-2 text-2xl font-black text-emerald-800 dark:text-emerald-200">+{loyaltyTotals.earned}</p><p className="mt-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">créditos no extrato</p></section>
                                         <section className="rounded-3xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-950/15"><p className="text-xs font-black uppercase tracking-wide text-red-700 dark:text-red-300">Usos e débitos</p><p className="mt-2 text-2xl font-black text-red-800 dark:text-red-200">-{loyaltyTotals.spent}</p><p className="mt-1 text-xs text-red-700/70 dark:text-red-300/70">resgates e ajustes</p></section>
                                         <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"><p className="text-xs font-black uppercase tracking-wide text-slate-400">Validade</p><p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{loyaltyProgram?.points_validity_months ? `${loyaltyProgram.points_validity_months} meses` : 'Regulamento'}</p><p className="mt-1 text-xs text-slate-500">política do programa</p></section>
                                     </div>
+                                    <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+                                        <h3 className="font-black text-slate-900 dark:text-white">Acompanhe suas vantagens</h3>
+                                        <p className="mt-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Confira seus movimentos, veja as regras das campanhas e encontre os prêmios disponíveis.</p>
+                                        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                                            <button type="button" onClick={() => setLoyaltySection('points')} className="min-h-11 rounded-2xl bg-emerald-50 px-3 py-2 text-left text-sm font-black text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">Pontos e extrato →</button>
+                                            <button type="button" onClick={() => setLoyaltySection('campaigns')} className="min-h-11 rounded-2xl bg-fuchsia-50 px-3 py-2 text-left text-sm font-black text-fuchsia-800 dark:bg-fuchsia-950/30 dark:text-fuchsia-300">Campanhas e selos →</button>
+                                            <button type="button" onClick={() => setLoyaltySection('rewards')} className="min-h-11 rounded-2xl bg-amber-50 px-3 py-2 text-left text-sm font-black text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">{loyaltyRewards.length} prêmio(s) disponíveis →</button>
+                                        </div>
+                                    </section>
+                                    </div>
 
+                                    <div id="loyalty-panel-campaigns" role="tabpanel" aria-labelledby="loyalty-tab-campaigns" hidden={loyaltySection !== 'campaigns'} className="space-y-4">
+                                        <section className="rounded-3xl border border-fuchsia-200 bg-fuchsia-50/70 p-5 dark:border-fuchsia-900/40 dark:bg-fuchsia-950/20">
+                                            <div className="flex items-start gap-3">
+                                                <Star className="mt-1 h-6 w-6 shrink-0 text-fuchsia-600" />
+                                                <div>
+                                                    <p className="text-xs font-black uppercase tracking-wider text-fuchsia-700 dark:text-fuchsia-300">Campanhas e marketing da fidelidade</p>
+                                                    <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">Oportunidades do seu programa</h3>
+                                                    <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Aqui aparecem as regras e vantagens do seu programa. Comunicados institucionais, campanhas gerais e o regulamento completo continuam na área Loja.</p>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        {getStampCampaignSummary(loyaltyProgram) ? (
+                                            <section className="rounded-3xl border border-amber-200 bg-white p-5 dark:border-amber-900/40 dark:bg-slate-900">
+                                                <div className="flex items-center gap-2"><Gift className="h-5 w-5 text-amber-600" /><h3 className="font-black text-slate-900 dark:text-white">Cartela de selos</h3></div>
+                                                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">
+                                                    Campanha configurada para {getStampCampaignSummary(loyaltyProgram)?.targetPurchases} compras elegíveis a partir de R$ {formatBRL(getStampCampaignSummary(loyaltyProgram)?.minimumOrderValue || 0)}, com recompensa prevista de {getStampCampaignSummary(loyaltyProgram)?.rewardPoints} pontos por cartela.
+                                                </p>
+                                                <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">O acompanhamento dos selos conquistados ainda não está disponível. Esta seção mostra as condições cadastradas, não um saldo de selos confirmado.</p>
+                                            </section>
+                                        ) : null}
+
+                                        {(loyaltyProgram?.enable_join_bonus || loyaltyProgram?.enable_birthday_bonus) && (
+                                            <div className="grid gap-3 sm:grid-cols-2">
+                                                {loyaltyProgram?.enable_join_bonus && Number(loyaltyProgram.join_bonus_points) > 0 && (
+                                                    <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                                                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">Adesão</p>
+                                                        <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">Até {loyaltyProgram.join_bonus_points} pontos</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Conforme as condições de adesão e reentrada do programa.</p>
+                                                    </section>
+                                                )}
+                                                {loyaltyProgram?.enable_birthday_bonus && Number(loyaltyProgram.birthday_bonus_points) > 0 && (
+                                                    <section className="rounded-3xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                                                        <p className="text-xs font-black uppercase tracking-wide text-slate-500">Aniversário</p>
+                                                        <p className="mt-2 text-xl font-black text-slate-900 dark:text-white">{loyaltyProgram.birthday_bonus_points} pontos</p>
+                                                        <p className="mt-1 text-xs text-slate-500">Sujeito às condições de elegibilidade e vigência.</p>
+                                                    </section>
+                                                )}
+                                            </div>
+                                        )}
+                                        <section className="rounded-3xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                                            <h3 className="font-black text-slate-900 dark:text-white">Novidades e regulamento</h3>
+                                            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">Conheça o programa, veja os materiais promocionais publicados pela loja e consulte o regulamento atualizado.</p>
+                                            <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('optmamenu:open-store-hub'))} className="mt-3 inline-flex min-h-11 items-center rounded-2xl bg-fuchsia-600 px-4 py-2 text-sm font-black text-white">Abrir fidelidade na Loja →</button>
+                                        </section>
+                                    </div>
+
+                                    <div id="loyalty-panel-rewards" role="tabpanel" aria-labelledby="loyalty-tab-rewards" hidden={loyaltySection !== 'rewards'}>
                                     <section className="rounded-3xl border border-amber-200 bg-amber-50/50 p-5 dark:border-amber-900/40 dark:bg-amber-950/10">
                                         <div className="flex items-start justify-between gap-3">
                                             <div><p className="text-xs font-black uppercase tracking-[0.15em] text-amber-700 dark:text-amber-300">Benefícios disponíveis</p><h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white">O que seus pontos podem liberar</h3></div>
@@ -3190,13 +3275,21 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         )}
                                     </section>
 
-                                    {loyaltyVouchers.length > 0 && (
-                                        <section className="rounded-3xl border border-violet-200 bg-violet-50/50 p-5 dark:border-violet-900/40 dark:bg-violet-950/10">
-                                            <h3 className="font-black text-slate-900 dark:text-white">Meus vouchers ativos</h3>
-                                            <div className="mt-3 space-y-2">{loyaltyVouchers.map((voucher) => <div key={voucher.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900"><div className="min-w-0"><p className="truncate text-sm font-black text-slate-900 dark:text-white">{voucher.rewardTitle || 'Benefício'}</p><p className="mt-1 text-xs text-slate-500">{voucher.code ? `Código ${voucher.code}` : 'Voucher ativo'}</p></div><div className="shrink-0 text-right"><span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{voucher.status || 'active'}</span>{voucher.expiresAt && <p className="mt-1 text-[10px] text-slate-400">até {new Date(voucher.expiresAt).toLocaleDateString('pt-BR')}</p>}</div></div>)}</div>
-                                        </section>
-                                    )}
+                                    </div>
 
+                                    <div id="loyalty-panel-vouchers" role="tabpanel" aria-labelledby="loyalty-tab-vouchers" hidden={loyaltySection !== 'vouchers'}>
+                                        <section className="rounded-3xl border border-violet-200 bg-violet-50/50 p-5 dark:border-violet-900/40 dark:bg-violet-950/10">
+                                            <h3 className="font-black text-slate-900 dark:text-white">Meus vouchers</h3>
+                                            <p className="mt-1 text-xs leading-5 text-slate-500">Vouchers emitidos para esta conta. Cada código deve ser usado somente uma vez, conforme o regulamento.</p>
+                                            {loyaltyVouchers.length === 0 ? (
+                                                <p className="mt-4 rounded-2xl bg-white p-4 text-sm text-slate-500 dark:bg-slate-900 dark:text-slate-300">Você ainda não tem vouchers disponíveis. Quando uma troca for concluída, seu voucher aparecerá aqui.</p>
+                                            ) : (
+                                            <div className="mt-3 space-y-2">{loyaltyVouchers.map((voucher) => <div key={voucher.id} className="flex items-center justify-between gap-3 rounded-2xl bg-white p-3 dark:bg-slate-900"><div className="min-w-0"><p className="truncate text-sm font-black text-slate-900 dark:text-white">{voucher.rewardTitle || 'Benefício'}</p><p className="mt-1 text-xs text-slate-500">{voucher.code ? `Código ${voucher.code}` : 'Voucher ativo'}</p></div><div className="shrink-0 text-right"><span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-black uppercase text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">{voucher.status || 'active'}</span>{voucher.expiresAt && <p className="mt-1 text-[10px] text-slate-400">até {new Date(voucher.expiresAt).toLocaleDateString('pt-BR')}</p>}</div></div>)}</div>
+                                            )}
+                                        </section>
+                                    </div>
+
+                                    <div id="loyalty-panel-points" role="tabpanel" aria-labelledby="loyalty-tab-points" hidden={loyaltySection !== 'points'}>
                                     <section className="rounded-3xl border border-slate-200 p-5 dark:border-slate-800">
                                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                             <div><h3 className="font-black text-slate-900 dark:text-white">Extrato de pontos</h3><p className="mt-1 text-xs text-slate-500">Ganhos e usos em ordem cronológica.</p></div>
@@ -3210,6 +3303,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                         </div>
                                         <button type="button" onClick={() => loyaltyTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className="mt-4 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 px-4 text-sm font-black text-slate-600 dark:border-slate-700 dark:text-slate-300"><ChevronUp className="h-4 w-4" /> Voltar ao topo</button>
                                     </section>
+                                    </div>
                                 </div>
                             )}
 
