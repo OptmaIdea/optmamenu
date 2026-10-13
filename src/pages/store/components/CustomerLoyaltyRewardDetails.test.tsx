@@ -29,11 +29,18 @@ describe('loyalty prize details and product image viewer', () => {
 
     it('explains points plus money without taking points from the customer', () => {
         expect(rewardKindLabel(prize)).toBe('Brinde + dinheiro');
-        render(<CustomerLoyaltyRewardDetails reward={prize} availablePoints={150} onClose={vi.fn()} />);
+        render(<CustomerLoyaltyRewardDetails reward={prize} availablePoints={150} onClose={vi.fn()} onRedeem={vi.fn()} />);
         expect(screen.getByText('120 pontos')).toBeTruthy();
         expect(screen.getByText(/R\$ 9,50/)).toBeTruthy();
-        expect(screen.getByText(/A emissão de vouchers de troca ainda não está disponível/)).toBeTruthy();
-        expect(screen.queryByRole('button', { name: /resgatar/i })).toBeNull();
+        expect(screen.getByText(/troca com valor adicional aguarda a integração financeira/)).toBeTruthy();
+        expect(screen.queryByRole('button', { name: /Trocar 120 pontos/i })).toBeNull();
+    });
+
+    it('allows an eligible standalone prize to request confirmed redemption', () => {
+        const onRedeem = vi.fn();
+        render(<CustomerLoyaltyRewardDetails reward={{ ...prize, additionalCashCost: 0 }} availablePoints={150} onClose={vi.fn()} onRedeem={onRedeem} />);
+        fireEvent.click(screen.getByRole('button', { name: 'Trocar 120 pontos' }));
+        expect(onRedeem).toHaveBeenCalledTimes(1);
     });
 
     it('opens prize image in full screen', () => {
