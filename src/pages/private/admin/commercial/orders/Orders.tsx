@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { getActiveStoreId } from '@/utils/activeStore';
 import { ShoppingBag, Clock, CheckCircle, XCircle, AlertCircle, ChevronDown, ChevronUp, MessageCircle, RefreshCw, Truck, Search } from 'lucide-react';
 import type { Order, OrderStatus, StoreConfig } from '@/types';
 import PageContainer from '@/components/common/PageContainer';
@@ -50,7 +51,7 @@ export default function Orders() {
     const [startDate, setStartDate] = useState<string>(initialDates.start);
     const [endDate, setEndDate] = useState<string>(initialDates.end);
     const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
-    const [storeData, setStoreData] = useState<{ id: string, name: string, token: string, config?: StoreConfig } | null>(null);
+    const [storeData, setStoreData] = useState<{ id: string, name: string, config?: StoreConfig } | null>(null);
     const [now, setNow] = useState(new Date());
     const [finalizingOrder, setFinalizingOrder] = useState<Order | null>(null);
     const [finalizationLoading, setFinalizationLoading] = useState(false);
@@ -112,19 +113,28 @@ export default function Orders() {
     const fetchOrders = useCallback(async () => {
         setLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
-
-            const { data: storeRpcData, error: storeRpcError } = await supabase.rpc('get_user_store_by_id', { p_user_id: user.id });
-            if (storeRpcError) throw storeRpcError;
-            const store = Array.isArray(storeRpcData) ? storeRpcData[0] : storeRpcData;
-
-            if (!store) {
-                setLoading(false);
+            // The active store is the user's selected membership, not necessarily a store they own.
+            // Access is also enforced by the stores RLS and get_admin_orders_safe RPC.
+            const activeStoreId = getActiveStoreId();
+            if (!activeStoreId) {
+                setOrders([]);
+                setStoreData(null);
                 return;
             }
 
-            setStoreData({ id: store.id, name: store.name, token: store.sms_gateway_token, config: store.config });
+            const { data: store, error: storeError } = await supabase
+                .from('stores')
+                .select('id, name, config')
+                .eq('id', activeStoreId)
+                .maybeSingle();
+            if (storeError) throw storeError;
+            if (!store) {
+                setOrders([]);
+                setStoreData(null);
+                throw new Error('Não foi possível acessar a unidade selecionada.');
+            }
+
+            setStoreData({ id: store.id, name: store.name, config: (store.config ?? {}) as StoreConfig });
             const rpcStatus = focusedOrderId || filterStatus === 'all' || filterStatus === 'current' ? 'all' : filterStatus;
             const { data: result, error } = await supabase.rpc('get_admin_orders_safe', {
                 p_store_id: store.id,
