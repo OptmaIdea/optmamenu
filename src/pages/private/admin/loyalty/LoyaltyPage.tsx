@@ -1183,6 +1183,38 @@ export default function LoyaltyPage() {
                 </div>
             )}
 
+            {activeTab === 'vouchers' && (
+                <div className={cardClass}>
+                    <h2 className="font-black dark:text-white">Validar vouchers</h2>
+                    <p className="mt-1 text-sm text-gray-500">O uso é permitido apenas para prêmios sem pagamento adicional ou item de catálogo vinculado.</p>
+                    <form className="my-4 flex flex-wrap gap-2" onSubmit={e => { e.preventDefault(); setVoucherLookup(voucherCode.trim().toUpperCase() || null); refreshVouchers(v => v + 1); }}>
+                        <input aria-label="Código do voucher" className={fieldClass + ' flex-1'} value={voucherCode} onChange={e => setVoucherCode(e.target.value)} placeholder="FID-..." />
+                        <button type="submit" className="rounded-xl bg-emerald-600 px-3 text-sm text-white">Buscar</button>
+                        <button type="button" onClick={() => { setVoucherCode(''); setVoucherLookup(null); }} className="rounded-xl border px-3 dark:border-gray-700">Recentes</button>
+                    </form>
+                    {voucherLoading ? <p>Carregando...</p> : vouchers.length === 0 ? <p className="text-sm text-gray-500">Nenhum voucher encontrado.</p> :
+                        vouchers.map(v => <div key={v.id} className="my-2 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 dark:border-gray-700">
+                            <div className="min-w-0">
+                                <p className="break-all font-mono text-sm font-bold text-emerald-700">{v.code}</p>
+                                <p className="font-bold dark:text-white">{v.reward_title}</p>
+                                <p className="text-xs text-gray-500">{v.customer_name} · {v.points_cost} pontos · {v.status}</p>
+                                <p className="text-xs text-gray-500">Válido até {new Date(v.expires_at).toLocaleString('pt-BR')}</p>
+                            </div>
+                            <button type="button"
+                                disabled={!canManage || !v.redeemable || !v.independent_fulfillment || voucherBusyId !== null}
+                                onClick={async () => {
+                                    if (!storeId || !window.confirm('Entregar ' + v.reward_title + ' e inutilizar o código ' + v.code + '?')) return;
+                                    setVoucherBusyId(v.id);
+                                    try { await StoreLoyaltyVouchers.markUsed(storeId,v.id); toast.success('Voucher utilizado.'); }
+                                    catch (error) { toast.error(error instanceof Error ? error.message : 'Falha ao validar.'); }
+                                    finally { setVoucherBusyId(null); refreshVouchers(k=>k+1); }
+                                }}
+                                className="min-h-11 rounded-xl bg-emerald-600 px-3 text-xs font-bold text-white disabled:opacity-40"
+                            >{voucherBusyId === v.id ? 'Validando…' : 'Validar e entregar'}</button>
+                        </div>)}
+                </div>
+            )}
+
             {activeTab === 'customers' && (
                 <div className={cardClass}>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
