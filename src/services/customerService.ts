@@ -20,6 +20,10 @@ export interface CustomerLoyaltyReward {
     type: string | null;
     imageUrl: string | null;
     additionalCashCost: number;
+    discountPercentage: number | null;
+    discountAmount: number | null;
+    maxDiscountValue: number | null;
+    minOrderValue: number | null;
     stockQuantity: number | null;
     voucherValidityDays: number | null;
     offerValidUntil: string | null;
@@ -536,6 +540,10 @@ export const CustomerService = {
             type: reward.type ? String(reward.type) : null,
             imageUrl: reward.image_url ? String(reward.image_url) : null,
             additionalCashCost: Number(reward.additional_cash_cost || 0),
+            discountPercentage: reward.discount_percentage == null ? null : Number(reward.discount_percentage),
+            discountAmount: reward.discount_amount == null ? null : Number(reward.discount_amount),
+            maxDiscountValue: reward.max_discount_value == null ? null : Number(reward.max_discount_value),
+            minOrderValue: reward.min_order_value == null ? null : Number(reward.min_order_value),
             stockQuantity: reward.stock_quantity === null || reward.stock_quantity === undefined ? null : Number(reward.stock_quantity),
             voucherValidityDays: reward.voucher_validity_days === null || reward.voucher_validity_days === undefined ? null : Number(reward.voucher_validity_days),
             offerValidUntil: reward.offer_valid_until ? String(reward.offer_valid_until) : null,
