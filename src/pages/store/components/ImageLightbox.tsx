@@ -13,6 +13,8 @@ interface ImageLightboxProps {
 /** A single full-screen image viewer shared by catalog products and loyalty prizes. */
 export function ImageLightbox({ images, currentIndex, onIndexChange, onClose, alt }: ImageLightboxProps) {
     const closeRef = useRef<HTMLButtonElement>(null);
+    const currentIndexRef = useRef(currentIndex);
+    currentIndexRef.current = currentIndex;
     const onCloseRef = useRef(onClose);
     const changeRef = useRef(onIndexChange);
     onCloseRef.current = onClose;
@@ -30,7 +32,7 @@ export function ImageLightbox({ images, currentIndex, onIndexChange, onClose, al
             if (images.length > 1 && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
                 event.preventDefault();
                 event.stopPropagation();
-                changeRef.current((currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + images.length) % images.length);
+                changeRef.current((currentIndexRef.current + (event.key === 'ArrowRight' ? 1 : -1) + images.length) % images.length);
             }
         };
         document.addEventListener('keydown', onKeyDown, true);
@@ -38,7 +40,7 @@ export function ImageLightbox({ images, currentIndex, onIndexChange, onClose, al
             document.removeEventListener('keydown', onKeyDown, true);
             previousFocus?.focus();
         };
-    }, [images.length, currentIndex]);
+    }, [images.length]);
 
     if (images.length === 0) return null;
     const index = Math.min(Math.max(currentIndex, 0), images.length - 1);
