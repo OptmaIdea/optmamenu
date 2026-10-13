@@ -17,6 +17,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import PageContainer from '@/components/common/PageContainer';
+import RewardImageLibrary from '@/pages/private/admin/commercial/loyalty/settings/RewardImageLibrary';
+import type { RewardMediaAsset } from '@/services/rewardMediaLibrary';
+import { supabase } from '@/lib/supabase';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
@@ -207,10 +210,14 @@ export default function LoyaltyPage() {
         active: true,
     });
 
+    const [rewardImageLibraryOpen, setRewardImageLibraryOpen] = useState(false);
+    const [rewardImageChanged, setRewardImageChanged] = useState(false);
     const [rewardForm, setRewardForm] = useState({
         id: '',
         title: '',
         description: '',
+        imageUrl: '',
+        mediaAssetId: '',
         pointsCost: '0',
         type: 'product',
         stockQuantity: '',
@@ -430,7 +437,7 @@ export default function LoyaltyPage() {
         if (!storeId || !canManage || !rewardForm.title.trim()) return;
         setSaving(true);
         try {
-            await LoyaltyAdvancedService.upsertReward(storeId, rewardForm.id || null, {
+            const savedReward = await LoyaltyAdvancedService.upsertReward(storeId, rewardForm.id || null, {
                 title: rewardForm.title.trim(),
                 description: rewardForm.description || null,
                 points_cost: Math.max(0, Math.trunc(number(rewardForm.pointsCost))),
@@ -441,8 +448,16 @@ export default function LoyaltyPage() {
                 max_redemptions_per_customer: rewardForm.maxRedemptionsPerCustomer === '' ? null : Math.max(1, Math.trunc(number(rewardForm.maxRedemptionsPerCustomer, 1))),
                 is_active: rewardForm.active,
             });
+            if (rewardImageChanged) {
+                const { data: imageResult, error: imageError } = await supabase.rpc('set_loyalty_reward_media_safe', {
+                    p_store_id: storeId, p_reward_id: String(savedReward.reward_id),
+                    p_media_asset_id: rewardForm.mediaAssetId || null,
+                });
+                if (imageError || !imageResult?.ok) throw new Error('Prêmio salvo; vínculo da imagem falhou. Tente novamente.');
+            }
             toast.success(rewardForm.id ? 'Prêmio atualizado.' : 'Prêmio criado.');
-            setRewardForm({ id: '', title: '', description: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', active: true });
+            setRewardImageChanged(false);
+            setRewardForm({ id: '', title: '', description: '', imageUrl: '', mediaAssetId: '', pointsCost: '0', type: 'product', stockQuantity: '', voucherValidityDays: '15', offerValidUntil: '', maxRedemptionsPerCustomer: '', active: true });
             await loadAll();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao salvar prêmio.');
@@ -937,6 +952,14 @@ export default function LoyaltyPage() {
                             <h2 className="font-black text-gray-900 dark:text-white">{rewardForm.id ? 'Editar prêmio para troca' : 'Novo prêmio para troca'}</h2>
                             <p className="mt-1 text-xs leading-5 text-gray-500">Esta é a área que controla o que o cliente pode ver em Minha fidelidade e Loja.</p>
                             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div className="md:col-span-2 flex items-center gap-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700">
+                                    <img src={rewardForm.imageUrl || '/fallbacks/reward.svg'} alt="Prévia do prêmio" className="h-20 w-20 rounded-lg object-cover" />
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-sm font-bold">Imagem do prêmio</span>
+                                        <button type="button" disabled={!canManage} onClick={() => setRewardImageLibraryOpen(true)} className="rounded-lg border px-3 py-2 text-xs">Escolher / enviar imagem</button>
+                                        <button type="button" disabled={!canManage || !rewardForm.imageUrl} onClick={() => { setRewardForm({ ...rewardForm, imageUrl: '', mediaAssetId: '' }); setRewardImageChanged(true); }} className="rounded-lg border px-3 py-2 text-xs text-red-600">Remover imagem</button>
+                                    </div>
+                                </div>
                                 <div className="md:col-span-2"><label className={labelClass}>Título</label><input className={fieldClass} disabled={!canManage} value={rewardForm.title} onChange={(e) => setRewardForm({ ...rewardForm, title: e.target.value })} /></div>
                                 <div className="md:col-span-2"><label className={labelClass}>Descrição</label><textarea className={fieldClass} disabled={!canManage} value={rewardForm.description} onChange={(e) => setRewardForm({ ...rewardForm, description: e.target.value })} /></div>
                                 <div><label className={labelClass}>Custo em pontos</label><input type="number" className={fieldClass} disabled={!canManage} value={rewardForm.pointsCost} onChange={(e) => setRewardForm({ ...rewardForm, pointsCost: e.target.value })} /></div>
@@ -986,15 +1009,25 @@ export default function LoyaltyPage() {
                                 )}
                             </div>
                             <button type="button" disabled={!canManage || saving || !rewardForm.title.trim()} onClick={() => void saveReward()} className="mt-4 rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{rewardForm.id ? 'Atualizar prêmio' : 'Criar prêmio'}</button>
+                            <RewardImageLibrary storeId={storeId!} open={rewardImageLibraryOpen} selectable
+                                selectedId={rewardForm.mediaAssetId || null}
+                                onSelect={(asset: RewardMediaAsset) => {
+                                    setRewardForm(previous => ({ ...previous, imageUrl: asset.public_url, mediaAssetId: asset.id }));
+                                    setRewardImageChanged(true); setRewardImageLibraryOpen(false);
+                                }}
+                                onClose={() => setRewardImageLibraryOpen(false)} />
                             <div className="mt-5 space-y-2">
                                 {settings.rewards.map((reward: LoyaltyReward) => {
                                     const visibility = rewardVisibility(reward);
                                     return (
                                     <div key={reward.id} className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 p-3 dark:border-gray-800">
+                                        <img src={reward.image_url || '/fallbacks/reward.svg'} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
                                         <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setRewardForm({
                                             id: reward.id,
                                             title: reward.title,
                                             description: reward.description || '',
+                                            imageUrl: reward.image_url || '',
+                                            mediaAssetId: reward.media_asset_id || '',
                                             pointsCost: String(reward.points_cost || 0),
                                             type: reward.type || 'product',
                                             stockQuantity: reward.stock_quantity == null ? '' : String(reward.stock_quantity),
@@ -1002,7 +1035,7 @@ export default function LoyaltyPage() {
                                             offerValidUntil: toDatetimeLocal(reward.offer_valid_until),
                                             maxRedemptionsPerCustomer: reward.max_redemptions_per_customer == null ? '' : String(reward.max_redemptions_per_customer),
                                             active: reward.is_active,
-                                        })}>
+                                        }); setRewardImageChanged(false); }}>
                                             <div className="flex flex-wrap items-center gap-2">
                                                 <div className="font-bold text-gray-900 dark:text-white">{reward.title}</div>
                                                 <span className={`rounded-full px-2 py-1 text-[10px] font-black ${visibility.className}`}>{visibility.label}</span>
