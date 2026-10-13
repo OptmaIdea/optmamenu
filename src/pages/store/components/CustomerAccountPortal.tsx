@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { v4 as uuidv4 } from 'uuid';
 import {
     BellRing,
     ChevronDown,
@@ -46,6 +47,7 @@ import { formatBRL } from '@/utils/pricing';
 import { toast } from 'sonner';
 import { systemConfirm } from '@/components/common/SystemDialogProvider';
 import { CustomerLoyaltyRewardDetails } from './CustomerLoyaltyRewardDetails';
+import { loyaltyVoucherEligibility } from './loyaltyVoucherEligibility';
 import { CUSTOMER_LOYALTY_SECTIONS, getStampCampaignSummary, type CustomerLoyaltySection } from './customerLoyaltySections';
 
 interface CustomerAddress {
@@ -447,6 +449,8 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [loyaltyPreferencesSaving, setLoyaltyPreferencesSaving] = useState(false);
     const [loyaltyRewards, setLoyaltyRewards] = useState<CustomerLoyaltyReward[]>([]);
     const [selectedLoyaltyReward, setSelectedLoyaltyReward] = useState<CustomerLoyaltyReward | null>(null);
+    const [redeemingLoyaltyReward, setRedeemingLoyaltyReward] = useState(false);
+    const voucherRequestRef = useRef<{ rewardId: string; key: string } | null>(null);
     const [loyaltyVouchers, setLoyaltyVouchers] = useState<CustomerLoyaltyVoucher[]>([]);
     const [loyaltyRewardsLoading, setLoyaltyRewardsLoading] = useState(false);
     const [loyaltyTransactionFilter, setLoyaltyTransactionFilter] = useState<LoyaltyTransactionFilter>('all');
@@ -929,6 +933,50 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         setLoyaltyBlocked(result.membershipBlocked);
         setLoyaltyBlockReason(result.blockReason);
     }, [customer?.id]);
+
+    const redeemLoyaltyReward = async () => {
+        const reward = selectedLoyaltyReward;
+        if (!reward || redeemingLoyaltyReward || !customer) return;
+        const eligibility = loyaltyVoucherEligibility(reward);
+        if (!eligibility.supported) {
+            toast.error(eligibility.reason);
+            return;
+        }
+        const confirmed = await systemConfirm({
+            title: 'Confirmar troca de pontos?',
+            description: `Trocar ${reward.pointsCost.toLocaleString('pt-BR')} pontos por "${reward.title}"? Após confirmar, os pontos serão debitados e você receberá um voucher para apresentar à loja.`,
+            confirmLabel: 'Confirmar troca',
+            cancelLabel: 'Voltar aos prêmios',
+        });
+        if (!confirmed) return;
+
+        if (!voucherRequestRef.current || voucherRequestRef.current.rewardId !== reward.id) {
+            voucherRequestRef.current = { rewardId: reward.id, key: uuidv4() };
+        }
+        setRedeemingLoyaltyReward(true);
+        try {
+            const result = await CustomerService.redeemSelfLoyaltyReward(
+                reward.id,
+                voucherRequestRef.current.key,
+            );
+            voucherRequestRef.current = null;
+            setSelectedLoyaltyReward(null);
+            setLoyaltySection('vouchers');
+            toast.success(`Troca concluída! Voucher: ${result.code}`);
+            await Promise.all([
+                refreshCustomerSnapshot(),
+                loadLoyaltyTransactions(),
+                loadLoyaltyRewards(),
+            ]).catch((loadError) => {
+                console.error('[LOYALTY] Voucher emitido; falha ao atualizar a lista:', loadError);
+                toast.info('Voucher emitido. Toque em atualizar para conferir seus pontos e o código.');
+            });
+        } catch (redeemError) {
+            toast.error(redeemError instanceof Error ? redeemError.message : 'Não foi possível concluir a troca.');
+        } finally {
+            setRedeemingLoyaltyReward(false);
+        }
+    };
 
     const loadMarketingConsents = useCallback(async () => {
         if (!customer) return;
@@ -3847,7 +3895,9 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                 <CustomerLoyaltyRewardDetails
                     reward={selectedLoyaltyReward}
                     availablePoints={Number(customer.loyalty_points || 0)}
-                    onClose={() => setSelectedLoyaltyReward(null)}
+                    onClose={() => { if (!redeemingLoyaltyReward) setSelectedLoyaltyReward(null); }}
+                    onRedeem={redeemLoyaltyReward}
+                    redeeming={redeemingLoyaltyReward}
                 />
             )}
         </>
