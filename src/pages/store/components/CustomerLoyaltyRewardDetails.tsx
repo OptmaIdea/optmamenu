@@ -3,11 +3,14 @@ import { BadgePercent, CalendarDays, Gift, ImageIcon, Package, ShieldCheck, X, Z
 import type { CustomerLoyaltyReward } from '@/services/customerService';
 import { formatBRL } from '@/utils/pricing';
 import { ImageLightbox } from './ImageLightbox';
+import { loyaltyVoucherEligibility } from './loyaltyVoucherEligibility';
 
 export interface CustomerLoyaltyRewardDetailsProps {
     reward: CustomerLoyaltyReward;
     availablePoints: number;
     onClose: () => void;
+    onRedeem?: () => Promise<void>;
+    redeeming?: boolean;
 }
 
 export function rewardKindLabel(reward: Pick<CustomerLoyaltyReward, 'type' | 'additionalCashCost'>): string {
@@ -17,7 +20,7 @@ export function rewardKindLabel(reward: Pick<CustomerLoyaltyReward, 'type' | 'ad
     return reward.additionalCashCost > 0 ? 'Produto + dinheiro' : 'Produto por pontos';
 }
 
-export function CustomerLoyaltyRewardDetails({ reward, availablePoints, onClose }: CustomerLoyaltyRewardDetailsProps) {
+export function CustomerLoyaltyRewardDetails({ reward, availablePoints, onClose, onRedeem, redeeming = false }: CustomerLoyaltyRewardDetailsProps) {
     const [showImage, setShowImage] = useState(false);
     const closeRef = useRef<HTMLButtonElement>(null);
     const onCloseRef = useRef(onClose);
@@ -38,6 +41,7 @@ export function CustomerLoyaltyRewardDetails({ reward, availablePoints, onClose 
     }, []);
     const missing = Math.max(0, reward.pointsCost - availablePoints);
     const eligible = missing === 0;
+    const fulfillment = loyaltyVoucherEligibility(reward);
     const expiration = reward.offerValidUntil ? new Date(reward.offerValidUntil) : null;
     const expirationLabel = expiration && !Number.isNaN(expiration.getTime())
         ? expiration.toLocaleDateString('pt-BR') : null;
@@ -99,11 +103,18 @@ export function CustomerLoyaltyRewardDetails({ reward, availablePoints, onClose 
                                 {expirationLabel && <div className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800"><CalendarDays className="h-4 w-4 shrink-0 text-emerald-600" /><div className="text-xs text-slate-600 dark:text-slate-300">Oferta válida até <strong>{expirationLabel}</strong></div></div>}
                                 {reward.voucherValidityDays != null && <div className="flex items-start gap-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800"><ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" /><div className="text-xs text-slate-600 dark:text-slate-300">Voucher: <strong>{reward.voucherValidityDays} dia(s)</strong> após emissão</div></div>}
                             </div>
-                            <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">Os pontos, a eventual quantia em dinheiro e o benefício serão confirmados durante o resgate. A emissão de vouchers de troca ainda não está disponível nesta etapa.</p>
+                            <p className="rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500 dark:bg-slate-900 dark:text-slate-400">{fulfillment.supported ? 'Ao confirmar, os pontos são debitados e um voucher é emitido para retirada na loja.' : fulfillment.reason}</p>
                         </div>
                     </div>
                     <footer className="safe-area-bottom shrink-0 border-t border-slate-100 bg-white p-4 dark:border-slate-800 dark:bg-slate-950">
-                        <button type="button" onClick={onClose} className="min-h-12 w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white">Voltar aos prêmios</button>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                            <button type="button" onClick={onClose} disabled={redeeming} className="min-h-12 flex-1 rounded-xl border border-slate-300 px-4 py-2 text-sm font-black text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200">Voltar aos prêmios</button>
+                            {fulfillment.supported && onRedeem && (
+                                <button type="button" disabled={!eligible || redeeming} onClick={() => void onRedeem()} className="min-h-12 flex-1 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-black text-white disabled:opacity-50">
+                                    {redeeming ? 'Emitindo voucher…' : eligible ? `Trocar ${reward.pointsCost.toLocaleString('pt-BR')} pontos` : `Faltam ${missing.toLocaleString('pt-BR')} pontos`}
+                                </button>
+                            )}
+                        </div>
                     </footer>
                 </section>
             </div>
