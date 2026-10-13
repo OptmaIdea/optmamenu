@@ -41,6 +41,7 @@ type TabId =
     | 'rules'
     | 'tiers'
     | 'benefits'
+    | 'vouchers'
     | 'customers'
     | 'adjustments'
     | 'blocks'
@@ -51,6 +52,7 @@ const TABS: Array<{ id: TabId; label: string; icon: typeof Star }> = [
     { id: 'rules', label: 'Regras e pontuação', icon: Settings2 },
     { id: 'tiers', label: 'Níveis', icon: Medal },
     { id: 'benefits', label: 'Benefícios e prêmios', icon: Gift },
+    { id: 'vouchers', label: 'Vouchers', icon: Gift },
     { id: 'customers', label: 'Clientes participantes', icon: Users },
     { id: 'adjustments', label: 'Ajustes / extrato', icon: History },
     { id: 'blocks', label: 'Bloqueios e reentrada', icon: ShieldCheck },
