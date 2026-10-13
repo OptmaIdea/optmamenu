@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ImageLightbox } from './ImageLightbox';
 import { CustomerLoyaltyRewardDetails, rewardKindLabel } from './CustomerLoyaltyRewardDetails';
+import { loyaltyVoucherEligibility } from './loyaltyVoucherEligibility';
 import type { CustomerLoyaltyReward } from '@/services/customerService';
 
 afterEach(cleanup);
@@ -41,6 +42,13 @@ describe('loyalty prize details and product image viewer', () => {
         render(<CustomerLoyaltyRewardDetails reward={{ ...prize, additionalCashCost: 0 }} availablePoints={150} onClose={vi.fn()} onRedeem={onRedeem} />);
         fireEvent.click(screen.getByRole('button', { name: 'Trocar 120 pontos' }));
         expect(onRedeem).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects prizes that still require checkout, money or stock integration', () => {
+        expect(loyaltyVoucherEligibility({ ...prize, additionalCashCost: 0, type: 'discount' }).supported).toBe(false);
+        expect(loyaltyVoucherEligibility({ ...prize, additionalCashCost: 0, productId: 'catalog-item' }).supported).toBe(false);
+        expect(loyaltyVoucherEligibility({ ...prize, additionalCashCost: 0, pointsCost: 0 }).supported).toBe(false);
+        expect(loyaltyVoucherEligibility({ ...prize, additionalCashCost: 0 }).supported).toBe(true);
     });
 
     it('opens prize image in full screen', () => {
