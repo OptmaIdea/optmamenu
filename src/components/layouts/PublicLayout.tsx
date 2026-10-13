@@ -1,6 +1,6 @@
 import { Outlet, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Home, ChevronUp, LogIn, UserPlus, Menu, X, FileText, Shield } from 'lucide-react';
+import { Home, ChevronUp, LogIn, Menu, X, FileText, Shield } from 'lucide-react';
 
 export default function PublicLayout() {
   const [isDark, setIsDark] = useState(false);
@@ -112,12 +112,6 @@ export default function PublicLayout() {
             Login
           </Link>
 
-          <Link
-            to="/signup"
-            className="text-brand-green no-underline font-bold hover:text-brand-dark transition-colors px-3 py-2 rounded-lg"
-          >
-            Cadastre-se
-          </Link>
         </div>
 
         {/* Mobile Navigation */}
@@ -166,15 +160,6 @@ export default function PublicLayout() {
             >
               <LogIn className="w-5 h-5 text-brand-green" />
               <span className="font-medium">Login</span>
-            </Link>
-
-            <Link
-              to="/signup"
-              className="flex items-center gap-3 px-4 py-3 text-[#6B6375] dark:text-gray-300 hover:bg-[#F8F6F2] dark:hover:bg-gray-800 rounded-lg transition-colors"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <UserPlus className="w-5 h-5 text-brand-green" />
-              <span className="font-medium">Cadastre-se</span>
             </Link>
 
             {/* Links para termos e políticas - APENAS NO MOBILE */}

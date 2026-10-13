@@ -44,7 +44,6 @@ const PrivateLayout = lazy(() => import('@/components/layouts/PrivateLayout'));
 // Initial pages
 const Landing = lazy(() => import('@/pages/initial/home/Landing'));
 const Login = lazy(() => import('@/pages/initial/auth/Login'));
-const Signup = lazy(() => import('@/pages/initial/auth/SignUp'));
 const ActivateInvite = lazy(() => import('@/pages/initial/auth/ActivateInvite'));
 const ForgotPassword = lazy(() => import('@/pages/initial/auth/ForgotPassword'));
 const ResetPassword = lazy(() => import('@/pages/initial/auth/ResetPassword'));
@@ -134,7 +133,7 @@ export default function AppRoutes() {
         <Route element={<PublicLayout />}>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route path="/activate-invite" element={<ActivateInvite />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
