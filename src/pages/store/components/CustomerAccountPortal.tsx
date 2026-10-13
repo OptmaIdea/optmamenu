@@ -3172,6 +3172,17 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
                                                 aria-controls={`loyalty-panel-${section.id}`}
                                                 tabIndex={loyaltySection === section.id ? 0 : -1}
                                                 onClick={() => setLoyaltySection(section.id)}
+                                                onKeyDown={(event) => {
+                                                    if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(event.key)) return;
+                                                    event.preventDefault();
+                                                    const currentIndex = CUSTOMER_LOYALTY_SECTIONS.findIndex((item) => item.id === section.id);
+                                                    const nextIndex = event.key === 'Home' ? 0
+                                                        : event.key === 'End' ? CUSTOMER_LOYALTY_SECTIONS.length - 1
+                                                        : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + CUSTOMER_LOYALTY_SECTIONS.length) % CUSTOMER_LOYALTY_SECTIONS.length;
+                                                    const nextSection = CUSTOMER_LOYALTY_SECTIONS[nextIndex];
+                                                    setLoyaltySection(nextSection.id);
+                                                    document.getElementById(`loyalty-tab-${nextSection.id}`)?.focus();
+                                                }}
                                                 className={`min-h-11 shrink-0 snap-start rounded-2xl border px-4 py-2.5 text-sm font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500 ${loyaltySection === section.id
                                                     ? 'border-emerald-600 bg-emerald-600 text-white shadow-sm'
                                                     : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}
