@@ -383,13 +383,7 @@ export default function Login() {
           {!selectingStore && (
             <div className="mt-6 text-center">
               <p className="text-sm text-[#6B6375] dark:text-gray-400 font-candara">
-                Ainda não tem uma conta?{' '}
-                <Link
-                  to="/signup"
-                  className="font-bold text-brand-green hover:text-brand-dark transition-colors"
-                >
-                  Cadastre-se
-                </Link>
+                Novos cadastros de lojas estão temporariamente suspensos.
               </p>
             </div>
           )}

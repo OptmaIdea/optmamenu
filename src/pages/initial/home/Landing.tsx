@@ -69,11 +69,14 @@ export default function Landing() {
               A solução robusta de cardápio digital, gestão de pedidos e automação para o seu delivery.
             </p>
             <Link
-              to="/signup"
+              to="/login"
               className="inline-block button-primary text-white font-bold px-8 py-4 md:px-10 md:py-4 transition-all hover:shadow-xl hover:-translate-y-1 text-lg md:text-xl font-candara-bold"
             >
-              Começar Agora
+              Entrar no OptmaMenu
             </Link>
+            <p className="mt-3 text-sm opacity-80 font-candara">
+              Novos cadastros de lojas estão temporariamente suspensos.
+            </p>
           </div>
         </div>
       </section>
@@ -159,10 +162,10 @@ export default function Landing() {
         {/* CTA Final */}
         <div className="text-center mt-16">
           <Link
-            to="/signup"
+            to="/login"
             className="inline-flex items-center gap-2 bg-brand-green hover:bg-brand-dark text-white font-bold px-8 py-4 rounded-full transition-all hover:shadow-xl text-lg font-candara-bold"
           >
-            Comece agora
+            Acessar minha conta
             <span className="text-xl">→</span>
           </Link>
         </div>
