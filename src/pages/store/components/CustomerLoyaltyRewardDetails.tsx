@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BadgePercent, CalendarDays, Gift, ImageIcon, Package, ShieldCheck, X, ZoomIn } from 'lucide-react';
 import type { CustomerLoyaltyReward } from '@/services/customerService';
 import { formatBRL } from '@/utils/pricing';
@@ -19,6 +19,23 @@ export function rewardKindLabel(reward: Pick<CustomerLoyaltyReward, 'type' | 'ad
 
 export function CustomerLoyaltyRewardDetails({ reward, availablePoints, onClose }: CustomerLoyaltyRewardDetailsProps) {
     const [showImage, setShowImage] = useState(false);
+    const closeRef = useRef<HTMLButtonElement>(null);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
+    useEffect(() => {
+        const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        closeRef.current?.focus();
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || document.querySelector('[aria-label^="Imagem ampliada:"]')) return;
+            event.stopPropagation();
+            onCloseRef.current();
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            previouslyFocused?.focus();
+        };
+    }, []);
     const missing = Math.max(0, reward.pointsCost - availablePoints);
     const eligible = missing === 0;
     const expiration = reward.offerValidUntil ? new Date(reward.offerValidUntil) : null;
@@ -40,7 +57,7 @@ export function CustomerLoyaltyRewardDetails({ reward, availablePoints, onClose 
                 <section role="dialog" aria-modal="true" aria-labelledby="loyalty-prize-title" className="flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[2rem] bg-white shadow-2xl dark:bg-slate-950 sm:max-w-xl sm:rounded-[2rem]">
                     <header className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-100 px-5 py-3 dark:border-slate-800">
                         <p className="text-xs font-black uppercase tracking-wider text-amber-700 dark:text-amber-300">Detalhes do prêmio</p>
-                        <button type="button" onClick={onClose} aria-label="Fechar detalhes do prêmio" className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"><X className="h-5 w-5" /></button>
+                        <button ref={closeRef} type="button" onClick={onClose} aria-label="Fechar detalhes do prêmio" className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"><X className="h-5 w-5" /></button>
                     </header>
                     <div className="min-h-0 flex-1 overflow-y-auto">
                         <div className="relative flex h-52 items-center justify-center bg-slate-50 p-3 dark:bg-slate-900 sm:h-72">
