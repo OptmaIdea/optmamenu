@@ -478,10 +478,6 @@ export default function LoyaltyPage() {
 
     async function saveReward() {
         if (!storeId || !canManage || !rewardForm.title.trim()) return;
-        if (rewardForm.type.startsWith('product') && !rewardForm.productId) {
-            toast.error('Selecione o produto que será entregue como prêmio.');
-            return;
-        }
         if ((rewardForm.type === 'discount') && !number(rewardForm.discountPercentage) && !number(rewardForm.discountAmount)) {
             toast.error('Informe um percentual ou valor de desconto.');
             return;
