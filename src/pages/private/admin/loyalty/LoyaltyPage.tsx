@@ -20,6 +20,7 @@ import PageContainer from '@/components/common/PageContainer';
 import RewardImageLibrary from '@/pages/private/admin/commercial/loyalty/settings/RewardImageLibrary';
 import type { RewardMediaAsset } from '@/services/rewardMediaLibrary';
 import { supabase } from '@/lib/supabase';
+import { StoreLoyaltyVouchers, type StoreLoyaltyVoucher } from '@/services/storeLoyaltyVouchers';
 import { useCurrentStore } from '@/hooks/store/useCurrentStore';
 import { usePermissions } from '@/hooks/usePermissions';
 import {
@@ -183,6 +184,12 @@ export default function LoyaltyPage() {
     const [auditPurpose, setAuditPurpose] = useState('');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [vouchers, setVouchers] = useState<StoreLoyaltyVoucher[]>([]);
+    const [voucherCode, setVoucherCode] = useState('');
+    const [voucherLookup, setVoucherLookup] = useState<string | null>(null);
+    const [voucherLoading, setVoucherLoading] = useState(false);
+    const [voucherBusyId, setVoucherBusyId] = useState<string | null>(null);
+    const [voucherRefreshKey, refreshVouchers] = useState(0);
     const [canManage, setCanManage] = useState(false);
     const [search, setSearch] = useState('');
     const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
@@ -322,6 +329,17 @@ export default function LoyaltyPage() {
             });
         return () => { cancelled = true; };
     }, [storeId]);
+
+    useEffect(() => {
+        if (!storeId || activeTab !== 'vouchers') return;
+        let live = true;
+        setVoucherLoading(true);
+        void StoreLoyaltyVouchers.list(storeId, voucherLookup)
+            .then((rows) => { if (live) setVouchers(rows); })
+            .catch((error) => { if (live) toast.error(error instanceof Error ? error.message : 'Erro ao consultar vouchers.'); })
+            .finally(() => { if (live) setVoucherLoading(false); });
+        return () => { live = false; };
+    }, [storeId, activeTab, voucherLookup, voucherRefreshKey]);
 
     const filteredCustomers = useMemo(() => {
         const needle = search.trim().toLocaleLowerCase('pt-BR');
