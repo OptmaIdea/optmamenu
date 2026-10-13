@@ -451,6 +451,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
     const [selectedLoyaltyReward, setSelectedLoyaltyReward] = useState<CustomerLoyaltyReward | null>(null);
     const [redeemingLoyaltyReward, setRedeemingLoyaltyReward] = useState(false);
     const voucherRequestRef = useRef<{ rewardId: string; key: string } | null>(null);
+    const redeemActionLockedRef = useRef(false);
     const [loyaltyVouchers, setLoyaltyVouchers] = useState<CustomerLoyaltyVoucher[]>([]);
     const [loyaltyRewardsLoading, setLoyaltyRewardsLoading] = useState(false);
     const [loyaltyTransactionFilter, setLoyaltyTransactionFilter] = useState<LoyaltyTransactionFilter>('all');
@@ -936,19 +937,20 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
 
     const redeemLoyaltyReward = async () => {
         const reward = selectedLoyaltyReward;
-        if (!reward || redeemingLoyaltyReward || !customer) return;
+        if (!reward || redeemingLoyaltyReward || redeemActionLockedRef.current || !customer) return;
         const eligibility = loyaltyVoucherEligibility(reward);
         if (!eligibility.supported) {
             toast.error(eligibility.reason);
             return;
         }
+        redeemActionLockedRef.current = true;
         const confirmed = await systemConfirm({
             title: 'Confirmar troca de pontos?',
             description: `Trocar ${reward.pointsCost.toLocaleString('pt-BR')} pontos por "${reward.title}"? Após confirmar, os pontos serão debitados e você receberá um voucher para apresentar à loja.`,
             confirmLabel: 'Confirmar troca',
             cancelLabel: 'Voltar aos prêmios',
         });
-        if (!confirmed) return;
+        if (!confirmed) { redeemActionLockedRef.current = false; return; }
 
         if (!voucherRequestRef.current || voucherRequestRef.current.rewardId !== reward.id) {
             voucherRequestRef.current = { rewardId: reward.id, key: uuidv4() };
@@ -974,6 +976,7 @@ export function CustomerAccountPortal({ hideTrigger = false }: { hideTrigger?: b
         } catch (redeemError) {
             toast.error(redeemError instanceof Error ? redeemError.message : 'Não foi possível concluir a troca.');
         } finally {
+            redeemActionLockedRef.current = false;
             setRedeemingLoyaltyReward(false);
         }
     };
