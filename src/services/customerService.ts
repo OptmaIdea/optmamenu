@@ -568,6 +568,59 @@ export const CustomerService = {
         return { points: Number(payload.points || 0), rewards, vouchers };
     },
 
+    /** Request a points-only, stand-alone prize voucher. The server is the source of truth. */
+    async redeemSelfLoyaltyReward(rewardId: string, requestKey: string): Promise<{
+        voucherId: string;
+        code: string;
+        expiresAt: string | null;
+        pointsCost: number;
+        newBalance: number;
+        replayed: boolean;
+    }> {
+        const { data, error } = await supabaseCustomer.rpc('customer_redeem_loyalty_reward_safe', {
+            p_reward_id: rewardId,
+            p_request_key: requestKey,
+        });
+        if (error) {
+            if (error.message?.includes('loyalty_fulfillment_integration_pending')) {
+                throw new Error('Este prêmio ainda exige integração com o pagamento ou o estoque. A troca não foi realizada.');
+            }
+            throw new Error('Não foi possível concluir a troca. Seus pontos devem ser conferidos antes de tentar novamente.');
+        }
+
+        const result = data as (SelfRpcPayload & {
+            voucher_id?: string;
+            code?: string;
+            expires_at?: string;
+            points_cost?: number;
+            new_balance?: number;
+            replayed?: boolean;
+        }) | null;
+        if (!result?.ok) {
+            const feedback: Record<string, string> = {
+                access_denied: 'Sua sessão não está válida. Entre novamente.',
+                customer_not_found: 'Seu cadastro não foi encontrado nesta loja.',
+                customer_not_eligible: 'Sua participação na fidelidade não permite a troca neste momento.',
+                membership_blocked: 'A participação na fidelidade está bloqueada. Entre em contato com a loja.',
+                reward_unavailable: 'Este prêmio não está disponível para troca no momento.',
+                invalid_reward_configuration: 'A configuração deste prêmio precisa ser corrigida pela loja.',
+                insufficient_points: 'Você ainda não tem pontos suficientes para este prêmio.',
+                redemption_limit_reached: 'Você já alcançou o limite de trocas deste prêmio.',
+                idempotency_key_conflict: 'Esta solicitação já foi utilizada para outro prêmio. Recarregue a área de fidelidade.',
+            };
+            throw new Error(feedback[String(result?.error || '')] || 'A troca não pôde ser concluída. Seus pontos não foram debitados.');
+        }
+        if (!result.voucher_id || !result.code) throw new Error('Resposta incompleta na emissão do voucher. Atualize a lista antes de tentar novamente.');
+        return {
+            voucherId: String(result.voucher_id),
+            code: String(result.code),
+            expiresAt: result.expires_at ? String(result.expires_at) : null,
+            pointsCost: Number(result.points_cost || 0),
+            newBalance: Number(result.new_balance || 0),
+            replayed: Boolean(result.replayed),
+        };
+    },
+
     async leaveSelfLoyalty() {
         const { data, error } = await supabaseCustomer.rpc('leave_customer_self_loyalty_safe');
         if (error) throw new Error('Não foi possível encerrar sua participação no programa.');
