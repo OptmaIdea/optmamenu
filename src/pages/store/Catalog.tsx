@@ -4,6 +4,7 @@ import type { CartItem, Category, Product, StoreConfig } from '@/types';
 import { ProductCard } from '@/pages/store/ProductCard';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { PublicStoreHero } from '@/pages/store/components/PublicStoreHero';
+import { GelinharesTestNotice } from '@/pages/store/components/GelinharesTestNotice';
 import { useCartStore } from '@/store/useCartStore';
 import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { AuthService } from '@/services/customerAuth';
@@ -892,6 +893,9 @@ export default function Catalog() {
             className="min-h-screen bg-gray-50 pb-28 transition-colors duration-300 dark:bg-slate-900"
             style={{ backgroundColor: store.config?.visual_color_secondary }}
         >
+            <div className="mx-auto max-w-5xl px-4 pt-3">
+                <GelinharesTestNotice slug={store.slug || storeSlug} />
+            </div>
             {storeStatus.message && (
                 <div
                     className={`sticky top-0 z-[60] px-4 py-3 text-center text-sm font-bold text-white shadow-md ${storeStatus.isClosingSoon ? 'bg-amber-500' : storeStatus.canOrder ? 'bg-blue-600' : 'bg-red-600'}`}
