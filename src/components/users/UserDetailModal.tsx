@@ -438,7 +438,6 @@ export function UserDetailModal({
     canManageSensitiveUserData = false,
     onSaveProfileDetails,
     onOccurrenceSaved,
-    customRoles = [],
     onAvatarUpdated,
 }: UserDetailModalProps) {
     const [activeTab, setActiveTab] = useState<ModalTab>('overview');
