@@ -25,6 +25,7 @@ import { useCustomerAuth } from '@/store/useCustomerAuth';
 import { CustomerService } from '@/services/customerService';
 import { ProductModal } from '@/pages/store/ProductModal';
 import { CheckoutPromotionsModal } from '@/pages/store/components/CheckoutPromotionsModal';
+import { GelinharesTestNotice, useGelinharesTestNotice } from '@/pages/store/components/GelinharesTestNotice';
 import {
     PublicOrderService,
     type PublicCheckoutPaymentOptionsResponse,
@@ -201,8 +202,9 @@ function normalizeInternationalPhone(ddiInput: string, phoneInput: string): Phon
     };
 }
 
-function CheckoutHeader({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack: () => void }) {
+function CheckoutHeader({ title, subtitle, onBack, storeSlug }: { title: string; subtitle?: string; onBack: () => void; storeSlug: string }) {
     return (
+        <>
         <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
             <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-4">
                 <button type="button" onClick={onBack} className="rounded-full p-2 hover:bg-slate-100" aria-label="Voltar">
@@ -214,6 +216,8 @@ function CheckoutHeader({ title, subtitle, onBack }: { title: string; subtitle?:
                 </div>
             </div>
         </header>
+        <div className="mx-auto max-w-3xl px-4 pt-3"><GelinharesTestNotice slug={storeSlug} compact /></div>
+        </>
     );
 }
 
@@ -301,6 +305,7 @@ export default function Checkout() {
         [context?.canonicalSlug, location.search],
     );
     const storePath = `/s/${encodeURIComponent(storeSlug)}`;
+    const { enabled: isTestStore, accepted: testAcknowledged } = useGelinharesTestNotice(storeSlug);
     const draftKey = `optmamenu.publicCheckoutDraft.v${CHECKOUT_DRAFT_VERSION}.${storeSlug}`;
     const totalValue = total();
     const baseSubtotal = items.reduce((sum, item) => sum + Number(item.originalPrice || item.price || 0) * item.quantity, 0);
@@ -610,6 +615,11 @@ export default function Checkout() {
     };
 
     const finishOrder = async () => {
+        if (isTestStore && !testAcknowledged) {
+            setError('Antes de finalizar, reconheça o aviso de que a Gelinhares neste ambiente é uma loja de testes.');
+            setView('review');
+            return;
+        }
         if (!checkoutValid) {
             setShowValidationTip(true);
             setError('Confirme os blocos marcados em vermelho antes de finalizar.');
@@ -827,6 +837,7 @@ export default function Checkout() {
                         </button>
                     </div>
                 </header>
+                <div className="mx-auto max-w-3xl px-4 pt-3"><GelinharesTestNotice slug={storeSlug} compact /></div>
 
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="divide-y divide-slate-100">
@@ -916,7 +927,7 @@ export default function Checkout() {
     if (view === 'fulfillment') {
         return (
             <div className="min-h-screen bg-slate-50 pb-24">
-                <CheckoutHeader title="Entrega" subtitle="Escolha como deseja receber" onBack={() => setView('review')} />
+                <CheckoutHeader storeSlug={storeSlug} title="Entrega" subtitle="Escolha como deseja receber" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="overflow-hidden rounded-2xl bg-white shadow-sm">
                         <button type="button" onClick={() => { setFulfillment('pickup', 'pickup'); resetPaymentSelection(); setView('review'); }} className="flex w-full items-center gap-4 border-b px-4 py-5 text-left">
@@ -1093,7 +1104,7 @@ export default function Checkout() {
     if (view === 'customer') {
         return (
             <div className="min-h-screen bg-slate-50">
-                <CheckoutHeader title="Seus dados" subtitle="Identificação do pedido" onBack={() => setView('review')} />
+                <CheckoutHeader storeSlug={storeSlug} title="Seus dados" subtitle="Identificação do pedido" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="space-y-3 rounded-2xl bg-white p-4">
                         {isAuthenticated && customer && (
@@ -1128,7 +1139,7 @@ export default function Checkout() {
     if (view === 'payment') {
         return (
             <div className="min-h-screen bg-slate-50">
-                <CheckoutHeader title="Pagamento" subtitle="Escolha quando pagar e depois a forma disponível" onBack={() => setView('review')} />
+                <CheckoutHeader storeSlug={storeSlug} title="Pagamento" subtitle="Escolha quando pagar e depois a forma disponível" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
                     {paymentOptionsLoading && (
                         <section className="rounded-2xl bg-white p-5 text-sm font-semibold text-slate-500">Carregando opções de pagamento…</section>
@@ -1253,7 +1264,7 @@ export default function Checkout() {
     if (view === 'cpf') {
         return (
             <div className="min-h-screen bg-slate-50">
-                <CheckoutHeader title="CPF no documento" subtitle="Campo opcional" onBack={() => setView('review')} />
+                <CheckoutHeader storeSlug={storeSlug} title="CPF no documento" subtitle="Campo opcional" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="space-y-3 rounded-2xl bg-white p-4">
                         <input inputMode="numeric" placeholder="CPF" value={cpf} onChange={(event) => setCpf(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
@@ -1267,7 +1278,7 @@ export default function Checkout() {
     if (view === 'notes') {
         return (
             <div className="min-h-screen bg-slate-50">
-                <CheckoutHeader title="Observações" subtitle="Instruções gerais do pedido" onBack={() => setView('review')} />
+                <CheckoutHeader storeSlug={storeSlug} title="Observações" subtitle="Instruções gerais do pedido" onBack={() => setView('review')} />
                 <main className="mx-auto max-w-3xl px-4 py-5">
                     <section className="space-y-3 rounded-2xl bg-white p-4">
                         <textarea rows={6} placeholder="Ex.: chamar no portão..." value={notes} onChange={(event) => setNotes(event.target.value)} className="w-full rounded-xl bg-slate-50 p-4" />
@@ -1296,7 +1307,7 @@ export default function Checkout() {
 
     return (
         <div className="min-h-screen bg-slate-50 pb-32 text-slate-950">
-            <CheckoutHeader title="Finalizar pedido" subtitle="Revise as informações antes de confirmar" onBack={() => setView('cart')} />
+            <CheckoutHeader storeSlug={storeSlug} title="Finalizar pedido" subtitle="Revise as informações antes de confirmar" onBack={() => setView('cart')} />
             <main className="mx-auto max-w-3xl space-y-4 px-4 py-5">
                 {isAuthenticated && customer && (
                     <section className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
@@ -1360,10 +1371,10 @@ export default function Checkout() {
                     <button
                         type="button"
                         onClick={() => void finishOrder()}
-                        aria-disabled={!checkoutValid || loading}
+                        aria-disabled={!checkoutValid || loading || (isTestStore && !testAcknowledged)}
                         className={`flex min-h-14 flex-1 items-center justify-center gap-3 rounded-2xl px-5 text-base font-black text-white sm:flex-none ${checkoutValid && !loading ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-slate-300'}`}
                     >
-                        {loading ? 'Criando pedido...' : checkoutValid ? 'Finalizar pelo WhatsApp' : 'Confirme os dados'}
+                        {loading ? 'Criando pedido...' : isTestStore && !testAcknowledged ? 'Reconheça o aviso de testes' : checkoutValid ? 'Finalizar pelo WhatsApp' : 'Confirme os dados'}
                         {!loading && <Send size={19} />}
                     </button>
                 </div>
