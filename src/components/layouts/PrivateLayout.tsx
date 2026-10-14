@@ -15,6 +15,7 @@ import { useInventoryAttentionCount } from '@/hooks/inventory/useInventoryAttent
 import { useAccountsPayableDueAlerts } from '@/hooks/financial/useAccountsPayableDueAlerts';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasEffectivePermission } from '@/utils/permissions';
+import { findNavigationContext, isNavigationContextActive } from '@/utils/adminNavigationContext';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import { MyStoreInvitesBanner } from '@/components/invites/MyStoreInvitesBanner';
 import { useIdleSessionTimeout } from '@/hooks/useIdleSessionTimeout';
@@ -67,6 +68,7 @@ import {
     ScrollText,
     BadgeDollarSign,
     FolderTree,
+    ReceiptText,
     MonitorSmartphone,
     TriangleAlert,
     Home,
@@ -127,11 +129,10 @@ const SETTINGS_TAB_VIEW_PERMISSIONS = [
     'settings.stock.view',
     'settings.delivery.view',
     'settings.payment.view',
-    'messages.view',
+    'settings.messages.view',
     'settings.legal.view',
     'settings.system.view',
     'settings.appearance.view',
-    'settings.appearance.manage',
 ];
 
 function formatLayoutRole(role: string): string {
@@ -310,7 +311,7 @@ export default function PrivateLayout() {
         }
 
         if (item.path === '/admin/security') {
-            return canShowSecurityMenu();
+            return canShowSecurityMenu() && (!item.permission || hasPermission(item.permission));
         }
 
         const sectionAccessPermission = SECTION_ACCESS_PERMISSIONS[section];
@@ -392,10 +393,12 @@ export default function PrivateLayout() {
             { path: '/admin/account-plan', icon: FolderTree, label: 'Plano de contas', permission: 'financial.account_plan.view' },
             { path: '/admin/financial-accounts', icon: Building, label: 'Contas financeiras', permission: 'financial.accounts.view' },
             { path: '/admin/online-payments', icon: CreditCard, label: 'Pagamentos online', permission: 'payments.online.view' },
+            { path: '/admin/accounts-payable', icon: ReceiptText, label: 'Contas a pagar', permission: 'accounts_payable.view' },
         ],
         products: [
             { path: '/admin/categories', icon: Layers, label: 'Categorias', permission: 'categories.view' },
             { path: '/admin/stock/purchase-documents', icon: History, label: 'Compras', permission: 'purchases.view' },
+            { path: '/admin/stock/purchase-insights', icon: BarChart3, label: 'Análise de compras', permission: 'purchases.view' },
             { path: '/admin/stock/quotations', icon: FileText, label: 'Cotação', permission: 'quotes.view' },
             { path: '/admin/inventory', icon: FileText, label: 'Estoque', permission: 'stock.view' },
             { path: '/admin/stock/divergences', icon: TriangleAlert, label: 'Divergências', permission: 'stock.view' },
@@ -422,11 +425,11 @@ export default function PrivateLayout() {
             },
         ],
         security: [
-            {
-                path: '/admin/security',
-                icon: Shield,
-                label: 'Senhas e Acesso',
-            },
+            { path: '/admin/security', icon: Shield, label: 'Central de segurança' },
+            { path: '/admin/security', queryString: 'tab=roles', icon: Shield, label: 'Permissões por papel', permission: 'security.roles.view' },
+            { path: '/admin/security', queryString: 'tab=custom_roles', icon: Users, label: 'Funções personalizadas', permission: 'security.custom_roles.view' },
+            { path: '/admin/security', queryString: 'tab=user_permissions', icon: UserCircle, label: 'Permissões por usuário', permission: 'security.user_permissions.view' },
+            { path: '/admin/security', queryString: 'tab=logs', icon: ScrollText, label: 'Histórico de atividades', permission: 'security.logs.view' },
         ],
         support: [
             { path: '/admin/docs', icon: BookOpen, label: 'Documentação', permission: 'support.view' },
@@ -986,47 +989,12 @@ export default function PrivateLayout() {
         };
     }, [popoverTimeoutId]);
 
-    // Resolve o grupo e item ativo
-    const currentItem = useMemo(() => {
-        if (pathname === '/admin') {
-            return { group: 'home', item: { path: '/admin', icon: Home, label: 'Início' } };
-        }
-        const search = location.search || '';
-        // 1. Tenta correspondência exata de caminho e query string
-        for (const [group, items] of Object.entries(navigationItems)) {
-            const matchedItem = items.find(item => {
-                if (pathname !== item.path) return false;
-                if (item.queryString) {
-                    if (item.path === '/admin/settings' && item.queryString === 'tab=store') {
-                        return search.includes('tab=store') || !search.includes('tab=');
-                    }
-                    return search.includes(item.queryString);
-                }
-                return true;
-            });
-            if (matchedItem) {
-                return { group, item: matchedItem };
-            }
-        }
-        // 2. Se não achar exato com query string, tenta correspondência simples de caminho
-        for (const [group, items] of Object.entries(navigationItems)) {
-            const matchedItem = items.find(item => pathname === item.path);
-            if (matchedItem) {
-                return { group, item: matchedItem };
-            }
-        }
-        // 3. Se não achar exato, tenta por prefixo de subpasta (excluindo /admin que é raiz)
-        for (const [group, items] of Object.entries(navigationItems)) {
-            const matchedItem = items.find(item => {
-                if (item.path === '/admin') return false;
-                return pathname.startsWith(item.path + '/');
-            });
-            if (matchedItem) {
-                return { group, item: matchedItem };
-            }
-        }
-        return null;
-    }, [navigationItems, pathname, location.search]);
+    // Resolve a rota incluindo a aba: atalhos contextuais não podem ser
+    // confundidos com a entrada genérica da mesma página.
+    const currentItem = useMemo(
+        () => findNavigationContext(navigationItems, pathname, location.search),
+        [navigationItems, pathname, location.search]
+    );
 
     useEffect(() => {
         const label = currentItem?.item?.label || 'Início';
@@ -1037,23 +1005,10 @@ export default function PrivateLayout() {
         };
     }, [currentItem?.item?.label]);
 
-    // Helper para verificar se um item de menu está ativo no contexto atual
     const isMenuItemActive = useCallback(
-        (item: MenuItem, currentSearch: string) => {
-            const pathMatches =
-                pathname === item.path ||
-                (item.path !== '/admin' && item.path !== '/admin/products' && pathname.startsWith(`${item.path}/`));
-            if (!pathMatches) return false;
-            if (item.queryString) {
-                const search = currentSearch || '';
-                if (item.path === '/admin/settings' && item.queryString === 'tab=store') {
-                    return search.includes('tab=store') || !search.includes('tab=');
-                }
-                return search.includes(item.queryString);
-            }
-            return true;
-        },
-        [pathname]
+        (item: MenuItem, currentSearch: string) =>
+            isNavigationContextActive(navigationItems, item, pathname, currentSearch),
+        [navigationItems, pathname]
     );
 
     // Resolve as rotas irmãs para o Acesso Rápido (exclui o atual)

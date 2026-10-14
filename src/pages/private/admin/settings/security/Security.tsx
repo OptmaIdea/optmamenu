@@ -3077,7 +3077,7 @@ export default function Security() {
 
     return (
         <PageContainer
-            title="Senhas e Acesso"
+            title="Central de segurança"
             subtitle="Gerencie as configurações de segurança, PIN, senhas master e permissões da equipe."
             category="Segurança"
             icon={<Shield className="text-[#19A999]" size={28} />}
