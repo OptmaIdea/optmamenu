@@ -37,7 +37,7 @@ begin
 
   return jsonb_build_object('ok', true, 'count', v_count);
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.get_admin_orders_safe(p_store_id uuid, p_status text DEFAULT 'all'::text, p_limit integer DEFAULT 200)
  RETURNS jsonb
@@ -125,6 +125,6 @@ begin
 
   return jsonb_build_object('ok',true,'orders',v_orders);
 end;
-$function$
+$function$;
 
 COMMIT;
