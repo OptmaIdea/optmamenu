@@ -265,7 +265,7 @@ export default function LoyaltyPage() {
         active: true,
     });
 
-    const [adjustment, setAdjustment] = useState({ points: '', reason: '' });
+    const [adjustment, setAdjustment] = useState<{ direction: '' | 'credit' | 'debit'; points: string; reason: string }>({ direction: '', points: '', reason: '' });
 
     useEffect(() => {
         let cancelled = false;
@@ -547,16 +547,21 @@ export default function LoyaltyPage() {
 
     async function adjustPoints() {
         if (!storeId || !canManage || !selectedCustomerId) return;
-        const delta = Math.trunc(number(adjustment.points));
-        if (!delta || adjustment.reason.trim().length < 3) {
-            toast.error('Informe uma quantidade diferente de zero e um motivo com pelo menos 3 caracteres.');
+        const amount = Number(adjustment.points);
+        if (!adjustment.direction) {
+            toast.error('Escolha se deseja creditar ou estornar pontos.');
             return;
         }
+        if (!Number.isSafeInteger(amount) || amount <= 0 || adjustment.reason.trim().length < 3) {
+            toast.error('Informe uma quantidade positiva e inteira de pontos e um motivo com pelo menos 3 caracteres.');
+            return;
+        }
+        const delta = adjustment.direction === 'credit' ? amount : -amount;
         setSaving(true);
         try {
             await LoyaltyAdvancedService.adjustPoints(storeId, selectedCustomerId, delta, adjustment.reason.trim());
             toast.success('Ajuste registrado no extrato.');
-            setAdjustment({ points: '', reason: '' });
+            setAdjustment({ direction: '', points: '', reason: '' });
             await loadAll();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao ajustar pontos.');
@@ -1264,9 +1269,17 @@ export default function LoyaltyPage() {
                         <div className="mt-4 space-y-3">
                             <div><label className={labelClass}>Cliente</label><select className={fieldClass} disabled={!canManage} value={selectedCustomerId} onChange={(e) => setSelectedCustomerId(e.target.value)}><option value="">Selecione</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{displayCustomer(customer)} · {formatPoints(customer.loyalty_points)} pts</option>)}</select></div>
                             {selectedCustomer && <div className="rounded-xl bg-gray-50 p-3 text-sm dark:bg-gray-800"><strong>{displayCustomer(selectedCustomer)}</strong><br />Saldo atual: {formatPoints(selectedCustomer.loyalty_points)} pontos</div>}
-                            <div><label className={labelClass}>Pontos (+ crédito / - estorno)</label><input type="number" className={fieldClass} disabled={!canManage} value={adjustment.points} onChange={(e) => setAdjustment({ ...adjustment, points: e.target.value })} /></div>
+                            <div>
+                                <label className={labelClass} htmlFor="loyalty-adjust-direction">Tipo de ajuste — escolha obrigatória</label>
+                                <select id="loyalty-adjust-direction" className={fieldClass} disabled={!canManage} required value={adjustment.direction} onChange={(e) => setAdjustment({ ...adjustment, direction: e.target.value as '' | 'credit' | 'debit' })}>
+                                    <option value="">Selecione crédito ou estorno...</option>
+                                    <option value="credit">+ Crédito (adicionar pontos)</option>
+                                    <option value="debit">− Estorno (retirar pontos)</option>
+                                </select>
+                            </div>
+                            <div><label className={labelClass} htmlFor="loyalty-adjust-points">Quantidade de pontos</label><input id="loyalty-adjust-points" type="number" min="1" step="1" inputMode="numeric" className={fieldClass} disabled={!canManage} value={adjustment.points} onChange={(e) => setAdjustment({ ...adjustment, points: e.target.value })} placeholder="Somente números positivos" /></div>
                             <div><label className={labelClass}>Motivo obrigatório</label><textarea className={fieldClass} disabled={!canManage} value={adjustment.reason} onChange={(e) => setAdjustment({ ...adjustment, reason: e.target.value })} /></div>
-                            <button type="button" disabled={!canManage || saving || !selectedCustomerId} onClick={() => void adjustPoints()} className="w-full rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Registrar ajuste</button>
+                            <button type="button" disabled={!canManage || saving || !selectedCustomerId || !adjustment.direction || !(Number(adjustment.points) > 0)} onClick={() => void adjustPoints()} className="w-full rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Registrar ajuste</button>
                         </div>
                     </div>
                     <div className={cardClass}>
