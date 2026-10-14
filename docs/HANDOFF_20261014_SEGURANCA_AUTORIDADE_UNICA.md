@@ -29,3 +29,44 @@ Não aplicar automaticamente mudanças a qualquer usuário, papel ou conjunto de
 3. Membro com `security.view=true`, mas `security.user_permissions.manage=false`: vê aba se tiver `security.user_permissions.view`, porém não pode salvar nem atribuir.
 4. Carlos: negativas `security.roles.view`, `security.custom_roles.view`, `security.user_permissions.view` preservadas; não pode alterar esses privilégios por acesso direto ou Usuários.
 5. Confirmar que status, perfil, convites, ocorrências não privilegiadas e a navegação existente permanecem funcionando.
+
+## Execução comprovada — 14/10/2026
+
+### Implementação publicada
+- Separação frontend: `src/pages/private/admin/users/Users.tsx`, `src/components/users/UserDetailModal.tsx`, `src/components/users/UserFormModal.tsx`, `src/store/useUsersStore.ts`. Acesso e papel apenas informativos em Usuários; envio de convite padrão `staff`; nenhuma chamada da tela Usuários para mudar papel ou atribuir função.
+- Gestão concentrada em `src/pages/private/admin/settings/security/Security.tsx` e `MemberAccessAssignment.tsx`, dentro da aba `user_permissions`. `security.view`, `security.manage`, `security.user_permissions.view` e `security.user_permissions.manage` são obrigatórios para gerenciar. O owner conserva administração.
+- A lista de funções personalizadas é carregada também para usuários com `security.user_permissions.view` autorizado, sem conferir poderes de editar funções.
+
+### Supabase: migrations aplicadas
+1. `20261014135000_governance_security_exclusive_permission_authority.sql` — **aplicada** no banco como migration registrada `20261014104225` / `governance_security_exclusive_permission_authority_20261014`. Substitui 18 definições de RPC, unifica a função legada de autorização ao verificador granular v3 e endurece RLS de INSERT/UPDATE de convites.
+2. `20261014141000_security_member_permission_effective_resolution.sql` — **aplicada** via Supabase. Alinha `get_store_member_permission_detail` ao mesmo `get_effective_store_member_permissions_v2` usado para calcular concessões, negativas e overrides de função personalizada. Antes, no teste com o papel personalizado de Carlos havia **46 divergências** de valor efetivo; depois, **137 permissões comparadas, 0 divergências efetivas e 0 divergências de origem**.
+
+### Testes executados com transações ROLLBACK (sem persistir dados)
+| Cenário | Resultado |
+| --- | --- |
+| Owner: ler permissões de Carlos | 137 registros |
+| Carlos: ler permissões de Carlos pela RPC de detalhe | 0 registros, acesso à seção negado |
+| Staff sem Segurança: ler permissões de Carlos | 0 registros |
+| Carlos: mudar papel via `change_store_member_role` | DENIED |
+| Carlos: atribuir função via `assign_store_custom_role_to_member` | DENIED |
+| Carlos: `create_store_member_invite` com papel admin | DENIED |
+| Carlos: `create_store_member_invite` com papel staff e sem overrides | ALLOWED, transação revertida |
+| Carlos: mudança de papel por ocorrência `role_change` | DENIED |
+| Carlos: elevação pela ocorrência `admission` | DENIED |
+| Carlos: `update_store_member_permissions` | DENIED |
+| Owner: `change_store_member_role` | ALLOWED, transação revertida |
+| Carlos: RLS INSERT de convite `admin` | DENIED 42501 |
+| Carlos: RLS INSERT `staff` com `orders.view=true` | DENIED 42501 |
+| Carlos: RLS INSERT `staff` com overrides vazios | ALLOWED, transação revertida |
+
+### Critérios pós-publicação
+- Confirmar que GitHub Actions `Tests` e `Build` estão SUCCESS no último commit.
+- Confirmar deploy Vercel READY do mesmo SHA em `homologacao.optmamenu.com.br`.
+- Owner: visualizar e editar permissões individuais/papel/função a partir de Segurança; checar auditoria e mudança de papel em conta de testes, não em colaboradores reais.
+- Carlos: `security.view` não habilita as abas `roles`, `custom_roles` e `user_permissions` quando há negativas explícitas; tela Usuários não oferece operação de elevação.
+- `users.manage` sem `security.view`: permitir cadastro/convite ordinário, negar configuração de permissões ou atribuição de papel pela API.
+- Outras frentes do OptmaMenu não foram alteradas nesta rodada.
+
+### Riscos fora desta frente
+- Migration anterior de autorização granular dos **pedidos** `20261014070000_orders_custom_role_visibility_authorization.sql` não consta aplicada nas verificações anteriores; auditar separadamente, sem confundir com a presente governança.
+- Revalidar o comportamento de convites para usuários reativados e o fluxo da Vida do Usuário nos testes manuais da homologação.
