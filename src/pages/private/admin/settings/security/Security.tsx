@@ -1646,7 +1646,7 @@ export default function Security() {
         items: customRolesFromHook,
         loading: customRolesLoading,
         refresh: refreshCustomRoles,
-    } = useStoreCustomRoles(canViewCustomRoles);
+    } = useStoreCustomRoles(canViewCustomRoles || canViewUserPermissionsTab);
 
     const [customRoles, setCustomRoles] = useState<StoreCustomRole[]>([]);
     const [selectedCustomRoleId, setSelectedCustomRoleId] = useState<string | null>(null);
