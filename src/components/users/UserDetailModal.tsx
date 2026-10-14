@@ -1913,61 +1913,6 @@ export function UserDetailModal({
                                     </div>
 
                                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                <label className="block">
-                                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                                        Papel no sistema
-                                                    </span>
-                                                    <select
-                                                        value={user.role}
-                                                        disabled={isProtectedOwner || !onRequestRoleChange}
-                                                        onChange={(event) => {
-                                                            const nextRole = event.target.value;
-                                                            if (user.role !== nextRole) {
-                                                                onRequestRoleChange?.(user, nextRole);
-                                                            }
-                                                        }}
-                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                                    >
-                                                        <option value="admin">Administrador</option>
-                                                        <option value="cashier">Caixa</option>
-                                                        <option value="staff">Equipe</option>
-                                                        <option value="manager">Gerente</option>
-                                                        <option value="stock_operator">Operador de estoque</option>
-                                                        <option value="sales">Vendas</option>
-                                                        <option value="viewer">Visualizador</option>
-                                                    </select>
-                                                </label>
-
-                                                <label className="block">
-                                                    <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
-                                                        Função personalizada
-                                                    </span>
-                                                    <select
-                                                        value={user.custom_role_id ?? ''}
-                                                        disabled={isProtectedOwner || !onRequestCustomRoleChange}
-                                                        onChange={(event) => {
-                                                            const nextCustomRoleId = event.target.value || null;
-                                                            if ((user.custom_role_id ?? null) !== nextCustomRoleId) {
-                                                                onRequestCustomRoleChange?.(user, nextCustomRoleId);
-                                                            }
-                                                        }}
-                                                        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#19A999] dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                                    >
-                                                        <option value="">Sem função personalizada</option>
-                                                        {customRoles
-                                                            .filter((role) => role.active && role.base_role === user.role)
-                                                            .map((role) => (
-                                                                <option key={role.id} value={role.id}>
-                                                                    {role.name}
-                                                                </option>
-                                                            ))}
-                                                    </select>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                         <InfoCard
                                             icon={lastSessionIcon}
                                             label="Último evento de sessão"
