@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import type {
     StoreMemberOccurrenceSeverity,
@@ -48,6 +49,7 @@ interface UserDetailModalProps {
     onClose: () => void;
     user: UserAdmin | null;
     canManageUsers?: boolean;
+    canManageSecurityAccess?: boolean;
     canViewSensitiveUserData?: boolean;
     canManageSensitiveUserData?: boolean;
     onSaveProfileDetails?: (input: {
@@ -151,14 +153,6 @@ const OCCURRENCE_TYPE_OPTIONS = ([
         severity: 'medium',
         sensitive: false,
         requiresDescription: false,
-    },
-    {
-        value: 'role_change',
-        label: 'Alteração de função',
-        severity: 'medium',
-        sensitive: true,
-        requiresDescription: true,
-        help: 'Registra alteração de papel no sistema e/ou função personalizada.',
     },
     {
         value: 'absence',
@@ -439,6 +433,7 @@ export function UserDetailModal({
     onClose,
     user,
     canManageUsers = false,
+    canManageSecurityAccess = false,
     canViewSensitiveUserData = false,
     canManageSensitiveUserData = false,
     onSaveProfileDetails,
@@ -1306,14 +1301,8 @@ export function UserDetailModal({
             return;
         }
 
-        const metadata =
-            occurrenceType === 'role_change' || occurrenceType === 'admission'
-                ? {
-                    new_role: occurrenceForm.newRole || user.role,
-                    new_custom_role_id: occurrenceForm.newCustomRoleId || null,
-                    clear_individual_overrides: occurrenceForm.clearIndividualOverrides,
-                }
-                : {};
+        // Ocorrências em Usuários não podem carregar alterações de privilégios.
+        const metadata = {};
 
         try {
             const result = await createStoreMemberOccurrenceV2({
@@ -1906,13 +1895,24 @@ export function UserDetailModal({
                                         Papel no sistema define o acesso base. Função personalizada aplica ajustes específicos de permissão compatíveis com esse papel.
                                     </div>
 
-                                    {canManageUsers && (
-                                        <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
-                                            <h4 className="mb-4 font-bold text-gray-900 dark:text-white">
-                                                Configurações de Acesso
-                                            </h4>
+                                    <div className="rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+                                        <h4 className="font-bold text-gray-900 dark:text-white">Permissões e função</h4>
+                                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                            Papel atual: <strong>{formatRoleLabel(user.role)}</strong>.
+                                            {user.custom_role_name ? ` Função personalizada: ${user.custom_role_name}.` : ' Sem função personalizada.'}
+                                        </p>
+                                        {canManageSecurityAccess ? (
+                                            <Link to="/admin/security?tab=user_permissions" onClick={onClose} className="mt-3 inline-flex rounded-lg border border-teal-300 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 dark:text-teal-300">
+                                                Gerenciar permissões na Central de Segurança
+                                            </Link>
+                                        ) : (
+                                            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                Alterações de papel e permissões são restritas à Central de Segurança.
+                                            </p>
+                                        )}
+                                    </div>
 
-                                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                                 <label className="block">
                                                     <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">
                                                         Papel no sistema
@@ -2534,8 +2534,7 @@ export function UserDetailModal({
                                                 }
                                             />
 
-                                            {(occurrenceForm.occurrenceType === 'role_change' ||
-                                                occurrenceForm.occurrenceType === 'admission') && (
+                                            {occurrenceForm.occurrenceType === 'role_change' && (
                                                     <div className="space-y-3">
                                                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
                                                             {occurrenceForm.occurrenceType === 'admission'

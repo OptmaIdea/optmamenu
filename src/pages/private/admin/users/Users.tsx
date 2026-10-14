@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useUsersStore } from '@/store/useUsersStore';
-import type { UserAdmin, UserFormData, UserRole, UserFilters } from '@/types';
+import type { UserAdmin, UserFormData, UserFilters } from '@/types';
 import { UserCard, UserFormModal, UserDetailModal } from '@/components/users';
 import { UserInvitesPanel } from '@/components/users/UserInvitesPanel';
 import { useSecurityContext } from '@/hooks/useSecurityContext';
@@ -13,8 +13,6 @@ import { toast } from 'sonner';
 import { Users as UsersIcon, UserCheck, UserX, Shield, Search, Plus, Filter, ChevronDown, ChevronUp, X, FileText, Mail, UserPlus, RefreshCw } from 'lucide-react';
 import { useStoreMemberSessionSummary } from '@/hooks/security/useStoreMemberSessionSummary';
 import { getActiveStoreId } from '@/utils/activeStore';
-import { supabase } from '@/lib/supabase';
-import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useRealtimeListener } from '@/hooks/useRealtimeListener';
 import {
@@ -145,6 +143,11 @@ export default function Users() {
         cancelInvite,
     } = useStoreMemberInvites(operationalStoreId);
     const canManageUsers = hasPermission('users.manage');
+    const canManageSecurityAccess =
+        hasPermission('security.view') &&
+        hasPermission('security.manage') &&
+        hasPermission('security.user_permissions.view') &&
+        hasPermission('security.user_permissions.manage');
     const canViewOwners = hasPermission('users.owner.view');
     const canViewSensitiveUsers = hasPermission('users.sensitive.view');
     const canManageSensitiveUsers = hasPermission('users.sensitive.manage');
@@ -406,24 +409,6 @@ export default function Users() {
     const [selectedUser, setSelectedUser] = useState<UserAdmin | null>(null);
     const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
     const [showFilters, setShowFilters] = useState(false);
-    const [roleChangeConfirmation, setRoleChangeConfirmation] = useState<{
-        user: UserAdmin;
-        newRole: string;
-        clearOverrides: boolean;
-    } | null>(null);
-
-    const {
-        items: customRoles,
-        saving: customRoleSaving,
-        assignCustomRoleToMember,
-    } = useStoreCustomRoles(true);
-
-    const [customRoleConfirmation, setCustomRoleConfirmation] = useState<{
-        user: UserAdmin;
-        customRoleId: string | null;
-        clearOverrides: boolean;
-    } | null>(null);
-
     // Correção 7 — handleRefresh também recarrega solicitações cadastrais
     const handleRefresh = useCallback(async () => {
         await Promise.all([
@@ -514,93 +499,11 @@ export default function Users() {
         }
 
         if (selectedUser) {
-            if (data.role !== selectedUser.role) {
-                setRoleChangeConfirmation({
-                    user: selectedUser,
-                    newRole: data.role,
-                    clearOverrides: false,
-                });
-                setSelectedUser(null);
-                setShowFormModal(false);
-                return;
-            }
-            await updateUser(selectedUser.id, data);
+            await updateUser(selectedUser.id, { ...data, role: undefined });
             await refreshSessionSummary();
             setSelectedUser(null);
             setShowFormModal(false);
         }
-    };
-
-    const handleConfirmRoleChange = async () => {
-        if (!roleChangeConfirmation) return;
-
-        const { user, newRole, clearOverrides } = roleChangeConfirmation;
-
-        try {
-            await supabase.rpc('change_store_member_role', {
-                p_member_id: user.id,
-                p_new_role: newRole,
-                p_reason: 'Alteração de função pela tela de usuários',
-                p_clear_individual_overrides: clearOverrides,
-                p_create_occurrence: true,
-            });
-
-            toast.success('Função atualizada com sucesso.');
-
-            setRoleChangeConfirmation(null);
-
-            await fetchUsers();
-            await refreshSessionSummary();
-
-            const shouldClearCustomRole =
-                clearOverrides ||
-                (user.custom_role_base_role && user.custom_role_base_role !== newRole);
-
-            setSelectedUser((prev: UserAdmin | null) => {
-                if (!prev || prev.id !== user.id) return prev;
-
-                return {
-                    ...prev,
-                    role: newRole as UserRole,
-                    custom_role_id: shouldClearCustomRole ? null : prev.custom_role_id,
-                    custom_role_name: shouldClearCustomRole ? null : prev.custom_role_name,
-                };
-            });
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Não foi possível alterar a função.';
-            toast.error(message);
-        }
-    };
-
-    const getCustomRoleById = (customRoleId: string | null) => {
-        if (!customRoleId) return null;
-
-        return customRoles.find((role) => role.id === customRoleId) ?? null;
-    };
-
-    const handleConfirmCustomRoleChange = async () => {
-        if (!customRoleConfirmation) return;
-
-        const { user, customRoleId, clearOverrides } = customRoleConfirmation;
-
-        const selectedRole = getCustomRoleById(customRoleId);
-
-        const success = await assignCustomRoleToMember({
-            memberId: user.id,
-            customRoleId,
-            clearOverrides,
-            reason: selectedRole
-                ? `Atribuição da função personalizada ${selectedRole.name} pela tela de usuários.`
-                : 'Remoção da função personalizada pela tela de usuários.',
-        });
-
-        if (!success) return;
-
-        setCustomRoleConfirmation(null);
-
-        await fetchUsers();
-        await refreshSessionSummary();
-        window.dispatchEvent(new Event('optmamenu:security-context-refresh'));
     };
 
     const handleSaveProfileDetails = async (input: Parameters<typeof updateUserProfileDetails>[0]) => {
@@ -667,14 +570,10 @@ export default function Users() {
         setFilters({ [key]: value });
     };
 
-    const willClearCustomRoleOnRoleChange =
-        roleChangeConfirmation?.user.custom_role_base_role &&
-        roleChangeConfirmation.user.custom_role_base_role !== roleChangeConfirmation.newRole;
-
     return (
         <PageContainer
             title="Usuários"
-            subtitle="Gerencie os usuários do sistema e suas permissões"
+            subtitle="Gerencie cadastros, convites e vínculos da equipe. As permissões são administradas em Segurança."
             category="Configurações"
             icon={<UsersIcon size={28} className="text-[#19A999]" />}
             flat
@@ -1334,21 +1233,7 @@ export default function Users() {
                 canManageUsers={canManageUsers}
                 canViewSensitiveUserData={canViewSensitiveUsers}
                 canManageSensitiveUserData={canManageSensitiveUsers}
-                customRoles={customRoles}
-                onRequestRoleChange={(user, newRole) => {
-                    setRoleChangeConfirmation({
-                        user,
-                        newRole,
-                        clearOverrides: false,
-                    });
-                }}
-                onRequestCustomRoleChange={(user, customRoleId) => {
-                    setCustomRoleConfirmation({
-                        user,
-                        customRoleId,
-                        clearOverrides: false,
-                    });
-                }}
+                canManageSecurityAccess={canManageSecurityAccess}
                 onSaveProfileDetails={handleSaveProfileDetails}
                 onOccurrenceSaved={handleOccurrenceSaved}
                 onAvatarUpdated={async (avatarUrl) => {
@@ -1359,184 +1244,6 @@ export default function Users() {
                     window.dispatchEvent(new Event('optmamenu:security-context-refresh'));
                 }}
             />
-
-            {roleChangeConfirmation && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
-                        <h3 className="text-lg font-black text-gray-900 dark:text-white">
-                            Confirmar mudança de função
-                        </h3>
-
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                            Você está alterando a função de{' '}
-                            <strong>{roleChangeConfirmation.user.full_name}</strong>.
-                        </p>
-
-                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300">
-                            <p>
-                                As permissões herdadas passarão a seguir o novo papel.
-                                Esta ação será registrada no histórico de segurança e na Vida do Usuário.
-                            </p>
-                        </div>
-
-                        {willClearCustomRoleOnRoleChange && roleChangeConfirmation && (
-                            <div className="mt-3 rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800 dark:border-orange-900/60 dark:bg-orange-950/30 dark:text-orange-300">
-                                <p>
-                                    Este usuário possui a função personalizada{' '}
-                                    <strong>{roleChangeConfirmation.user.custom_role_name}</strong>, baseada em{' '}
-                                    <strong>{formatRoleLabel(roleChangeConfirmation.user.custom_role_base_role || '')}</strong>.
-                                    Como o novo papel será{' '}
-                                    <strong>{formatRoleLabel(roleChangeConfirmation.newRole)}</strong>, essa função personalizada será removida automaticamente.
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
-                                <p className="text-xs font-bold uppercase text-gray-500">
-                                    Função atual
-                                </p>
-                                <p className="font-bold text-gray-900 dark:text-white">
-                                    {formatRoleLabel(roleChangeConfirmation.user.role)}
-                                </p>
-                            </div>
-
-                            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
-                                <p className="text-xs font-bold uppercase text-gray-500">
-                                    Nova função
-                                </p>
-                                <p className="font-bold text-[#19A999]">
-                                    {formatRoleLabel(roleChangeConfirmation.newRole)}
-                                </p>
-                            </div>
-                        </div>
-
-                        <label className="mt-4 flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                            <input
-                                type="checkbox"
-                                checked={roleChangeConfirmation.clearOverrides}
-                                onChange={(event) =>
-                                    setRoleChangeConfirmation((current) =>
-                                        current
-                                            ? {
-                                                ...current,
-                                                clearOverrides: event.target.checked,
-                                            }
-                                            : current
-                                    )
-                                }
-                                className="mt-1"
-                            />
-                            <span>
-                                Limpar permissões individuais deste usuário ao alterar a função.
-                                Se desmarcado, as exceções individuais serão preservadas.
-                            </span>
-                        </label>
-
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setRoleChangeConfirmation(null)}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                            >
-                                Cancelar
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleConfirmRoleChange}
-                                className="rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white hover:bg-[#14887B]"
-                            >
-                                Confirmar alteração
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {customRoleConfirmation && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl dark:bg-gray-800">
-                        <h3 className="text-lg font-black text-gray-900 dark:text-white">
-                            Confirmar função personalizada
-                        </h3>
-
-                        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                            Você está alterando a função personalizada de{' '}
-                            <strong>{customRoleConfirmation.user.full_name}</strong>.
-                        </p>
-
-                        <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-300">
-                            <p>
-                                A função personalizada ajusta permissões herdadas do papel base.
-                                Esta ação será registrada no histórico de segurança e na Vida do Usuário.
-                            </p>
-                        </div>
-
-                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
-                                <p className="text-xs font-bold uppercase text-gray-500">
-                                    Função atual
-                                </p>
-                                <p className="font-bold text-gray-900 dark:text-white">
-                                    {customRoleConfirmation.user.custom_role_name ?? 'Sem função personalizada'}
-                                </p>
-                            </div>
-
-                            <div className="rounded-xl bg-gray-50 p-3 dark:bg-gray-700/50">
-                                <p className="text-xs font-bold uppercase text-gray-500">
-                                    Nova função
-                                </p>
-                                <p className="font-bold text-[#19A999]">
-                                    {getCustomRoleById(customRoleConfirmation.customRoleId)?.name ??
-                                        'Sem função personalizada'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <label className="mt-4 flex items-start gap-2 rounded-xl border border-gray-200 p-3 text-sm text-gray-600 dark:border-gray-700 dark:text-gray-300">
-                            <input
-                                type="checkbox"
-                                checked={customRoleConfirmation.clearOverrides}
-                                onChange={(event) =>
-                                    setCustomRoleConfirmation((current) =>
-                                        current
-                                            ? {
-                                                ...current,
-                                                clearOverrides: event.target.checked,
-                                            }
-                                            : current
-                                    )
-                                }
-                                className="mt-1"
-                            />
-                            <span>
-                                Limpar permissões individuais deste usuário.
-                                Se desmarcado, exceções individuais serão preservadas e continuarão prevalecendo sobre a função personalizada.
-                            </span>
-                        </label>
-
-                        <div className="mt-6 flex justify-end gap-3">
-                            <button
-                                type="button"
-                                onClick={() => setCustomRoleConfirmation(null)}
-                                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-700"
-                            >
-                                Cancelar
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={handleConfirmCustomRoleChange}
-                                disabled={customRoleSaving}
-                                className="rounded-xl bg-[#19A999] px-4 py-2 text-sm font-bold text-white hover:bg-[#14887B] disabled:opacity-50"
-                            >
-                                {customRoleSaving ? 'Salvando...' : 'Confirmar alteração'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {reviewModal.isOpen && reviewModal.request && reviewModal.decision && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">

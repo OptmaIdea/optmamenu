@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import type { UserAdmin, UserFormData, UserRole } from '@/types';
+import type { UserAdmin, UserFormData } from '@/types';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -23,7 +23,6 @@ export function UserFormModal({
         register,
         handleSubmit,
         reset,
-        setValue,
         formState: { errors, isSubmitting },
     } = useForm<UserFormData>({
         defaultValues: {
@@ -111,7 +110,7 @@ export function UserFormModal({
                     {/* Header */}
                     <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
                         <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                            {mode === 'create' ? 'Acesso para novo usuário' : 'Editar cargo'}
+                            {mode === 'create' ? 'Acesso para novo usuário' : 'Editar cadastro'}
                         </h2>
                         <button
                             onClick={handleClose}
@@ -171,28 +170,12 @@ export function UserFormModal({
 
 
 
-                        {/* Cargo/Cargo do usuário */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                                Permissão *
-                            </label>
-                            <select
-                                {...register('role', { required: true })}
-                                onChange={(e) => {
-                                    const role = e.target.value as UserRole;
-                                    setValue('role', role);
-                                    setValue('is_admin', role === 'admin' || role === 'manager');
-                                }}
-                                className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[#19A999] focus:border-transparent"
-                            >
-                                <option value="viewer">Visualizador</option>
-                                <option value="staff">Equipe</option>
-                                <option value="sales">Vendas</option>
-                                <option value="cashier">Caixa</option>
-                                <option value="stock_operator">Operador de estoque</option>
-                                <option value="manager">Gerente</option>
-                                <option value="admin">Administrador</option>
-                            </select>
+                        {/* O convite é sempre de menor privilégio. Alterações de função ficam em Segurança. */}
+                        <input type="hidden" {...register('role')} />
+                        <div className="rounded-xl border border-teal-200 bg-teal-50 p-3 text-sm text-teal-900 dark:border-teal-900 dark:bg-teal-950/30 dark:text-teal-200">
+                            {mode === 'create'
+                                ? 'O novo colaborador será convidado como Equipe. Depois do aceite, o papel e as permissões podem ser configurados exclusivamente em Segurança.'
+                                : 'A função atual é apenas informativa nesta tela. Mudanças de privilégios são feitas exclusivamente em Segurança.'}
                         </div>
 
                         {/* Actions */}

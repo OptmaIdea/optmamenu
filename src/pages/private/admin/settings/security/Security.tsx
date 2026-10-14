@@ -21,6 +21,7 @@ import { useSecurityPermissionsAdmin } from '@/hooks/security/useSecurityPermiss
 import { useRefreshFrame } from '@/hooks/useRefreshFrame';
 import { useStoreCustomRoles } from '@/hooks/security/useStoreCustomRoles';
 import { notifyPermissionsChanged } from '@/utils/permissionEvents';
+import { MemberAccessAssignment } from './MemberAccessAssignment';
 
 type StoreConfig = {
     pin_failed_attempts?: number;
@@ -1571,12 +1572,11 @@ export default function Security() {
         if (!canViewSecurityTab(tab)) return false;
         if (isStoreOwner) return true;
 
-        return (
-            hasPermission('security.manage') ||
-            securityTabPermissions[tab].manage.some((permission) =>
+        // Gerenciamento exige a porteira global e a permissão explícita da aba.
+        return hasPermission('security.manage') &&
+            securityTabPermissions[tab].manage.every((permission) =>
                 hasPermission(permission)
-            )
-        );
+            );
     }, [canViewSecurityTab, isStoreOwner, hasPermission]);
 
 
@@ -4405,7 +4405,20 @@ export default function Security() {
                                     </div>
                                 </div>
 
-                                {selectedMemberId && canManageSecurity && (
+                                <MemberAccessAssignment
+                                    member={selectedMember}
+                                    roles={customRolesFromHook}
+                                    canManage={canManageUserPermissions}
+                                    onChanged={async () => {
+                                        notifyPermissionsChanged(currentStoreId, 'member_role_assignment');
+                                        await refreshAdmin();
+                                        if (selectedMemberId) {
+                                            await fetchMemberPermissionDetail(selectedMemberId, { silent: true });
+                                        }
+                                    }}
+                                />
+
+                                {selectedMemberId && canManageUserPermissions && (
                                     <div className="pt-4 border-t border-gray-100 dark:border-gray-700/50 mt-4">
                                         <button
                                             type="button"
