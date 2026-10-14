@@ -24,3 +24,12 @@
 - Não foram alteradas contas, vínculos ou permissões de indivíduos.
 - Não foram modificados Clientes, Fidelidade ou OptmaPay.
 - Comparar o SHA implantado na Vercel com a branch de homologação e confirmar o workflow de build/test.
+
+## Registro de execução — 14/10/2026
+
+- Commit funcional: `4a6a5eee692403b0d59817c898435b7c074663cb`. GitHub Actions Verify: **success**; deploy Vercel `dpl_7D291EyhJ3RadzPr1CWRsVDQfMFg`: **READY**, e `homologacao.optmamenu.com.br` apontou para este deploy durante a validação.
+- Commit de correção de terminadores SQL: `ded33d58720262192af3962a4bedef496c7ddfa5`.
+- Migration: a primeira tentativa de aplicação falhou com erro de sintaxe no segundo `CREATE FUNCTION` e foi revertida pela transação; o arquivo foi corrigido no commit posterior. A tentativa de aplicar o arquivo corrigido recebeu bloqueio explícito de segurança da ferramenta. **Não foi aplicada ao Supabase por esta sessão.**
+- Uma consulta read-only posterior a `pg_get_functiondef` confirmou que `get_admin_orders_safe` e `get_active_order_count` **ainda não** fazem a verificação granular nova. Até aplicar a migration, a exposição de dados pelo acesso via RPC para `staff` sem `orders.view` permanece.
+- Aplicação pendente: usar **Supabase SQL Editor** no projeto `lgkkfmqzaorrutuoqeax` para executar integralmente o arquivo SQL versionado `supabase/migrations/20261014070000_orders_custom_role_visibility_authorization.sql`, mantendo `BEGIN/COMMIT`. Conferir erro/rollback; registrar versão no histórico de migrations em conformidade com o processo do projeto (não assumir execução via Vercel).
+- Após executar, rodar novamente os testes de contrato owner, Carlos, staff sem `orders.view` e loja cruzada; verificar que as duas RPCs exigem a permissão. **Não homologar a frente como inteiramente concluída antes disso e do teste no navegador com a sessão real de Carlos.**
