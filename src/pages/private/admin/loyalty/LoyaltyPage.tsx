@@ -342,6 +342,47 @@ export default function LoyaltyPage() {
         return () => { live = false; };
     }, [storeId, activeTab, voucherLookup, voucherRefreshKey]);
 
+    const refreshLoyaltyExtrato = useCallback(async () => {
+        if (!storeId) return;
+        const [nextTransactions, nextCustomers] = await Promise.all([
+            LoyaltyAdvancedService.getTransactions(storeId, null, 200),
+            LoyaltyAdvancedService.getCustomers(storeId, '', 100),
+        ]);
+        setTransactions(nextTransactions);
+        setCustomers(nextCustomers);
+    }, [storeId]);
+
+    useEffect(() => {
+        if (!storeId || activeTab !== 'adjustments') return;
+        let active = true;
+        const refreshVisible = () => {
+            if (!active || document.visibilityState !== 'visible') return;
+            void refreshLoyaltyExtrato().catch(error => {
+                console.error('[LOYALTY] atualização do extrato:', error);
+            });
+        };
+        const subscription = supabase.channel('loyalty-admin-extrato-' + storeId)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'loyalty_transactions',
+                ...(settings?.program?.id ? { filter: 'program_id=eq.' + settings.program.id } : {}),
+            }, refreshVisible)
+            .subscribe();
+
+        // Safety fallback for sessions or browsers where Realtime is interrupted.
+        const timer = window.setInterval(refreshVisible, 10000);
+        document.addEventListener('visibilitychange', refreshVisible);
+        window.addEventListener('focus', refreshVisible);
+        return () => {
+            active = false;
+            window.clearInterval(timer);
+            document.removeEventListener('visibilitychange', refreshVisible);
+            window.removeEventListener('focus', refreshVisible);
+            void supabase.removeChannel(subscription);
+        };
+    }, [storeId, activeTab, settings?.program?.id, refreshLoyaltyExtrato]);
+
     const filteredCustomers = useMemo(() => {
         const needle = search.trim().toLocaleLowerCase('pt-BR');
         if (!needle) return customers;
@@ -562,7 +603,7 @@ export default function LoyaltyPage() {
             await LoyaltyAdvancedService.adjustPoints(storeId, selectedCustomerId, delta, adjustment.reason.trim());
             toast.success('Ajuste registrado no extrato.');
             setAdjustment({ direction: '', points: '', reason: '' });
-            await loadAll();
+            await refreshLoyaltyExtrato();
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Erro ao ajustar pontos.');
         } finally {
