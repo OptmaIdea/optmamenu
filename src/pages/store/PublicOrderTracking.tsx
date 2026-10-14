@@ -4,6 +4,7 @@ import { CheckCircle2, Clock3, PackageCheck, ShoppingBag, Store, XCircle } from 
 import { PublicOrderService, type PublicOrderTrackingResponse } from '@/services/publicOrderService';
 import PublicOrderPaymentProofCard from '@/pages/store/components/PublicOrderPaymentProofCard';
 import PublicOrderOptmaPayCard from '@/pages/store/components/PublicOrderOptmaPayCard';
+import { GelinharesTestNotice, isGelinharesTestEnvironment } from '@/pages/store/components/GelinharesTestNotice';
 
 
 const STATUS_LABELS: Record<string, string> = {
@@ -116,10 +117,12 @@ export default function PublicOrderTracking() {
   }
 
   const { order, store } = data;
+  const isTestStore = isGelinharesTestEnvironment(store.slug);
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8 text-slate-900">
       <main className="mx-auto max-w-2xl space-y-5">
+        <GelinharesTestNotice slug={store.slug} />
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-center gap-4">
             {store.logo_url ? (
@@ -145,8 +148,13 @@ export default function PublicOrderTracking() {
           </div>
         </section>
 
-        {publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
-        {publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
+        {!isTestStore && publicOrderToken && <PublicOrderOptmaPayCard token={publicOrderToken} />}
+        {!isTestStore && publicOrderToken && <PublicOrderPaymentProofCard token={publicOrderToken} />}
+        {isTestStore && (
+          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+            Pedido do ambiente de testes: pagamento online e envio de comprovantes estão indisponíveis. Não realize transferências ou Pix reais para este pedido.
+          </section>
+        )}
 
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
